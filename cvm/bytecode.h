@@ -45,6 +45,16 @@ namespace cinza::cvm {
     X(FORPREP)    /* R[a] = cópia de R[b]; R[a+1] = 0; R[a+2] = c    */          \
     X(FORNEXT)    /* próximo elemento em R[slot], ou pc += bc        */          \
     X(FORNEXT_D)  /* idem, convertendo int em decimal                */          \
+    /* coleções */                                                              \
+    X(NEWLIST)    /* R[a] = [R[b] ... R[b+c-1]]                      */          \
+    X(NEWDICT)    /* R[a] = c pares (R[b], R[b+1]), (R[b+2], ...)    */          \
+    X(NEWPAIR)    /* R[a] = {R[b], R[c]}                             */          \
+    X(GETINDEX)   /* R[a] = R[b][R[c]]          (leitura)            */          \
+    X(INDEXPLACE) /* R[a] = R[b][R[c]]          (caminho até o lugar) */         \
+    X(SETINDEX)   /* R[a][R[b]] = R[c]          (só atualiza chave)  */          \
+    X(CALLBUILTIN)/* R[a] = método embutido b de R[a] com c args     */          \
+    X(GETFIRST)   /* R[a] = R[b].first                               */          \
+    X(GETSECOND)  /* R[a] = R[b].second                              */          \
     /* chamadas */                                                              \
     X(CALL)       /* R[a] = proto b(R[a] ... R[a+c-1])               */          \
     X(CALLNATIVE) /* R[a] = nativa b(R[a] ... R[a+c-1])              */          \

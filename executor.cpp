@@ -341,25 +341,12 @@ Value* Executor::walkPlace(PlacePath& path) {
                 throwRuntimeError("Campo '" + step.member + "' não encontrado em '" +
                                   place->asInstance()->class_name + "'", tok);
             place = &fields[static_cast<size_t>(step.index)];
-        } else if (place->kind() == Value::Kind::LIST) {
-            auto& elems = place->asList()->elements;
-            std::int64_t i  = step.key.asInt();
-            std::int64_t sz = static_cast<std::int64_t>(elems.size());
-            if (i < 0)
-                throwRuntimeError("IndexError: índice negativo em lista não é permitido", tok);
-            if (i >= sz)
-                throwRuntimeError("IndexError: índice " + std::to_string(i) +
-                                  " fora dos limites (tamanho: " + std::to_string(sz) + ")", tok);
-            place = &elems[static_cast<size_t>(i)];
-        } else if (place->kind() == Value::Kind::DICT) {
-            // v2.00: `d[k] = v` só ATUALIZA chaves existentes; para inserir, use .add
-            auto& entries = place->asDict()->entries;
-            auto it = entries.find(step.key);
-            if (it == entries.end())
-                throwRuntimeError("KeyError: chave '" + step.key.toString() + "' não existe no dicionário. "
-                                  "Use .add({\"" + step.key.toString() + "\", valor}) para inserir "
-                                  "novas entradas.", tok);
-            place = &it->second;
+        } else if (place->kind() == Value::Kind::LIST || place->kind() == Value::Kind::DICT) {
+            try {
+                place = indexPlace(*place, step.key);   // CVM: regra compartilhada
+            } catch (RuntimeError& err) {
+                raise(RuntimeError(err.kind, err.message, tok.line, tok.column, tok.file_id));
+            }
         } else {
             throwRuntimeError("Operador '[]' em tipo inválido", tok);
         }
@@ -713,12 +700,9 @@ Value Executor::evalMethodCall(const MethodCallExpr* expr) {
     for (const auto& arg : expr->arguments)
         args.push_back(evalExpr(arg.get()));
 
-    if (obj.kind() == Value::Kind::LIST)
-        return callListMethod(obj, expr->method_name, args, expr->token);
-    if (obj.kind() == Value::Kind::DICT)
-        return callDictMethod(obj, expr->method_name, args, expr->token);
-    if (obj.kind() == Value::Kind::STRING)
-        return callStringMethod(obj, expr->method_name, args, expr->token);
+    if (obj.kind() == Value::Kind::LIST || obj.kind() == Value::Kind::DICT ||
+        obj.kind() == Value::Kind::STRING)
+        return callCollectionMethod(obj, expr->method_name, args, expr->token);
 
     if (obj.kind() == Value::Kind::INSTANCE) {
         auto instance = obj.asInstance();
@@ -791,30 +775,12 @@ Value Executor::evalMemberAccess(const MemberAccessExpr* expr) {
 Value Executor::evalIndexAccess(const IndexAccessExpr* expr) {
     Value obj = evalExpr(expr->object.get());
     Value idx = evalExpr(expr->index.get());
-
-    if (obj.kind() == Value::Kind::LIST) {
-        const auto& elems = obj.asList()->elements;
-        if (idx.kind() != Value::Kind::INT)
-            throwRuntimeError("Indice de lista deve ser inteiro", expr->token);
-        std::int64_t i  = idx.asInt();
-        std::int64_t sz = static_cast<std::int64_t>(elems.size());
-        if (i < 0 || i >= sz)
-            throwRuntimeError("IndexError: índice " + std::to_string(i) +
-                             " fora dos limites (tamanho: " + std::to_string(sz) + ")",
-                             expr->token);
-        return elems[static_cast<size_t>(i)];
+    try {
+        return indexGet(obj, idx);   // CVM: regra compartilhada (operacoes.cpp)
+    } catch (RuntimeError& err) {
+        raise(RuntimeError(err.kind, err.message, expr->token.line, expr->token.column,
+                           expr->token.file_id));
     }
-
-    if (obj.kind() == Value::Kind::DICT) {
-        auto& entries = obj.asDict()->entries;
-        auto it = entries.find(idx);
-        if (it == entries.end())
-            throwRuntimeError("KeyError: chave '" + idx.toString() +
-                             "' não encontrada no dicionário", expr->token);
-        return it->second;
-    }
-
-    throwRuntimeError("Operador '[]' em tipo inválido", expr->token);
 }
 
 Value Executor::evalNew(const NewExpr* expr) {
@@ -1002,78 +968,17 @@ Value Executor::executeMethod(const Value& self,
 // BUILT-INS DE COLECOES
 // ============================================================================
 
-Value Executor::callListMethod(Value& obj, const std::string& method,
-                               const std::vector<Value>& args, const Token& tok) {
-    auto list = obj.asList();
-
-    if (method == "add")    { list->elements.push_back(args[0]); return Value(); }
-    if (method == "size")   { return Value(static_cast<std::int64_t>(list->elements.size())); }
-    if (method == "has")    {
-        std::int64_t idx = args[0].asInt();
-        return Value(idx >= 0 && idx < static_cast<std::int64_t>(list->elements.size()));
+// CVM: métodos embutidos compartilhados com a VM (operacoes.cpp)
+Value Executor::callCollectionMethod(Value& obj, const std::string& method,
+                                     const std::vector<Value>& args, const Token& tok) {
+    try {
+        return callBuiltin(builtinFor(obj.kind(), method), obj, std::span<const Value>(args));
+    } catch (RuntimeError& err) {
+        raise(RuntimeError(err.kind, err.message, tok.line, tok.column, tok.file_id));
     }
-    if (method == "remove") {
-        std::int64_t idx = args[0].asInt();
-        std::int64_t sz  = static_cast<std::int64_t>(list->elements.size());
-        if (idx < 0 || idx >= sz)
-            throwRuntimeError("IndexError: índice " + std::to_string(idx) +
-                             " fora dos limites ao chamar 'remove' (tamanho: " +
-                             std::to_string(sz) + ")", tok);
-        list->elements.erase(list->elements.begin() + idx);
-        return Value();
-    }
-
-    throwRuntimeError("Método '" + method + "' não existe em list", tok);
 }
 
-Value Executor::callDictMethod(Value& obj, const std::string& method,
-                               const std::vector<Value>& args, const Token& tok) {
-    auto dict = obj.asDict();
 
-    if (method == "add") {
-        const auto& p = *args[0].asPair();
-        dict->entries[p.first] = p.second;
-        return Value();
-    }
-    if (method == "has")    { return Value(dict->entries.count(args[0]) > 0); }
-    if (method == "remove") {
-        auto it = dict->entries.find(args[0]);
-        if (it == dict->entries.end())
-            throwRuntimeError("KeyError: chave '" + args[0].toString() +
-                             "' não encontrada ao chamar 'remove'", tok);
-        dict->entries.erase(it);
-        return Value();
-    }
-    if (method == "size")   { return Value(static_cast<std::int64_t>(dict->entries.size())); }
-    if (method == "keys") {
-        std::vector<Value> keys;
-        keys.reserve(dict->entries.size());
-        for (const auto& [k, _] : dict->entries) keys.push_back(k);
-        return makeList(std::move(keys));
-    }
-    if (method == "values") {
-        std::vector<Value> vals;
-        vals.reserve(dict->entries.size());
-        for (const auto& [_, v] : dict->entries) vals.push_back(v);
-        return makeList(std::move(vals));
-    }
-
-    throwRuntimeError("Método '" + method + "' não existe em dict", tok);
-}
-
-Value Executor::callStringMethod(Value& obj, const std::string& method,
-                                  const std::vector<Value>& args, const Token& tok) {
-    (void)args;
-    if (method == "size") {
-        // A10: conta caracteres (code points UTF-8), não bytes: só bytes que
-        // não são de continuação (10xxxxxx) iniciam um caractere
-        std::int64_t count = 0;
-        for (unsigned char b : obj.asString())
-            if ((b & 0xC0) != 0x80) ++count;
-        return Value(count);
-    }
-    throwRuntimeError("Método '" + method + "' não existe em string", tok);
-}
 
 // ============================================================================
 // op<...> EM RUNTIME

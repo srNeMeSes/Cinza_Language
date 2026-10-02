@@ -1,0 +1,11 @@
+// CVM etapa 4: erro ao gravar numa chave que não existe, com posição e stack trace.
+fn grava(dict<string, int> d) {
+  d["nova"] = 1;
+}
+fn main() {
+  dict<string, int> d = {{"a", 1}};
+  grava(d);
+}
+// expect-error: tests/cvm_colecoes_erro.cinza:3:4: KeyError: chave 'nova' não existe no dicionário
+// expect-error:     em grava (tests/cvm_colecoes_erro.cinza:3)
+// expect-error:     em main (tests/cvm_colecoes_erro.cinza:7)

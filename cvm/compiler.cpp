@@ -1,4 +1,5 @@
 #include "compiler.h"
+#include "../operacoes.h"
 #include <limits>
 #include <unordered_map>
 
@@ -102,6 +103,8 @@ private:
     void          arith(TokenType op, TypeRef lt, std::uint16_t l, TypeRef rt, std::uint16_t r,
                         std::uint16_t dst, const Token& tok);
     void          call(const CallExpr* e, std::uint16_t dst);
+    void          builtinCall(const MethodCallExpr* e, std::uint16_t dst);
+    void          assignIndex(const AssignStmt* s);
 
     // ── instruções ───────────────────────────────────────────────────────
     void stmt(const Stmt* s);
@@ -209,11 +212,54 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
             call(static_cast<const CallExpr*>(e), dst);
             break;
 
-        case NodeKind::ListLiteral: case NodeKind::DictLiteral: case NodeKind::PairLiteral:
-        case NodeKind::IndexAccess:
-            unsupported("Coleções", 4, e->token);
-        case NodeKind::MemberAccess: case NodeKind::MethodCall: case NodeKind::New:
-            unsupported("Campos, métodos e new", 5, e->token);
+        case NodeKind::ListLiteral: {
+            auto* l = static_cast<const ListLiteralExpr*>(e);
+            const std::uint16_t base = top;
+            for (const auto& el : l->elements) expr(el.get(), alloc(e->token));
+            emit(Op::NEWLIST, dst, base, u16(l->elements.size(), e->token, "elementos"), e->token);
+            break;
+        }
+        case NodeKind::DictLiteral: {
+            auto* d = static_cast<const DictLiteralExpr*>(e);
+            const std::uint16_t base = top;
+            for (const auto& [k, v] : d->pairs) {   // chave e valor, par a par
+                expr(k.get(), alloc(e->token));
+                expr(v.get(), alloc(e->token));
+            }
+            emit(Op::NEWDICT, dst, base, u16(d->pairs.size(), e->token, "entradas"), e->token);
+            break;
+        }
+        case NodeKind::PairLiteral: {
+            auto* pr = static_cast<const PairLiteralExpr*>(e);
+            const std::uint16_t a = exprReg(pr->first.get());
+            const std::uint16_t b = exprReg(pr->second.get());
+            emit(Op::NEWPAIR, dst, a, b, e->token);
+            break;
+        }
+        case NodeKind::IndexAccess: {
+            auto* ix = static_cast<const IndexAccessExpr*>(e);
+            const std::uint16_t o = exprReg(ix->object.get());
+            const std::uint16_t k = exprReg(ix->index.get());
+            emit(Op::GETINDEX, dst, o, k, e->token);
+            break;
+        }
+        case NodeKind::MemberAccess: {
+            auto* m = static_cast<const MemberAccessExpr*>(e);
+            if (!m->object->resolved_type->is(TK::Pair)) unsupported("Campos", 5, e->token);
+            const std::uint16_t o = exprReg(m->object.get());
+            emit(m->member_name == "first" ? Op::GETFIRST : Op::GETSECOND, dst, o, 0, e->token);
+            break;
+        }
+        case NodeKind::MethodCall: {
+            auto* mc = static_cast<const MethodCallExpr*>(e);
+            TypeRef t = mc->object->resolved_type;
+            if (!t->is(TK::List) && !t->is(TK::Dict) && !t->is(TK::String))
+                unsupported("Métodos de classe e interface", 5, e->token);
+            builtinCall(mc, dst);
+            break;
+        }
+        case NodeKind::New:
+            unsupported("new", 5, e->token);
         case NodeKind::TypeLiteral:
             unsupported("Tipo como valor", 6, e->token);
         default:
@@ -313,6 +359,21 @@ void Compiler::call(const CallExpr* e, std::uint16_t dst) {
     if (dst != base) emit(Op::MOVE, dst, base, 0, tok);
 }
 
+// Método embutido de list, dict ou string: o objeto em R[base], os argumentos
+// depois (objeto avaliado antes dos argumentos, spec 5.2)
+void Compiler::builtinCall(const MethodCallExpr* e, std::uint16_t dst) {
+    TypeRef t = e->object->resolved_type;
+    const Value::Kind kind = t->is(TK::List) ? Value::Kind::LIST
+                           : t->is(TK::Dict) ? Value::Kind::DICT : Value::Kind::STRING;
+    const Builtin b = builtinFor(kind, e->method_name);
+    const std::uint16_t base = alloc(e->token);
+    expr(e->object.get(), base);
+    for (const auto& arg : e->arguments) expr(arg.get(), alloc(e->token));
+    emit(Op::CALLBUILTIN, base, static_cast<std::uint16_t>(b),
+         u16(e->arguments.size(), e->token, "argumentos"), e->token);
+    if (dst != base) emit(Op::MOVE, dst, base, 0, e->token);
+}
+
 // ============================================================================
 // INSTRUÇÕES
 // ============================================================================
@@ -325,7 +386,10 @@ void Compiler::stmt(const Stmt* s) {
             if (v->res.kind != Resolution::Kind::Local)
                 throw Unsupported("variável não local fora do nível superior (erro interno)", s->token);
             const auto slot = static_cast<std::uint16_t>(v->res.slot);
-            if (!v->initializer) unsupported("Coleção sem valor inicial", 4, s->token);
+            if (!v->initializer) {   // list<T> e dict<K, V> nascem vazios
+                emit(v->type->kind == Type::Kind::DICT ? Op::NEWDICT : Op::NEWLIST, slot, 0, 0, s->token);
+                break;
+            }
             expr(v->initializer.get(), slot);
             break;
         }
@@ -433,7 +497,8 @@ void Compiler::stmt(const Stmt* s) {
 void Compiler::assign(const AssignStmt* s) {
     const Token& tok = s->token;
     if (s->keep_lock) unsupported("op<...>", 6, tok);
-    if (s->target->node_kind != NodeKind::Identifier) unsupported("Atribuição a campo ou índice", 4, tok);
+    if (s->target->node_kind == NodeKind::IndexAccess) { assignIndex(s); return; }
+    if (s->target->node_kind != NodeKind::Identifier) unsupported("Atribuição a campo", 5, tok);
     auto* id = static_cast<const IdentifierExpr*>(s->target.get());
     if (id->res.kind != Resolution::Kind::Local) unsupported("Atribuição a campo", 5, tok);
     const auto slot = static_cast<std::uint16_t>(id->res.slot);
@@ -447,6 +512,46 @@ void Compiler::assign(const AssignStmt* s) {
     if (hasOp(tt) || hasOp(vt)) unsupported("op<...>", 6, tok);
     const std::uint16_t v = exprReg(s->value.get());
     arith(compoundBaseOp(s->op), tt, slot, vt, v, slot, tok);
+}
+
+// x[i][j] = v  e  x[i] op= v — mesma ordem do interpretador (B5, spec 5.2):
+// base e índices da esquerda para a direita, depois o valor; só então o
+// caminho até o lugar e a gravação (sem código do programa no meio)
+void Compiler::assignIndex(const AssignStmt* s) {
+    const Token& tok = s->token;
+    if (s->keep_lock) unsupported("op<...>", 6, tok);
+
+    std::vector<const IndexAccessExpr*> passos;   // da base para o alvo
+    const Expr* e = s->target.get();
+    while (e->node_kind == NodeKind::IndexAccess) {
+        auto* ix = static_cast<const IndexAccessExpr*>(e);
+        passos.insert(passos.begin(), ix);
+        e = ix->object.get();
+    }
+    if (e->node_kind == NodeKind::MemberAccess) unsupported("Atribuição a campo", 5, tok);
+
+    std::uint16_t cur = exprReg(e);                 // base
+    std::vector<std::uint16_t> chaves;
+    for (const auto* ix : passos) chaves.push_back(exprReg(ix->index.get()));
+
+    TypeRef tt = s->target->resolved_type, vt = s->value->resolved_type;
+    if (s->op != TokenType::OP_ASSIGN && (hasOp(tt) || hasOp(vt))) unsupported("op<...>", 6, tok);
+    std::uint16_t v = exprReg(s->value.get());
+
+    for (std::size_t i = 0; i + 1 < passos.size(); ++i) {
+        const std::uint16_t t = alloc(tok);
+        emit(Op::INDEXPLACE, t, cur, chaves[i], passos[i]->token);
+        cur = t;
+    }
+    const auto* ultimo = passos.back();
+    if (s->op != TokenType::OP_ASSIGN) {
+        // o valor atual é lido depois do lado direito (spec 5.2)
+        const std::uint16_t atual = alloc(tok);
+        emit(Op::INDEXPLACE, atual, cur, chaves.back(), ultimo->token);
+        arith(compoundBaseOp(s->op), tt, atual, vt, v, atual, tok);
+        v = atual;
+    }
+    emit(Op::SETINDEX, cur, chaves.back(), v, ultimo->token);
 }
 
 // ============================================================================

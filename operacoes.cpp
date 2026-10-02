@@ -113,4 +113,152 @@ Value negateOp(const Value& v) {
     return Value(-v.asDecimal());
 }
 
+// ============================================================================
+// COLEÇÕES
+// ============================================================================
+
+Value indexGet(const Value& obj, const Value& idx) {
+    if (obj.kind() == Value::Kind::LIST) {
+        const auto& elems = obj.asList()->elements;
+        if (idx.kind() != Value::Kind::INT)
+            throw RuntimeError("Indice de lista deve ser inteiro");
+        std::int64_t i  = idx.asInt();
+        std::int64_t sz = static_cast<std::int64_t>(elems.size());
+        if (i < 0 || i >= sz)
+            throw RuntimeError("IndexError: índice " + std::to_string(i) +
+                               " fora dos limites (tamanho: " + std::to_string(sz) + ")");
+        return elems[static_cast<size_t>(i)];
+    }
+    if (obj.kind() == Value::Kind::DICT) {
+        auto& entries = obj.asDict()->entries;
+        auto it = entries.find(idx);
+        if (it == entries.end())
+            throw RuntimeError("KeyError: chave '" + idx.toString() +
+                               "' não encontrada no dicionário");
+        return it->second;
+    }
+    throw RuntimeError("Operador '[]' em tipo inválido");
+}
+
+Value* indexPlace(Value& obj, const Value& key) {
+    if (obj.kind() == Value::Kind::LIST) {
+        auto& elems = obj.asList()->elements;
+        std::int64_t i  = key.asInt();
+        std::int64_t sz = static_cast<std::int64_t>(elems.size());
+        if (i < 0)
+            throw RuntimeError("IndexError: índice negativo em lista não é permitido");
+        if (i >= sz)
+            throw RuntimeError("IndexError: índice " + std::to_string(i) +
+                               " fora dos limites (tamanho: " + std::to_string(sz) + ")");
+        return &elems[static_cast<size_t>(i)];
+    }
+    if (obj.kind() == Value::Kind::DICT) {
+        // v2.00: `d[k] = v` só ATUALIZA chaves existentes; para inserir, use .add
+        auto& entries = obj.asDict()->entries;
+        auto it = entries.find(key);
+        if (it == entries.end())
+            throw RuntimeError("KeyError: chave '" + key.toString() + "' não existe no dicionário. "
+                               "Use .add({\"" + key.toString() + "\", valor}) para inserir "
+                               "novas entradas.");
+        return &it->second;
+    }
+    throw RuntimeError("Operador '[]' em tipo inválido");
+}
+
+static const char* const nomes_builtin[] = {
+    "add", "size", "has", "remove",
+    "add", "has", "remove", "size", "keys", "values",
+    "size",
+};
+
+const char* builtinName(Builtin b) { return nomes_builtin[static_cast<std::size_t>(b)]; }
+
+Builtin builtinFor(Value::Kind kind, const std::string& name) {
+    if (kind == Value::Kind::LIST) {
+        if (name == "add")    return Builtin::ListAdd;
+        if (name == "size")   return Builtin::ListSize;
+        if (name == "has")    return Builtin::ListHas;
+        if (name == "remove") return Builtin::ListRemove;
+        throw RuntimeError("Método '" + name + "' não existe em list");
+    }
+    if (kind == Value::Kind::DICT) {
+        if (name == "add")    return Builtin::DictAdd;
+        if (name == "has")    return Builtin::DictHas;
+        if (name == "remove") return Builtin::DictRemove;
+        if (name == "size")   return Builtin::DictSize;
+        if (name == "keys")   return Builtin::DictKeys;
+        if (name == "values") return Builtin::DictValues;
+        throw RuntimeError("Método '" + name + "' não existe em dict");
+    }
+    if (kind == Value::Kind::STRING) {
+        if (name == "size") return Builtin::StrSize;
+        throw RuntimeError("Método '" + name + "' não existe em string");
+    }
+    throw RuntimeError("Tipo não possui métodos");
+}
+
+Value callBuiltin(Builtin b, Value& obj, std::span<const Value> args) {
+    switch (b) {
+        case Builtin::ListAdd:
+            obj.asList()->elements.push_back(args[0]);
+            return Value();
+        case Builtin::ListSize:
+            return Value(static_cast<std::int64_t>(obj.asList()->elements.size()));
+        case Builtin::ListHas: {
+            std::int64_t idx = args[0].asInt();
+            return Value(idx >= 0 && idx < static_cast<std::int64_t>(obj.asList()->elements.size()));
+        }
+        case Builtin::ListRemove: {
+            auto& elems = obj.asList()->elements;
+            std::int64_t idx = args[0].asInt();
+            std::int64_t sz  = static_cast<std::int64_t>(elems.size());
+            if (idx < 0 || idx >= sz)
+                throw RuntimeError("IndexError: índice " + std::to_string(idx) +
+                                   " fora dos limites ao chamar 'remove' (tamanho: " +
+                                   std::to_string(sz) + ")");
+            elems.erase(elems.begin() + idx);
+            return Value();
+        }
+        case Builtin::DictAdd: {
+            const auto& p = *args[0].asPair();
+            obj.asDict()->entries[p.first] = p.second;
+            return Value();
+        }
+        case Builtin::DictHas:
+            return Value(obj.asDict()->entries.count(args[0]) > 0);
+        case Builtin::DictRemove: {
+            auto& entries = obj.asDict()->entries;
+            auto it = entries.find(args[0]);
+            if (it == entries.end())
+                throw RuntimeError("KeyError: chave '" + args[0].toString() +
+                                   "' não encontrada ao chamar 'remove'");
+            entries.erase(it);
+            return Value();
+        }
+        case Builtin::DictSize:
+            return Value(static_cast<std::int64_t>(obj.asDict()->entries.size()));
+        case Builtin::DictKeys: {
+            std::vector<Value> keys;
+            keys.reserve(obj.asDict()->entries.size());
+            for (const auto& [k, _] : obj.asDict()->entries) keys.push_back(k);
+            return makeList(std::move(keys));
+        }
+        case Builtin::DictValues: {
+            std::vector<Value> vals;
+            vals.reserve(obj.asDict()->entries.size());
+            for (const auto& [_, v] : obj.asDict()->entries) vals.push_back(v);
+            return makeList(std::move(vals));
+        }
+        case Builtin::StrSize: {
+            // A10: conta caracteres (code points UTF-8), não bytes
+            std::int64_t count = 0;
+            for (unsigned char c : obj.asString())
+                if ((c & 0xC0) != 0x80) ++count;
+            return Value(count);
+        }
+        case Builtin::COUNT: break;
+    }
+    throw RuntimeError("Erro interno: método embutido desconhecido");
+}
+
 } // namespace cinza

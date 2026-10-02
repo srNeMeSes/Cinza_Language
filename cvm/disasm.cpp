@@ -1,4 +1,5 @@
 #include "bytecode.h"
+#include "../operacoes.h"
 #include <cstdio>
 #include <sstream>
 
@@ -65,6 +66,16 @@ std::string disassemble(const Image& img) {
                                     nota = "iterador em r" + std::to_string(in.c); break;
                 case Op::CALL:
                     ops  = ra + ", " + img.protos[in.b].name + ", " + std::to_string(in.c);
+                    break;
+                case Op::NEWLIST: case Op::NEWDICT:
+                    ops = ra + ", " + rb + ", " + std::to_string(in.c);
+                    break;
+                case Op::GETFIRST: case Op::GETSECOND:
+                    ops = ra + ", " + rb;
+                    break;
+                case Op::CALLBUILTIN:
+                    ops = ra + ", " + std::string(builtinName(static_cast<Builtin>(in.b))) + ", " +
+                          std::to_string(in.c);
                     break;
                 case Op::CALLNATIVE:
                     ops  = ra + ", " + img.natives[in.b]->name + ", " + std::to_string(in.c);

@@ -197,11 +197,7 @@ private:
     Value* walkPlace(PlacePath& path);
 
     // ── Operações built-in em coleções ────────────────────────────────────
-    Value callListMethod  (Value& obj, const std::string& method,
-                           const std::vector<Value>& args, const Token& tok);
-    Value callDictMethod  (Value& obj, const std::string& method,
-                           const std::vector<Value>& args, const Token& tok);
-    Value callStringMethod(Value& obj, const std::string& method,
+    Value callCollectionMethod(Value& obj, const std::string& method,
                            const std::vector<Value>& args, const Token& tok);
 
     // ── Resolução de nomes (A1) ───────────────────────────────────────────

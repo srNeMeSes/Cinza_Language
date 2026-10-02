@@ -227,6 +227,31 @@ Value VM::execute(std::size_t idx, std::size_t base) {
                     break;
                 }
 
+                // ── coleções (regras em operacoes.cpp, as mesmas do interpretador) ──
+                case Op::NEWLIST:
+                    R[in.a] = makeList(std::vector<Value>(R + in.b, R + in.b + in.c));
+                    break;
+                case Op::NEWDICT: {
+                    Value d = makeDict();
+                    auto& entries = d.asDict()->entries;
+                    for (std::uint16_t i = 0; i < in.c; ++i)
+                        entries[R[in.b + 2 * i]] = R[in.b + 2 * i + 1];
+                    R[in.a] = std::move(d);
+                    break;
+                }
+                case Op::NEWPAIR:    R[in.a] = makePair(R[in.b], R[in.c]); break;
+                case Op::GETINDEX:   R[in.a] = indexGet(R[in.b], R[in.c]); break;
+                case Op::INDEXPLACE: R[in.a] = *indexPlace(R[in.b], R[in.c]); break;
+                case Op::SETINDEX:   *indexPlace(R[in.a], R[in.b]) = R[in.c]; break;
+                case Op::CALLBUILTIN: {
+                    Value r = callBuiltin(static_cast<Builtin>(in.b), R[in.a],
+                                          std::span<const Value>(R + in.a + 1, in.c));
+                    R[in.a] = std::move(r);
+                    break;
+                }
+                case Op::GETFIRST:  R[in.a] = Value(R[in.b].asPair()->first);  break;
+                case Op::GETSECOND: R[in.a] = Value(R[in.b].asPair()->second); break;
+
                 // ── chamadas ─────────────────────────────────────────────
                 case Op::CALL: {
                     const Proto& alvo = img.protos[in.b];

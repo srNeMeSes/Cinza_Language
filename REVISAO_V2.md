@@ -908,7 +908,13 @@ Etapas:
   > `cvm_recursao` (stack trace do estouro idêntico nos dois modos). Suíte na CVM: 266 de 391, sem
   > divergência. Benchmark (`bench/medir.ps1`, agora nos dois modos): `fib` 122 → 50 ms (2,4×), `laco`
   > 315 → 89 ms (3,5×); Python 3.13: 59 e 251 ms. Limpo sob ASan/UBSan.
-- [ ] 4. Coleções: `list`, `dict`, `pair`, literais, índices, métodos embutidos, `const`.
+- [x] 4. Coleções: `list`, `dict`, `pair`, literais, índices, métodos embutidos, `const`. — feito em 2026-10-02
+  > Nota: índices e métodos embutidos saíram do `Executor` para `operacoes.cpp` (`indexGet`, `indexPlace`,
+  > `builtinFor`/`callBuiltin`), compartilhados com a VM. Instruções `NEWLIST`, `NEWDICT`, `NEWPAIR`,
+  > `GETINDEX`, `INDEXPLACE` (caminho até o lugar, com as mensagens de gravação), `SETINDEX`, `CALLBUILTIN`,
+  > `GETFIRST`/`GETSECOND`. Atribuição a índice na ordem do interpretador (base, índices, valor, caminho,
+  > gravação). `const` é só do semântico. Testes `cvm_colecoes*`. Suíte na CVM: 294 de 393, sem divergência
+  > (o resto é das etapas 5 a 7). Limpo sob ASan/UBSan.
 - [ ] 5. `struct`, classes, `self`, campos, métodos, construtores.
 - [ ] 6. Interfaces, `enum`, `op<...>`, `type()`.
 - [ ] 7. Exceções: `try`/`except`/`finally`/`throw`, stack trace, `StackOverflowError`.
