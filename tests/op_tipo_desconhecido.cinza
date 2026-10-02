@@ -1,0 +1,3 @@
+// op<...>: tipo desconhecido dentro do op.
+fn main() { op<Nada, int> x = 1; }
+// expect-error: Tipo desconhecido 'Nada' no op

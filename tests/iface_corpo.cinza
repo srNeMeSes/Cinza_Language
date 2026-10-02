@@ -1,0 +1,6 @@
+// interface: só assinaturas, sem corpo.
+interface Forma {
+  fn area() -> decimal { return 0.0; }
+}
+fn main() { }
+// expect-error: Esperado ';' após a assinatura: na interface o método não tem corpo

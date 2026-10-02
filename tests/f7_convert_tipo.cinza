@@ -1,0 +1,4 @@
+// Fase 7: Convert.to_int recebe string (int → int é cast, não conversão de texto).
+import Convert;
+fn main() { print(Convert.to_int(5)); }
+// expect-error: Argumento 1 de 'Convert.to_int': esperado 'string', mas recebeu 'int'

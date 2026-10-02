@@ -1,0 +1,6 @@
+// A9 (regressão): acentuação é válida em comentários e strings; só identificadores são ASCII.
+fn main() {
+  string s = "ação, pão e céu";
+  print(s);
+}
+// expect: ação, pão e céu

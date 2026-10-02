@@ -1,0 +1,9 @@
+// TypeError continua como erro embutido (o op não o lança mais: tudo é checado na compilação).
+fn main() {
+  try {
+    throw TypeError("tipo errado");
+  } except (TypeError e) {
+    print(e.kind, e.message);
+  }
+}
+// expect: TypeError tipo errado

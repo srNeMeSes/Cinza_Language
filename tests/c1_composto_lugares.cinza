@@ -1,0 +1,18 @@
+// C1: operadores compostos em campo (self), índice aninhado e dict.
+class Contador {
+  int v = 0;
+  pub {
+    fn inc(int n) { self.v += n; v += 1; }
+    fn get() -> int { return v; }
+  }
+}
+fn main() {
+  Contador c = new Contador();
+  c.inc(10);
+  list<list<int>> m = [[1, 2]];
+  m[0][1] *= 3;
+  dict<string, int> d = {{"a", 5}};
+  d["a"] -= 2;
+  print(c.get(), m[0][1], d["a"]);
+}
+// expect: 11 6 3

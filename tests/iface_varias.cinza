@@ -1,0 +1,19 @@
+// interface: uma classe pode cumprir várias interfaces.
+interface Nomeado { fn nome() -> string; }
+interface Contavel { fn conta(int vezes) -> int; }
+class Moeda : Nomeado, Contavel {
+  int valor = 5;
+  pub {
+    fn nome() -> string { return "moeda"; }
+    fn conta(int vezes) -> int { return valor * vezes; }
+  }
+}
+fn mostra(Nomeado n) { print(n.nome()); }
+fn soma(Contavel c) -> int { return c.conta(3); }
+fn main() {
+  Moeda m = new Moeda();
+  mostra(m);
+  print(soma(m));
+}
+// expect: moeda
+// expect: 15

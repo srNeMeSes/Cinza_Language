@@ -1,0 +1,5 @@
+// C1: a mensagem de erro mostra o operador como foi escrito (not).
+fn main() {
+  print(not 1);
+}
+// expect-error: Operador 'not' requer 'bool'

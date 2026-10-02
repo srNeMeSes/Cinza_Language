@@ -1,0 +1,5 @@
+// A8: fn dentro de bloco do nível superior (if) também é erro.
+fn main() {
+  if (true) { fn solta() -> int { return 1; } }
+}
+// expect-error: nível superior

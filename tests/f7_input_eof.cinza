@@ -1,0 +1,10 @@
+// Fase 7: input sem entrada disponível lança IOError.
+fn main() {
+  try {
+    str s = input("");
+    print(s);
+  } except (IOError e) {
+    print(e.kind, e.message);
+  }
+}
+// expect: IOError fim da entrada em 'input'

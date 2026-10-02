@@ -1,0 +1,8 @@
+// Revisão: código depois de break (ou continue) no mesmo bloco é erro.
+fn main() {
+  for (int i in range(0, 3)) {
+    break;
+    print(i);
+  }
+}
+// expect-error: tests/rev_codigo_morto_break.cinza:5:5: SemanticError: Código inalcançável

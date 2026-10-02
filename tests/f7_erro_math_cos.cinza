@@ -1,0 +1,6 @@
+// Fase 7: erro em Math.cos.
+import Math;
+fn main() {
+  print(Math.cos());
+}
+// expect-error: Aridade incorreta em 'Math.cos'

@@ -1,0 +1,4 @@
+// C5: nome que o módulo não declara.
+import modulos.geom;
+fn main() { print(geom.perimetro(2)); }
+// expect-error: 'perimetro' não existe no módulo 'geom'

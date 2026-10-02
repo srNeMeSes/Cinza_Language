@@ -1,0 +1,4 @@
+// enum: um valor do enum não pode receber atribuição.
+enum Cor { Vermelho, Verde }
+fn main() { Cor.Verde = Cor.Vermelho; }
+// expect-error: 'Cor.Verde' é um valor de enum e não pode receber atribuição

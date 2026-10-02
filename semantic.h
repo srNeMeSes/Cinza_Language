@@ -2,11 +2,16 @@
 #define CINZA_SEMANTIC_H
 
 #include "ast.h"
+#include "types.h"
+#include "natives.h"
+#include "source_files.h"
 #include <unordered_map>
 #include <vector>
 #include <string>
 #include <stdexcept>
 #include <map>
+#include <set>
+#include <functional>
 
 namespace cinza {
 
@@ -17,20 +22,19 @@ namespace cinza {
 
 class SemanticError : public std::runtime_error {
 public:
-    int line;
-    int column;
+    std::string    message;   // sem os prefixos internos de módulo (C5)
+    SourceLocation loc;
 
-    SemanticError(const std::string& msg, int ln, int col)
-        : std::runtime_error(buildMessage(msg, ln, col)), line(ln), column(col) {}
+    SemanticError(const std::string& msg, int ln, int col, int file_id = 0)
+        : SemanticError(stripModulePrefixes(msg), SourceLocation{file_id, ln, col}) {}
 
     SemanticError(const std::string& msg, const Token& tok)
-        : SemanticError(msg, tok.line, tok.column) {}
+        : SemanticError(msg, tok.line, tok.column, tok.file_id) {}
 
 private:
-    static std::string buildMessage(const std::string& msg, int ln, int col) {
-        return "SemanticError [linha " + std::to_string(ln) +
-               ", col " + std::to_string(col) + "]: " + msg;
-    }
+    SemanticError(std::string msg, SourceLocation l)
+        : std::runtime_error(formatDiagnostic("SemanticError", msg, l)),   // B6
+          message(std::move(msg)), loc(l) {}
 };
 
 // ============================================================================
@@ -45,27 +49,24 @@ struct Symbol {
     Kind        kind     = Kind::VAR;
     bool        is_const = false;  // não pode ser reatribuído após inicialização
 
-    // Tipo resolvido em string canônica:
-    //   "int", "decimal", "string", "bool", "void", "var",
-    //   "list<int>", "dict<string, int>", "pair<int, string>",
-    //   "Pessoa" (classe customizada), …
-    std::string resolved_type;
+    // B1: tipo resolvido como TypeRef (antes: string canônica)
+    TypeRef     resolved_type = nullptr;
 
     int         line   = 0;
     int         column = 0;
 
     // Apenas para Kind::FUNCTION — usados na verificação de chamadas
-    std::vector<std::string> param_types;   // tipos dos parâmetros na ordem
-    std::string              return_type;   // "void", "int", …
+    std::vector<TypeRef> param_types;   // tipos dos parâmetros na ordem
+    TypeRef              return_type = nullptr;
 
-    // ponteiro para o nó AST da função (para re-análise com var params)
-    const FunctionDecl*      decl_ptr = nullptr;  // não-owning
+    // C5: módulo dono de um símbolo global (-1: embutido, visível em todos)
+    int                  module = -1;
 
-    Symbol() = default;
+    // B2: onde a variável vive em runtime (VAR e PARAMETER)
+    Resolution           res;
 
-    Symbol(const std::string& n, Kind k,
-           const std::string& t, int ln, int col)
-        : name(n), kind(k), resolved_type(t), line(ln), column(col) {}
+    // Apenas para Kind::FUNCTION do usuário: a declaração (alvo da chamada)
+    const FunctionDecl*  fn_decl = nullptr;
 };
 
 // ============================================================================
@@ -95,9 +96,9 @@ public:
     // Retorna ponteiro mutável ao símbolo, ou nullptr se não encontrado.
     Symbol*       resolve(const std::string& name);
     const Symbol* resolve(const std::string& name) const;
-
-    // Verifica existência apenas no escopo atual (sem subir a pilha).
-    bool existsInCurrentScope(const std::string& name) const;
+    // C5: só nos escopos locais (tudo menos o global) / só no global
+    const Symbol* resolveLocal (const std::string& name) const;
+    const Symbol* resolveGlobal(const std::string& name) const;
 
     // retorna a quantidade de escopos atuais
     int depth() const { return static_cast<int>(scopes.size()); }
@@ -110,23 +111,33 @@ public:
 // ============================================================================
 
 struct FieldInfo {  // informações de campos de classes
-    std::string type_str;
-    bool        is_public = false;
-    int         line      = 0;
+    TypeRef type      = nullptr;
+    bool    is_public = false;
+    int     line      = 0;
+    int     index     = 0;   // B2: posição do campo no objeto
 };
 
 struct MethodInfo { // informações de metodos de classes
-    std::vector<std::string> param_types;
-    std::string              return_type;
-    bool                     is_public = false;
-    int                      line      = 0;
+    std::vector<TypeRef> param_types;
+    TypeRef              return_type = nullptr;
+    bool                 is_public   = false;
+    int                  line        = 0;
+    const FunctionDecl*  decl        = nullptr;   // alvo das chamadas
+};
+
+// C3: struct — campos na ordem da declaração (a ordem define o construtor)
+struct StructInfo {
+    std::string                                   name;
+    std::vector<std::pair<std::string, TypeRef>>  fields;
+    const StructDecl*                             decl = nullptr;
 };
 
 struct ClassInfo {  // informações de classes
     std::string                        name;
+    std::vector<std::string>           interfaces;   // nomes completos (class X : Forma)
     std::map<std::string, FieldInfo>   fields;
     std::map<std::string, MethodInfo>  methods;
-    std::vector<std::string>           ctor_param_types;  // vazio = sem construtor
+    std::vector<TypeRef>               ctor_param_types;  // vazio = sem construtor
     int                                line = 0;
 };
 
@@ -137,41 +148,38 @@ struct ClassInfo {  // informações de classes
 
 class TypeChecker {
 public:
-    // Converte Type* → string canônica.
-    // Usa o mesmo formato de Type::toString() mas centralizado aqui.
-    static std::string typeToString(const Type* type);
+    // B1: converte o tipo escrito na AST (Type*) no TypeRef único do contexto
+    static TypeRef fromAst(const Type* type);
 
     // Retorna o tipo resultante de uma operação binária.
     // Lança SemanticError se a operação for inválida para os tipos fornecidos.
-    static std::string checkBinaryOp(const std::string& left_type,
-                                     TokenType          op,
-                                     const std::string& right_type,
-                                     const Token&       op_token);
+    static TypeRef checkBinaryOp(TypeRef left, TokenType op, TypeRef right,
+                                 const Token& op_token);
 
     // Retorna o tipo resultante de uma operação unária.
     // Lança SemanticError se a operação for inválida.
-    static std::string checkUnaryOp(TokenType          op,
-                                    const std::string& operand_type,
-                                    const Token&       op_token);
+    static TypeRef checkUnaryOp(TokenType op, TypeRef operand, const Token& op_token);
 
-    // Retorna true se `value_type` pode ser atribuído a `declared_type`.
+    // Retorna true se `value` pode ser atribuído a `declared`.
     // Regras de atribuição da Cinza:
     //   - mesmo tipo → sempre compatível
     //   - int → decimal   (promoção numérica)
-    //   - list<int> → list<decimal>  (promoção em listas)
-    static bool isAssignable(const std::string& declared_type,
-                             const std::string& value_type);
+    //   - A3: list/dict/pair são invariantes (list<int> NÃO cabe em list<decimal>)
+    static bool isAssignable(TypeRef declared, TypeRef value);
 
-    // Helpers de consulta
-    static bool isNumeric(const std::string& type_str);   // int ou decimal
-    static bool isPrimitive(const std::string& type_str); // int, decimal, string, bool
+    // op<...>: o tipo trava na inicialização. Um tipo com op (op<A, B>,
+    // list<op<A, B>>...) representa o conjunto de tipos concretos que ele pode
+    // ter travado; expand() os lista (list<op<int, decimal>> → list<int>,
+    // list<decimal>). isAssignable acima vale para "travar" (cada tipo possível
+    // do valor cabe em algum do destino); reassignable, para trocar o valor de
+    // quem já travou num tipo que o compilador não sabe (o valor novo precisa
+    // caber em todos).
+    static bool                 containsOp(TypeRef t);
+    static std::vector<TypeRef> expand(TypeRef t);
+    static bool                 reassignable(TypeRef declared, TypeRef value);
 
-    // Extrai parâmetros de tipo genérico respeitando aninhamento.
-    //   "list<int>"               → {"int"}
-    //   "dict<string, int>"       → {"string", "int"}
-    //   "dict<string, list<int>>" → {"string", "list<int>"}
-    //   "pair<string, int>"       → {"string", "int"}
-    static std::vector<std::string> extractTypeParams(const std::string& type_str);
+    // v2.00 #19: int+int → int; qualquer decimal envolvido → decimal
+    static TypeRef promoteNumeric(TypeRef left, TypeRef right);
 };
 
 // ============================================================================
@@ -194,63 +202,170 @@ public:
 //     detectar inconsistências na pipeline caso essa invariante seja violada.
 // ============================================================================
 
+// C5: um arquivo a analisar. `imports` liga cada apelido ao índice (em
+// units) do módulo importado, que vem sempre antes de quem o importa.
+struct ModuleUnit {
+    Program*    program = nullptr;
+    std::string prefix;   // "" no principal; "util.texto" nos importados
+    std::vector<std::pair<std::string, size_t>> imports;
+    const NativeModule* native = nullptr;   // Fase 7: módulo nativo (sem AST)
+};
+
 class SemanticAnalyzer {
 private:
+    // C5: escopo global de cada módulo. Os nomes globais dos módulos
+    // importados ganham o prefixo do módulo ("util.texto::soma") no próprio
+    // AST, então o executor vê um único espaço de nomes.
+    struct ModuleScope {
+        std::string                                  prefix;
+        bool                                         is_main = false;
+        std::unordered_map<std::string, std::string> globals;   // curto → completo
+        std::set<std::string>                        pub;       // curtos exportados
+        std::unordered_map<std::string, int>         imports;   // apelido → módulo
+    };
+    std::vector<ModuleScope> modules;
+    int                      current_module = -1;
+    // Fase 7: nome completo ("Math::sqrt") → função nativa
+    std::unordered_map<std::string, const NativeFn*> native_fns;
+    // enum: nome completo → declaração
+    std::unordered_map<std::string, const EnumDecl*> enum_table;
+    void registerEnum(const EnumDecl& en);
+
+    // interface: nome completo → assinaturas dos métodos (na ordem da declaração)
+    struct InterfaceInfo {
+        const InterfaceDecl*     decl = nullptr;
+        std::vector<std::string> nomes;
+        std::vector<MethodInfo>  metodos;
+        int indexOf(const std::string& n) const {
+            for (size_t i = 0; i < nomes.size(); ++i) if (nomes[i] == n) return static_cast<int>(i);
+            return -1;
+        }
+    };
+    std::unordered_map<std::string, InterfaceInfo> interface_table;
+    void registerInterface(const InterfaceDecl& in);
+    // class X : Forma — confere que a classe tem cada método, com a mesma
+    // assinatura e em pub{}, e monta a tabela usada nas chamadas pela interface
+    void checkInterfaces(ClassDecl* cls);
+    // Analisa uma sequência de instruções; código depois de uma que sempre sai
+    // do bloco é erro (código morto)
+    void analyzeStatements(const std::vector<StmtPtr>& stmts);
+
+    // B2: próximo slot local da função em análise e layout dos globais
+    std::uint32_t next_slot = 0;
+    GlobalLayout  global_layout;
+    Resolution    newLocal()  { return {Resolution::Kind::Local,  next_slot++}; }
+    Resolution    newGlobal() { return {Resolution::Kind::Global, global_layout.count++}; }
+
+    // Nome global como escrito (curto, ou "apelido.nome") → nome completo.
+    // Lança erro para nome inexistente ou privado em módulo importado.
+    std::string   qualifyName(const std::string& name, const Token& tok) const;
+    // Símbolo visível com esse nome (locais, globais do módulo, imports,
+    // embutidos); `full` recebe o nome completo quando o símbolo é global.
+    const Symbol* lookup(const std::string& name, const Token& tok, std::string& full);
+    // Como lookup, para nomes já reescritos no AST, sem lançar erros
+    const Symbol* findSymbol(const std::string& name) const;
+    // Tipo escrito na AST → TypeRef, qualificando nomes de módulo (tx.Pessoa)
+    TypeRef       typeOf(Type* type);
+    // op<...>: regras da declaração (quantidade, repetição, op dentro de op...)
+    void          checkOpType(const Type* type);
+    bool          registering = false;   // durante o pré-registro nem todo tipo é conhecido
+    // op<...>: estreita o objeto de um método/campo/índice/for para o único
+    // tipo do op que aceita a operação (senão, erro pedindo uma variável)
+    // op<...>: literal de coleção travado num dos tipos concretos do destino
+    TypeRef       lockCollectionLiteral(Expr* expr, TypeRef natural, TypeRef target);
+    // op<...>: `if (type(x) == T)` — o símbolo x estreitado para T, ou nulo
+    const Symbol* narrowingOf(const Expr* cond, TypeRef& narrowed);
+    // Nome de variável/parâmetro não pode repetir um apelido de import
+    void          checkNotAlias(const std::string& name, const Token& tok) const;
+
     SymbolTable  symbol_table;
     std::unordered_map<std::string, ClassInfo> class_table;
+    std::unordered_map<std::string, StructInfo> struct_table;   // C3
+    TypeContext& types = TypeContext::instance();   // B1: fábrica única de tipos
 
     // Contexto de análise atual
-    std::string current_function_return_type;  // "" se fora de função
-    std::string current_class_name;            // "" se fora de classe
+    TypeRef     current_function_return_type = nullptr;  // nullptr se fora de função
+    std::string current_class_name;                      // "" se fora de classe
     bool        inside_function = false;
+    int         loop_depth      = 0;   // C2: laços abertos na função atual
+    int         finally_depth   = 0;   // C4: blocos finally abertos
 
     // ── Pré-registro (forward-reference support) ──────────────────────────
     void preRegisterDeclarations(const Program& program);
     void registerClass   (const ClassDecl&    cls);
     void registerFunction(const FunctionDecl& fn);
+    void registerStruct  (const StructDecl&   st);   // C3
+    // C3: struct que contém a si mesmo por valor (direta ou indiretamente)
+    void checkStructCycles();
+    // Nome de tipo definido pelo usuário (class ou struct) existe?
+    bool isKnownType(const std::string& name) const;
 
     // ── Análise de statements ─────────────────────────────────────────────
     void analyzeStmt       (Stmt* stmt);
     void analyzeBlock      (BlockStmt* block);
     void analyzeVarDecl    (VarDeclStmt* stmt);
-    void analyzeAssignment (AssignmentStmt* stmt);
-    void analyzeIndexAssignment(IndexAssignmentStmt* stmt);  // v2.00 #8
+    void analyzeAssign     (AssignStmt* stmt);                // B5
     void analyzeExprStmt   (ExprStmt* stmt);
     void analyzeIf         (IfStmt* stmt);
     void analyzeWhile      (WhileStmt* stmt);
     void analyzeFor        (ForStmt* stmt);
     void analyzeReturn     (ReturnStmt* stmt);
+    void analyzeLoopControl(Stmt* stmt);                     // C2: break/continue
+    void analyzeTry        (TryStmt* stmt);                  // C4
+    void analyzeThrow      (ThrowStmt* stmt);                // C4
+    // C4: registra um tipo de erro (embutido ou `error Nome;`)
+    void registerErrorType (const std::string& name, const Token& tok);
     void analyzeFunctionDecl(FunctionDecl* stmt);
     void analyzeClassDecl   (ClassDecl* stmt);
+    void analyzeStructDecl  (StructDecl* stmt);      // C3
 
     // ── Análise de expressões ─────────────────────────────────────────────
     // Cada função: analisa o nó, anota `resolved_type` no nó, retorna o tipo.
-    std::string analyzeExpr         (Expr* expr);
-    std::string analyzeLiteral      (LiteralExpr* expr);
-    std::string analyzeIdentifier   (IdentifierExpr* expr);
-    std::string analyzeBinary       (BinaryExpr* expr);
-    std::string analyzeUnary        (UnaryExpr* expr);
-    std::string analyzeCall         (CallExpr* expr);
-    std::string analyzeMethodCall   (MethodCallExpr* expr);
-    std::string analyzeMemberAccess (MemberAccessExpr* expr);
-    std::string analyzeIndexAccess  (IndexAccessExpr* expr);
-    std::string analyzeNew          (NewExpr* expr);
-    std::string analyzeListLiteral  (ListLiteralExpr* expr);
-    std::string analyzeDictLiteral  (DictLiteralExpr* expr);
-    std::string analyzePairLiteral  (PairLiteralExpr* expr);
+    // A3: `expected` é o tipo exigido pelo contexto (nullptr se não houver); os
+    // literais de list/dict/pair o usam para assumir o tipo esperado.
+    TypeRef analyzeExpr         (Expr* expr, TypeRef expected = nullptr);
+    TypeRef analyzeLiteral      (LiteralExpr* expr);
+    TypeRef analyzeIdentifier   (IdentifierExpr* expr);
+    TypeRef analyzeBinary       (BinaryExpr* expr);
+    TypeRef analyzeUnary        (UnaryExpr* expr);
+    TypeRef analyzeCall         (CallExpr* expr);
+    TypeRef analyzeMethodCall   (MethodCallExpr* expr);
+    TypeRef analyzeMemberAccess (MemberAccessExpr* expr);
+    TypeRef analyzeIndexAccess  (IndexAccessExpr* expr);
+    TypeRef analyzeNew          (NewExpr* expr);
+    TypeRef analyzeListLiteral  (ListLiteralExpr* expr, TypeRef expected);
+    TypeRef analyzeDictLiteral  (DictLiteralExpr* expr, TypeRef expected);
+    TypeRef analyzePairLiteral  (PairLiteralExpr* expr, TypeRef expected);
+    // C6: chamada de função nativa, checada pela assinatura (com variáveis de tipo)
+    TypeRef analyzeNativeCall   (CallExpr* expr, const NativeFn& fn);
+
+    // ── B5: alvos de atribuição e const ───────────────────────────────────
+    // Analisa o lado esquerdo de uma atribuição (Identifier, MemberAccess ou
+    // IndexAccess), aplica as regras de const e devolve o tipo do lugar.
+    TypeRef analyzeLValue(Expr* target);
+    // Variável const de onde vem o recipiente `container`, ou nullptr. Sobe por
+    // campos e índices até a variável de origem e para ao passar por um objeto
+    // de classe: objetos nunca são const, mesmo dentro de recipiente const (C3).
+    const Symbol* constRoot(const Expr* container) const;
+
+    // ── Fase 2.5: main e nível superior ───────────────────────────────────
+    // Valida a assinatura de main (void; sem parâmetros ou só list<string>)
+    // e exige que ela exista.
+    void checkMain(const Program& program);
+    // Expressão constante: literais, operadores e outros const globais.
+    // Proibidos: chamadas, new, literais de list/dict/pair.
+    bool isConstantExpr(const Expr* expr) const;
+
+    // ── Coerção implícita (A2) ────────────────────────────────────────────
+    // Chamada depois de isAssignable(target, slot->resolved_type) aprovar.
+    // Materializa a promoção int → decimal envolvendo o slot num CastExpr.
+    // Em literais de list/dict/pair desce nos elementos e reanota o literal
+    // com o tipo alvo. Nos demais casos não altera nada.
+    void coerceInPlace(ExprPtr& slot, TypeRef target);
 
     // ── Análise de fluxo de retorno ───────────────────────────────────────
     // true se TODOS os caminhos do stmt terminam em ReturnStmt
     bool allPathsReturn(const Stmt* stmt) const;
-    // true se ALGUM caminho do stmt contém ReturnStmt (para checar funções void)
-    bool hasAnyReturn  (const Stmt* stmt) const;
-
-    // ── Lookups em class_table ────────────────────────────────────────────
-    const MethodInfo* resolveMethod(const std::string& obj_type,
-                                    const std::string& method_name) const;
-    const FieldInfo*  resolveField (const std::string& obj_type,
-                                    const std::string& field_name,
-                                    bool require_public) const;
 
     // ── Utilidades internas ───────────────────────────────────────────────
     // Lança SemanticError com mensagem formatada (nunca retorna).
@@ -264,6 +379,12 @@ public:
     // Percorre e anota a AST inteira.
     // Lança SemanticError no primeiro problema encontrado.
     void analyze(Program& program);
+    // C5: vários módulos, dependências antes de quem as importa e o principal
+    // por último
+    void analyze(std::vector<ModuleUnit>& units);
+
+    // B2: slots dos const globais, para o executor
+    const GlobalLayout& globalLayout() const { return global_layout; }
 };
 
 } // namespace cinza

@@ -1,0 +1,7 @@
+// C3: struct não tem métodos nem bloco pub.
+struct S {
+    int x = 0;
+    fn f() -> int { return x; }
+}
+fn main() {}
+// expect-error: só pode ter campos

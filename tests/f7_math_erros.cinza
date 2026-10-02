@@ -1,0 +1,14 @@
+// Fase 7: erros de runtime em Math.
+import Math;
+fn main() {
+  try { print(Math.sqrt(-1.0)); } except (ValueError e) { print(e.kind, e.message); }
+  try { print(Math.log(0.0)); } except (ValueError e) { print(e.kind); }
+  try { print(Math.floor(100000000000000000000.0)); } except (OverflowError e) { print(e.kind, e.message); }
+  try { print(Math.abs(-9223372036854775807 - 1)); } except (OverflowError e) { print(e.kind); }
+  try { print(Math.pow(10.0, 400.0)); } except (OverflowError e) { print(e.kind); }
+}
+// expect: ValueError 'sqrt' de número negativo
+// expect: ValueError
+// expect: OverflowError resultado de 'floor' fora do intervalo de int
+// expect: OverflowError
+// expect: OverflowError

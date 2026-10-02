@@ -1,0 +1,6 @@
+// A5: INT_MIN % -1 gera OverflowError.
+fn main() {
+  int m = -9223372036854775808;
+  print(m % -1);
+}
+// expect-error: OverflowError

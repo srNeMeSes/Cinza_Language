@@ -1,0 +1,3 @@
+// Fase 2.5: sem argumentos, args é uma lista vazia (nome do parâmetro é livre).
+fn main(list<string> argv) -> void { print(argv.size()); }
+// expect: 0

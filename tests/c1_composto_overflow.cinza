@@ -1,0 +1,6 @@
+// C1: operador composto também detecta overflow.
+fn main() {
+  int big = 9223372036854775807;
+  big += 1;
+}
+// expect-error: OverflowError

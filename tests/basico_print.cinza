@@ -1,0 +1,7 @@
+// Teste de sanidade: deve passar sempre (valida o próprio runner).
+fn main() {
+  print(1 + 2);
+  print("ola");
+}
+// expect: 3
+// expect: ola

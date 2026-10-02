@@ -1,0 +1,16 @@
+// C3: new S() usa os valores padrão; list/dict sem inicializador nascem vazios; int → decimal nos argumentos.
+const int BASE = 10;
+struct Config {
+    int limite = BASE * 2;
+    decimal taxa = 1;
+    list<string> tags;
+    dict<string, int> pesos;
+}
+fn main() {
+    Config c = new Config();
+    print(c);
+    Config d = new Config(5, 2, ["a"], {{"x", 1}});
+    print(d.taxa / 4, d.tags.size(), d.pesos["x"]);
+}
+// expect: Config{limite: 20, taxa: 1, tags: [], pesos: {}}
+// expect: 0.5 1 1

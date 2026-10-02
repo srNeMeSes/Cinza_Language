@@ -1,0 +1,22 @@
+// A10: 'return;' sem valor permite saída antecipada em função void e em construtor.
+fn avisa(int n) {
+  if (n < 0) { print("negativo"); return; }
+  print("ok");
+}
+class C {
+  int v = 0;
+  pub {
+    C(int n) { if (n < 0) { return; } v = n; }
+    fn valor() -> int { return v; }
+  }
+}
+fn main() {
+  avisa(-1);
+  avisa(1);
+  C a = new C(-5);
+  C b = new C(7);
+  print(a.valor(), b.valor());
+}
+// expect: negativo
+// expect: ok
+// expect: 0 7

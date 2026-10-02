@@ -1,0 +1,4 @@
+// Módulo auxiliar: erro semântico dentro de um módulo.
+pub fn f() -> int {
+  return "texto";
+}

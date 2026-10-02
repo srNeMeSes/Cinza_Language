@@ -1,0 +1,5 @@
+// A10: decimal não pode ser chave de dict, nem em literal sem tipo esperado.
+fn main() {
+  print({{1.5, 2}});
+}
+// expect-error: Chave de dict não pode ser 'decimal'

@@ -1,0 +1,11 @@
+// op<...>: retorno de op — o chamador recebe o valor com o tipo travado, e type() diz qual é.
+fn escolhe(bool numero) -> op<int, string> {
+  if (numero) { return 10; }
+  return "dez";
+}
+fn main() {
+  op<int, string> a = escolhe(true);
+  op<int, string> b = escolhe(false);
+  print(a, type(a), b, type(b));
+}
+// expect: 10 int dez string

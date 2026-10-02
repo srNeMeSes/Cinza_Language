@@ -1,0 +1,4 @@
+// A8: fn aninhada é aceita, mas nunca registrada. Falha até a Fase 2.
+fn f() -> int { fn inner() -> int { return 1; } return inner(); }
+fn main() {}
+// expect-error: nível superior

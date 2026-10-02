@@ -1,0 +1,3 @@
+// op<...>: precisa de pelo menos 2 tipos.
+fn main() { op<int> x = 1; }
+// expect-error: 'op' precisa de pelo menos 2 tipos

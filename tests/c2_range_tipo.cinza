@@ -1,0 +1,5 @@
+// C2: range só aceita int.
+fn main() {
+  for (int i in range(0, 2.5)) { print(i); }
+}
+// expect-error: Argumento 2 de 'range': esperado 'int'

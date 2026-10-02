@@ -1,0 +1,30 @@
+// Coleta de ciclos: coleta disparada dentro de um construtor não libera o objeto em construção
+// (que só o self segura) nem os filhos já criados.
+// env: CINZA_GC_STATS=1
+class Filho {
+  list<Filho> eu;
+  int valor = 0;
+  pub {
+    Filho(int v) { valor = v; eu.add(self); }
+    fn get() -> int { return valor; }
+  }
+}
+class Arvore {
+  list<Filho> filhos;
+  pub {
+    Arvore(int n) {
+      for (int i in range(0, n)) { filhos.add(new Filho(i)); }
+    }
+    fn soma() -> int {
+      int s = 0;
+      for (Filho f in filhos) { s += f.get(); }
+      return s;
+    }
+  }
+}
+fn main() {
+  Arvore a = new Arvore(15000);
+  print(a.soma());
+}
+// expect: 112492500
+// expect: [gc] liberados em ciclos: 30000, contêineres vivos: 0

@@ -1,0 +1,4 @@
+// enum: precisa de pelo menos um valor.
+enum Cor { }
+fn main() { }
+// expect-error: O enum 'Cor' precisa de pelo menos um valor

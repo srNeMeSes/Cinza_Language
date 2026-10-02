@@ -1,0 +1,4 @@
+// C5: const sem 'pub' é privada do módulo.
+import modulos.geom;
+fn main() { print(geom.SEGREDO); }
+// expect-error: 'SEGREDO' é privado no módulo 'geom'

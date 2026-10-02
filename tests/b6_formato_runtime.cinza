@@ -1,0 +1,9 @@
+// B6: erro de runtime no formato unificado, com o stack trace em arquivo:linha.
+fn f(list<int> l) -> int { return l[5]; }
+fn main() {
+  list<int> l = [1];
+  print(f(l));
+}
+// expect-error: tests/b6_formato_runtime.cinza:2:36: IndexError:
+// expect-error:     em f (tests/b6_formato_runtime.cinza:2)
+// expect-error:     em main (tests/b6_formato_runtime.cinza:5)

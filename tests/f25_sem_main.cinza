@@ -1,0 +1,3 @@
+// Fase 2.5: programa sem main é erro semântico.
+fn f() {}
+// expect-error: Função 'main' não encontrada

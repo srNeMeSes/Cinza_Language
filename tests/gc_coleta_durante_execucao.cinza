@@ -1,0 +1,32 @@
+// Coleta de ciclos: várias coletas durante a execução liberam o lixo e preservam o que é alcançável
+// (inclusive ciclos alcançáveis). 30 mil pares em ciclo = 120 mil contêineres (objetos e suas listas).
+// env: CINZA_GC_STATS=1
+class No {
+  list<No> vizinhos;
+  pub {
+    fn liga(No o) { vizinhos.add(o); }
+    fn grau() -> int { return vizinhos.size(); }
+  }
+}
+fn cria() {
+  No a = new No();
+  No b = new No();
+  a.liga(b);
+  b.liga(a);
+}
+fn main() {
+  list<No> guardados;
+  for (int i in range(0, 30000)) {
+    cria();
+    if (i % 1000 == 0) {
+      No n = new No();
+      n.liga(n);
+      guardados.add(n);
+    }
+  }
+  int total = 0;
+  for (No n in guardados) { total += n.grau(); }
+  print(guardados.size(), total);
+}
+// expect: 30 30
+// expect: [gc] liberados em ciclos: 120060, contêineres vivos: 0

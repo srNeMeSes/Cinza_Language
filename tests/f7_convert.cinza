@@ -1,0 +1,12 @@
+// Fase 7: namespace Convert.
+import Convert as cv;
+fn main() {
+  print(cv.to_int("42") + 1, cv.to_int("-7"), cv.to_int("+3"));
+  print(cv.to_decimal("2.5"), cv.to_decimal("-1e2"), cv.to_decimal("3"));
+  print(cv.to_string(10) + "!", cv.to_string(2.5), cv.to_string(true), cv.to_string([1, 2]));
+  print(cv.to_bool("true"), cv.to_bool("false"));
+}
+// expect: 43 -7 3
+// expect: 2.5 -100 3
+// expect: 10! 2.5 true [1, 2]
+// expect: true false

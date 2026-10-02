@@ -1,0 +1,4 @@
+// C5: erro semântico num módulo mostra o arquivo do módulo.
+import modulos.tipo_errado;
+fn main() { print(tipo_errado.f()); }
+// expect-error: tests/modulos/tipo_errado.cinza:3:3: SemanticError:

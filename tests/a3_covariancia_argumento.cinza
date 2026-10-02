@@ -1,0 +1,7 @@
+// A3: argumento list<int> em parâmetro list<decimal> é rejeitado (antes 1 / 2 dava 0 dentro da função).
+fn metade(list<decimal> l) -> decimal { return l[0] / 2; }
+fn main() {
+  list<int> a = [1];
+  print(metade(a));
+}
+// expect-error: esperado 'list<decimal>', mas recebeu 'list<int>'

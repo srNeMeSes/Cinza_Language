@@ -1,0 +1,6 @@
+// A3: list<int> não pode ser atribuída a list<decimal>. Falha até a Fase 2.
+fn main() {
+  list<int> a = [1];
+  list<decimal> b = a;
+}
+// expect-error: incompatível

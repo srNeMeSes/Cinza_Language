@@ -1,0 +1,16 @@
+// Revisão: casos que NÃO são código morto continuam valendo.
+fn f(int n) -> string {
+  if (n > 0) { return "positivo"; }
+  int i = 0;
+  while (true) {
+    i += 1;
+    if (i == 3) { break; }
+  }
+  while (i < 5) { i += 1; }
+  try { print("tenta"); } except (Error e) { return "erro"; }
+  return "fim " + i;
+}
+fn main() { print(f(0)); print(f(1)); }
+// expect: tenta
+// expect: fim 5
+// expect: positivo

@@ -1,0 +1,7 @@
+// B5: campo privado não pode ser atribuído de fora da classe.
+class Ponto { int x = 0; }
+fn main() {
+  Ponto p = new Ponto();
+  p.x = 1;
+}
+// expect-error: é privado na classe 'Ponto'

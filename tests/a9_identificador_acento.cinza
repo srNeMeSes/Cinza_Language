@@ -1,0 +1,5 @@
+// A9: identificador com acento gera erro claro (antes: "Caractere inesperado" com bytes soltos).
+fn main() {
+  int ação = 1;
+}
+// expect-error: Identificadores não podem conter 'ç'

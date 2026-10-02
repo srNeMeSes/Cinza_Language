@@ -1,0 +1,4 @@
+// Fase 2.5: não há variáveis globais mutáveis.
+int x = 1;
+fn main() {}
+// expect-error: Variável global 'x' precisa ser 'const'

@@ -1,0 +1,4 @@
+// interface: precisa de pelo menos um método.
+interface Nada { }
+fn main() { }
+// expect-error: A interface 'Nada' precisa de pelo menos um método.

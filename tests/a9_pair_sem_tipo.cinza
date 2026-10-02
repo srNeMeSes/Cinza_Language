@@ -1,0 +1,4 @@
+// A9: pair sem <A, B> é erro.
+fn f() -> pair { return {1, 2}; }
+fn main() {}
+// expect-error: Esperado '<' após 'pair'

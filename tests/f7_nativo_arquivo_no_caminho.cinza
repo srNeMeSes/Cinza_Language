@@ -1,0 +1,5 @@
+// Fase 7: import de módulo nativo com um arquivo de mesmo nome no caminho de busca é erro.
+// env: CINZA_PATH=tests/modulos/nativo
+import Strings;
+fn main() { }
+// expect-error: o arquivo 'tests/modulos/nativo/Strings.cinza' tem o nome do módulo nativo 'Strings'

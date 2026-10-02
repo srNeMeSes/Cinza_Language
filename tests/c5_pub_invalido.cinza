@@ -1,0 +1,4 @@
+// C5: 'pub' no nível superior só vale antes de declarações.
+pub int x = 1;
+fn main() { }
+// expect-error: 'pub' no nível superior só vale antes de fn, class, struct, enum, interface, error ou const

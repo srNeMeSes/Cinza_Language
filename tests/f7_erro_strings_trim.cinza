@@ -1,0 +1,6 @@
+// Fase 7: erro em Strings.trim.
+import Strings;
+fn main() {
+  print(Strings.trim());
+}
+// expect-error: Aridade incorreta em 'Strings.trim': esperados 1 argumento(s), mas recebeu 0

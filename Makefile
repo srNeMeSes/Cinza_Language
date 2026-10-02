@@ -1,53 +1,112 @@
 # Makefile para o Compilador da Linguagem Cinza
 # C++20, otimização -O3, warnings habilitados
+# No PowerShell (MinGW) o comando é `mingw32-make`; no MSYS2 é `make`.
+# `make debug` (ASan/UBSan) só funciona no Windows pelo MSYS2 CLANG64.
 
 CXX = g++
 CXXFLAGS = -std=c++20 -O3 -Wall -Wextra -pedantic
+DEPFLAGS = -MMD -MP
 TARGET = cinza
-SOURCES = main.cpp lexer.cpp parser.cpp ast.cpp semantic.cpp executor.cpp
-HEADERS = lexer.h parser.h ast.h semantic.h value.h environment.h runtime_error.h executor.h
+SOURCES = main.cpp lexer.cpp parser.cpp ast.cpp semantic.cpp executor.cpp natives.cpp stdlib.cpp module_loader.cpp
 OBJECTS = $(SOURCES:.cpp=.o)
+DEPS = $(OBJECTS:.o=.d)
 
-# Cores para output
-RED = \033[0;31m
-GREEN = \033[0;32m
-YELLOW = \033[1;33m
-NC = \033[0m # No Color
+# No MSYS2 CLANG64 não existe g++, só clang++ (é o ambiente com ASan no Windows)
+ifeq ($(MSYSTEM),CLANG64)
+    CXX = clang++
+endif
+
+# O binário ganha .exe em qualquer Windows (PowerShell, MSYS2).
+# A6: a pilha padrão do Windows (1 MB) só comporta ~1000 chamadas aninhadas
+# da Cinza; com 64 MB o limite de 2000 do executor (StackOverflowError) é
+# atingido antes de a pilha nativa estourar, com folga para corpos aninhados.
+ifneq ($(OS)$(MSYSTEM),)
+    EXE = .exe
+    LDFLAGS = -Wl,--stack,67108864
+else
+    EXE =
+    LDFLAGS =
+endif
+
+# Diferenças de shell: sem sh no PATH (PowerShell/cmd) o make fica com o
+# valor padrão "sh.exe" e roda as receitas no cmd.exe
+ifeq ($(SHELL),sh.exe)
+    RM = del /Q /F
+    PYTHON ?= python
+    # o del do cmd entende '/' como opção: caminhos precisam de '\'
+    fixpath = $(subst /,\,$1)
+    # O cmd não interpreta códigos ANSI
+    RED =
+    GREEN =
+    YELLOW =
+    NC =
+else
+    RM = rm -f
+    PYTHON ?= python3
+    fixpath = $1
+    RED = \033[0;31m
+    GREEN = \033[0;32m
+    YELLOW = \033[1;33m
+    NC = \033[0m
+endif
+
+TARGET_BIN = $(TARGET)$(EXE)
+UNIT_BIN   = tests/unit_value$(EXE)
+UNIT_TYPES = tests/unit_types$(EXE)
+UNIT_GC    = tests/unit_gc$(EXE)
 
 # Regra principal
-all: $(TARGET)
+all: $(TARGET_BIN)
 	@echo "$(GREEN)✓ Compilação concluída com sucesso!$(NC)"
-	@echo "$(YELLOW)Execute: ./$(TARGET) exemplo.cinza$(NC)"
+	@echo "$(YELLOW)Execute: ./$(TARGET_BIN) program.cinza$(NC)"
 
 # Linkagem
-$(TARGET): $(OBJECTS)
+$(TARGET_BIN): $(OBJECTS)
 	@echo "$(YELLOW)Linkando...$(NC)"
-	$(CXX) $(CXXFLAGS) -o $(TARGET) $(OBJECTS)
+	$(CXX) $(CXXFLAGS) -o $(TARGET_BIN) $(OBJECTS) $(LDFLAGS)
 
-# Compilação dos arquivos objeto
-%.o: %.cpp $(HEADERS)
+# Compilação dos arquivos objeto (dependências de headers via -MMD -MP)
+%.o: %.cpp
 	@echo "$(YELLOW)Compilando $<...$(NC)"
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(DEPFLAGS) -c $< -o $@
 
-# Testa com o arquivo de exemplo
-test: $(TARGET)
-	@echo "$(GREEN)Executando teste com exemplo.cinza...$(NC)"
-	./$(TARGET) teste.cinza
+-include $(DEPS)
+
+# Build de depuração com sanitizers
+debug: CXXFLAGS = -std=c++20 -O0 -g -Wall -Wextra -fsanitize=address,undefined
+debug: clean $(TARGET_BIN)
+
+# Roda a suíte de testes em tests/
+test: $(TARGET_BIN) $(UNIT_BIN) $(UNIT_TYPES) $(UNIT_GC)
+	./$(UNIT_BIN)
+	./$(UNIT_TYPES)
+	./$(UNIT_GC)
+	$(PYTHON) tests/run_tests.py $(TARGET_BIN)
+
+# Testes de unidade em C++ (itens sem reprodução em .cinza, ex.: A11)
+$(UNIT_BIN): tests/unit_value.cpp value.h ast.h lexer.h types.h gc_object.h
+	$(CXX) $(CXXFLAGS) -o $(UNIT_BIN) tests/unit_value.cpp
+
+$(UNIT_TYPES): tests/unit_types.cpp types.h
+	$(CXX) $(CXXFLAGS) -o $(UNIT_TYPES) tests/unit_types.cpp
+
+$(UNIT_GC): tests/unit_gc.cpp gc.h gc_object.h value.h
+	$(CXX) $(CXXFLAGS) -o $(UNIT_GC) tests/unit_gc.cpp
 
 # Testa mostrando tokens
-test-tokens: $(TARGET)
+test-tokens: $(TARGET_BIN)
 	@echo "$(GREEN)Executando teste com tokens detalhados...$(NC)"
-	./$(TARGET) teste.cinza --tokens
+	./$(TARGET_BIN) --tokens program.cinza
 
 # Testa mostrando AST
-test-ast: $(TARGET)
+test-ast: $(TARGET_BIN)
 	@echo "$(GREEN)Executando teste mostrando AST...$(NC)"
-	./$(TARGET) teste.cinza --ast
+	./$(TARGET_BIN) --ast program.cinza
 
 # Limpeza
 clean:
 	@echo "$(YELLOW)Limpando arquivos de compilação...$(NC)"
-	rm -f $(OBJECTS) $(TARGET)
+	-$(RM) $(OBJECTS) $(DEPS) $(TARGET_BIN) $(call fixpath,$(UNIT_BIN) $(UNIT_TYPES) $(UNIT_GC))
 	@echo "$(GREEN)✓ Limpeza concluída!$(NC)"
 
 # Rebuild completo
@@ -65,7 +124,8 @@ help:
 	@echo ""
 	@echo "Targets disponíveis:"
 	@echo "  make              - Compila o projeto"
-	@echo "  make test         - Compila e executa com teste.cinza"
+	@echo "  make test         - Compila e roda a suíte em tests/"
+	@echo "  make debug        - Recompila com -O0 -g e sanitizers"
 	@echo "  make test-tokens  - Mostra tokens detalhados"
 	@echo "  make test-ast     - Mostra AST detalhada"
 	@echo "  make clean        - Remove arquivos compilados"
@@ -73,4 +133,4 @@ help:
 	@echo "  make deps         - Verifica dependências"
 	@echo "  make help         - Mostra esta ajuda"
 
-.PHONY: all clean test test-tokens test-ast rebuild deps help
+.PHONY: all clean test test-tokens test-ast rebuild deps help debug

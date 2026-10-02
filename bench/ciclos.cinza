@@ -1,0 +1,18 @@
+// Benchmark da coleta de ciclos: 300 mil pares de objetos que se referenciam.
+// Sem a coleta, nenhum par seria liberado (1,2 milhão de contêineres presos).
+class No {
+  list<No> vizinhos;
+  pub {
+    fn liga(No o) { vizinhos.add(o); }
+  }
+}
+fn cria() {
+  No a = new No();
+  No b = new No();
+  a.liga(b);
+  b.liga(a);
+}
+fn main() {
+  for (int i in range(0, 300000)) { cria(); }
+  print("ok");
+}

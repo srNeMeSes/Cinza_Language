@@ -1,0 +1,4 @@
+// Fase 2.5: const global não pode ser reatribuído dentro das funções.
+const int A = 1;
+fn main() { A = 2; }
+// expect-error: não pode ser reatribuída

@@ -1,0 +1,11 @@
+// Fase 7: input(prompt) é embutido: mostra o prompt sem pular linha e lê uma linha.
+fn main() {
+  str nome = input("Nome: ");
+  print("Olá, " + nome);
+  str idade = input("Idade: ");
+  print(idade.size());
+}
+// stdin: Evans
+// stdin: 30
+// expect: Nome: Olá, Evans
+// expect: Idade: 2

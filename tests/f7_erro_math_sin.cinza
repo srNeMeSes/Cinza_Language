@@ -1,0 +1,6 @@
+// Fase 7: erro em Math.sin.
+import Math;
+fn main() {
+  print(Math.sin(true));
+}
+// expect-error: Argumento 1 de 'Math.sin': esperado 'decimal', mas recebeu 'bool'

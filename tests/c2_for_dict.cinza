@@ -1,0 +1,14 @@
+// C2: for sobre dict<K,V> com iterador pair<K,V>, em ordem de chave.
+fn main() {
+  dict<string, int> d = {{"banana", 2}, {"abacaxi", 1}, {"caju", 3}};
+  for (pair<string, int> p in d) {
+    print(p.first, p.second);
+  }
+  int total = 0;
+  for (var p in d) { total += p.second; }
+  print(total);
+}
+// expect: abacaxi 1
+// expect: banana 2
+// expect: caju 3
+// expect: 6

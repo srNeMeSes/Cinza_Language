@@ -1,0 +1,20 @@
+// A1: método que atribui a um campo não pode alterar o local homônimo de quem chamou.
+class P {
+  string nome = "campo";
+  pub {
+    fn set(string s) { nome = s; }
+    fn get() -> string { return nome; }
+  }
+}
+fn f() -> string {
+  string nome = "LOCAL";
+  P p = new P();
+  p.set("novo");
+  print(nome);
+  return p.get();
+}
+fn main() {
+  print(f());
+}
+// expect: LOCAL
+// expect: novo

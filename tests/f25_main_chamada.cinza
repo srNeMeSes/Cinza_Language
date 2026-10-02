@@ -1,0 +1,4 @@
+// Fase 2.5: main não pode ser chamada pelo programa.
+fn f() { main(); }
+fn main() {}
+// expect-error: não pode ser chamada

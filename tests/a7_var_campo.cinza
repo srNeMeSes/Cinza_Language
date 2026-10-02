@@ -1,0 +1,4 @@
+// A7: 'var' em campo de classe é erro de parser.
+class C { var x = 1; }
+fn main() {}
+// expect-error: 'var' não é permitido no campo 'x'

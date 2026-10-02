@@ -1,0 +1,19 @@
+// Fase 7: namespace Math — constantes e funções.
+import Math;
+fn main() {
+  print(Math.sqrt(16.0), Math.sqrt(2) > 1.41, Math.pow(2, 10));
+  print(Math.abs(-3), Math.abs(-2.5));
+  print(Math.floor(2.7), Math.ceil(2.1), Math.round(2.5), Math.round(-2.5), Math.floor(-0.5));
+  print(Math.min(3, 7), Math.max(3, 7), Math.min(1.5, 0.5));
+  print(Math.sin(0.0), Math.cos(0.0), Math.log(Math.e));
+  print(Math.pi > 3.14159, Math.pi < 3.1416);
+  int f = Math.floor(9.99);
+  print(f + 1);
+}
+// expect: 4 true 1024
+// expect: 3 2.5
+// expect: 2 3 3 -3 -1
+// expect: 3 7 0.5
+// expect: 0 1 1
+// expect: true true
+// expect: 10

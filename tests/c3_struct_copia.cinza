@@ -1,0 +1,21 @@
+// C3: struct é copiado ao atribuir, passar, retornar e adicionar em lista (cópia rasa:
+// a list dentro do struct continua compartilhada entre as cópias).
+struct Turma { string nome = ""; list<string> alunos; }
+fn renomeia(Turma t) { t.nome = "trocado na funcao"; }
+fn clona(Turma t) -> Turma { return t; }
+fn main() {
+    Turma t1 = new Turma("A", ["Ana"]);
+    Turma t2 = t1;
+    t2.nome = "B";
+    renomeia(t1);
+    Turma t3 = clona(t1);
+    t3.nome = "C";
+    list<Turma> l;
+    l.add(t1);
+    l[0].nome = "D";
+    print(t1.nome, t2.nome, t3.nome, l[0].nome);
+    t2.alunos.add("Bia");
+    print(t1.alunos.size(), t2.alunos.size());
+}
+// expect: A B C D
+// expect: 2 2

@@ -1,0 +1,6 @@
+// C1: operador composto segue as regras do operador base.
+fn main() {
+  bool b = true;
+  b -= 1;
+}
+// expect-error: Operador '-=' requer tipos numéricos

@@ -1,0 +1,18 @@
+// enum: valores qualificados (Cor.Verde), só == e !=, print mostra Cor.Verde.
+enum Cor { Vermelho, Verde, Azul }
+enum Sinal { Verde, Vermelho }
+fn nome(Cor c) -> string {
+  if (c == Cor.Vermelho) { return "vermelho"; }
+  if (c == Cor.Verde) { return "verde"; }
+  return "azul";
+}
+fn main() {
+  Cor c = Cor.Verde;
+  print(c, nome(c), nome(Cor.Azul));
+  print(c == Cor.Verde, c != Cor.Verde, Sinal.Verde);
+  c = Cor.Vermelho;
+  print(c, type(c) == Cor, type(c));
+}
+// expect: Cor.Verde verde azul
+// expect: true false Sinal.Verde
+// expect: Cor.Vermelho true Cor

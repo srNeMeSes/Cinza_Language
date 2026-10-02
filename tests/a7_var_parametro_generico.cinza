@@ -1,0 +1,4 @@
+// A7: 'var' dentro de tipo composto de parâmetro também é erro.
+fn f(list<var> l) -> int { return 1; }
+fn main() {}
+// expect-error: 'var' não é permitido em parâmetros

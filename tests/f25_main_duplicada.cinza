@@ -1,0 +1,4 @@
+// Fase 2.5: exatamente uma main.
+fn main() {}
+fn main() {}
+// expect-error: Declaração duplicada

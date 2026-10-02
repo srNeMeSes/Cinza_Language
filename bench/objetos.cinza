@@ -1,0 +1,19 @@
+// Benchmark B2: métodos lendo e escrevendo campos da própria instância.
+class Contador {
+  int total = 0;
+  int passos = 0;
+  pub {
+    fn soma(int v) {
+      total += v;
+      passos += 1;
+    }
+    fn valor() -> int { return total + passos; }
+  }
+}
+fn main() {
+  Contador c = new Contador();
+  for (int i in range(0, 500000)) {
+    c.soma(i % 10);
+  }
+  print(c.valor());
+}

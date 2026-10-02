@@ -1,3 +1,38 @@
+class Object
+{
+   str txt = "<none>";
+   int value = 0;
+   decimal double = 0.0;
+   bool activate = false;
+   pub {
+      Object(string s, int n, decimal d, bool a)
+      {
+         print("iniciando objeto");
+         txt = s;
+         value = n;
+         double = d;
+         activate = a;
 
-// Cinza Code
-print("Hello, World!")
+      }
+      fn atualizar(string s, int n, decimal d, bool a) -> void
+      {
+         print("atualizando objeto");
+         txt = s;
+         value = n;
+         double = d;
+         activate = a;
+      }
+      fn view() -> void
+      {
+         print("objetos:");
+         print(txt, value, double, activate);
+      }
+   }
+}
+
+fn main()
+{
+   Object obj = new Object("2dObject#2002-11-04", 2, 3.1415, true);
+   obj.atualizar("3dObject#2002-11-04", 6, 2.4214, true);
+   obj.view();
+}

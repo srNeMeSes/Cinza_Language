@@ -1,0 +1,9 @@
+// A10: string.size() conta caracteres (code points UTF-8), não bytes.
+fn main() {
+  string a = "ação";
+  string b = "abc";
+  string c = "";
+  string d = "€ и 字";
+  print(a.size(), b.size(), c.size(), d.size());
+}
+// expect: 4 3 0 5

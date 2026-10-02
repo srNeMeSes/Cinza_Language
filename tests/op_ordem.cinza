@@ -1,0 +1,8 @@
+// op<...>: a ordem não importa — op<int, string> e op<string, int> são o mesmo tipo.
+fn f(op<string, int> v) -> op<int, string> { return v; }
+fn main() {
+  op<int, string> a = 1;
+  op<string, int> b = a;
+  print(type(f(b)), f("x"));
+}
+// expect: int x

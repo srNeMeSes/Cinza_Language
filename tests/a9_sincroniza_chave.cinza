@@ -1,0 +1,9 @@
+// A9: erro antes de '}' não consome a chave; o resto do arquivo não gera erros em cascata.
+fn f() -> int { return 1 }
+fn g() -> int { return 2; }
+fn main() {
+  print(g());
+}
+// expect-error: Esperado ';'
+// expect-not: Esperado '}'
+// expect-not: nível superior

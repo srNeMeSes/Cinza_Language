@@ -1,0 +1,27 @@
+// C2: break e continue em while e for, inclusive aninhados (break sai só do laço interno).
+fn main() {
+  int i = 0;
+  while (true) {
+    i += 1;
+    if (i % 2 == 0) { continue; }
+    if (i > 7) { break; }
+    print(i);
+  }
+  for (int x in [1, 2, 3]) {
+    for (int y in [10, 20, 30]) {
+      if (y == 20) { break; }
+      print(x * y);
+    }
+    if (x == 2) { continue; }
+    print("fim", x);
+  }
+}
+// expect: 1
+// expect: 3
+// expect: 5
+// expect: 7
+// expect: 10
+// expect: fim 1
+// expect: 20
+// expect: 30
+// expect: fim 3

@@ -1,0 +1,6 @@
+// Fase 7: erro em Lists.contains.
+import Lists;
+fn main() {
+  print(Lists.contains([1, 2], "x"));
+}
+// expect-error: Argumento 2 de 'Lists.contains': esperado 'int', mas recebeu 'string'

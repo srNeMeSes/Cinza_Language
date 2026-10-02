@@ -1,0 +1,4 @@
+// A10: decimal não pode ser chave de dict, nem aninhado em parâmetro.
+fn f(list<dict<decimal, string>> l) -> int { return 1; }
+fn main() {}
+// expect-error: Chave de dict não pode ser 'decimal'

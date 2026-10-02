@@ -1,0 +1,16 @@
+// A10: dentro da classe, o método de mesmo nome tem precedência sobre a função global.
+fn nome() -> string { return "global"; }
+class P {
+  int v = 0;
+  pub {
+    fn nome() -> string { return "metodo"; }
+    fn quem() -> string { return nome(); }
+  }
+}
+fn main() {
+  P p = new P();
+  print(p.quem());
+  print(nome());
+}
+// expect: metodo
+// expect: global

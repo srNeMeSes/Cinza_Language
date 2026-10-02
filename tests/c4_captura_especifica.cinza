@@ -1,0 +1,15 @@
+// C4: except específico captura o erro do seu tipo; os campos kind/message/line/column existem.
+fn divide(int a, int b) -> int { return a / b; }
+fn main() {
+    try {
+        print(divide(10, 0));
+        print("nao chega aqui");
+    } except (ValueError e) {
+        print("errado");
+    } except (ZeroDivisionError e) {
+        print(e.kind, e.message, e.line);
+    }
+    print("continua");
+}
+// expect: ZeroDivisionError divisão por zero 2
+// expect: continua

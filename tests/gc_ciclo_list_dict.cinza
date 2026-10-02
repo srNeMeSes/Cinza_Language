@@ -1,0 +1,29 @@
+// Coleta de ciclos: lista circular (por list<Elo>), ciclo por dict e pelo próprio objeto.
+// env: CINZA_GC_STATS=1
+class Elo {
+  list<Elo> proximo;
+  dict<string, Elo> nomes;
+  pub {
+    fn liga(Elo e) { proximo.add(e); }
+    fn nomeia(string n, Elo e) { nomes.add({n, e}); }
+  }
+}
+fn circular() {
+  Elo a = new Elo();
+  Elo b = new Elo();
+  Elo c = new Elo();
+  a.liga(b);
+  b.liga(c);
+  c.liga(a);
+}
+fn porDict() {
+  Elo a = new Elo();
+  a.nomeia("eu", a);
+}
+fn main() {
+  circular();
+  porDict();
+  print("ok");
+}
+// expect: ok
+// expect: [gc] liberados em ciclos: 12, contêineres vivos: 0

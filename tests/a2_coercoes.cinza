@@ -1,0 +1,57 @@
+// A2: cada ponto de coerção int -> decimal materializa a conversão (5 / 2 deve dar 2.5).
+class Conta {
+  decimal saldo = 5;
+  decimal extra = 0.0;
+  pub {
+    Conta(decimal inicial) { extra = inicial; }
+    fn metade() -> decimal { return saldo / 2; }
+    fn extraMetade() -> decimal { return extra / 2; }
+    fn depositar(decimal v) { saldo = v; }
+    fn viaInterno() -> decimal { depositar(5); return saldo / 2; }
+  }
+}
+fn metade(decimal x) -> decimal { return x / 2; }
+fn cinco() -> decimal { return 5; }
+fn main() {
+  decimal d = 5;
+  print(d / 2);
+  decimal a = 0.0;
+  a = 5;
+  print(a / 2);
+  print(metade(5));
+  print(cinco() / 2);
+  Conta c = new Conta(5);
+  print(c.metade());
+  print(c.extraMetade());
+  c.depositar(5);
+  print(c.metade());
+  print(c.viaInterno());
+  list<decimal> l = [5, 1];
+  print(l[0] / 2);
+  l[1] = 5;
+  print(l[1] / 2);
+  l.add(5);
+  print(l[2] / 2);
+  list<decimal> mista = [5, 0.5];
+  print(mista[0] / 2);
+  dict<string, decimal> m = {{"a", 5}};
+  print(m["a"] / 2);
+  m["a"] = 5;
+  print(m["a"] / 2);
+  for (decimal x in [5]) { print(x / 2); }
+}
+// expect: 2.5
+// expect: 2.5
+// expect: 2.5
+// expect: 2.5
+// expect: 2.5
+// expect: 2.5
+// expect: 2.5
+// expect: 2.5
+// expect: 2.5
+// expect: 2.5
+// expect: 2.5
+// expect: 2.5
+// expect: 2.5
+// expect: 2.5
+// expect: 2.5

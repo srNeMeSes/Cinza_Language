@@ -1,0 +1,11 @@
+// C6: erro lançado por uma nativa recebe a posição da chamada e pode ser capturado.
+fn main() {
+    try {
+        print(range(0, 10, 0));
+    } except (ValueError e) {
+        print(e.kind, e.line);
+    }
+    list<int> l = range(0, 1, 0);
+}
+// expect: ValueError 4
+// expect-error: tests/c6_nativa_erro_posicao.cinza:8:19: ValueError: o passo de 'range' não pode ser 0

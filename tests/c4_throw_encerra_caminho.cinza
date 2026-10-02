@@ -1,0 +1,13 @@
+// C4: throw encerra o caminho — a função com retorno não precisa de return depois dele.
+fn raiz(int n) -> int {
+    if (n < 0) { throw ValueError("negativo: " + n); } else { return n; }
+}
+fn escolhe(bool b) -> int {
+    try { return raiz(4); } except (ValueError e) { return -1; }
+}
+fn main() {
+    print(escolhe(true));
+    try { print(raiz(-2)); } except (ValueError e) { print(e.message); }
+}
+// expect: 4
+// expect: negativo: -2

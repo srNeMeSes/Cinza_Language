@@ -1,0 +1,7 @@
+// A1: método lê o local do chamador no lugar do campo. Falha até a Fase 2.
+class P { string nome = "campo"; pub { fn get() -> string { return nome; } } }
+fn f() -> string { string nome = "LOCAL"; P p = new P(); return p.get(); }
+fn main() {
+  print(f());
+}
+// expect: campo

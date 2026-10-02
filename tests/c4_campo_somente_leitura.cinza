@@ -1,0 +1,9 @@
+// C4: os campos de um erro são somente leitura.
+fn main() {
+    try {
+        throw ValueError("x");
+    } except (ValueError e) {
+        e.message = "outro";
+    }
+}
+// expect-error: Os campos de um erro são somente leitura

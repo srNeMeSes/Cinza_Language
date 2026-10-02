@@ -1,0 +1,6 @@
+// op<...>: num parâmetro op, um valor que não serve para todos os tipos não pode ser atribuído.
+fn f(op<decimal, int> v) {
+  v = 2.5;
+}
+fn main() { f(1); }
+// expect-error: 'v' tem o tipo travado num dos tipos de 'op<decimal, int>' (não se sabe qual aqui), e 'decimal' não serve para todos eles

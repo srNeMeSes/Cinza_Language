@@ -3,8 +3,11 @@
 #include "ast.h"
 #include "semantic.h"
 #include "executor.h"
+#include "module_loader.h"
+#include <filesystem>
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <iomanip>
 
 #ifdef _WIN32
@@ -22,15 +25,12 @@ std::string readFile(const std::string& filename) {
     if (!file.is_open()) {
         throw std::runtime_error("Erro ao abrir arquivo: " + filename);
     }
-    
-    std::string content;
-    std::string line;
-    while (std::getline(file, line)) {
-        content += line + "\n";
-    }
-    file.close();
-    
-    return content;
+
+    // A12: lê o arquivo inteiro de uma vez (antes: linha a linha, com uma
+    // concatenação por linha e um '\n' a mais no fim)
+    std::ostringstream content;
+    content << file.rdbuf();
+    return content.str();
 }
 
 // Função auxiliar para converter TokenType em string legível
@@ -50,11 +50,14 @@ std::string tokenTypeToString(TokenType type) {
         case TokenType::KW_IN: return "KW_IN";
         case TokenType::KW_TRUE: return "KW_TRUE";
         case TokenType::KW_FALSE: return "KW_FALSE";
-        case TokenType::KW_PRINT: return "KW_PRINT";
         case TokenType::KW_CLASS: return "KW_CLASS";
+        case TokenType::KW_STRUCT: return "KW_STRUCT";
+        case TokenType::KW_ENUM:   return "KW_ENUM";
+        case TokenType::KW_INTERFACE: return "KW_INTERFACE";
         case TokenType::KW_PUB:   return "KW_PUB";
         case TokenType::KW_NEW:   return "KW_NEW";
         case TokenType::KW_CONST: return "KW_CONST";
+        case TokenType::KW_SELF:  return "KW_SELF";
         
         case TokenType::TYPE_INT: return "TYPE_INT";
         case TokenType::TYPE_DECIMAL: return "TYPE_DECIMAL";
@@ -65,6 +68,7 @@ std::string tokenTypeToString(TokenType type) {
         case TokenType::TYPE_LIST: return "TYPE_LIST";
         case TokenType::TYPE_VAR: return "TYPE_VAR";
         case TokenType::TYPE_PAIR: return "TYPE_PAIR";
+        case TokenType::TYPE_OP:   return "TYPE_OP";
         
         case TokenType::OP_PLUS: return "OP_PLUS";
         case TokenType::OP_MINUS: return "OP_MINUS";
@@ -82,6 +86,20 @@ std::string tokenTypeToString(TokenType type) {
         case TokenType::OP_OR: return "OP_OR";
         case TokenType::OP_NOT: return "OP_NOT";
         case TokenType::OP_ARROW: return "OP_ARROW";
+        case TokenType::OP_PLUS_ASSIGN:     return "OP_PLUS_ASSIGN";
+        case TokenType::OP_MINUS_ASSIGN:    return "OP_MINUS_ASSIGN";
+        case TokenType::OP_MULTIPLY_ASSIGN: return "OP_MULTIPLY_ASSIGN";
+        case TokenType::OP_DIVIDE_ASSIGN:   return "OP_DIVIDE_ASSIGN";
+        case TokenType::OP_MODULO_ASSIGN:   return "OP_MODULO_ASSIGN";
+        case TokenType::KW_BREAK:           return "KW_BREAK";
+        case TokenType::KW_CONTINUE:        return "KW_CONTINUE";
+        case TokenType::KW_TRY:             return "KW_TRY";
+        case TokenType::KW_EXCEPT:          return "KW_EXCEPT";
+        case TokenType::KW_FINALLY:         return "KW_FINALLY";
+        case TokenType::KW_THROW:           return "KW_THROW";
+        case TokenType::KW_ERROR:           return "KW_ERROR";
+        case TokenType::KW_IMPORT:          return "KW_IMPORT";
+        case TokenType::KW_AS:              return "KW_AS";
         
         case TokenType::LPAREN: return "LPAREN";
         case TokenType::RPAREN: return "RPAREN";
@@ -161,19 +179,31 @@ void printTokens(const std::vector<Token>& tokens, bool verbose = false) {
     }
 }
 
+// A10: exceção C++ inesperada nunca chega crua ao usuário
+void reportInternalError(const std::string& detalhe) {
+    std::cerr << "\n✗ Erro interno do compilador: " << detalhe << "\n"
+              << "  Isso é um bug do Cinza, não do seu programa. Por favor, reporte-o\n"
+              << "  junto com o arquivo .cinza que causou o erro.\n";
+}
+
 void printHelp() {
     std::cout << "Compilador Cinza - Linguagem de Programação Interpretada\n\n";
     std::cout << "Uso:\n";
-    std::cout << "  cinza_compiler <arquivo.cinza> [opções]\n\n";
+    std::cout << "  cinza [opções] <arquivo.cinza> [argumentos para main...]\n\n";
     std::cout << "Opções:\n";
     std::cout << "  --tokens, -t     Exibe tokens detalhados\n";
     std::cout << "  --ast, -a        Exibe a árvore sintática (AST)\n";
     std::cout << "  --help, -h       Exibe esta ajuda\n\n";
     std::cout << "Exemplo:\n";
-    std::cout << "  cinza_compiler exemplo.cinza --ast\n\n";
+    std::cout << "  cinza --ast exemplo.cinza\n";
+    std::cout << "  cinza prog.cinza a b     (main(list<string> args) recebe [\"a\", \"b\"])\n\n";
 }
 
 int main(int argc, char* argv[]) {
+    // A12: iostreams sem sincronizar com stdio (o programa não usa printf).
+    // cerr continua "tied" a cout, então a saída do programa sai antes de
+    // qualquer mensagem de erro.
+    std::ios::sync_with_stdio(false);
 
     #ifdef _WIN32
     SetConsoleOutputCP(65001);  // força UTF-8 no terminal Windows
@@ -186,12 +216,19 @@ int main(int argc, char* argv[]) {
     }
     
     // Parse argumentos
+    // Fase 2.5: opções do interpretador vêm ANTES do arquivo; tudo o que vem
+    // depois dele vai para main(list<string> args)
     std::string filename;
+    std::vector<std::string> program_args;
     bool show_tokens = false;
     bool show_ast = false; // por padrão NÃO mostra AST
-    
+
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
+        if (!filename.empty()) {
+            program_args.push_back(arg);
+            continue;
+        }
         if (arg == "--help" || arg == "-h") {
             printHelp();
             return 0;
@@ -199,7 +236,7 @@ int main(int argc, char* argv[]) {
             show_tokens = true;
         } else if (arg == "--ast" || arg == "-a") {
             show_ast = true;
-        } else if (arg[0] != '-') {
+        } else if (!arg.empty() && arg[0] != '-') {
             filename = arg;
         }
     }
@@ -210,60 +247,53 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     
+    // B6: o arquivo principal aparece nos diagnósticos como foi informado,
+    // com '/' como separador (igual aos módulos)
+    filename = std::filesystem::path(filename).generic_string();
+    setMainFile(filename);
+
+    // Arquivo inexistente é erro do usuário, não erro interno (A10)
+    std::string code;
+    try {
+        code = readFile(filename);
+    } catch (const std::exception&) {
+        diagnostics().report("IOError", "não foi possível abrir o arquivo", SourceLocation{0, 0, 0});
+        diagnostics().flush(std::cerr);
+        return 1;
+    }
+
     try {
         // ====================================================================
-        // FASE 1: ANÁLISE LÉXICA
+        // FASES 1 E 2: ANÁLISE LÉXICA E SINTÁTICA (principal e módulos, C5)
         // ====================================================================
-        //std::cout << "\n[1] Iniciando análise léxica...\n";
-        
-        std::string code = readFile(filename);
-        Lexer lexer(code);
-        std::vector<Token> tokens = lexer.tokenize();
-
-        // v2.00 #9: Erros léxicos param a compilação antes do Parser
-        bool has_lex_errors = false;
-        for (const auto& tok : tokens) {
-            if (tok.type == TokenType::UNKNOWN) {
-                std::cerr << "LexicalError [linha " << tok.line
-                          << ", col " << tok.column << "]: "
-                          << tok.lexeme << "\n";
-                has_lex_errors = true;
-            }
-        }
-        if (has_lex_errors) {
-            std::cerr << "\n✗ Compilação interrompida: erros léxicos encontrados.\n";
+        ModuleLoader loader;
+        loader.on_main_tokens = [&](const std::vector<Token>& tokens) {
+            printTokens(tokens, show_tokens);
+        };
+        if (!loader.load(filename, code)) {
+            diagnostics().flush(std::cerr);   // B6: léxico, sintaxe e import
             return 1;
         }
 
-        printTokens(tokens, show_tokens);
-        
-        // ====================================================================
-        // FASE 2: ANÁLISE SINTÁTICA
-        // ====================================================================
-        //std::cout << "\n[2] Iniciando análise sintática...\n";
-        
-        Parser parser(tokens);
-        Program program = parser.parse();
-        
-        if (parser.hasErrors()) {
-            std::cout << "✗ Erros encontrados durante o parsing:\n\n";
-            parser.printErrors();
-            return 1;
-        }
-        
-        //std::cout << "✓ Análise sintática concluída com sucesso!\n";
-        
+        std::vector<Module>& modules = loader.ordered();
+        Program& program = *modules.back().program;   // o principal vem por último
+
         // ====================================================================
         // FASE 3: ANÁLISE SEMÂNTICA
         // ====================================================================
-       // std::cout << "\n[3] Iniciando análise semântica...\n";
-        
+        std::vector<ModuleUnit> units;
+        std::vector<const Program*> programs;
+        for (auto& m : modules) {
+            units.push_back(ModuleUnit{m.program.get(), m.prefix, m.imports, m.native});
+            programs.push_back(m.program.get());
+        }
+
         SemanticAnalyzer analyzer;
         try {
-            analyzer.analyze(program);
-            //std::cout << "✓ Análise semântica concluída com sucesso! (AST anotada)\n";
+            analyzer.analyze(units);
         } catch (const SemanticError& e) {
-            std::cerr << "\n✗ " << e.what() << "\n";
+            diagnostics().report("SemanticError", e.message, e.loc);   // B6
+            diagnostics().flush(std::cerr);
             return 1;
         }
         
@@ -288,9 +318,11 @@ int main(int argc, char* argv[]) {
 
         Executor executor;
         try {
-            executor.execute(program);
+            executor.execute(programs, analyzer.globalLayout(), program_args);
         } catch (const RuntimeError& e) {
-            std::cerr << "\n✗ " << e.what() << "\n";
+            // C4/B6: erro não tratado — tipo, mensagem e stack trace
+            diagnostics().report(e.kind, e.message, e.location(), e.trace);
+            diagnostics().flush(std::cerr);
             return 1;
         }
 
@@ -298,7 +330,13 @@ int main(int argc, char* argv[]) {
         //std::cout << "✓ Execução concluída.\n\n";
         
     } catch (const std::exception& e) {
-        std::cerr << "\n✗ Erro fatal: " << e.what() << "\n";
+        // A10: erros da linguagem (léxico, sintaxe, semântica, runtime) já foram
+        // tratados acima; qualquer outra exceção C++ (bad_variant_access,
+        // out_of_range, ...) é bug do próprio compilador
+        reportInternalError(e.what());
+        return 1;
+    } catch (...) {
+        reportInternalError("exceção desconhecida");
         return 1;
     }
     

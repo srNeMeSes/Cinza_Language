@@ -1,0 +1,12 @@
+// C4: break/continue não podem sair de um finally (laço dentro do finally continua valendo).
+fn main() {
+    for (int i in [1, 2]) {
+        try {
+            print(i);
+        } finally {
+            for (int j in [1]) { break; }
+            break;
+        }
+    }
+}
+// expect-error: 'break' não pode sair de um bloco 'finally'

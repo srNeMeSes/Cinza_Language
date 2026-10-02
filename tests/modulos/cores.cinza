@@ -1,0 +1,4 @@
+// Módulo auxiliar dos testes de enum.
+pub enum Cor { Vermelho, Verde, Azul }
+enum Segredo { A, B }
+pub fn favorita() -> Cor { return Cor.Azul; }

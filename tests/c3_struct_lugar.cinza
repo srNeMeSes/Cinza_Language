@@ -1,0 +1,14 @@
+// C3: l[0].x = v altera o struct dentro da lista; o iterador do for é uma cópia.
+struct Ponto { int x = 0; int y = 0; }
+fn main() {
+    list<Ponto> l = [new Ponto(1, 2), new Ponto(3, 4)];
+    l[0].x = 10;
+    l[1].y += 5;
+    for (Ponto p in l) { p.x = 0; }
+    print(l[0].x, l[1].y);
+    dict<string, Ponto> d = {{"a", new Ponto()}};
+    d["a"].x = 7;
+    print(d["a"]);
+}
+// expect: 10 9
+// expect: Ponto{x: 7, y: 0}

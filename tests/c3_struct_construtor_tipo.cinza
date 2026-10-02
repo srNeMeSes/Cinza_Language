@@ -1,0 +1,6 @@
+// C3: argumento do construtor precisa ter o tipo do campo correspondente.
+struct Pessoa { string nome = ""; int idade = 0; }
+fn main() {
+    Pessoa p = new Pessoa(30, "Ana");
+}
+// expect-error: (campo 'nome'): esperado 'string', mas recebeu 'int'

@@ -1,0 +1,7 @@
+// enum: pub enum de um módulo — geom.Cor.Verde, nas assinaturas e no print.
+import modulos.cores as cr;
+fn main() {
+  cr.Cor c = cr.favorita();
+  print(c, c == cr.Cor.Azul, c == cr.Cor.Verde);
+}
+// expect: Cor.Azul true false

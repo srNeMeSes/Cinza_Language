@@ -1,0 +1,5 @@
+// C3/A8: struct só no nível superior.
+fn main() {
+    struct S { int x = 0; }
+}
+// expect-error: só é permitido no nível superior

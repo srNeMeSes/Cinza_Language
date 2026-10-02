@@ -1,0 +1,7 @@
+// C5: variável local não pode ter o nome de um apelido de módulo.
+import modulos.geom;
+fn main() {
+  int geom = 1;
+  print(geom);
+}
+// expect-error: 'geom' já é o apelido de um módulo importado

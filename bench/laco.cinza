@@ -1,0 +1,12 @@
+// Benchmark B2: laço com leitura e escrita de variáveis locais.
+const int LIMITE = 2000000;
+fn main() {
+  int soma = 0;
+  int i = 0;
+  while (i < LIMITE) {
+    int quadrado = i * i % 7;
+    soma += quadrado;
+    i += 1;
+  }
+  print(soma);
+}

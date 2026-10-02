@@ -1,0 +1,13 @@
+// A1: uma função enxerga o const global, nunca o local homônimo de quem a chamou (antes: escopo dinâmico).
+// Fase 2.5: reescrito sem global mutável; parâmetro alterado na função não muda a variável do chamador.
+const int count = 0;
+fn inc() -> int { return count + 1; }
+fn zera(int count) { count = -1; }
+fn main() {
+  int count = 100;
+  print(inc());
+  zera(count);
+  print(count);
+}
+// expect: 1
+// expect: 100

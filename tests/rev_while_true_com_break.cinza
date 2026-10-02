@@ -1,0 +1,9 @@
+// Revisão: com break saindo do laço, o while (true) pode terminar e o retorno continua obrigatório.
+fn f() -> int {
+  while (true) {
+    for (int i in range(0, 2)) { break; }
+    break;
+  }
+}
+fn main() { print(f()); }
+// expect-error: Função 'f' não retorna em todos os caminhos de execução

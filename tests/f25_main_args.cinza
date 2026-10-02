@@ -1,0 +1,10 @@
+// Fase 2.5: main(list<string> args) recebe os argumentos que vêm depois do arquivo.
+fn main(list<string> args) {
+  print(args.size());
+  for (string a in args) { print(a); }
+}
+// args: a b c
+// expect: 3
+// expect: a
+// expect: b
+// expect: c

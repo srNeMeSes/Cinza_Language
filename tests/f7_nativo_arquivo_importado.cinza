@@ -1,0 +1,4 @@
+// Fase 7: arquivo importado com o nome de um módulo nativo é erro.
+import modulos.lib.Math;
+fn main() { }
+// expect-error: o arquivo 'tests/modulos/lib/Math.cinza' tem o nome do módulo nativo 'Math'

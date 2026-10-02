@@ -1,0 +1,25 @@
+// A6: recursão legítima logo abaixo do limite (2000) funciona, inclusive via métodos e dentro de if/for.
+class Contador {
+  int passos = 0;
+  pub {
+    fn desce(int n) -> int {
+      if (n == 0) { return passos; }
+      passos = passos + 1;
+      return desce(n - 1);
+    }
+  }
+}
+fn soma(int n) -> int {
+  if (n == 0) { return 0; }
+  for (int x in [1]) {
+    if (x == 1) { return n + soma(n - 1); }
+  }
+  return 0;
+}
+fn main() {
+  print(soma(1990));
+  Contador c = new Contador();
+  print(c.desce(1990));
+}
+// expect: 1981045
+// expect: 1990

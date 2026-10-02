@@ -1,0 +1,4 @@
+// enum: não há int por trás dos valores.
+enum Cor { Vermelho, Verde }
+fn main() { Cor c = 1; }
+// expect-error: Tipo incompatível na declaração de 'c': declarado 'Cor', mas atribuído 'int'

@@ -1,0 +1,13 @@
+// Revisão: alterar struct guardado em variável, lista ou campo continua valendo.
+struct P { int x = 0; }
+struct Q { P p = new P(); }
+fn main() {
+  P a = new P();
+  a.x = 1;
+  list<P> l = [new P()];
+  l[0].x = 2;
+  Q q = new Q();
+  q.p.x = 3;
+  print(a.x, l[0].x, q.p.x);
+}
+// expect: 1 2 3

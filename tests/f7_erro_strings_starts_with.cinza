@@ -1,0 +1,6 @@
+// Fase 7: erro em Strings.starts_with.
+import Strings;
+fn main() {
+  print(Strings.starts_with(1, "a"));
+}
+// expect-error: Argumento 1 de 'Strings.starts_with': esperado 'string', mas recebeu 'int'

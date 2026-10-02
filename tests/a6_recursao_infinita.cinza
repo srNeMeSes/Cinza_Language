@@ -1,0 +1,6 @@
+// A6: recursão infinita causa segmentation fault. Falha até a Fase 2.
+fn r(int n) -> int { return r(n + 1); }
+fn main() {
+  print(r(0));
+}
+// expect-error: StackOverflowError

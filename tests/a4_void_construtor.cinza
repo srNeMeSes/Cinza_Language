@@ -1,0 +1,4 @@
+// A4: parâmetro void em construtor é rejeitado (antes era aceito).
+class C { int v = 0; pub { C(void x) { v = 1; } } }
+fn main() {}
+// expect-error: Tipo 'void' não pode ser usado no parâmetro 'x'

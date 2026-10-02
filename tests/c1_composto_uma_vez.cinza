@@ -1,0 +1,9 @@
+// C1: a op= b avalia o alvo uma única vez (f imprime só uma vez).
+fn f() -> int { print("f"); return 0; }
+fn main() {
+  list<int> lista = [10];
+  lista[f()] += 1;
+  print(lista[0]);
+}
+// expect: f
+// expect: 11

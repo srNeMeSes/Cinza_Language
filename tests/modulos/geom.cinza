@@ -1,0 +1,25 @@
+// Módulo auxiliar dos testes c5 (não é teste: fica fora de tests/*.cinza).
+pub const int LADO = 3;
+const int SEGREDO = 7;
+
+pub struct Ponto { int x = 0; int y = 0; }
+
+pub class Contador {
+  int n = 0;
+  pub {
+    fn inc() { n += 1; }
+    fn valor() -> int { return n; }
+  }
+}
+
+pub error ForaDaArea;
+
+fn dobro(int v) -> int { return v * 2; }
+
+pub fn area(int l) -> int { return l * l; }
+pub fn dobroDoLado() -> int { return dobro(LADO); }
+pub fn origem() -> Ponto { return new Ponto(); }
+pub fn valida(int v) {
+  if (v > 10) { throw ForaDaArea("valor alto"); }
+}
+pub fn segredo() -> int { return SEGREDO; }

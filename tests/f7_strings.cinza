@@ -1,0 +1,26 @@
+// Fase 7: namespace Strings (com apelido); size continua método de string.
+import Strings as st;
+fn main() {
+  str name = "evans";
+  print(st.upper(name), name, name.size());
+  print(st.upper("ação é"), st.lower("ÇÃO Ü"));
+  print("[" + st.trim("  a b \t\n") + "]");
+  list<string> partes = st.split("a,b,,c", ",");
+  print(partes, partes.size());
+  print(st.join(partes, "-"), st.join(st.split("x", ","), "+"));
+  print(st.contains("banana", "nan"), st.contains("banana", "x"));
+  print(st.replace("banana", "an", "AN"));
+  print(st.substr("coração", 2, 3), "[" + st.substr("abc", 3, 0) + "]");
+  print(st.find("coração", "ção"), st.find("abc", "z"));
+  print(st.starts_with("cinza", "ci"), st.starts_with("cinza", "za"));
+}
+// expect: EVANS evans 5
+// expect: AÇÃO É ção ü
+// expect: [a b]
+// expect: ["a", "b", "", "c"] 4
+// expect: a-b--c x
+// expect: true false
+// expect: bANANa
+// expect: raç []
+// expect: 4 -1
+// expect: true false

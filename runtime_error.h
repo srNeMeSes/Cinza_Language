@@ -2,59 +2,87 @@
 #define CINZA_RUNTIME_ERROR_H
 
 #include "value.h"
+#include "diagnostics.h"
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace cinza {
 
 // ============================================================================
+// TIPOS DE ERRO EMBUTIDOS (C4)
+//
+// Error é a raiz: `except (Error e)` captura qualquer erro. Os demais são
+// específicos; erros de runtime sem categoria própria têm tipo Error.
+// `error Nome;` no nível superior declara novos tipos (também filhos de Error).
+// ============================================================================
+
+inline const std::vector<std::string>& builtinErrorKinds() {
+    static const std::vector<std::string> kinds = {
+        "Error", "ValueError", "IndexError", "KeyError", "ZeroDivisionError",
+        "OverflowError", "IOError", "StackOverflowError", "TypeError"
+    };
+    return kinds;
+}
+
+// ============================================================================
 // RUNTIME ERROR
 //
-// Erros detectáveis apenas em tempo de execução.
-// O SemanticAnalyzer não pode prevê-los estaticamente:
+// Erro da linguagem em tempo de execução (o SemanticAnalyzer não pode
+// prevê-lo): IndexError, KeyError, ZeroDivisionError, OverflowError,
+// StackOverflowError, ValueError... e os lançados com `throw` (C4).
+// É capturável por try/except.
 //
-//   IndexError      → lista[i] fora dos limites
-//   KeyError        → dict["x"] com chave inexistente
-//   DivisionByZero  → divisão ou módulo por zero
+//   kind    → tipo do erro ("ZeroDivisionError", "SaldoInsuficiente", "Error")
+//   message → texto sem o prefixo do tipo
+//   trace   → pilha de chamadas no momento do erro, da mais interna para fora
+//             ("em f (linha 3)"); preenchida pelo Executor
+//
+// Construído só com a mensagem, o tipo é lido do prefixo "Tipo: " quando ele
+// é um tipo embutido ("IndexError: índice 5 ..."); senão o tipo é Error.
 // ============================================================================
 
 class RuntimeError : public std::runtime_error {
 public:
-    int line;
-    int column;
+    std::string              kind;
+    std::string              message;
+    int                      line;
+    int                      column;
+    std::vector<std::string> trace;
 
-    RuntimeError(const std::string& msg, int ln = 0, int col = 0)
-        : std::runtime_error(buildMessage(msg, ln, col)),
-          line(ln), column(col) {}
+    int                      file_id = 0;   // C5: arquivo do erro (0 = principal)
+
+    // B6: posição (line 0 = sem posição)
+    SourceLocation location() const { return {line ? file_id : -1, line, column}; }
+
+    RuntimeError(const std::string& msg, int ln = 0, int col = 0, int file = 0)
+        : RuntimeError(splitKind(msg), ln, col, file) {}
+
+    RuntimeError(const std::string& k, const std::string& msg, int ln, int col, int file = 0)
+        : std::runtime_error(buildMessage(k, msg, ln, col, file)),
+          kind(k), message(msg), line(ln), column(col), file_id(file) {}
 
 private:
-    static std::string buildMessage(const std::string& msg, int ln, int col) {
-        if (ln == 0) return "RuntimeError: " + msg;
-        return "RuntimeError [linha " + std::to_string(ln) +
-               ", col "  + std::to_string(col) + "]: " + msg;
+    struct KindAndMessage { std::string kind, message; };
+
+    RuntimeError(KindAndMessage km, int ln, int col, int file)
+        : RuntimeError(km.kind, km.message, ln, col, file) {}
+
+    static KindAndMessage splitKind(const std::string& msg) {
+        for (const auto& k : builtinErrorKinds()) {
+            const std::string prefixo = k + ": ";
+            if (msg.compare(0, prefixo.size(), prefixo) == 0)
+                return {k, msg.substr(prefixo.size())};
+        }
+        return {"Error", msg};
     }
-};
 
-// ============================================================================
-// RETURN SIGNAL
-//
-// Não é um erro — é controle de fluxo puro.
-//
-// Lançado pelo executor ao encontrar um ReturnStmt.
-// Capturado pelo executor de chamadas de função (executeFunction /
-// executeMethodCall) para extrair o valor de retorno e continuá-lo
-// normalmente para o chamador.
-//
-// Esse padrão evita passar o valor de retorno através de parâmetros de
-// saída por toda a árvore de chamadas.  É a abordagem canônica de
-// tree-walk interpreters (cf. Crafting Interpreters, cap. 10).
-// ============================================================================
-
-struct ReturnSignal {
-    Value value;
-
-    ReturnSignal() = default;
-    explicit ReturnSignal(Value v) : value(std::move(v)) {}
+    // B6: "arquivo:linha:coluna: Tipo: mensagem" (sem posição: "Tipo: mensagem")
+    static std::string buildMessage(const std::string& k, const std::string& msg,
+                                    int ln, int col, int file) {
+        if (ln == 0) return formatDiagnostic(k, msg, SourceLocation{-1, 0, 0});
+        return formatDiagnostic(k, msg, SourceLocation{file, ln, col});
+    }
 };
 
 } // namespace cinza

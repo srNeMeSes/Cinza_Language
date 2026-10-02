@@ -1,0 +1,4 @@
+// Módulo auxiliar: erro de runtime dentro de um módulo.
+pub fn divide(int a, int b) -> int {
+  return a / b;
+}

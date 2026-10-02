@@ -1,0 +1,5 @@
+// enum: o nome do enum não pode repetir outra declaração.
+struct Cor { int x = 0; }
+enum Cor { Vermelho }
+fn main() { }
+// expect-error: Declaração duplicada: 'Cor'

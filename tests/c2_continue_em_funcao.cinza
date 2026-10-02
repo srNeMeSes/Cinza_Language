@@ -1,0 +1,6 @@
+// C2: o laço de quem chama não vale dentro da função chamada.
+fn pula() { continue; }
+fn main() {
+  for (int x in [1, 2]) { pula(); }
+}
+// expect-error: 'continue' só pode ser usado dentro de um laço

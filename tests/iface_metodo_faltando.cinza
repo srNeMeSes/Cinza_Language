@@ -1,0 +1,10 @@
+// interface: a classe precisa ter todos os métodos da interface.
+interface Forma {
+  fn area() -> decimal;
+  fn nome() -> string;
+}
+class Ponto : Forma {
+  pub { fn area() -> decimal { return 0.0; } }
+}
+fn main() { }
+// expect-error: A classe 'Ponto' declara ': Forma', mas não tem o método nome() -> string.

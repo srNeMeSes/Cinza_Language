@@ -1,0 +1,2 @@
+// Módulo auxiliar: arquivo com nome de módulo nativo (proibido).
+pub fn f() -> int { return 1; }

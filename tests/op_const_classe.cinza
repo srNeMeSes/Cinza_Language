@@ -1,0 +1,4 @@
+// op<...>: const não vale para op que aceita objeto de classe (como em const Pessoa).
+class No { int v = 0; }
+fn main() { const op<No, bool> x = false; }
+// expect-error: 'const' não pode ser usado em objeto de classe

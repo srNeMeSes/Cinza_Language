@@ -1,0 +1,11 @@
+// C4/B6: erro não tratado imprime tipo, mensagem e stack trace (da chamada mais interna para fora).
+error Falha;
+fn nivel2() { throw Falha("deu ruim"); }
+fn nivel1() { nivel2(); }
+fn main() {
+    nivel1();
+}
+// expect-error: tests/c4_nao_tratado_trace.cinza:3:21: Falha: deu ruim
+// expect-error: em nivel2 (tests/c4_nao_tratado_trace.cinza:3)
+// expect-error: em nivel1 (tests/c4_nao_tratado_trace.cinza:4)
+// expect-error: em main (tests/c4_nao_tratado_trace.cinza:6)

@@ -1,0 +1,4 @@
+// Fase 7: min/max exigem os dois argumentos do mesmo tipo (o primeiro fixa o tipo).
+import Math;
+fn main() { print(Math.min(1, 2.5)); }
+// expect-error: Argumento 2 de 'Math.min': esperado 'int', mas recebeu 'decimal'

@@ -1,0 +1,7 @@
+// C3: campo que não existe no struct.
+struct Ponto { int x = 0; }
+fn main() {
+    Ponto p = new Ponto();
+    print(p.z);
+}
+// expect-error: Campo 'z' não existe no struct 'Ponto'

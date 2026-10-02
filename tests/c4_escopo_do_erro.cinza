@@ -1,0 +1,10 @@
+// C4: a variável do erro só existe dentro do bloco except.
+fn main() {
+    try {
+        throw ValueError("x");
+    } except (ValueError e) {
+        print(e.message);
+    }
+    print(e.message);
+}
+// expect-error: Variável 'e' não declarada

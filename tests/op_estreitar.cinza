@@ -1,0 +1,32 @@
+// op<...>: dentro de if (type(x) == T), x tem o tipo T (vale para variável, parâmetro e campo).
+struct Caixa { op<string, int> conteudo = 0; }
+class Contador {
+  op<decimal, int> passo = 2;
+  pub {
+    fn dobro() -> int {
+      if (type(passo) == int) { return passo * 2; }
+      return 0;
+    }
+  }
+}
+fn par(op<decimal, int> v) -> string {
+  if (type(v) == int) {
+    int x = v;
+    if (x % 2 == 0) { return "par"; }
+    return "ímpar";
+  }
+  return "decimal";
+}
+fn descreve(Caixa c) -> string {
+  op<string, int> v = c.conteudo;
+  if (type(v) == int) { return "número " + (v * 2); }
+  return "texto " + v;
+}
+fn main() {
+  print(par(4), par(7), par(2.5));
+  print(descreve(new Caixa(21)), descreve(new Caixa("oi")));
+  print(new Contador().dobro());
+}
+// expect: par ímpar decimal
+// expect: número 42 texto oi
+// expect: 4

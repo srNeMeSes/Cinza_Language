@@ -1,0 +1,4 @@
+// C3: struct que contém a si mesmo por valor, diretamente (inclusive via pair), é erro.
+struct No { int v = 0; pair<int, No> prox = {0, new No()}; }
+fn main() {}
+// expect-error: Struct 'No' contém a si mesmo por valor (No → No)

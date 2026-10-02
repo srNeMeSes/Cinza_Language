@@ -1,0 +1,6 @@
+// A2: promoção int -> decimal não materializada. Falha até a Fase 2.
+fn main() {
+  decimal d = 5;
+  print(d / 2);
+}
+// expect: 2.5

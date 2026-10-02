@@ -1,0 +1,15 @@
+// B5/C3: const para no objeto de classe — campos dos objetos numa lista const seguem alteráveis.
+class Pessoa {
+  string nome = "";
+  pub {
+    Pessoa(string n) { nome = n; }
+    fn renomeiaPrimeiro(const list<Pessoa> l, string n) { l[0].nome = n; }
+    fn get() -> string { return nome; }
+  }
+}
+fn main() {
+  const list<Pessoa> l = [new Pessoa("Ana")];
+  l[0].renomeiaPrimeiro(l, "Ana Maria");
+  print(l[0].get());
+}
+// expect: Ana Maria

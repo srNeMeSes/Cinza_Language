@@ -1,0 +1,18 @@
+// op<...>: o exemplo do autor — um parâmetro que aceita list<int> ou list<decimal>.
+fn media(list<op<decimal, int>> valores) -> decimal {
+  decimal s = 0.0;
+  for (op<decimal, int> v in valores) {
+    s = s + v;
+  }
+  return s / valores.size();
+}
+fn main() {
+  list<int> valores1 = [1, 2, 3, 4, 5];
+  list<decimal> valores2 = [8.6, 4.5, 5.2, 7.8];
+  print(media(valores1));
+  print(media(valores2));
+  print(media([2, 4]));
+}
+// expect: 3
+// expect: 6.525
+// expect: 3

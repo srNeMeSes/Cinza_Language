@@ -1,0 +1,7 @@
+// B6: erros de sintaxe no formato unificado; o parser se recupera e mostra os dois.
+fn main() {
+  int a = ;
+  print(1;
+}
+// expect-error: tests/b6_formato_sintaxe.cinza:3:11: SyntaxError:
+// expect-error: tests/b6_formato_sintaxe.cinza:4:10: SyntaxError:

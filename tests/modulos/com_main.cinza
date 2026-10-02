@@ -1,0 +1,2 @@
+// Módulo auxiliar: main num módulo importado é erro.
+fn main() { print("x"); }

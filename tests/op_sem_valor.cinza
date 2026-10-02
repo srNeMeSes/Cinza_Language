@@ -1,0 +1,5 @@
+// op<...>: é o valor inicial que trava o tipo, então ele é obrigatório (inclusive em coleções).
+fn main() {
+  list<op<int, string>> l;
+}
+// expect-error: 'l' tem op no tipo e precisa de um valor inicial

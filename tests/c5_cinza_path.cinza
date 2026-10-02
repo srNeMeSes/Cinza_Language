@@ -1,0 +1,5 @@
+// C5: módulo que não está ao lado do arquivo é procurado nas pastas de CINZA_PATH.
+// env: CINZA_PATH=tests/modulos/lib
+import extra;
+fn main() { print(extra.ola()); }
+// expect: ola do CINZA_PATH

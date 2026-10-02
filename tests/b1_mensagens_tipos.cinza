@@ -1,0 +1,5 @@
+// B1 (regressão): mensagens de erro continuam mostrando os tipos na forma canônica, inclusive aninhados.
+fn main() {
+  list<dict<string, list<decimal>>> x = [1];
+}
+// expect-error: declarado 'list<dict<string, list<decimal>>>', mas atribuído 'list<int>'

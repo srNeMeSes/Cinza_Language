@@ -1,0 +1,4 @@
+// C5: só o arquivo principal pode declarar main.
+import modulos.com_main;
+fn main() { }
+// expect-error: 'main' não pode ser declarada num módulo importado

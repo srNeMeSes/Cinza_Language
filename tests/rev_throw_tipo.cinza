@@ -1,0 +1,4 @@
+// Revisão: `throw Falhou;` explica que é preciso criar o erro (antes falava em tipo 'type').
+error Falhou;
+fn main() { throw Falhou; }
+// expect-error: 'Falhou' é um tipo de erro: crie o erro para lançá-lo, ex.: throw Falhou("mensagem");

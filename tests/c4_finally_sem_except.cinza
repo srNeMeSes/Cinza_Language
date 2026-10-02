@@ -1,0 +1,13 @@
+// C4: sem except correspondente, o finally roda e o erro continua subindo até o fim.
+fn main() {
+    try {
+        int z = 0;
+        print(1 / z);
+    } except (ValueError e) {
+        print("nao captura");
+    } finally {
+        print("limpeza");
+    }
+}
+// expect: limpeza
+// expect-error: ZeroDivisionError

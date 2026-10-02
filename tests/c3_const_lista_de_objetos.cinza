@@ -1,0 +1,15 @@
+// C3 (regressão): const em list de objetos continua permitido, e os objetos seguem alteráveis.
+class Pessoa {
+  string nome = "";
+  pub {
+    Pessoa(string n) { nome = n; }
+    fn renomeia(string n) { nome = n; }
+    fn get() -> string { return nome; }
+  }
+}
+fn main() {
+  const list<Pessoa> l = [new Pessoa("Ana"), new Pessoa("Bia")];
+  l[0].renomeia("Ana Maria");
+  print(l[0].get(), l.size());
+}
+// expect: Ana Maria 2

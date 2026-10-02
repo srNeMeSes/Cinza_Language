@@ -1,0 +1,9 @@
+// Revisão: mensagens de runtime com acentuação (antes "indice", "nao", "dicionario").
+fn main() {
+  list<int> l = [1];
+  dict<string, int> d = {{"a", 1}};
+  try { print(l[3]); } except (IndexError e) { print(e.message); }
+  try { print(d["b"]); } except (KeyError e) { print(e.message); }
+}
+// expect: índice 3 fora dos limites (tamanho: 1)
+// expect: chave 'b' não encontrada no dicionário

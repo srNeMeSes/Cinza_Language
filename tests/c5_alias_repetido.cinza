@@ -1,0 +1,5 @@
+// C5: dois imports com o mesmo apelido.
+import modulos.geom;
+import modulos.lib.geom;
+fn main() { }
+// expect-error: Apelido de módulo 'geom' repetido

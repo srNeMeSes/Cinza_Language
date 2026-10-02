@@ -1,0 +1,6 @@
+// C2: passo 0 em range é erro de runtime.
+fn main() {
+  int p = 0;
+  for (int i in range(0, 5, p)) { print(i); }
+}
+// expect-error: o passo de 'range' não pode ser 0

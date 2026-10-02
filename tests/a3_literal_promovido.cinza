@@ -1,0 +1,50 @@
+// A3: literais assumem o tipo esperado pelo contexto (cada linha dá 0.5 só se o 1 virou decimal).
+fn primeiro(list<decimal> l) -> decimal { return l[0] / 2; }
+fn lista() -> list<decimal> { return [1]; }
+class Caixa {
+  list<decimal> itens = [1];
+  pub {
+    fn primeiro() -> decimal { return itens[0] / 2; }
+    fn trocar(list<decimal> l) { itens = l; }
+  }
+}
+fn main() {
+  list<decimal> l = [1, 2];
+  print(l[0] / 2);
+  list<list<decimal>> m = [[1], [2.5]];
+  print(m[0][0] / 2);
+  dict<string, decimal> d = {{"a", 1}};
+  print(d["a"] / 2);
+  dict<string, list<decimal>> dl = {{"a", [1]}};
+  print(dl["a"][0] / 2);
+  pair<string, decimal> p = {"a", 1};
+  print(p.second / 2);
+  dict<string, decimal> e;
+  e.add({"b", 1});
+  print(e["b"] / 2);
+  print(primeiro([1]));
+  print(lista()[0] / 2);
+  Caixa c = new Caixa();
+  print(c.primeiro());
+  c.trocar([1]);
+  print(c.primeiro());
+  l = [1];
+  print(l[0] / 2);
+  m[0] = [1];
+  print(m[0][0] / 2);
+  list<pair<string, decimal>> ps = [{"x", 1}];
+  print(ps[0].second / 2);
+}
+// expect: 0.5
+// expect: 0.5
+// expect: 0.5
+// expect: 0.5
+// expect: 0.5
+// expect: 0.5
+// expect: 0.5
+// expect: 0.5
+// expect: 0.5
+// expect: 0.5
+// expect: 0.5
+// expect: 0.5
+// expect: 0.5

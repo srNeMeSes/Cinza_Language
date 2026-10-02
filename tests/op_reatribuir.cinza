@@ -1,0 +1,12 @@
+// op<...>: num parâmetro op, um valor que serve para todos os tipos pode ser atribuído; o tipo
+// travado se mantém (5 vira 5.0 se o parâmetro travou em decimal).
+fn f(op<decimal, int> v) {
+  v = 5;
+  print(v, type(v));
+}
+fn main() {
+  f(2.5);
+  f(3);
+}
+// expect: 5 decimal
+// expect: 5 int

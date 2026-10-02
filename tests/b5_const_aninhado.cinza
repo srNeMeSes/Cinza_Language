@@ -1,0 +1,6 @@
+// B5/C3: const fecha o recipiente em qualquer profundidade (m[0][0] = x é erro).
+fn main() {
+  const list<list<int>> m = [[1]];
+  m[0][0] = 2;
+}
+// expect-error: é const

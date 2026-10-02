@@ -1,0 +1,4 @@
+// enum: sem operadores aritméticos.
+enum Cor { Vermelho, Verde }
+fn main() { print(Cor.Verde + 1); }
+// expect-error: Operador '+' não é suportado entre 'Cor' e 'int'

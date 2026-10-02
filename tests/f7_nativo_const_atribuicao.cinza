@@ -1,0 +1,4 @@
+// Fase 7: constantes de módulo nativo não podem ser alteradas.
+import Math;
+fn main() { Math.pi = 3.0; }
+// expect-error: const

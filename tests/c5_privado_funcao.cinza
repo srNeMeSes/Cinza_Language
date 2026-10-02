@@ -1,0 +1,4 @@
+// C5: só o que é 'pub' é visível fora do módulo.
+import modulos.geom;
+fn main() { print(geom.dobro(2)); }
+// expect-error: 'dobro' é privado no módulo 'geom'

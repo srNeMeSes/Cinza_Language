@@ -1,0 +1,10 @@
+// C6: print e range são nativas do prelude; print aceita qualquer número de argumentos de qualquer tipo.
+struct P { int x = 1; }
+fn main() {
+    print();
+    print(1, 2.5, "a", true, [1, 2], {"k", 3}, new P());
+    print(range(0, 3), range(3, 0, -1));
+}
+// expect:
+// expect: 1 2.5 a true [1, 2] {"k", 3} P{x: 1}
+// expect: [0, 1, 2] [3, 2, 1]

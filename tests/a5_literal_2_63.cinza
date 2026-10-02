@@ -1,0 +1,5 @@
+// A5: 9223372036854775808 só é válido com '-' na frente.
+fn main() {
+  int z = 9223372036854775808;
+}
+// expect-error: fora do intervalo

@@ -1,0 +1,4 @@
+// A9: dict sem <K, V> é erro.
+fn f(dict d) -> int { return 1; }
+fn main() {}
+// expect-error: Esperado '<' após 'dict'

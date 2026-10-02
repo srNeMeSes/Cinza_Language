@@ -1,0 +1,6 @@
+// C3: número parcial de argumentos no construtor é erro.
+struct Ponto { int x = 0; int y = 0; int z = 0; }
+fn main() {
+    Ponto p = new Ponto(1, 2);
+}
+// expect-error: informe todos os 3 campos, em ordem, ou nenhum

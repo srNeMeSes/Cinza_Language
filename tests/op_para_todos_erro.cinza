@@ -1,0 +1,6 @@
+// op<...>: um valor de op não cabe num tipo que não aceita todos os seus tipos.
+fn f(op<decimal, int> v) {
+  int x = v;
+}
+fn main() { f(1); }
+// expect-error: Tipo incompatível na declaração de 'x': declarado 'int', mas atribuído 'op<decimal, int>'

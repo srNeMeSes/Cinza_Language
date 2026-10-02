@@ -1,0 +1,4 @@
+// A10: 'return <expr>;' em função void continua sendo erro.
+fn f() { return 1; }
+fn main() {}
+// expect-error: Função void não pode retornar um valor

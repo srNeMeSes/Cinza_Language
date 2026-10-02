@@ -1,0 +1,12 @@
+// Fase 7: erros de runtime em Strings (ValueError e IndexError).
+import Strings;
+fn main() {
+  try { print(Strings.split("a,b", "")); } except (ValueError e) { print(e.kind, e.message); }
+  try { print(Strings.replace("a", "", "b")); } except (ValueError e) { print(e.kind); }
+  try { print(Strings.substr("abc", 2, 5)); } except (IndexError e) { print(e.kind, e.message); }
+  try { print(Strings.substr("abc", -1, 1)); } except (IndexError e) { print(e.kind); }
+}
+// expect: ValueError o separador de 'split' não pode ser vazio
+// expect: ValueError
+// expect: IndexError 'substr(2, 5)' fora dos limites de uma string de tamanho 3
+// expect: IndexError

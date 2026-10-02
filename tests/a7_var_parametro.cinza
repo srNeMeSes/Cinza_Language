@@ -1,0 +1,5 @@
+// A7: 'var' em parâmetro é erro de parser (antes o corpo era reanalisado com o escopo de quem chamava).
+fn g(var x) -> int { return x + segredo; }
+fn h() -> int { int segredo = 42; return g(1); }
+fn main() {}
+// expect-error: 'var' não é permitido em parâmetros

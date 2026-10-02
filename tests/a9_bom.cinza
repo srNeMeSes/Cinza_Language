@@ -1,0 +1,5 @@
+﻿// A9: arquivo com BOM UTF-8 no início é aceito (antes: 3 LexicalError).
+fn main() {
+  print("ok");
+}
+// expect: ok

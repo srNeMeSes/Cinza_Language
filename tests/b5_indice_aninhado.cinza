@@ -1,0 +1,18 @@
+// B5: atribuição com índices aninhados (m[i][j] = x) e campo seguido de índice (o.lista[0] = x).
+class Caixa {
+  list<int> itens = [1, 2];
+  pub {
+    fn trocaEm(Caixa o) { o.itens[0] = 99; }
+    fn primeiro() -> int { return itens[0]; }
+  }
+}
+fn main() {
+  list<list<int>> m = [[1, 2], [3, 4]];
+  m[1][0] = 9;
+  dict<string, list<int>> d = {{"a", [1, 2]}};
+  d["a"][1] = 7;
+  Caixa c = new Caixa();
+  c.trocaEm(c);
+  print(m[1][0], d["a"][1], c.primeiro());
+}
+// expect: 9 7 99

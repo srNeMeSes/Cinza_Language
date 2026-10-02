@@ -1,0 +1,5 @@
+// op<...>: type() de uma coleção de op não sabe o tipo travado dos elementos (a coleção não o
+// guarda em runtime).
+fn f(list<op<decimal, int>> l) { print(type(l)); }
+fn main() { f([1]); }
+// expect-error: 'type' não sabe o tipo travado de 'list<op<decimal, int>>'

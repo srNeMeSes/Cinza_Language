@@ -1,0 +1,7 @@
+// enum: valores de enums diferentes não se misturam.
+enum Cor { Vermelho, Verde }
+enum Sinal { Verde, Vermelho }
+fn main() {
+  Cor c = Sinal.Verde;
+}
+// expect-error: Tipo incompatível na declaração de 'c': declarado 'Cor', mas atribuído 'Sinal'

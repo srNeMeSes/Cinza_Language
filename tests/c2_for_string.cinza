@@ -1,0 +1,12 @@
+// C2: for sobre string, um caractere (code point UTF-8) por vez.
+fn main() {
+  for (string c in "ação") { print(c); }
+  int n = 0;
+  for (var c in "€ab") { n += 1; }
+  print(n);
+}
+// expect: a
+// expect: ç
+// expect: ã
+// expect: o
+// expect: 3

@@ -1,0 +1,15 @@
+// A5: os limites de int (64 bits) são válidos, e contas que estouravam 32 bits agora funcionam.
+fn main() {
+  int minimo = -9223372036854775808;
+  int maximo = 9223372036854775807;
+  print(minimo);
+  print(maximo);
+  print(3000000000 * 3);
+  print(-5 + 2);
+  print(7 / -2, 7 % -2, -7 % 2);
+}
+// expect: -9223372036854775808
+// expect: 9223372036854775807
+// expect: 9000000000
+// expect: -3
+// expect: -3 1 -1

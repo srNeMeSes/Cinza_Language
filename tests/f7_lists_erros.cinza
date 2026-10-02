@@ -1,0 +1,12 @@
+// Fase 7: erros de runtime em Lists.
+import Lists;
+fn main() {
+  list<int> n = [1, 2, 3];
+  try { print(Lists.slice(n, 2, 5)); } except (IndexError e) { print(e.kind, e.message); }
+  try { print(Lists.slice(n, 2, 1)); } except (IndexError e) { print(e.kind); }
+  list<int> grandes = [9223372036854775807, 1];
+  try { print(Lists.sum(grandes)); } except (OverflowError e) { print(e.kind, e.message); }
+}
+// expect: IndexError 'slice(2, 5)' fora dos limites de uma lista de tamanho 3
+// expect: IndexError
+// expect: OverflowError a soma de 'sum' não cabe em int

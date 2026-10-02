@@ -1,0 +1,6 @@
+// C3: const não se aplica a objeto de classe (variável local).
+class Pessoa { string nome = "Ana"; }
+fn main() {
+  const Pessoa p = new Pessoa();
+}
+// expect-error: 'const' não pode ser usado em objeto de classe

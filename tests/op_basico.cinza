@@ -1,0 +1,17 @@
+// op<...>: o tipo trava na inicialização. Com valor conhecido, a variável passa a ter esse tipo.
+fn main() {
+  op<decimal, int> number = 1;
+  print(number, type(number));
+  op<decimal, int> outro = 1.4;
+  print(outro, type(outro));
+  op<string, bool, int> status = "ok";
+  print(status, type(status) == string);
+  op<string, bool, int, decimal> coisa = 1;
+  coisa = 2;
+  int x = coisa + 1;
+  print(coisa, x);
+}
+// expect: 1 int
+// expect: 1.4 decimal
+// expect: ok true
+// expect: 2 3

@@ -1,0 +1,13 @@
+// B5: o valor pode alterar a própria lista sem invalidar o lugar da escrita.
+class Acumula {
+  list<int> l = [0];
+  pub {
+    fn cresce() -> int { for (int i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) { l.add(i); } return 7; }
+    fn roda() -> int { l[0] = cresce(); return l[0] + l.size(); }
+  }
+}
+fn main() {
+  Acumula a = new Acumula();
+  print(a.roda());
+}
+// expect: 18

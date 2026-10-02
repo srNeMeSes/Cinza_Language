@@ -1,0 +1,4 @@
+// Fase 7: argumentos de nativas são checados pelo semântico.
+import Strings as st;
+fn main() { print(st.upper(10)); }
+// expect-error: Argumento 1 de 'Strings.upper': esperado 'string', mas recebeu 'int'

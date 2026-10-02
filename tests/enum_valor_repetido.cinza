@@ -1,0 +1,4 @@
+// enum: valor repetido.
+enum Cor { Vermelho, Verde, Vermelho }
+fn main() { }
+// expect-error: Valor 'Vermelho' repetido no enum 'Cor'

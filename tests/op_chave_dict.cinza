@@ -1,0 +1,3 @@
+// op<...>: op não pode ser chave de dict.
+fn main() { dict<op<int, string>, int> d = {{1, 1}}; }
+// expect-error: Chave de dict deve ser int, string, bool ou enum, mas recebeu 'op<int, string>'

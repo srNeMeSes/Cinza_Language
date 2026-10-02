@@ -1,0 +1,7 @@
+// C4: try precisa de pelo menos um except ou finally.
+fn main() {
+    try {
+        print(1);
+    }
+}
+// expect-error: 'try' precisa de pelo menos um 'except' ou um 'finally'

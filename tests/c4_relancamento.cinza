@@ -1,0 +1,19 @@
+// C4: throw e; relança o erro capturado, mantendo tipo, mensagem e linha de origem.
+fn arrisca() { throw ValueError("valor ruim"); }
+fn intermediario() {
+    try {
+        arrisca();
+    } except (ValueError e) {
+        print("registrado:", e.message);
+        throw e;
+    }
+}
+fn main() {
+    try {
+        intermediario();
+    } except (Error e) {
+        print("de fora:", e.kind, e.line);
+    }
+}
+// expect: registrado: valor ruim
+// expect: de fora: ValueError 2

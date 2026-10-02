@@ -1,0 +1,4 @@
+// Revisão: uma expressão void não é valor (antes print(f()) mostrava "void").
+fn f() { }
+fn main() { print(f()); }
+// expect-error: Argumento 1 de 'print' não tem valor: a expressão é 'void'

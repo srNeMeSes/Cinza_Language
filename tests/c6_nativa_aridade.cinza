@@ -1,0 +1,5 @@
+// C6: a aridade de uma nativa é checada pela assinatura (range tem 2 ou 3 parâmetros).
+fn main() {
+    print(range(1));
+}
+// expect-error: Aridade incorreta em 'range': esperados 2 a 3 argumento(s), mas recebeu 1

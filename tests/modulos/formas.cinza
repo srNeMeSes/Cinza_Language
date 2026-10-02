@@ -1,0 +1,11 @@
+// Módulo auxiliar dos testes de interface.
+pub interface Forma {
+  fn area() -> decimal;
+}
+pub class Quadrado : Forma {
+  decimal lado = 1.0;
+  pub {
+    Quadrado(decimal l) { lado = l; }
+    fn area() -> decimal { return lado * lado; }
+  }
+}

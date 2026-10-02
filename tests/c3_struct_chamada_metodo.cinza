@@ -1,0 +1,7 @@
+// C3: chamar método num struct é erro semântico.
+struct S { int x = 0; }
+fn main() {
+    S s = new S();
+    s.f();
+}
+// expect-error: struct 'S' não tem métodos

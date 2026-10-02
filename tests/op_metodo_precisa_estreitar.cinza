@@ -1,0 +1,4 @@
+// op<...>: método num op de tipo travado desconhecido precisa de if (type(x) == ...).
+fn tamanho(op<string, list<int>> v) -> int { return v.size(); }
+fn main() { print(tamanho("abc")); }
+// expect-error: O método 'size' não vale para todos os tipos de 'op<list<int>, string>'

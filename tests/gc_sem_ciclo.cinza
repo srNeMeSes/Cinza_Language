@@ -1,0 +1,19 @@
+// Coleta de ciclos: sem ciclos, a contagem de referências libera tudo e a coleta não encontra lixo.
+// env: CINZA_GC_STATS=1
+class No {
+  list<No> vizinhos;
+  pub {
+    fn liga(No o) { vizinhos.add(o); }
+    fn grau() -> int { return vizinhos.size(); }
+  }
+}
+fn main() {
+  for (int i in range(0, 100)) {
+    No a = new No();
+    No b = new No();
+    a.liga(b);
+  }
+  print("ok");
+}
+// expect: ok
+// expect: [gc] liberados em ciclos: 0, contêineres vivos: 0

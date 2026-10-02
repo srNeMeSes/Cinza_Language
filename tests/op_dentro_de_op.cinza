@@ -1,0 +1,3 @@
+// op<...>: op dentro de op é erro.
+fn main() { op<op<int, string>, bool> x = true; }
+// expect-error: 'op' dentro de 'op' não é permitido

@@ -1,0 +1,6 @@
+// op<...>: depois de travado, o tipo nunca muda.
+fn main() {
+  op<decimal, int, string> coisa = 1;
+  coisa = "x";
+}
+// expect-error: Tipo incompatível na atribuição de 'coisa': esperado 'int', mas recebeu 'string'

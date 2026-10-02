@@ -1,0 +1,15 @@
+// A4: classe cujo nome contém "void" funciona em variável, parâmetro, campo e list<>.
+class Avoider { int v = 1; pub { fn valor() -> int { return v; } } }
+class Grupo {
+  list<Avoider> membros;
+  Avoider lider = new Avoider();
+  pub { fn total() -> int { return lider.valor() + membros.size(); } }
+}
+fn usa(Avoider a) -> int { return a.valor(); }
+fn main() {
+  Avoider q = new Avoider();
+  list<Avoider> l = [q];
+  Grupo g = new Grupo();
+  print(usa(q), l.size(), g.total());
+}
+// expect: 1 1 1

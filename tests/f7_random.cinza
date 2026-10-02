@@ -1,0 +1,22 @@
+// Fase 7: Random — seed torna a sequência reproduzível; palavra-chave depois do apelido (int, decimal).
+import Random as R;
+fn main() {
+  R.seed(7);
+  int a = R.int(1, 100);
+  decimal d = R.decimal();
+  R.seed(7);
+  print(a == R.int(1, 100), d == R.decimal());
+  bool ok = true;
+  for (int i in range(0, 200)) {
+    int x = R.int(-3, 3);
+    decimal y = R.decimal();
+    if (x < -3 or x > 3 or y < 0.0 or y >= 1.0) { ok = false; }
+  }
+  print(ok, R.int(5, 5));
+  list<string> cores = ["azul", "verde"];
+  str c = R.choice(cores);
+  print(c == "azul" or c == "verde");
+}
+// expect: true true
+// expect: true 5
+// expect: true

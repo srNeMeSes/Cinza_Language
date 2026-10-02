@@ -1,0 +1,22 @@
+// C4: depois de capturar um erro que atravessou várias chamadas, variáveis, objeto atual
+// e profundidade de chamadas voltam ao estado certo.
+class Contador {
+    int n = 0;
+    pub {
+        fn falhaFundo(int k) -> int {
+            n += 1;
+            if (k == 0) { throw ValueError("fundo"); }
+            return falhaFundo(k - 1);
+        }
+        fn get() -> int { return n; }
+    }
+}
+fn main() {
+    int local = 5;
+    Contador c = new Contador();
+    for (int rodada in [1, 2, 3]) {
+        try { c.falhaFundo(100); } except (ValueError e) { local += 1; }
+    }
+    print(local, c.get());
+}
+// expect: 8 303

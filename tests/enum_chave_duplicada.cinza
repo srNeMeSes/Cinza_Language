@@ -1,0 +1,6 @@
+// enum: chave duplicada num literal de dict também vale para valores de enum.
+enum Cor { Vermelho, Verde }
+fn main() {
+  dict<Cor, int> d = {{Cor.Verde, 1}, {Cor.Verde, 2}};
+}
+// expect-error: Chave duplicada 'Cor.Verde' no literal de dicionário

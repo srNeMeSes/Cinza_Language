@@ -1,0 +1,5 @@
+// Fase 2.5: const é avaliado antes da main; erro de runtime ali também sai com código 1.
+const int X = 9223372036854775807 + 1;
+fn main() { print("nunca"); }
+// expect-error: OverflowError
+// expect-not: nunca

@@ -1,0 +1,4 @@
+// Fase 7: Math.abs/min/max só aceitam número (int ou decimal).
+import Math;
+fn main() { print(Math.abs("x")); }
+// expect-error: Argumento 1 de 'Math.abs': esperado 'número', mas recebeu 'string'

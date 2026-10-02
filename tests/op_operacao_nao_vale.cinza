@@ -1,0 +1,4 @@
+// op<...>: operação que não vale para todos os tipos do op é erro de compilação.
+fn f(op<string, int> v) -> int { return v - 1; }
+fn main() { print(f(1)); }
+// expect-error: Operador '-' entre 'op<int, string>' e 'int' não vale para todos os tipos do op (falha com 'string' e 'int')

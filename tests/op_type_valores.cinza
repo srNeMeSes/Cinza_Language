@@ -1,0 +1,20 @@
+// op<...>: type() funciona com qualquer valor e compara com nomes de tipo.
+struct Ponto { int x = 0; }
+class Caixa { int v = 0; }
+error Falhou;
+fn main() {
+  print(type(5) == int, type(2.5) == decimal, type("a") == str, type(true) == bool);
+  list<int> l = [1];
+  dict<string, int> d = {{"a", 1}};
+  print(type(l) == list<int>, type(l) == list<string>, type(d) == dict<string, int>);
+  print(type(new Ponto()) == Ponto, type(new Caixa()) == Caixa, type(new Caixa()) == Ponto);
+  print(type(l), type(d), type({1, "x"}), type(new Ponto()));
+  try { throw Falhou("x"); } except (Error e) { print(type(e) == Falhou, type(e)); }
+  print(type(type(1)));
+}
+// expect: true true true true
+// expect: true false true
+// expect: true true false
+// expect: list<int> dict<string, int> pair<int, string> Ponto
+// expect: true Falhou
+// expect: type

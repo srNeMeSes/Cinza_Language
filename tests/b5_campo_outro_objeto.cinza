@@ -1,0 +1,15 @@
+// B5: atribuição a campo de outro objeto da mesma classe (obj.campo = x).
+class Ponto {
+  int x = 0;
+  pub {
+    fn moveOutro(Ponto o, int v) { o.x = v; }
+    fn get() -> int { return x; }
+  }
+}
+fn main() {
+  Ponto a = new Ponto();
+  Ponto b = new Ponto();
+  a.moveOutro(b, 42);
+  print(a.get(), b.get());
+}
+// expect: 0 42

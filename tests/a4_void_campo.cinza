@@ -1,0 +1,4 @@
+// A4: campo list<void> é rejeitado (antes era aceito).
+class C { list<void> xs; }
+fn main() {}
+// expect-error: Tipo 'void' não pode ser usado no campo 'xs'

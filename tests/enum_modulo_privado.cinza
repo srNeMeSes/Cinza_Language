@@ -1,0 +1,4 @@
+// enum: enum sem pub é privado do módulo.
+import modulos.cores as cr;
+fn main() { print(cr.Segredo.A); }
+// expect-error: 'Segredo' é privado no módulo 'cr'

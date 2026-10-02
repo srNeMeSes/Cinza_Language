@@ -1,0 +1,10 @@
+# Gerados pelo build (make / make debug)
+*.o
+*.d
+*.exe
+
+# Gravado pelo teste de Files (tests/f7_files.cinza)
+tests/modulos/saida_files.txt
+
+# Arquivo vazio criado no Windows por redirecionamento para "nul"
+nul

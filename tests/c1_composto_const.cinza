@@ -1,0 +1,6 @@
+// C1: operador composto em const é erro, como a atribuição simples.
+fn main() {
+  const int c = 1;
+  c += 1;
+}
+// expect-error: não pode ser reatribuída

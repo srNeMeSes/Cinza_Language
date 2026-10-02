@@ -1,0 +1,7 @@
+// Fase 7: Lists.sort só ordena int, decimal ou string.
+import Lists;
+fn main() {
+  list<bool> b = [true, false];
+  Lists.sort(b);
+}
+// expect-error: Argumento 1 de 'Lists.sort': esperado 'list<comparável>', mas recebeu 'list<bool>'

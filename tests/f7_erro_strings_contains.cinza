@@ -1,0 +1,6 @@
+// Fase 7: erro em Strings.contains.
+import Strings;
+fn main() {
+  print(Strings.contains("a", true));
+}
+// expect-error: Argumento 2 de 'Strings.contains': esperado 'string', mas recebeu 'bool'

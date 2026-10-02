@@ -1,0 +1,5 @@
+// C5: import só no início do arquivo.
+fn f() { }
+import modulos.geom;
+fn main() { }
+// expect-error: 'import' deve vir no início do arquivo

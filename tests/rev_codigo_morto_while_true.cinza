@@ -1,0 +1,6 @@
+// Revisão: while (true) sem break nunca termina: o que vem depois é inalcançável.
+fn main() {
+  while (true) { print(1); }
+  print("nunca");
+}
+// expect-error: Código inalcançável

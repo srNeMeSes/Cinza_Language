@@ -1,0 +1,10 @@
+// C4: return é proibido dentro de finally.
+fn f() -> int {
+    try {
+        return 1;
+    } finally {
+        return 2;
+    }
+}
+fn main() {}
+// expect-error: 'return' não é permitido dentro de 'finally'

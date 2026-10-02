@@ -1,0 +1,3 @@
+// op<...>: no máximo um list, um dict e um pair por op (regra 9).
+fn main() { op<list<int>, list<string>> x = [1]; }
+// expect-error: Um 'op' aceita no máximo um list, um dict e um pair

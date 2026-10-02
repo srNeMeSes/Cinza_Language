@@ -1,0 +1,5 @@
+// A5: literal inteiro fora da faixa de int (64 bits) é erro léxico, não "Erro fatal: stoi".
+fn main() {
+  int z = 99999999999999999999;
+}
+// expect-error: fora do intervalo

@@ -1,0 +1,5 @@
+// A9: erro no fim do arquivo não mostra lexema lixo no token END_OF_FILE.
+// expect-error: (token: '')
+// expect-not: (token: '1
+fn main() {}
+const int x = 1

@@ -1,0 +1,18 @@
+// enum: em listas, como chave de dict, em struct, const e op<...>.
+enum Cor { Vermelho, Verde, Azul }
+struct Pixel { Cor cor = Cor.Azul; int brilho = 0; }
+const Cor PADRAO = Cor.Verde;
+fn main() {
+  list<Cor> l = [Cor.Azul, Cor.Vermelho];
+  dict<Cor, int> contagem = {{Cor.Verde, 2}, {Cor.Vermelho, 1}};
+  contagem.add({Cor.Azul, 3});
+  print(l, contagem[Cor.Verde], contagem.size());
+  print(contagem);
+  print(new Pixel(), PADRAO);
+  op<Cor, int> v = Cor.Azul;
+  print(v, type(v));
+}
+// expect: [Cor.Azul, Cor.Vermelho] 2 3
+// expect: {Cor.Vermelho: 1, Cor.Verde: 2, Cor.Azul: 3}
+// expect: Pixel{cor: Cor.Azul, brilho: 0} Cor.Verde
+// expect: Cor.Azul Cor

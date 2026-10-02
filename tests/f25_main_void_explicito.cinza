@@ -1,0 +1,3 @@
+// Fase 2.5: "fn main() -> void" também é aceita.
+fn main() -> void { print("ok"); }
+// expect: ok

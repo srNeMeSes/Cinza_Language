@@ -1,0 +1,4 @@
+// B5/A10: self só existe dentro de classe.
+fn f() -> int { return self.x; }
+fn main() {}
+// expect-error: 'self' só pode ser usado dentro de uma classe

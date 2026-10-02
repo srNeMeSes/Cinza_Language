@@ -1,0 +1,3 @@
+// Fase 2.5: main aceita no máximo um parâmetro.
+fn main(list<string> a, int b) {}
+// expect-error: Assinatura inválida para 'main'

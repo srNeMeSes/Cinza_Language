@@ -1,0 +1,12 @@
+// op<...>: onde o tipo travado não é conhecido, a operação vale para todos os tipos.
+fn mais_um(op<decimal, int> v) -> op<decimal, int> { return v + 1; }
+fn metade(op<decimal, int> v) -> decimal { return v / 2.0; }
+fn texto(op<string, int> v) -> string { return "valor: " + v; }
+fn main() {
+  print(mais_um(1), type(mais_um(1)), mais_um(1.5), type(mais_um(1.5)));
+  print(metade(3), metade(5.0));
+  print(texto(7), texto("sete"));
+}
+// expect: 2 int 2.5 decimal
+// expect: 1.5 2.5
+// expect: valor: 7 valor: sete

@@ -1,0 +1,4 @@
+// C5: nomes de um módulo só são acessíveis com o apelido (geom.area, não area).
+import modulos.geom;
+fn main() { print(area(2)); }
+// expect-error: Função 'area' não declarada

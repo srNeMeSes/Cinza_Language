@@ -1,0 +1,4 @@
+// C5: import circular é erro, com a cadeia completa.
+import modulos.ciclo_a;
+fn main() { print(ciclo_a.fa()); }
+// expect-error: import circular: tests/modulos/ciclo_a.cinza → tests/modulos/ciclo_b.cinza → tests/modulos/ciclo_a.cinza

@@ -1,0 +1,2 @@
+// Módulo auxiliar achado via CINZA_PATH.
+pub fn ola() -> string { return "ola do CINZA_PATH"; }

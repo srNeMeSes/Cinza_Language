@@ -1,0 +1,5 @@
+// B6: erro semântico no formato unificado.
+fn main() {
+  int x = "texto";
+}
+// expect-error: tests/b6_formato_semantico.cinza:3:7: SemanticError: Tipo incompatível na declaração de 'x'

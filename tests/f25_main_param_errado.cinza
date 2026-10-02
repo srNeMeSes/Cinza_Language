@@ -1,0 +1,3 @@
+// Fase 2.5: o único parâmetro aceito é list<string>.
+fn main(int x) {}
+// expect-error: Assinatura inválida para 'main'

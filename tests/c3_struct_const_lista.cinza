@@ -1,0 +1,7 @@
+// C3: const fecha o recipiente em qualquer profundidade — a list dentro de um struct const também.
+struct Turma { string nome = ""; list<string> alunos; }
+fn main() {
+    const Turma t = new Turma("A", ["Ana"]);
+    t.alunos.add("Bia");
+}
+// expect-error: em lista const

@@ -1,0 +1,5 @@
+// Fase 7: o mesmo módulo nativo com dois apelidos.
+import Math;
+import Math as M;
+fn main() { print(Math.sqrt(9.0), M.sqrt(9.0), M.pi == Math.pi); }
+// expect: 3 3 true

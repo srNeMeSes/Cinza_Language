@@ -1,0 +1,6 @@
+// A8/A9: fn aninhada gera um único erro, sem cascata de erros depois dele.
+fn f() -> int { fn inner() -> int { return 1; } return inner(); }
+fn g() -> int { return 2; }
+fn main() {}
+// expect-error: nível superior
+// expect-not: Esperado

@@ -1,0 +1,6 @@
+// B5: pair é imutável — atribuir a p.first é erro.
+fn main() {
+  pair<int, int> p = {1, 2};
+  p.first = 3;
+}
+// expect-error: pair é imutável

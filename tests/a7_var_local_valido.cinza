@@ -1,0 +1,10 @@
+// A7: 'var' continua válido em declaração local e no iterador do for.
+fn dobro(int n) -> int { var d = n * 2; return d; }
+fn main() {
+  var x = 5;
+  print(x + 1, dobro(4));
+  for (var i in [1, 2]) { print(i); }
+}
+// expect: 6 8
+// expect: 1
+// expect: 2

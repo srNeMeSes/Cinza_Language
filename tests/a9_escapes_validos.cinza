@@ -1,0 +1,7 @@
+// A9 (regressão): os escapes válidos continuam funcionando.
+fn main() {
+  print("a\tb");
+  print("aspas: \" barra: \\");
+}
+// expect: a	b
+// expect: aspas: " barra: \

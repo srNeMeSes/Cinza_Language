@@ -1,0 +1,5 @@
+// Fase 2.5: comando solto no nível superior é erro de parser, com dica para mover para main.
+print("x");
+fn main() {}
+// expect-error: Comando solto no nível superior
+// expect-error: fn main()

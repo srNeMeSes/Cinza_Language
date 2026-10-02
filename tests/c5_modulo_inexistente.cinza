@@ -1,0 +1,4 @@
+// C5: módulo que não existe.
+import modulos.nao_existe;
+fn main() { }
+// expect-error: tests/c5_modulo_inexistente.cinza:2:1: ImportError: módulo 'modulos.nao_existe' não encontrado

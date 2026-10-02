@@ -1,0 +1,7 @@
+// Revisão: if/else em que os dois ramos saem torna inalcançável o que vem depois.
+fn f(int n) -> string {
+  if (n > 0) { return "positivo"; } else { return "não positivo"; }
+  return "nunca";
+}
+fn main() { print(f(1)); }
+// expect-error: tests/rev_codigo_morto_if_else.cinza:4:3: SemanticError: Código inalcançável

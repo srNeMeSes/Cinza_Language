@@ -1,0 +1,6 @@
+// Fase 7: erro em Lists.index_of.
+import Lists;
+fn main() {
+  print(Lists.index_of("abc", "a"));
+}
+// expect-error: Argumento 1 de 'Lists.index_of': esperado 'list<T>', mas recebeu 'string'

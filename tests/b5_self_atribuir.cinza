@@ -1,0 +1,4 @@
+// B5/A10: self não pode ser reatribuído.
+class C { int v = 0; pub { fn f(C outro) { self = outro; } } }
+fn main() {}
+// expect-error: 'self' não pode ser reatribuído

@@ -1,0 +1,7 @@
+// Revisão: código depois de return é erro de compilação (código morto).
+fn f() -> int {
+  return 1;
+  print("nunca");
+}
+fn main() { print(f()); }
+// expect-error: tests/rev_codigo_morto_return.cinza:4:3: SemanticError: Código inalcançável

@@ -1,0 +1,8 @@
+// Fase 7: Lists.sort/reverse alteram a lista: proibido em lista const.
+import Lists;
+fn main() {
+  const list<int> n = [3, 1, 2];
+  print(Lists.contains(n, 1));
+  Lists.sort(n);
+}
+// expect-error: 'Lists.sort' altera a lista, mas 'n' é const

@@ -1,0 +1,5 @@
+// op<...>: numa coleção de op, todos os elementos têm o mesmo tipo.
+fn main() {
+  list<op<int, string>> l = [1, "a"];
+}
+// expect-error: Literal de lista com tipos incompatíveis

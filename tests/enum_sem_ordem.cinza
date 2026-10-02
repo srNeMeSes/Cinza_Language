@@ -1,0 +1,4 @@
+// enum: sem < e >, só == e !=.
+enum Cor { Vermelho, Verde }
+fn main() { print(Cor.Verde < Cor.Vermelho); }
+// expect-error: Comparação '<' não é suportada entre 'Cor' e 'Cor'

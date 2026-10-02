@@ -1,0 +1,13 @@
+// Fase 7: Files.write grava (sobrescrevendo) e Files.read lê o arquivo inteiro.
+import Files;
+fn main() {
+  str caminho = "tests/modulos/saida_files.txt";
+  Files.write(caminho, "linha 1\nlinha 2");
+  Files.write(caminho, "ola\nmundo");
+  str conteudo = Files.read(caminho);
+  print(conteudo);
+  print(conteudo.size());
+}
+// expect: ola
+// expect: mundo
+// expect: 9

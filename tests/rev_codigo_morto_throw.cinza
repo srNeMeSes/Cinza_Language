@@ -1,0 +1,6 @@
+// Revisão: código depois de throw é erro.
+fn main() {
+  throw ValueError("x");
+  print("nunca");
+}
+// expect-error: Código inalcançável

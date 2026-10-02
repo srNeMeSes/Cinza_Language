@@ -1,0 +1,6 @@
+// Fase 7: erro em Random.seed.
+import Random;
+fn main() {
+  print(Random.seed(1.5));
+}
+// expect-error: Argumento 1 de 'Random.seed': esperado 'int', mas recebeu 'decimal'

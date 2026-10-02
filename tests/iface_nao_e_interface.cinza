@@ -1,0 +1,5 @@
+// interface: depois de ':' só vêm interfaces (não há herança).
+class Base { }
+class Filha : Base { }
+fn main() { }
+// expect-error: 'Base' não é uma interface: depois de ':' vêm só interfaces (a Cinza não tem herança).

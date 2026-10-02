@@ -1,0 +1,5 @@
+// enum: só no nível superior.
+fn main() {
+  enum Cor { Vermelho }
+}
+// expect-error: Enum 'Cor' declarada dentro de um bloco

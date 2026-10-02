@@ -1,0 +1,5 @@
+// C3: struct que contém a si mesmo por valor, indiretamente, é erro.
+struct A { int v = 0; B b = new B(); }
+struct B { A a = new A(); }
+fn main() {}
+// expect-error: contém a si mesmo por valor

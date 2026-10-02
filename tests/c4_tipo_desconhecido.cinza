@@ -1,0 +1,9 @@
+// C4: tipo de erro desconhecido no except.
+fn main() {
+    try {
+        print(1);
+    } except (ErroQueNaoExiste e) {
+        print(2);
+    }
+}
+// expect-error: Tipo de erro desconhecido 'ErroQueNaoExiste'

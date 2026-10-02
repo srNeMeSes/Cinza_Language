@@ -1,0 +1,10 @@
+// op<...>: o literal usa o tipo exato se ele estiver na lista; senão, int vira decimal.
+fn main() {
+  op<decimal, int> a = 1;
+  op<decimal, string> b = 1;
+  print(type(a), type(b));
+  op<list<decimal>, string> l = [1, 2];
+  print(type(l), l);
+}
+// expect: int decimal
+// expect: list<decimal> [1, 2]

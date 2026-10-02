@@ -1,0 +1,7 @@
+// Revisão: o mesmo nome dentro e fora de pub { } também é duplicado.
+class A {
+  fn f() { }
+  pub { fn f() { } }
+}
+fn main() { }
+// expect-error: Método 'f' declarado mais de uma vez na classe 'A'

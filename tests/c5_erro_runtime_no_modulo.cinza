@@ -1,0 +1,8 @@
+// C5: erro de runtime num módulo mostra o arquivo do módulo na posição e no stack trace.
+import modulos.falha;
+fn main() {
+  print(falha.divide(1, 0));
+}
+// expect-error: tests/modulos/falha.cinza:3:12: ZeroDivisionError: divisão por zero
+// expect-error: em divide (tests/modulos/falha.cinza:3)
+// expect-error: em main (tests/c5_erro_runtime_no_modulo.cinza:4)

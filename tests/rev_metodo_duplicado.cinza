@@ -1,0 +1,9 @@
+// Revisão: método declarado duas vezes na classe é erro (antes o segundo sumia em silêncio).
+class A {
+  pub {
+    fn f() -> int { return 1; }
+    fn f() -> int { return 2; }
+  }
+}
+fn main() { }
+// expect-error: Método 'f' declarado mais de uma vez na classe 'A'

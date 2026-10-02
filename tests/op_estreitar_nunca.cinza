@@ -1,0 +1,6 @@
+// op<...>: testar um tipo que o op não tem é uma condição sempre falsa: erro.
+fn f(op<decimal, int> v) {
+  if (type(v) == string) { print("nunca"); }
+}
+fn main() { f(1); }
+// expect-error: 'v' é 'op<decimal, int>' e nunca será 'string'

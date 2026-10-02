@@ -1,0 +1,21 @@
+// Coleta de ciclos: pares de objetos que se referenciam são liberados quando ficam inalcançáveis.
+// env: CINZA_GC_STATS=1
+class No {
+  list<No> vizinhos;
+  pub {
+    fn liga(No o) { vizinhos.add(o); }
+    fn grau() -> int { return vizinhos.size(); }
+  }
+}
+fn cria() {
+  No a = new No();
+  No b = new No();
+  a.liga(b);
+  b.liga(a);
+}
+fn main() {
+  for (int i in range(0, 1000)) { cria(); }
+  print("ok");
+}
+// expect: ok
+// expect: [gc] liberados em ciclos: 4000, contêineres vivos: 0

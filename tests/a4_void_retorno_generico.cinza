@@ -1,0 +1,4 @@
+// A4: retorno list<void> é rejeitado na declaração (antes só falhava no return, por tipo incompatível).
+fn f() -> list<void> { list<int> a = [1]; return a; }
+fn main() {}
+// expect-error: 'void' só pode ser o retorno inteiro da função

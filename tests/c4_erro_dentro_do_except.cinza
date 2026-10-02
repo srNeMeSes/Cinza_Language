@@ -1,0 +1,18 @@
+// C4: erro lançado dentro do except sobe para o try de fora, e o finally roda antes.
+fn main() {
+    try {
+        try {
+            throw ValueError("primeiro");
+        } except (ValueError e) {
+            print("tratando", e.message);
+            throw IndexError("segundo");
+        } finally {
+            print("finally interno");
+        }
+    } except (IndexError e) {
+        print("fora:", e.message);
+    }
+}
+// expect: tratando primeiro
+// expect: finally interno
+// expect: fora: segundo

@@ -1,0 +1,10 @@
+// Fase 7: Files lança IOError quando não consegue ler ou escrever.
+import Files;
+fn main() {
+  try { print(Files.read("tests/modulos/nao_existe.txt")); }
+  except (IOError e) { print(e.kind, e.message); }
+  try { Files.write("tests/pasta_que_nao_existe/x.txt", "a"); }
+  except (IOError e) { print(e.kind); }
+}
+// expect: IOError não foi possível abrir 'tests/modulos/nao_existe.txt' para leitura
+// expect: IOError

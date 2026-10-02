@@ -1,0 +1,4 @@
+// Fase 7: nome que o módulo nativo não tem.
+import Strings;
+fn main() { print(Strings.nada("x")); }
+// expect-error: 'nada' não existe no módulo 'Strings'

@@ -1,0 +1,5 @@
+// Fase 2.5: const global não aceita new, nem dentro de uma expressão (const de classe é barrado em c3_*).
+class C { int v = 1; pub { fn get() -> int { return v; } } }
+const int X = new C().get();
+fn main() {}
+// expect-error: precisa ser uma expressão constante

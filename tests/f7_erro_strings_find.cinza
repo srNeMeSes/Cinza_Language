@@ -1,0 +1,6 @@
+// Fase 7: erro em Strings.find.
+import Strings;
+fn main() {
+  print(Strings.find("a"));
+}
+// expect-error: Aridade incorreta em 'Strings.find'

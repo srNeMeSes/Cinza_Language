@@ -1,0 +1,4 @@
+// A7: 'var' como tipo de retorno é erro de parser.
+fn f() -> var { return 1; }
+fn main() {}
+// expect-error: 'var' não é permitido como tipo de retorno

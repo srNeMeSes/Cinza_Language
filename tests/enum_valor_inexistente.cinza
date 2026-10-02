@@ -1,0 +1,4 @@
+// enum: valor que o enum não tem.
+enum Cor { Vermelho, Verde }
+fn main() { print(Cor.Roxo); }
+// expect-error: O enum 'Cor' não tem o valor 'Roxo' (valores: Vermelho, Verde)

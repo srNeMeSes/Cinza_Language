@@ -1,0 +1,6 @@
+// A5: overflow de soma inteira gera OverflowError (antes dava a volta para o negativo).
+fn main() {
+  int big = 9223372036854775807;
+  print(big + 1);
+}
+// expect-error: OverflowError

@@ -1,0 +1,6 @@
+// Fase 7: erro em Strings.join.
+import Strings;
+fn main() {
+  print(Strings.join([1, 2], ","));
+}
+// expect-error: Argumento 1 de 'Strings.join': esperado 'list<string>', mas recebeu 'list<int>'

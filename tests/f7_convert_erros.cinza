@@ -1,0 +1,18 @@
+// Fase 7: Convert lança ValueError para texto inválido.
+import Convert;
+fn main() {
+  try { print(Convert.to_int("12a")); } except (ValueError e) { print(e.message); }
+  try { print(Convert.to_int(" 1")); } except (ValueError e) { print(e.message); }
+  try { print(Convert.to_int("+-1")); } except (ValueError e) { print(e.message); }
+  try { print(Convert.to_int("99999999999999999999")); } except (ValueError e) { print(e.message); }
+  try { print(Convert.to_decimal("abc")); } except (ValueError e) { print(e.message); }
+  try { print(Convert.to_decimal("1.")); } except (ValueError e) { print(e.message); }
+  try { print(Convert.to_bool("sim")); } except (ValueError e) { print(e.kind); }
+}
+// expect: '12a' não é um int válido
+// expect: ' 1' não é um int válido
+// expect: '+-1' não é um int válido
+// expect: '99999999999999999999' está fora do intervalo de int
+// expect: 'abc' não é um decimal válido
+// expect: '1.' não é um decimal válido
+// expect: ValueError

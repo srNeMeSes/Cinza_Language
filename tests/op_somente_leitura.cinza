@@ -1,0 +1,10 @@
+// op<...>: coleção de op com tipo travado desconhecido (parâmetro) é somente leitura:
+// uma list<int> passada como list<op<decimal, int>> não pode ganhar um decimal.
+fn estraga(list<op<decimal, int>> valores) {
+  valores.add(2.5);
+}
+fn main() {
+  list<int> l = [1];
+  estraga(l);
+}
+// expect-error: 'list<op<decimal, int>>' é somente leitura aqui

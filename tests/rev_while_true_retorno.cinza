@@ -1,0 +1,11 @@
+// Revisão: while (true) sem break nunca termina normalmente, então a função retorna em todos
+// os caminhos (antes era erro "não retorna em todos os caminhos").
+fn primeiro_par(list<int> l) -> int {
+  int i = 0;
+  while (true) {
+    if (l[i] % 2 == 0) { return l[i]; }
+    i += 1;
+  }
+}
+fn main() { print(primeiro_par([3, 5, 8, 9])); }
+// expect: 8

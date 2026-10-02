@@ -1,0 +1,6 @@
+// interface: só métodos, sem campos.
+interface Forma {
+  decimal lado;
+}
+fn main() { }
+// expect-error: Uma interface só tem assinaturas de métodos

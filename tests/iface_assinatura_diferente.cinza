@@ -1,0 +1,7 @@
+// interface: o método precisa ter exatamente a assinatura da interface.
+interface Forma { fn escala(decimal fator) -> decimal; }
+class Ponto : Forma {
+  pub { fn escala(int fator) -> decimal { return 0.0; } }
+}
+fn main() { }
+// expect-error: O método escala(int) -> decimal da classe 'Ponto' não tem a assinatura exigida por 'Forma': escala(decimal) -> decimal.

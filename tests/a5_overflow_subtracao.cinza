@@ -1,0 +1,6 @@
+// A5: overflow de subtração gera OverflowError.
+fn main() {
+  int m = -9223372036854775808;
+  print(m - 1);
+}
+// expect-error: OverflowError

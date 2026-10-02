@@ -1,0 +1,6 @@
+// op<...>: nem atribuição por índice numa coleção de op com tipo desconhecido.
+fn estraga(list<op<decimal, int>> valores) {
+  valores[0] = 1;
+}
+fn main() { estraga([1, 2]); }
+// expect-error: 'list<op<decimal, int>>' é somente leitura aqui

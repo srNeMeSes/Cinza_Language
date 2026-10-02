@@ -1,0 +1,59 @@
+// B2: resolução em slots — sombra em blocos, redeclaração em laço, recursão, parâmetro × campo,
+// campo que usa outro campo, iterador e erro do except.
+const int BASE = 10;
+class Caixa {
+  int valor = BASE;
+  int dobro = valor * 2;
+  pub {
+    fn soma(int extra) -> int { return extra + dobro; }
+    fn campo() -> int { return valor; }
+  }
+}
+struct Ponto { int x = 1; int y = 2; }
+fn conta(int n) -> int {
+  int local = n;
+  if (n > 0) {
+    int outro = 100;
+    outro += conta(n - 1);
+    local += outro;
+  }
+  return local;
+}
+fn main() {
+  int x = 1;
+  if (true) {
+    int y = 2;
+    x += y;
+  }
+  print(x);
+  for (int i in range(0, 3)) {
+    list<int> acc;
+    acc.add(i);
+    print(acc.size());
+  }
+  for (int i in [1, 2]) { x += i; }
+  print(x);
+  print(conta(3));
+  Caixa c = new Caixa();
+  print(c.soma(1), c.campo());
+  Ponto p = new Ponto();
+  p.y = 5;
+  print(p.x, p.y);
+  try {
+    throw ValueError("a");
+  } except (ValueError e) {
+    int z = 3;
+    print(e.message, z);
+  }
+  print(x + BASE);
+}
+// expect: 3
+// expect: 1
+// expect: 1
+// expect: 1
+// expect: 6
+// expect: 306
+// expect: 21 10
+// expect: 1 5
+// expect: a 3
+// expect: 16

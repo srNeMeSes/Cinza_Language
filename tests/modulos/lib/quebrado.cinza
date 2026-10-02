@@ -1,0 +1,2 @@
+// Módulo auxiliar: erro de sintaxe.
+pub fn f( { }

@@ -1,0 +1,8 @@
+// A8 (regressão): fn continua válida no nível superior e como método de classe.
+class C { int v = 2; pub { fn dobro() -> int { return v * 2; } } }
+fn triplo(int n) -> int { return n * 3; }
+fn main() {
+  C c = new C();
+  print(c.dobro(), triplo(2));
+}
+// expect: 4 6

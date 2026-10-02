@@ -1,0 +1,29 @@
+// C4: finally roda depois de um return no try, e o valor retornado não se perde
+// (nem se o finally chamar outra função que retorna).
+fn outra() -> int { return 99; }
+fn f() -> int {
+    try {
+        return 1;
+    } finally {
+        print("finally", outra());
+    }
+}
+fn g() -> int {
+    for (int i in [1, 2, 3]) {
+        try {
+            if (i == 2) { return i * 10; }
+        } finally {
+            print("volta", i);
+        }
+    }
+    return 0;
+}
+fn main() {
+    print(f());
+    print(g());
+}
+// expect: finally 99
+// expect: 1
+// expect: volta 1
+// expect: volta 2
+// expect: 20

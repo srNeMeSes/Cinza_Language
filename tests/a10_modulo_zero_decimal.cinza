@@ -1,0 +1,6 @@
+// A10: % com divisor decimal 0.0 gera ZeroDivisionError (antes dava NaN em silêncio).
+fn main() {
+  decimal z = 0.0;
+  print(5.5 % z);
+}
+// expect-error: ZeroDivisionError

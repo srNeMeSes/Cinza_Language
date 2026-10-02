@@ -39,6 +39,12 @@ std::string Type::toString() const {
             }
             return result;
         }
+        case Kind::OP: {
+            std::string result = "op<";
+            for (size_t i = 0; i < type_params.size(); ++i)
+                result += (i ? ", " : "") + type_params[i]->toString();
+            return result + ">";
+        }
         case Kind::CUSTOM: return name; // classe
         default: return "unknown";
     }
@@ -56,13 +62,19 @@ bool Type::isComparable() const {
 // EXPRESSION IMPLEMENTATIONS
 // ============================================================================
 
+// r: TypeLiteral(list<int>)
+std::string TypeLiteralExpr::toString(int indent_level) const {
+    (void)indent_level;
+    return "TypeLiteral(" + type->toString() + ")";
+}
+
 // r: Literal("valor"), Literal(1), Literal(true), Literal(3.14)
 std::string LiteralExpr::toString(int indent_level) const {
     std::ostringstream oss;
     oss << indent(indent_level) << "Literal(";
     
-    if (std::holds_alternative<int>(value)) {
-        oss << std::get<int>(value);
+    if (std::holds_alternative<std::int64_t>(value)) {
+        oss << std::get<std::int64_t>(value);
     } else if (std::holds_alternative<double>(value)) {
         oss << std::get<double>(value);
     } else if (std::holds_alternative<std::string>(value)) {
@@ -204,22 +216,12 @@ std::string VarDeclStmt::toString(int indent_level) const {
     return oss.str();
 }
 
-// r: Assignment(variable: num, value: 11)
-std::string AssignmentStmt::toString(int indent_level) const {
+// r: Assign(op: =, target: Identifier(num), value: Literal(11))
+std::string AssignStmt::toString(int indent_level) const {
     std::ostringstream oss;
-    oss << indent(indent_level) << "Assignment(\n";
-    oss << indent(indent_level + 1) << "variable: " << variable_name << "\n";
-    oss << indent(indent_level + 1) << "value:\n" << value->toString(indent_level + 2) << "\n";
-    oss << indent(indent_level) << ")";
-    return oss.str();
-}
-
-// v2.00 #8
-std::string IndexAssignmentStmt::toString(int indent_level) const {
-    std::ostringstream oss;
-    oss << indent(indent_level) << "IndexAssignment(\n";
-    oss << indent(indent_level + 1) << "object: " << object_name << "\n";
-    oss << indent(indent_level + 1) << "index:\n" << index->toString(indent_level + 2) << "\n";
+    oss << indent(indent_level) << "Assign(\n";
+    oss << indent(indent_level + 1) << "op: " << tokenTypeToOperatorString(op) << "\n";
+    oss << indent(indent_level + 1) << "target:\n" << target->toString(indent_level + 2) << "\n";
     oss << indent(indent_level + 1) << "value:\n" << value->toString(indent_level + 2) << "\n";
     oss << indent(indent_level) << ")";
     return oss.str();
@@ -321,6 +323,16 @@ std::string NewExpr::toString(int indent_level) const {
     return oss.str();
 }
 
+// r: CastExpr(to: decimal, Literal(5))
+std::string CastExpr::toString(int indent_level) const {
+    std::ostringstream oss;
+    oss << indent(indent_level) << "CastExpr(\n";
+    oss << indent(indent_level + 1) << "to: " << (resolved_type ? resolved_type->str() : "?") << "\n";
+    oss << operand->toString(indent_level + 1) << "\n";
+    oss << indent(indent_level) << ")";
+    return oss.str();
+}
+
 // r: ClassDecl(name: Pilha, fields: [...], constructor: ..., priv_methods: [...], pub_methods: [...])
 std::string ClassDecl::toString(int indent_level) const {
     std::ostringstream oss;
@@ -414,7 +426,88 @@ std::string tokenTypeToOperatorString(TokenType type) {
         case TokenType::OP_OR: return "||";
         case TokenType::OP_NOT: return "!";
         case TokenType::OP_ASSIGN: return "=";
+        case TokenType::OP_PLUS_ASSIGN:     return "+=";
+        case TokenType::OP_MINUS_ASSIGN:    return "-=";
+        case TokenType::OP_MULTIPLY_ASSIGN: return "*=";
+        case TokenType::OP_DIVIDE_ASSIGN:   return "/=";
+        case TokenType::OP_MODULO_ASSIGN:   return "%=";
         default: return "<?>";
+    }
+}
+
+} // namespace cinza
+
+namespace cinza {
+
+// C3: StructDecl(name: Ponto, fields: [...])
+std::string StructDecl::toString(int indent_level) const {
+    std::ostringstream oss;
+    oss << indent(indent_level) << "StructDecl(\n";
+    oss << indent(indent_level + 1) << "name: " << name << "\n";
+    oss << indent(indent_level + 1) << "fields: [\n";
+    for (const auto& f : fields) {
+        oss << indent(indent_level + 2) << f.type->toString() << " " << f.name;
+        if (f.initializer) oss << " =\n" << f.initializer->toString(indent_level + 3);
+        oss << "\n";
+    }
+    oss << indent(indent_level + 1) << "]\n";
+    oss << indent(indent_level) << ")";
+    return oss.str();
+}
+
+// C4
+std::string TryStmt::toString(int indent_level) const {
+    std::ostringstream oss;
+    oss << indent(indent_level) << "TryStmt(\n" << body->toString(indent_level + 1) << "\n";
+    for (const auto& h : handlers) {
+        oss << indent(indent_level + 1) << "except (" << h.type_name << " " << h.var_name << "):\n"
+            << h.body->toString(indent_level + 2) << "\n";
+    }
+    if (finally_block)
+        oss << indent(indent_level + 1) << "finally:\n" << finally_block->toString(indent_level + 2) << "\n";
+    oss << indent(indent_level) << ")";
+    return oss.str();
+}
+
+std::string ThrowStmt::toString(int indent_level) const {
+    return indent(indent_level) + "ThrowStmt(\n" + value->toString(indent_level + 1) + "\n" +
+           indent(indent_level) + ")";
+}
+
+std::string InterfaceDecl::toString(int indent_level) const {
+    std::string s = indent(indent_level) + "InterfaceDecl(" + name + ": ";
+    for (size_t i = 0; i < methods.size(); ++i) s += (i ? ", " : "") + methods[i].name;
+    return s + ")";
+}
+
+std::string EnumDecl::toString(int indent_level) const {
+    std::string s = indent(indent_level) + "EnumDecl(" + name + ": ";
+    for (size_t i = 0; i < members.size(); ++i) s += (i ? ", " : "") + members[i];
+    return s + ")";
+}
+
+std::string ErrorDecl::toString(int indent_level) const {
+    return indent(indent_level) + "ErrorDecl(" + name + ")";
+}
+
+// C2
+std::string BreakStmt::toString(int indent_level) const {
+    return indent(indent_level) + "BreakStmt()";
+}
+
+std::string ContinueStmt::toString(int indent_level) const {
+    return indent(indent_level) + "ContinueStmt()";
+}
+
+// C1: += → +, -= → -, *= → *, /= → /, %= → %
+TokenType compoundBaseOp(TokenType op) {
+    switch (op) {
+        case TokenType::OP_PLUS_ASSIGN:     return TokenType::OP_PLUS;
+        case TokenType::OP_MINUS_ASSIGN:    return TokenType::OP_MINUS;
+        case TokenType::OP_MULTIPLY_ASSIGN: return TokenType::OP_MULTIPLY;
+        case TokenType::OP_DIVIDE_ASSIGN:   return TokenType::OP_DIVIDE;
+        case TokenType::OP_MODULO_ASSIGN:   return TokenType::OP_MODULO;
+        default:                            return op;
     }
 }
 

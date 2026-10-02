@@ -1,0 +1,4 @@
+// interface: const não se aplica a objeto (como em const Pessoa).
+interface Forma { fn area() -> decimal; }
+fn main() { const Forma f = new Forma(); }
+// expect-error: 'const' não pode ser usado em objeto de classe

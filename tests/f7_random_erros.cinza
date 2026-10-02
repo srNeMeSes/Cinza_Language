@@ -1,0 +1,9 @@
+// Fase 7: erros de runtime em Random.
+import Random;
+fn main() {
+  try { print(Random.int(5, 1)); } except (ValueError e) { print(e.kind, e.message); }
+  list<int> vazia;
+  try { print(Random.choice(vazia)); } except (IndexError e) { print(e.kind, e.message); }
+}
+// expect: ValueError 'int(5, 1)': o início é maior que o fim
+// expect: IndexError 'choice' de uma lista vazia

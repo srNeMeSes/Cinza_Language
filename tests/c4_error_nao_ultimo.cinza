@@ -1,0 +1,11 @@
+// C4: except (Error e) precisa ser o último.
+fn main() {
+    try {
+        print(1);
+    } except (Error e) {
+        print("tudo");
+    } except (ValueError v) {
+        print("nunca");
+    }
+}
+// expect-error: precisa ser o último

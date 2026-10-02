@@ -1,0 +1,4 @@
+// Revisão: função não é valor (antes compilava e falhava em runtime com "Variavel nao encontrada").
+fn f() -> int { return 1; }
+fn main() { print(f); }
+// expect-error: 'f' é uma função: chame-a com f(...)

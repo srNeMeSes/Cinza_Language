@@ -1,0 +1,15 @@
+// interface: pub interface de um módulo, cumprida por classes daqui e de lá.
+import modulos.formas as fm;
+class Triangulo : fm.Forma {
+  decimal base = 2.0;
+  decimal altura = 3.0;
+  pub {
+    fn area() -> decimal { return base * altura / 2; }
+  }
+}
+fn main() {
+  list<fm.Forma> l = [new fm.Quadrado(2.0), new Triangulo()];
+  for (fm.Forma f in l) { print(f.area()); }
+}
+// expect: 4
+// expect: 3

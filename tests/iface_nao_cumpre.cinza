@@ -1,0 +1,8 @@
+// interface: classe que não declarou a interface não é aceita onde ela é pedida.
+interface Forma { fn area() -> decimal; }
+class Ponto {
+  pub { fn area() -> decimal { return 0.0; } }
+}
+fn usa(Forma f) { }
+fn main() { usa(new Ponto()); }
+// expect-error: Argumento 1 de 'usa': esperado 'Forma', mas recebeu 'Ponto'

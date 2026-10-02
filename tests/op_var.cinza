@@ -1,0 +1,3 @@
+// op<...>: sem var.
+fn main() { op<var, int> x = 1; }
+// expect-error: 'var' não pode ser um tipo do 'op'

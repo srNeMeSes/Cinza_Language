@@ -1,0 +1,7 @@
+// A4: nome de classe contendo "void" é rejeitado. Falha até a Fase 2.
+class Avoider { int v = 1; }
+fn main() {
+  Avoider q = new Avoider();
+  print(q);
+}
+// expect: <Avoider object>

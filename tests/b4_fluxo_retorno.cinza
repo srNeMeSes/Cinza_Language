@@ -1,0 +1,53 @@
+// B4 (regressão): return atravessa blocos, if, while, for e chamadas aninhadas do mesmo jeito que antes.
+class Busca {
+  list<int> itens = [4, 8, 15, 16];
+  pub {
+    fn indice(int alvo) -> int {
+      int i = 0;
+      for (int x in itens) {
+        if (x == alvo) { return i; }
+        i = i + 1;
+      }
+      return -1;
+    }
+  }
+}
+fn primeiroPar(list<int> l) -> int {
+  int i = 0;
+  while (i < l.size()) {
+    { if (l[i] % 2 == 0) { return l[i]; } }
+    i = i + 1;
+  }
+  return -1;
+}
+fn classifica(int n) -> string {
+  if (n < 0) { return "negativo"; } else { if (n == 0) { return "zero"; } }
+  return "positivo";
+}
+fn somaAte(int n) -> int { if (n == 0) { return 0; } return n + somaAte(n - 1); }
+fn externo(int n) -> int { return somaAte(n) + primeiroPar([1, 3, n]); }
+fn avisa(int n) {
+  for (int x in [1, 2, 3]) {
+    if (x == n) { print("achou", x); return; }
+  }
+  print("nao achou");
+}
+fn main() {
+  Busca b = new Busca();
+  print(b.indice(15), b.indice(99));
+  print(primeiroPar([1, 3, 6, 8]), primeiroPar([1, 3]));
+  print(classifica(-2), classifica(0), classifica(5));
+  print(externo(4));
+  avisa(2);
+  avisa(7);
+  int total = 0;
+  for (int x in [1, 2, 3]) { total = total + somaAte(x); }
+  print(total);
+}
+// expect: 2 -1
+// expect: 6 -1
+// expect: negativo zero positivo
+// expect: 14
+// expect: achou 2
+// expect: nao achou
+// expect: 10

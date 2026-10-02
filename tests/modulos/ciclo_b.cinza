@@ -1,0 +1,3 @@
+// Módulo auxiliar: ciclo a → b → a.
+import ciclo_a;
+pub fn fb() -> int { return 2; }

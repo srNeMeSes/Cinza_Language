@@ -1,0 +1,18 @@
+// B5/A10: self resolve a ambiguidade entre parâmetro e campo, e pode ser retornado.
+class Pessoa {
+  string nome = "";
+  pub {
+    Pessoa(string nome) { self.nome = nome; }
+    fn renomeia(string nome) -> Pessoa { self.nome = nome; return self; }
+    fn get() -> string { return self.nome; }
+    fn eco() -> string { return self.get(); }
+  }
+}
+fn main() {
+  Pessoa p = new Pessoa("Ana");
+  print(p.get());
+  Pessoa q = p.renomeia("Bia");
+  print(p.get(), q.eco());
+}
+// expect: Ana
+// expect: Bia Bia

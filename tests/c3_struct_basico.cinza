@@ -1,0 +1,15 @@
+// C3: exemplo da revisão — construtor com todos os campos, atribuição a campo e print.
+struct NameObject {
+    string name = "<nome>";
+    int value = 0;
+    decimal values_d = 0.0;
+    str others = "<others>";
+}
+fn main() {
+    NameObject obj = new NameObject("Niel", 23, 1.65, "Analista de dados");
+    obj.name = "Evan";
+    print(obj.name);
+    print(obj);
+}
+// expect: Evan
+// expect: NameObject{name: "Evan", value: 23, values_d: 1.65, others: "Analista de dados"}

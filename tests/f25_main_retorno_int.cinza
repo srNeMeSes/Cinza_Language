@@ -1,0 +1,3 @@
+// Fase 2.5: main é sempre void.
+fn main() -> int { return 0; }
+// expect-error: Assinatura inválida para 'main'

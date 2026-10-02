@@ -1,0 +1,3 @@
+// Módulo auxiliar: importa geom de novo (o cache carrega o arquivo uma vez).
+import geom;
+pub fn areaDoLado() -> int { return geom.area(geom.LADO); }

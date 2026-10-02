@@ -1,0 +1,6 @@
+// C6: uma função do usuário com o nome de uma nativa do prelude tem precedência.
+fn range(int n) -> list<int> { return [n, n, n]; }
+fn main() {
+    print(range(7));
+}
+// expect: [7, 7, 7]

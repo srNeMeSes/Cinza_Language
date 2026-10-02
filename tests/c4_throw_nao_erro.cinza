@@ -1,0 +1,5 @@
+// C4: throw só aceita erros.
+fn main() {
+    throw "falhou";
+}
+// expect-error: 'throw' requer um erro

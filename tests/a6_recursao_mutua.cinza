@@ -1,0 +1,7 @@
+// A6: recursão infinita mútua entre funções também gera StackOverflowError.
+fn ping(int n) -> int { return pong(n + 1); }
+fn pong(int n) -> int { return ping(n + 1); }
+fn main() {
+  print(ping(0));
+}
+// expect-error: StackOverflowError

@@ -1,0 +1,6 @@
+// Fase 7: erro em Math.max.
+import Math;
+fn main() {
+  print(Math.max(1, "2"));
+}
+// expect-error: Argumento 2 de 'Math.max': esperado 'int', mas recebeu 'string'

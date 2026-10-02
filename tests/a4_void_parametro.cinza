@@ -1,0 +1,4 @@
+// A4: parâmetro void é rejeitado (antes era aceito).
+fn f(void x) -> int { return 1; }
+fn main() {}
+// expect-error: Tipo 'void' não pode ser usado no parâmetro 'x'

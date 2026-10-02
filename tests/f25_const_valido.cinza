@@ -1,0 +1,10 @@
+// Fase 2.5: const global aceita literais, operadores e outros const já declarados.
+const int A = 10;
+const int B = A * 2 + 1;
+const decimal T = B / 2;
+const string N = "a" + "b";
+const bool F = A > 5 && !false;
+const int NEG = -A;
+fn dobro() -> int { return A * 2; }
+fn main() { print(A, B, T, N, F, NEG, dobro()); }
+// expect: 10 21 10 ab true -10 20

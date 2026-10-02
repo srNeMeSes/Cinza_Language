@@ -1,0 +1,28 @@
+// interface: por um valor do tipo interface, só os métodos que ela declara.
+interface Forma {
+  fn area() -> decimal;
+  fn nome() -> string;
+}
+class Circulo : Forma {
+  decimal r = 1.0;
+  pub {
+    Circulo(decimal raio) { r = raio; }
+    fn area() -> decimal { return 3.0 * r * r; }
+    fn nome() -> string { return "círculo"; }
+    fn raio() -> decimal { return r; }
+  }
+}
+class Retangulo : Forma {
+  decimal a = 1.0;
+  decimal b = 1.0;
+  pub {
+    Retangulo(decimal x, decimal y) { a = x; b = y; }
+    fn area() -> decimal { return a * b; }
+    fn nome() -> string { return "retângulo"; }
+  }
+}
+fn main() {
+  Forma f = new Circulo(1.0);
+  print(f.raio());
+}
+// expect-error: A interface 'Forma' não tem o método 'raio'

@@ -1,0 +1,18 @@
+// C3: == compara struct campo a campo (inclusive structs aninhados).
+struct Ponto { int x = 0; int y = 0; }
+struct Linha { Ponto a = new Ponto(); Ponto b = new Ponto(); }
+fn main() {
+    Ponto p = new Ponto(1, 2);
+    Ponto q = new Ponto(1, 2);
+    Ponto r = new Ponto(2, 1);
+    print(p == q, p == r, p != r);
+    Linha l1 = new Linha(p, r);
+    Linha l2 = new Linha(q, r);
+    l2.b.x = 2;
+    print(l1 == l2);
+    l2.b.x = 9;
+    print(l1 == l2);
+}
+// expect: true false true
+// expect: true
+// expect: false

@@ -1,0 +1,4 @@
+// Fase 2.5: tudo depois do arquivo vai para args, mesmo o que parece opção do interpretador.
+fn main(list<string> args) { print(args[0], args[1]); }
+// args: --ast -h
+// expect: --ast -h

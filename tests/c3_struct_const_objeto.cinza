@@ -1,0 +1,16 @@
+// C3: num struct const, trocar o objeto do campo é erro, mas o objeto em si continua alterável.
+class Contador {
+    int v = 0;
+    pub {
+        fn inc() { v += 1; }
+        fn get() -> int { return v; }
+    }
+}
+struct Painel { string nome = "p"; Contador c = new Contador(); }
+fn main() {
+    const Painel p = new Painel();
+    p.c.inc();
+    p.c.inc();
+    print(p.c.get());
+}
+// expect: 2

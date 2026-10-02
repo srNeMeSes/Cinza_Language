@@ -1,0 +1,7 @@
+// Fase 7: Lists.sum só aceita lista de número.
+import Lists;
+fn main() {
+  list<string> s = ["a"];
+  print(Lists.sum(s));
+}
+// expect-error: Argumento 1 de 'Lists.sum': esperado 'list<número>', mas recebeu 'list<string>'

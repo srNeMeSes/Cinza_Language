@@ -1,0 +1,20 @@
+// C1: operadores compostos em int, decimal e string.
+fn main() {
+  int x = 10;
+  x += 5; print(x);
+  x -= 3; print(x);
+  x *= 2; print(x);
+  x /= 5; print(x);
+  x %= 3; print(x);
+  decimal d = 1;
+  d += 2; d /= 2; print(d);
+  string s = "a";
+  s += "b"; s += 1; print(s);
+}
+// expect: 15
+// expect: 12
+// expect: 24
+// expect: 4
+// expect: 1
+// expect: 1.5
+// expect: ab1

@@ -1,0 +1,3 @@
+// Fase 7: namespaces só existem com import.
+fn main() { print(Math.sqrt(4.0)); }
+// expect-error: Variável 'Math' não declarada

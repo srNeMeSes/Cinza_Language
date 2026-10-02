@@ -1,0 +1,7 @@
+// Fase 7: erro em Lists.reverse.
+import Lists;
+fn main() {
+  const list<int> l = [1, 2];
+  Lists.reverse(l);
+}
+// expect-error: 'Lists.reverse' altera a lista, mas 'l' é const

@@ -1,0 +1,4 @@
+// Fase 7: aridade de nativa de módulo.
+import Strings;
+fn main() { print(Strings.split("a")); }
+// expect-error: Aridade incorreta em 'Strings.split': esperados 2 argumento(s), mas recebeu 1

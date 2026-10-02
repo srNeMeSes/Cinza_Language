@@ -1,0 +1,3 @@
+// op<...>: sem void.
+fn main() { op<void, int> x = 1; }
+// expect-error: 'void' não pode ser um tipo do 'op'

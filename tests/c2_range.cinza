@@ -1,0 +1,17 @@
+// C2: range(a, b) e range(a, b, passo), inclusive passo negativo e intervalo vazio.
+fn main() {
+  for (int i in range(0, 3)) { print(i); }
+  for (int i in range(5, 0, -2)) { print(i); }
+  print(range(3, 3).size(), range(0, 10, 3).size());
+  int soma = 0;
+  for (var i in range(1, 101)) { soma += i; }
+  print(soma);
+}
+// expect: 0
+// expect: 1
+// expect: 2
+// expect: 5
+// expect: 3
+// expect: 1
+// expect: 0 4
+// expect: 5050

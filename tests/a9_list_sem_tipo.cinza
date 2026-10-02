@@ -1,0 +1,5 @@
+// A9: list sem <T> é erro (antes 'list x;' era aceito).
+fn main() {
+  list x;
+}
+// expect-error: Esperado '<' após 'list'

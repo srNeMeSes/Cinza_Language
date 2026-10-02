@@ -1,0 +1,5 @@
+// Revisão: atribuir a campo de struct temporário é erro (a atribuição ia para uma cópia invisível).
+struct P { int x = 0; }
+fn mk() -> P { return new P(3); }
+fn main() { mk().x = 5; }
+// expect-error: Atribuição a 'mk().x' não tem efeito: o struct é uma cópia temporária

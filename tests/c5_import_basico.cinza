@@ -1,0 +1,21 @@
+// C5: import com nome qualificado — função, const, struct, classe, erro e tipo de retorno.
+import modulos.geom;
+fn main() {
+  print(geom.area(4), geom.LADO, geom.dobroDoLado(), geom.segredo());
+  geom.Ponto p = geom.origem();
+  p.x = 5;
+  print(p);
+  geom.Contador c = new geom.Contador();
+  c.inc();
+  c.inc();
+  print(c.valor());
+  try {
+    geom.valida(99);
+  } except (geom.ForaDaArea e) {
+    print(e.kind, e.message);
+  }
+}
+// expect: 16 3 6 7
+// expect: Ponto{x: 5, y: 0}
+// expect: 2
+// expect: ForaDaArea valor alto

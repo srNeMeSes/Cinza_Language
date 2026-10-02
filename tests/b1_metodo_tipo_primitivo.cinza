@@ -1,0 +1,7 @@
+// B1 (regressão): método em tipo que não é classe mostra o nome do tipo.
+fn main() {
+  pair<string, int> p = {"a", 1};
+  p.first.size();
+  p.foo();
+}
+// expect-error: Tipo 'pair<string, int>' não possui métodos

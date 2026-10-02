@@ -1,0 +1,5 @@
+// C2: break fora de laço é erro semântico.
+fn main() {
+  if (true) { break; }
+}
+// expect-error: 'break' só pode ser usado dentro de um laço

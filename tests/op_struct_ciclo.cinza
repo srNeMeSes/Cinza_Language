@@ -1,0 +1,4 @@
+// op<...>: struct que contém a si mesmo por valor via op é erro (valor infinito).
+struct S { op<S, int> x = 1; }
+fn main() { }
+// expect-error: Struct 'S' contém a si mesmo por valor

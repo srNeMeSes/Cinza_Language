@@ -1,4 +1,5 @@
 #include "parser.h"
+#include "source_files.h"
 #include <iostream>
 #include <sstream>
 
@@ -7,6 +8,25 @@
 
 namespace cinza {
 
+// RAII para contadores de profundidade do parser (A8/A9): desconta mesmo
+// quando um ParseError atravessa o trecho
+struct DepthGuard {
+    int& depth;
+    explicit DepthGuard(int& d) : depth(d) { ++depth; }
+    ~DepthGuard() noexcept { --depth; }
+
+    DepthGuard(const DepthGuard&)            = delete;
+    DepthGuard& operator=(const DepthGuard&) = delete;
+};
+
+// A7: 'var' em qualquer ponto do tipo (inclusive list<var>)
+static bool containsVar(const Type* type) {
+    if (!type) return false;
+    if (type->kind == Type::Kind::VAR) return true;
+    for (const auto& param : type->type_params)
+        if (containsVar(param.get())) return true;
+    return false;
+}
 
 // Construtor da classe Parser
 Parser::Parser(std::vector<Token> token_list) 
@@ -23,6 +43,10 @@ bool Parser::isAtEnd() const {
 
 const Token& Parser::peek() const {
     return tokens[current];
+}
+
+const Token& Parser::peekNext() const {
+    return current + 1 < tokens.size() ? tokens[current + 1] : tokens.back();
 }
 
 const Token& Parser::previous() const {
@@ -70,19 +94,26 @@ void Parser::error(const std::string& message) {
 
 void Parser::error(const std::string& message, const Token& token) {
     has_errors = true;
-    std::ostringstream oss;
-    oss << "[Linha " << token.line << ", Coluna " << token.column << "] Erro: " 
-        << message << " (token: '" << token.lexeme << "')";
-    error_messages.push_back(oss.str());
+    // B6: vai para o motor único de diagnósticos (impresso por quem chamou)
+    diagnostics().report("SyntaxError", message + " (token: '" + token.lexeme + "')",
+                         token.loc());
 }
 
 void Parser::synchronize() {
+    // A9: '}' fecha a chave em que o erro ocorreu: não consumir, para quem a
+    // abriu fechá-la normalmente. No nível superior não há chave aberta, então
+    // o '}' avulso é consumido (garante que o parser avança).
+    if (check(TokenType::RBRACE) && brace_depth > 0) return;
     advance();
-    
+
     while (!isAtEnd()) {
         if (previous().type == TokenType::SEMICOLON) return;
-        
+
         switch (peek().type) {
+            case TokenType::RBRACE:
+                if (brace_depth > 0) return;
+                advance();
+                break;
             case TokenType::KW_FN:
             case TokenType::KW_CLASS:
             case TokenType::KW_IF:
@@ -96,6 +127,7 @@ void Parser::synchronize() {
             case TokenType::TYPE_LIST:
             case TokenType::TYPE_DICT:
             case TokenType::TYPE_PAIR:
+            case TokenType::TYPE_OP:
             case TokenType::TYPE_VAR:
                 return;
             default:
@@ -104,18 +136,21 @@ void Parser::synchronize() {
     }
 }
 
-void Parser::printErrors() const {
-    for (const auto& msg : error_messages) {
-        std::cerr << msg << "\n";
-    }
-}
 
 // ============================================================================
 // TYPE PARSING
 // ============================================================================
 
-// r: retorna um objeto do tipo 'Type<T>'
+// C5: guarda no Type o token onde ele foi escrito
 TypePtr Parser::parseType() {
+    Token start = peek();
+    TypePtr type = parseTypeInner();
+    type->token = start;
+    return type;
+}
+
+// r: retorna um objeto do tipo 'Type<T>'
+TypePtr Parser::parseTypeInner() {
     Token type_token = peek();
     Type::Kind kind;
 
@@ -142,8 +177,10 @@ TypePtr Parser::parseType() {
     } else if (match(TokenType::TYPE_LIST)) {
         auto list_type = std::make_unique<Type>(Type::Kind::LIST);
         
-        // Parse tipo genérico: list<T>
-        if (match(TokenType::OP_LESS)) {
+        // Parse tipo genérico: list<T> — A9: '<T>' é obrigatório
+        consume(TokenType::OP_LESS,
+                "Esperado '<' após 'list': informe o tipo dos elementos, ex.: list<int>");
+        {
             list_type->type_params.push_back(parseType());
             consume(TokenType::OP_GREATER, "Esperado '>' após tipo do list");
         }
@@ -152,8 +189,10 @@ TypePtr Parser::parseType() {
     } else if (match(TokenType::TYPE_DICT)) {
         auto dict_type = std::make_unique<Type>(Type::Kind::DICT);
         
-        // Parse tipo genérico: dict<K, V>
-        if (match(TokenType::OP_LESS)) {
+        // Parse tipo genérico: dict<K, V> — A9: '<K, V>' é obrigatório
+        consume(TokenType::OP_LESS,
+                "Esperado '<' após 'dict': informe chave e valor, ex.: dict<string, int>");
+        {
             dict_type->type_params.push_back(parseType());
             consume(TokenType::COMMA, "Esperado ',' entre tipos do dict");
             dict_type->type_params.push_back(parseType());
@@ -165,7 +204,10 @@ TypePtr Parser::parseType() {
         // Tipo genérico: pair<K, V>
         auto pair_type = std::make_unique<Type>(Type::Kind::PAIR);
         
-        if (match(TokenType::OP_LESS)) {
+        // A9: '<A, B>' é obrigatório
+        consume(TokenType::OP_LESS,
+                "Esperado '<' após 'pair': informe os dois tipos, ex.: pair<string, int>");
+        {
             pair_type->type_params.push_back(parseType());
             consume(TokenType::COMMA, "Esperado ',' entre tipos do pair");
             pair_type->type_params.push_back(parseType());
@@ -173,6 +215,21 @@ TypePtr Parser::parseType() {
         }
         return pair_type;
 
+    } else if (match(TokenType::TYPE_OP)) {
+        // op<T1, T2, ...>: as regras (quantidade, repetição, op dentro de op...)
+        // são checadas no semântico, com a posição de cada tipo
+        auto op_type = std::make_unique<Type>(Type::Kind::OP);
+        consume(TokenType::OP_LESS,
+                "Esperado '<' após 'op': informe os tipos aceitos, ex.: op<int, string>");
+        do {
+            op_type->type_params.push_back(parseType());
+        } while (match(TokenType::COMMA));
+        consume(TokenType::OP_GREATER, "Esperado '>' após os tipos do op");
+        return op_type;
+
+    } else if (checkQualified()) {
+        // C5: tipo de um módulo importado: tx.Pessoa p;
+        return std::make_unique<Type>(Type::Kind::CUSTOM, parseQualifiedName());
     } else if (check(TokenType::IDENTIFIER)) {
         // Tipo customizado: nome de uma classe definida pelo usuário
         //   Ex: Pilha p;  →  type = CUSTOM("Pilha")
@@ -292,6 +349,16 @@ ExprPtr Parser::parseFactorExpr() {
 
 // r: -1, -a, -somar(), !value, !a, !f()
 ExprPtr Parser::parseUnaryExpr() {
+    // A5: '-' seguido de literal inteiro vira um literal negativo antes da
+    // checagem de faixa, para que -9223372036854775808 (INT64_MIN) seja válido
+    if (check(TokenType::OP_MINUS) && peekNext().type == TokenType::INTEGER_LITERAL) {
+        advance();                       // '-'
+        Token tok = advance();           // literal
+        std::int64_t v = tok.int_needs_minus ? tok.value.int_value   // já é INT64_MIN
+                                             : -tok.value.int_value;
+        return parsePostfixExpr(std::make_unique<LiteralExpr>(tok, v));
+    }
+
     if (match({TokenType::OP_NOT, TokenType::OP_MINUS})) {
         Token op_token = previous();
         ExprPtr operand = parseUnaryExpr();
@@ -312,14 +379,36 @@ ExprPtr Parser::parsePrimaryExpr() {
     }
     
     
+    // op<...>: tipo usado como valor, para comparar com type(x):
+    //   type(n) == int    type(l) == list<int>
+    if (check(TokenType::TYPE_INT)  || check(TokenType::TYPE_DECIMAL) ||
+        check(TokenType::TYPE_STRING) || check(TokenType::TYPE_BOOL) ||
+        check(TokenType::TYPE_LIST) || check(TokenType::TYPE_DICT) ||
+        check(TokenType::TYPE_PAIR) || check(TokenType::TYPE_OP)) {
+        Token tok = peek();
+        return std::make_unique<TypeLiteralExpr>(tok, parseType());
+    }
+
     // Instanciação de objeto:  new Pessoa("Jose", 22, 3.4)
     if (match(TokenType::KW_NEW)) {
         return parseNewExpr();
+    }
+
+    // self: o objeto atual dentro de um método (A10/B5). É palavra reservada;
+    // vira um IdentifierExpr "self", que o semântico e o executor tratam à parte.
+    if (match(TokenType::KW_SELF)) {
+        return std::make_unique<IdentifierExpr>(previous(), "self");
     }
     
     // Literais numéricos
     if (match(TokenType::INTEGER_LITERAL)) {
         Token tok = previous();
+        if (tok.int_needs_minus) {
+            std::string msg = "Literal inteiro '" + tok.lexeme + "' fora do intervalo de int "
+                              "(-9223372036854775808 a 9223372036854775807)";
+            error(msg, tok);
+            throw ParseError(msg, tok);
+        }
         return std::make_unique<LiteralExpr>(tok, tok.value.int_value);
     }
     if (match(TokenType::DECIMAL_LITERAL)) {
@@ -351,7 +440,7 @@ ExprPtr Parser::parsePrimaryExpr() {
 
         if (check(TokenType::RBRACE)) {
             Token brace_token = previous();
-            error("Inicializador vazio '{}' nao é permitido. "
+            error("Inicializador vazio '{}' não é permitido. "
                   "Para declarar sem valor, omita o inicializador: 'dict<K,V> nome;'",
                   brace_token);
             throw ParseError("Inicializador vazio proibido", brace_token);
@@ -370,7 +459,25 @@ ExprPtr Parser::parsePrimaryExpr() {
     
     // Identificador ou chamada de função
     // v2.00 #10: TYPE_VAR removido daqui — 'var' não é uma expressão primária
-    if (match(TokenType::IDENTIFIER) || match(TokenType::KW_PRINT)) {
+    // C5: nome qualificado por um módulo importado: tx.soma(1) ou tx.PI
+    if (checkQualified()) {
+        Token name_token = peek();
+        std::string name = parseQualifiedName();
+        name_token.lexeme = name;
+        if (match(TokenType::LPAREN)) {
+            std::vector<ExprPtr> arguments;
+            if (!check(TokenType::RPAREN)) {
+                do {
+                    arguments.push_back(parseExpression());
+                } while (match(TokenType::COMMA));
+            }
+            consume(TokenType::RPAREN, "Esperado ')' após argumentos");
+            return std::make_unique<CallExpr>(name_token, name, std::move(arguments));
+        }
+        return std::make_unique<IdentifierExpr>(name_token, name);
+    }
+
+    if (match(TokenType::IDENTIFIER)) {   // C6: print é nativa, não palavra-chave
         Token name_token = previous();
         
         // Verifica se é chamada de função
@@ -425,8 +532,13 @@ ExprPtr Parser::parseCallExpr() {
 ExprPtr Parser::parseNewExpr() {
     Token new_token = previous(); // já consumiu 'new'
 
-    Token class_token = consume(TokenType::IDENTIFIER,
-                                 "Esperado nome da classe após 'new'");
+    // C5: new apelido.Classe(...)
+    std::string class_name;
+    if (checkQualified()) {
+        class_name = parseQualifiedName();
+    } else {
+        class_name = consume(TokenType::IDENTIFIER, "Esperado nome da classe após 'new'").lexeme;
+    }
 
     consume(TokenType::LPAREN, "Esperado '(' após nome da classe em 'new'");
 
@@ -439,8 +551,7 @@ ExprPtr Parser::parseNewExpr() {
 
     consume(TokenType::RPAREN, "Esperado ')' após argumentos do construtor");
 
-    return std::make_unique<NewExpr>(new_token, class_token.lexeme,
-                                     std::move(arguments));
+    return std::make_unique<NewExpr>(new_token, class_name, std::move(arguments));
 }
 
 // Encadeia acesso a membros (.key, .value), índices ([0], ["chave"]) e métodos (.add(...))
@@ -497,7 +608,7 @@ ExprPtr Parser::parseListLiteral() {
     //   CORRETO: list<str> names;
     //   ERRADO:  list<str> names = [];
     if (check(TokenType::RBRACKET)) {
-        error("Inicializador vazio '[]' nao e permitido. "
+        error("Inicializador vazio '[]' não é permitido. "
               "Para declarar sem valor, omita o inicializador: 'list<T> nome;'",
               bracket_token);
         throw ParseError("Inicializador vazio proibido", bracket_token);
@@ -558,6 +669,37 @@ ExprPtr Parser::parseDictLiteral() {
 // começa o encadeamento de instruções (statements)
 StmtPtr Parser::parseStatement() {
     try {
+        // A8: fn e class só no nível superior (fn também dentro de class).
+        // Antes, uma fn aninhada era aceita e nunca registrada.
+        if (block_depth > 0 && (check(TokenType::KW_FN) || check(TokenType::KW_CLASS) ||
+                                check(TokenType::KW_STRUCT) || check(TokenType::KW_ERROR) ||
+                                check(TokenType::KW_ENUM) || check(TokenType::KW_INTERFACE))) {
+            Token decl_token = peek();
+            const bool is_fn = decl_token.type == TokenType::KW_FN;
+            std::string nome = peekNext().type == TokenType::IDENTIFIER
+                               ? " '" + peekNext().lexeme + "'" : "";
+            const std::string tipo = is_fn ? "Função"
+                                   : decl_token.type == TokenType::KW_CLASS  ? "Classe"
+                                   : decl_token.type == TokenType::KW_STRUCT ? "Struct"
+                                   : decl_token.type == TokenType::KW_ENUM   ? "Enum"
+                                   : decl_token.type == TokenType::KW_INTERFACE ? "Interface"
+                                                                             : "Declaração de erro";
+            error(tipo + nome +
+                  " declarada dentro de um bloco: '" + decl_token.lexeme +
+                  "' só é permitido no nível superior" +
+                  (is_fn ? " (ou como método dentro de 'class')" : "") +
+                  ". Mova a declaração para fora.", decl_token);
+            // Lê a declaração inteira e a descarta: o erro já foi registrado e
+            // o parser continua no ponto certo, sem erros em cascata (A9)
+            if (is_fn) parseFunctionDeclaration();
+            else if (decl_token.type == TokenType::KW_CLASS)  parseClassDeclaration();
+            else if (decl_token.type == TokenType::KW_STRUCT) parseStructDeclaration();
+            else if (decl_token.type == TokenType::KW_ENUM)   parseEnumDeclaration();
+            else if (decl_token.type == TokenType::KW_INTERFACE) parseInterfaceDeclaration();
+            else parseErrorDeclaration();
+            return nullptr;
+        }
+
         // Função
         if (check(TokenType::KW_FN)) {
             return parseFunctionDeclaration();
@@ -566,6 +708,24 @@ StmtPtr Parser::parseStatement() {
         // Declaração de classe
         if (check(TokenType::KW_CLASS)) {
             return parseClassDeclaration();
+        }
+
+        // C3: declaração de struct
+        if (check(TokenType::KW_STRUCT)) {
+            return parseStructDeclaration();
+        }
+
+        if (check(TokenType::KW_ENUM)) return parseEnumDeclaration();
+        if (check(TokenType::KW_INTERFACE)) return parseInterfaceDeclaration();
+
+        // C4: error Nome;  /  try ... except ... finally  /  throw expr;
+        if (check(TokenType::KW_ERROR)) return parseErrorDeclaration();
+        if (check(TokenType::KW_TRY))   return parseTryStatement();
+        if (match(TokenType::KW_THROW)) {
+            Token throw_token = previous();
+            ExprPtr value = parseExpression();
+            consume(TokenType::SEMICOLON, "Esperado ';' após 'throw'");
+            return std::make_unique<ThrowStmt>(throw_token, std::move(value));
         }
 
         // const — deve preceder um tipo
@@ -577,7 +737,14 @@ StmtPtr Parser::parseStatement() {
         if (check(TokenType::TYPE_INT) || check(TokenType::TYPE_DECIMAL) ||
             check(TokenType::TYPE_STRING) || check(TokenType::TYPE_BOOL) ||
             check(TokenType::TYPE_LIST) || check(TokenType::TYPE_DICT) ||
-            check(TokenType::TYPE_PAIR) || check(TokenType::TYPE_VAR)) {
+            check(TokenType::TYPE_PAIR) || check(TokenType::TYPE_OP) ||
+            check(TokenType::TYPE_VAR)) {
+            return parseVarDeclStatement();
+        }
+
+        // C5: declaração com tipo de módulo: tx.Pessoa p = ...;
+        if (checkQualified() && current + 3 < tokens.size() &&
+            tokens[current + 3].type == TokenType::IDENTIFIER) {
             return parseVarDeclStatement();
         }
 
@@ -606,6 +773,14 @@ StmtPtr Parser::parseStatement() {
         // Return
         if (check(TokenType::KW_RETURN)) {
             return parseReturnStatement();
+        }
+
+        // C2: break; / continue;
+        if (match({TokenType::KW_BREAK, TokenType::KW_CONTINUE})) {
+            Token tok = previous();
+            consume(TokenType::SEMICOLON, "Esperado ';' após '" + tok.lexeme + "'");
+            if (tok.type == TokenType::KW_BREAK) return std::make_unique<BreakStmt>(tok);
+            return std::make_unique<ContinueStmt>(tok);
         }
         
         // Bloco
@@ -675,42 +850,36 @@ StmtPtr Parser::parseVarDeclStatement() {
                                          var_name, std::move(initializer), is_const);
 }
 
-// r: variavel = (1 + 2 * 3);   somar();   nome[idx] = valor;
+// B5: o que pode ficar à esquerda de '=': variável, campo ou índice
+static bool isLValue(const Expr* expr) {
+    return expr->node_kind == NodeKind::Identifier   ||
+           expr->node_kind == NodeKind::MemberAccess ||
+           expr->node_kind == NodeKind::IndexAccess;
+}
+
+// r: variavel = (1 + 2 * 3);   somar();   m[i][j] = v;   obj.campo = v;
+// B5: lê o lado esquerdo como expressão; se vier '=', ele precisa ser um lvalue
 StmtPtr Parser::parseAssignmentOrExprStatement() {
     Token start_token = peek();
-    
-    if (check(TokenType::IDENTIFIER)) {
-        size_t saved = current;           // salva posição antes do IDENTIFIER
-        Token name_token = advance();
-        
-        // v2.00 #8: Atribuição por índice: nome[expr] = expr;
-        if (check(TokenType::LBRACKET)) {
-            advance(); // consome '['
-            ExprPtr index = parseExpression();
-            consume(TokenType::RBRACKET, "Esperado ']' após índice");
-
-            if (match(TokenType::OP_ASSIGN)) {
-                ExprPtr val = parseExpression();
-                consume(TokenType::SEMICOLON, "Esperado ';' após atribuição por índice");
-                return std::make_unique<IndexAssignmentStmt>(
-                    name_token, name_token.lexeme, std::move(index), std::move(val));
-            }
-            // Não é atribuição — restaura e parse como expressão
-            current = saved;
-        }
-        // Atribuição simples?
-        else if (match(TokenType::OP_ASSIGN)) {
-            ExprPtr value = parseExpression();
-            consume(TokenType::SEMICOLON, "Esperado ';' após atribuição");
-            return std::make_unique<AssignmentStmt>(name_token, name_token.lexeme, 
-                                                    std::move(value));
-        } else {
-            current = saved; // Restaura para parsear como expressão
-        }
-    }
-    
-    // Expressão statement
     ExprPtr expr = parseExpression();
+
+    // C1: =, +=, -=, *=, /=, %=
+    if (match({TokenType::OP_ASSIGN, TokenType::OP_PLUS_ASSIGN, TokenType::OP_MINUS_ASSIGN,
+               TokenType::OP_MULTIPLY_ASSIGN, TokenType::OP_DIVIDE_ASSIGN,
+               TokenType::OP_MODULO_ASSIGN})) {
+        Token op_token = previous();
+        if (!isLValue(expr.get())) {
+            error("O lado esquerdo de '" + op_token.lexeme + "' não é atribuível: use uma "
+                  "variável (x), um campo (obj.campo) ou um índice (lista[i]).", start_token);
+            throw ParseError("Alvo de atribuição inválido", op_token);
+        }
+        ExprPtr value = parseExpression();
+        consume(TokenType::SEMICOLON, "Esperado ';' após atribuição");
+        return std::make_unique<AssignStmt>(start_token, std::move(expr),
+                                            op_token.type, std::move(value));
+    }
+
+    // Expressão statement
     consume(TokenType::SEMICOLON, "Esperado ';' após expressão");
     return std::make_unique<ExprStmt>(start_token, std::move(expr));
 }
@@ -780,11 +949,15 @@ StmtPtr Parser::parseForStatement() {
     if (check(TokenType::TYPE_INT) || check(TokenType::TYPE_DECIMAL) ||
         check(TokenType::TYPE_STRING) || check(TokenType::TYPE_BOOL) ||
         check(TokenType::TYPE_LIST) || check(TokenType::TYPE_DICT) ||
-        check(TokenType::TYPE_PAIR) || check(TokenType::TYPE_VAR) ||
+        check(TokenType::TYPE_PAIR) || check(TokenType::TYPE_OP) ||
+        check(TokenType::TYPE_VAR) ||
         // tipo customizado: NomeClasse (IDENTIFIER seguido de IDENTIFIER)
         (check(TokenType::IDENTIFIER) &&
          current + 1 < tokens.size() &&
-         tokens[current + 1].type == TokenType::IDENTIFIER)) {
+         tokens[current + 1].type == TokenType::IDENTIFIER) ||
+        // C5: tipo de módulo: for (fm.Forma f in l)
+        (checkQualified() && current + 3 < tokens.size() &&
+         tokens[current + 3].type == TokenType::IDENTIFIER)) {
         
         // Consome o tipo
         type = parseType();
@@ -830,7 +1003,12 @@ StmtPtr Parser::parseReturnStatement() {
 
 // r: {...}
 StmtPtr Parser::parseBlockStatement() {
-    Token brace_token = advance(); // consome '{'
+    // A9: consume em vez de advance — antes, 'fn f() -> int return 1;'
+    // engolia o 'return' como se fosse '{'
+    Token brace_token = consume(TokenType::LBRACE, "Esperado '{' para abrir o bloco");
+
+    DepthGuard block_guard{block_depth};   // A8
+    DepthGuard brace_guard{brace_depth};   // A9
     
     std::vector<StmtPtr> statements;
     
@@ -868,7 +1046,14 @@ StmtPtr Parser::parseFunctionDeclaration() {
                   "Remova o 'const' do retorno.", peek());
             throw ParseError("'const' inválido em retorno", peek());
         }
+        Token type_token = peek();
         return_type = parseType();
+        // A7: sem 'var' no retorno
+        if (containsVar(return_type.get())) {
+            error("'var' não é permitido como tipo de retorno de '" + func_name +
+                  "'. Declare o tipo explicitamente, ex.: '-> int'.", type_token);
+            throw ParseError("'var' inválido em retorno", type_token);
+        }
     }
     
     // Corpo da função
@@ -889,9 +1074,17 @@ std::vector<Parameter> Parser::parseParameterList() {
             if (match(TokenType::KW_CONST)) {
                 param_const = true;
             }
+            Token   type_token = peek();
             TypePtr param_type = parseType();
             Token param_name_token = consume(TokenType::IDENTIFIER, 
                                              "Esperado nome do parâmetro");
+            // A7: sem 'var' em parâmetros (o corpo precisa ser checado uma vez só)
+            if (containsVar(param_type.get())) {
+                error("'var' não é permitido em parâmetros ('" + param_name_token.lexeme +
+                      "'). Use um tipo explícito, ex.: 'fn f(int " +
+                      param_name_token.lexeme + ")'.", type_token);
+                throw ParseError("'var' inválido em parâmetro", type_token);
+            }
             parameters.emplace_back(std::move(param_type), param_name_token.lexeme, 
                                    param_name_token, param_const);
         } while (match(TokenType::COMMA));
@@ -934,7 +1127,24 @@ StmtPtr Parser::parseClassDeclaration() {
                                 "Esperado nome da classe após 'class'");
     std::string class_name = name_token.lexeme;
 
+    // class X : Forma, Desenhavel — interfaces cumpridas
+    std::vector<std::string> interfaces;
+    std::vector<Token>       interface_tokens;
+    if (match(TokenType::COLON)) {
+        do {
+            Token t = peek();
+            if (checkQualified()) {
+                t.lexeme = parseQualifiedName();
+            } else {
+                t = consume(TokenType::IDENTIFIER, "Esperado o nome de uma interface após ':'");
+            }
+            interfaces.push_back(t.lexeme);
+            interface_tokens.push_back(t);
+        } while (match(TokenType::COMMA));
+    }
+
     consume(TokenType::LBRACE, "Esperado '{' após nome da classe");
+    DepthGuard class_brace_guard{brace_depth};   // A9
 
     std::vector<ClassDecl::Field>        fields;    
     std::unique_ptr<ClassDecl::Constructor> ctor;   // nullptr → sem construtor
@@ -947,6 +1157,7 @@ StmtPtr Parser::parseClassDeclaration() {
             if (check(TokenType::KW_PUB)) {
                 advance(); // consome 'pub'
                 consume(TokenType::LBRACE, "Esperado '{' após 'pub'");
+                DepthGuard pub_brace_guard{brace_depth};   // A9
 
                 while (!check(TokenType::RBRACE) && !isAtEnd()) {
                     if (check(TokenType::KW_FN)) {
@@ -1002,59 +1213,9 @@ StmtPtr Parser::parseClassDeclaration() {
 
             // ── campo da classe: tipo nome; ou tipo nome = expr; ──────────
             //    O tipo pode ser primitivo, composto, ou customizado (IDENTIFIER)
-            } else if (check(TokenType::TYPE_INT)    || check(TokenType::TYPE_DECIMAL) ||
-                       check(TokenType::TYPE_STRING)  || check(TokenType::TYPE_BOOL)   ||
-                       check(TokenType::TYPE_LIST)    || check(TokenType::TYPE_DICT)   ||
-                       check(TokenType::TYPE_PAIR)    || check(TokenType::TYPE_VAR)    ||
-                       // tipo customizado: IDENTIFIER seguido de IDENTIFIER
-                       (check(TokenType::IDENTIFIER) &&
-                        current + 1 < tokens.size() &&  
-                        tokens[current + 1].type == TokenType::IDENTIFIER)) {
+            } else if (checkFieldStart()) {
 
-                Token   field_tok = peek();
-                TypePtr field_type = parseType();
-                Token   field_name = consume(TokenType::IDENTIFIER, "Esperado nome do campo");
-
-                // list<T> e dict<K,V> podem ser declarados sem inicializador
-                bool field_can_omit = (field_type->kind == Type::Kind::LIST ||
-                                       field_type->kind == Type::Kind::DICT);
-
-                ExprPtr initializer = nullptr;
-                if (match(TokenType::OP_ASSIGN)) {
-                    initializer = parseExpression();
-                } else if (!field_can_omit) {
-                    // Todos os outros tipos de campo exigem inicializador.
-                    // Somente list<T> e dict<K,V> podem omitir o inicializador (nascem vazios).
-                    std::string suggestion;
-                    std::string extra_note;
-                    switch (field_type->kind) {
-                        case Type::Kind::INT:     suggestion = "= 0";          break;
-                        case Type::Kind::DECIMAL: suggestion = "= 0.0";        break;
-                        case Type::Kind::BOOL:    suggestion = "= false";      break;
-                        case Type::Kind::STRING:  suggestion = "= \"\"";       break;
-                        case Type::Kind::VAR:
-                            suggestion = "= <valor>";
-                            extra_note = " ('var' exige inicializador: o tipo é inferido a partir do valor inicial)";
-                            break;
-                        case Type::Kind::PAIR:    suggestion = "= {<a>, <b>}"; break;
-                        case Type::Kind::CUSTOM:
-                            suggestion = "= new " + field_type->name + "(...)";break;
-                        default:                  suggestion = "= <valor>";    break;
-                    }
-                    error(
-                        "Campo '" + field_name.lexeme + "' deve ser inicializado na declaração" + extra_note + ". "
-                        "Somente list<T> e dict<K,V> podem omitir o inicializador. "
-                        "Use: " + field_type->toString() + " " +
-                        field_name.lexeme + " " + suggestion + ";",
-                        field_name);
-                    throw ParseError("Campo sem inicializador", field_name);
-                }
-
-                consume(TokenType::SEMICOLON,
-                        "Esperado ';' após declaração de campo");
-
-                fields.emplace_back(std::move(field_type), field_name.lexeme,
-                                    std::move(initializer), field_tok);
+                fields.push_back(parseFieldDeclaration());
 
             } else {
                 error("Membro de classe inválido: esperado campo, 'fn' ou 'pub'");
@@ -1068,11 +1229,227 @@ StmtPtr Parser::parseClassDeclaration() {
 
     consume(TokenType::RBRACE, "Esperado '}' para fechar a classe");
 
-    return std::make_unique<ClassDecl>(class_token, class_name,
+    auto classe = std::make_unique<ClassDecl>(class_token, class_name,
                                        std::move(fields),
                                        std::move(ctor),
                                        std::move(priv_methods),
                                        std::move(pub_methods));
+    classe->interfaces       = std::move(interfaces);
+    classe->interface_tokens = std::move(interface_tokens);
+    return classe;
+}
+
+// Início de um campo: tipo primitivo/composto, ou tipo customizado
+// (IDENTIFIER seguido de IDENTIFIER). Usado por class e struct (C3).
+bool Parser::checkFieldStart() const {
+    return check(TokenType::TYPE_INT)    || check(TokenType::TYPE_DECIMAL) ||
+           check(TokenType::TYPE_STRING) || check(TokenType::TYPE_BOOL)    ||
+           check(TokenType::TYPE_LIST)   || check(TokenType::TYPE_DICT)    ||
+           check(TokenType::TYPE_PAIR)   || check(TokenType::TYPE_VAR)     ||
+           check(TokenType::TYPE_OP)     ||
+           (check(TokenType::IDENTIFIER) &&
+            current + 1 < tokens.size() &&
+            tokens[current + 1].type == TokenType::IDENTIFIER) ||
+           (checkQualified() && current + 3 < tokens.size() &&            // C5
+            tokens[current + 3].type == TokenType::IDENTIFIER);
+}
+
+// Campo de class ou struct:  tipo nome;  ou  tipo nome = expr;
+// C3: extraído de parseClassDeclaration para ser usado também por struct.
+ClassDecl::Field Parser::parseFieldDeclaration() {
+    Token   field_tok = peek();
+    TypePtr field_type = parseType();
+    Token   field_name = consume(TokenType::IDENTIFIER, "Esperado nome do campo");
+
+    // A7: 'var' só em declaração local e no iterador do for
+    if (containsVar(field_type.get())) {
+        error("'var' não é permitido no campo '" + field_name.lexeme +
+              "'. Declare o tipo explicitamente, ex.: 'int " +
+              field_name.lexeme + " = 0;'.", field_tok);
+        throw ParseError("'var' inválido em campo", field_tok);
+    }
+
+    // list<T> e dict<K,V> podem ser declarados sem inicializador
+    bool field_can_omit = (field_type->kind == Type::Kind::LIST ||
+                           field_type->kind == Type::Kind::DICT);
+
+    ExprPtr initializer = nullptr;
+    if (match(TokenType::OP_ASSIGN)) {
+        initializer = parseExpression();
+    } else if (!field_can_omit) {
+        // Todos os outros tipos de campo exigem inicializador.
+        // Somente list<T> e dict<K,V> podem omitir o inicializador (nascem vazios).
+        std::string suggestion;
+        std::string extra_note;
+        switch (field_type->kind) {
+            case Type::Kind::INT:     suggestion = "= 0";          break;
+            case Type::Kind::DECIMAL: suggestion = "= 0.0";        break;
+            case Type::Kind::BOOL:    suggestion = "= false";      break;
+            case Type::Kind::STRING:  suggestion = "= \"\"";       break;
+            case Type::Kind::VAR:
+                suggestion = "= <valor>";
+                extra_note = " ('var' exige inicializador: o tipo é inferido a partir do valor inicial)";
+                break;
+            case Type::Kind::PAIR:    suggestion = "= {<a>, <b>}"; break;
+            case Type::Kind::CUSTOM:
+                suggestion = "= new " + field_type->name + "(...)";break;
+            default:                  suggestion = "= <valor>";    break;
+        }
+        error(
+            "Campo '" + field_name.lexeme + "' deve ser inicializado na declaração" + extra_note + ". "
+            "Somente list<T> e dict<K,V> podem omitir o inicializador. "
+            "Use: " + field_type->toString() + " " +
+            field_name.lexeme + " " + suggestion + ";",
+            field_name);
+        throw ParseError("Campo sem inicializador", field_name);
+    }
+
+    consume(TokenType::SEMICOLON,
+            "Esperado ';' após declaração de campo");
+
+    return ClassDecl::Field(std::move(field_type), field_name.lexeme,
+                            std::move(initializer), field_tok);
+}
+
+// interface Forma { fn area() -> decimal; fn escala(decimal f); }
+StmtPtr Parser::parseInterfaceDeclaration() {
+    Token iface_token = advance();   // consome 'interface'
+    Token name_token  = consume(TokenType::IDENTIFIER,
+                                "Esperado o nome da interface, ex.: interface Forma { ... }");
+    consume(TokenType::LBRACE, "Esperado '{' após o nome da interface");
+    DepthGuard guard{brace_depth};
+    std::vector<InterfaceDecl::Method> metodos;
+    while (!check(TokenType::RBRACE) && !isAtEnd()) {
+        if (!check(TokenType::KW_FN)) {
+            error("Uma interface só tem assinaturas de métodos: fn nome(parâmetros) -> tipo;",
+                  peek());
+            throw ParseError("interface só tem métodos", peek());
+        }
+        InterfaceDecl::Method m;
+        m.token = advance();   // 'fn'
+        m.name  = consume(TokenType::IDENTIFIER, "Esperado o nome do método").lexeme;
+        consume(TokenType::LPAREN, "Esperado '(' após o nome do método");
+        m.parameters = parseParameterList();
+        consume(TokenType::RPAREN, "Esperado ')' após os parâmetros");
+        m.return_type = std::make_unique<Type>(Type::Kind::VOID);
+        if (match(TokenType::OP_ARROW)) m.return_type = parseType();
+        consume(TokenType::SEMICOLON, "Esperado ';' após a assinatura: na interface o método não "
+                                      "tem corpo");
+        metodos.push_back(std::move(m));
+    }
+    consume(TokenType::RBRACE, "Esperado '}' ao fim da interface");
+    if (metodos.empty()) {
+        error("A interface '" + name_token.lexeme + "' precisa de pelo menos um método.", name_token);
+        throw ParseError("interface vazia", name_token);
+    }
+    return std::make_unique<InterfaceDecl>(iface_token, name_token.lexeme, std::move(metodos));
+}
+
+// enum Cor { Vermelho, Verde, Azul }
+StmtPtr Parser::parseEnumDeclaration() {
+    Token enum_token = advance();   // consome 'enum'
+    Token name_token = consume(TokenType::IDENTIFIER,
+                               "Esperado o nome do enum, ex.: enum Cor { Vermelho, Verde }");
+    consume(TokenType::LBRACE, "Esperado '{' após o nome do enum");
+    std::vector<std::string> membros;
+    std::vector<Token>       tokens_membros;
+    if (check(TokenType::RBRACE)) {
+        error("O enum '" + name_token.lexeme + "' precisa de pelo menos um valor.", peek());
+        throw ParseError("enum vazio", peek());
+    }
+    do {
+        Token m = consume(TokenType::IDENTIFIER, "Esperado o nome de um valor do enum");
+        membros.push_back(m.lexeme);
+        tokens_membros.push_back(m);
+    } while (match(TokenType::COMMA));
+    consume(TokenType::RBRACE, "Esperado '}' ao fim do enum (os valores são separados por ',')");
+    return std::make_unique<EnumDecl>(enum_token, name_token.lexeme, std::move(membros),
+                                      std::move(tokens_membros));
+}
+
+// C4: error Nome;
+StmtPtr Parser::parseErrorDeclaration() {
+    Token error_token = advance();   // consome 'error'
+    Token name_token  = consume(TokenType::IDENTIFIER,
+                                "Esperado o nome do tipo de erro, ex.: error SaldoInsuficiente;");
+    consume(TokenType::SEMICOLON, "Esperado ';' após a declaração de erro");
+    return std::make_unique<ErrorDecl>(error_token, name_token.lexeme);
+}
+
+// C4: try { ... } except (Tipo nome) { ... } ... [finally { ... }]
+StmtPtr Parser::parseTryStatement() {
+    Token try_token = advance();   // consome 'try'
+
+    auto bloco = [&](const std::string& depois) -> StmtPtr {
+        if (!check(TokenType::LBRACE)) {
+            error("Bloco '{...}' obrigatório após '" + depois + "'.", peek());
+            throw ParseError("Bloco obrigatório", peek());
+        }
+        return parseBlockStatement();
+    };
+
+    StmtPtr body = bloco("try");
+
+    std::vector<ExceptClause> handlers;
+    while (match(TokenType::KW_EXCEPT)) {
+        Token except_token = previous();
+        consume(TokenType::LPAREN, "Esperado '(' após 'except', ex.: except (ValueError e)");
+        Token type_tok = peek();
+        if (checkQualified()) type_tok.lexeme = parseQualifiedName();   // C5
+        else type_tok = consume(TokenType::IDENTIFIER,
+                                "Esperado o tipo do erro, ex.: except (ValueError e)");
+        Token var_tok  = consume(TokenType::IDENTIFIER,
+                                 "Esperado o nome do erro, ex.: except (ValueError e)");
+        consume(TokenType::RPAREN, "Esperado ')' após 'except (Tipo nome'");
+        handlers.push_back({type_tok.lexeme, var_tok.lexeme, except_token, bloco("except")});
+    }
+
+    StmtPtr finally_block = nullptr;
+    if (match(TokenType::KW_FINALLY)) finally_block = bloco("finally");
+
+    if (handlers.empty() && !finally_block) {
+        error("'try' precisa de pelo menos um 'except' ou um 'finally'.", try_token);
+        throw ParseError("try incompleto", try_token);
+    }
+
+    return std::make_unique<TryStmt>(try_token, std::move(body), std::move(handlers),
+                                     std::move(finally_block));
+}
+
+// C3: struct Nome { campos... }  — só campos, sem métodos e sem bloco pub
+StmtPtr Parser::parseStructDeclaration() {
+    Token struct_token = advance(); // consome 'struct'
+
+    Token name_token = consume(TokenType::IDENTIFIER,
+                               "Esperado nome do struct após 'struct'");
+
+    consume(TokenType::LBRACE, "Esperado '{' após nome do struct");
+    DepthGuard struct_brace_guard{brace_depth};   // A9
+
+    std::vector<ClassDecl::Field> fields;
+
+    while (!check(TokenType::RBRACE) && !isAtEnd()) {
+        try {
+            if (check(TokenType::KW_FN) || check(TokenType::KW_PUB)) {
+                error("struct '" + name_token.lexeme + "' só pode ter campos: métodos e o "
+                      "bloco 'pub' não são permitidos em struct (todos os campos já são "
+                      "públicos). Use 'class' se precisar de métodos.", peek());
+                throw ParseError("Membro inválido em struct", peek());
+            }
+            if (checkFieldStart()) {
+                fields.push_back(parseFieldDeclaration());
+            } else {
+                error("Membro de struct inválido: esperado um campo (tipo nome = valor;)");
+                synchronize();
+            }
+        } catch (const ParseError&) {
+            synchronize();
+        }
+    }
+
+    consume(TokenType::RBRACE, "Esperado '}' para fechar o struct");
+
+    return std::make_unique<StructDecl>(struct_token, name_token.lexeme, std::move(fields));
 }
 
 // ============================================================================
@@ -1081,11 +1458,61 @@ StmtPtr Parser::parseClassDeclaration() {
 
 Program Parser::parse() {
     std::vector<StmtPtr> statements;
+
+    // C5: imports vêm antes de tudo (o parser precisa dos apelidos)
+    std::vector<ImportDecl> imports;
+    while (check(TokenType::KW_IMPORT)) {
+        try {
+            imports.push_back(parseImport());
+        } catch (const ParseError&) {
+            synchronize();
+        }
+    }
     
     while (!isAtEnd()) {
         try {
+            if (check(TokenType::KW_IMPORT)) {
+                error("'import' deve vir no início do arquivo, antes das declarações.", peek());
+                throw ParseError("import fora do início", peek());
+            }
+
+            // C5: pub no nível superior exporta a declaração do módulo
+            bool is_pub = false;
+            if (match(TokenType::KW_PUB)) {
+                is_pub = true;
+                if (!check(TokenType::KW_FN) && !check(TokenType::KW_CLASS) &&
+                    !check(TokenType::KW_STRUCT) && !check(TokenType::KW_ERROR) &&
+                    !check(TokenType::KW_ENUM) && !check(TokenType::KW_INTERFACE) &&
+                    !check(TokenType::KW_CONST)) {
+                    error("'pub' no nível superior só vale antes de fn, class, struct, enum, "
+                          "interface, error ou const.", peek());
+                    throw ParseError("pub inválido", peek());
+                }
+            }
+
             StmtPtr stmt = parseStatement();
-            if (stmt) {
+            if (!stmt) continue;
+            stmt->is_pub = is_pub;
+
+            // Fase 2.5: o nível superior é declarativo (program = declaration*).
+            // Não há variáveis globais mutáveis nem comandos soltos: o programa
+            // começa em fn main().
+            auto* var = dynamic_cast<VarDeclStmt*>(stmt.get());
+            if (var && !var->is_const) {
+                error("Variável global '" + var->name + "' precisa ser 'const': não há "
+                      "variáveis globais mutáveis. Use 'const' ou mova a declaração "
+                      "para dentro de 'fn main()'.", var->token);
+            } else if (!var &&
+                       stmt->node_kind != NodeKind::FunctionDecl &&
+                       stmt->node_kind != NodeKind::ClassDecl &&
+                       stmt->node_kind != NodeKind::StructDecl &&
+                       stmt->node_kind != NodeKind::EnumDecl &&
+                       stmt->node_kind != NodeKind::InterfaceDecl &&
+                       stmt->node_kind != NodeKind::ErrorDecl) {
+                error("Comando solto no nível superior: aqui só são permitidas "
+                      "declarações (fn, class, struct, enum, interface, error, const). Mova-o para dentro de 'fn main()'.",
+                      stmt->token);
+            } else {
                 statements.push_back(std::move(stmt));
             }
         } catch (const ParseError& e) {
@@ -1094,7 +1521,58 @@ Program Parser::parse() {
         }
     }
     
-    return Program(std::move(statements));
+    Program program(std::move(statements));
+    program.imports = std::move(imports);
+    return program;
+}
+
+// C5: import a.b.c [as x];
+ImportDecl Parser::parseImport() {
+    Token import_token = advance();   // consome 'import'
+    ImportDecl decl;
+    decl.token = import_token;
+    decl.path.push_back(consume(TokenType::IDENTIFIER,
+                                "Esperado o nome do módulo após 'import', ex.: import util.texto;").lexeme);
+    while (match(TokenType::DOT))
+        decl.path.push_back(consume(TokenType::IDENTIFIER,
+                                    "Esperado nome após '.' no caminho do módulo").lexeme);
+    decl.alias = decl.path.back();
+    if (match(TokenType::KW_AS))
+        decl.alias = consume(TokenType::IDENTIFIER, "Esperado o apelido após 'as'").lexeme;
+    consume(TokenType::SEMICOLON, "Esperado ';' após o import");
+
+    if (module_aliases.count(decl.alias)) {
+        error("Apelido de módulo '" + decl.alias + "' repetido: use 'as' para dar outro nome.",
+              import_token);
+        throw ParseError("apelido repetido", import_token);
+    }
+    module_aliases.insert(decl.alias);
+    return decl;
+}
+
+// C5: `apelido.nome`, com apelido vindo de um import deste arquivo
+bool Parser::checkQualified() const {
+    return check(TokenType::IDENTIFIER) && module_aliases.count(peek().lexeme) &&
+           current + 2 < tokens.size() &&
+           tokens[current + 1].type == TokenType::DOT &&
+           isWord(tokens[current + 2]);
+}
+
+// C6: depois de `apelido.` vale também palavra-chave (Random.int, Random.decimal):
+// ali não há ambiguidade, só pode ser um nome do módulo
+bool Parser::isWord(const Token& tok) {
+    if (tok.type == TokenType::IDENTIFIER) return true;
+    const std::string& l = tok.lexeme;
+    if (l.empty() || !(std::isalpha(static_cast<unsigned char>(l[0])) || l[0] == '_')) return false;
+    for (unsigned char c : l)
+        if (!std::isalnum(c) && c != '_') return false;
+    return true;
+}
+
+std::string Parser::parseQualifiedName() {
+    std::string alias = advance().lexeme;
+    advance();   // '.'
+    return alias + "." + advance().lexeme;
 }
 
 } // namespace cinza

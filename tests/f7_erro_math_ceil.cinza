@@ -1,0 +1,6 @@
+// Fase 7: erro em Math.ceil.
+import Math;
+fn main() {
+  print(Math.ceil("1.5"));
+}
+// expect-error: Argumento 1 de 'Math.ceil': esperado 'decimal', mas recebeu 'string'

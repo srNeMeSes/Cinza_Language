@@ -1,0 +1,5 @@
+// C2: o iterador de string é string; declarar outro tipo é erro.
+fn main() {
+  for (int c in "abc") { print(c); }
+}
+// expect-error: incompatível com o elemento

@@ -1,0 +1,5 @@
+// A9: escape desconhecido em string é erro léxico (antes "\q" virava "q").
+fn main() {
+  print("a\qb");
+}
+// expect-error: Escape desconhecido '\q'

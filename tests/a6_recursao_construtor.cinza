@@ -1,0 +1,6 @@
+// A6: construtor que instancia a própria classe gera StackOverflowError.
+class Ovo { int v = 0; pub { Ovo() { Ovo outro = new Ovo(); } } }
+fn main() {
+  Ovo o = new Ovo();
+}
+// expect-error: StackOverflowError

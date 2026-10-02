@@ -1,0 +1,6 @@
+// Fase 7: erro em Convert.to_string.
+import Convert;
+fn main() {
+  print(Convert.to_string());
+}
+// expect-error: Aridade incorreta em 'Convert.to_string'

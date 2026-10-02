@@ -1,0 +1,6 @@
+// C1: o resultado de a op b precisa caber no tipo de a.
+fn main() {
+  int x = 1;
+  x += 1.5;
+}
+// expect-error: produz 'decimal', que não cabe no tipo 'int'

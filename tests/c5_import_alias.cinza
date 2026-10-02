@@ -1,0 +1,11 @@
+// C5: 'as' dá outro apelido ao módulo; o mesmo arquivo importado por dois caminhos é carregado uma vez.
+import modulos.geom as g;
+import modulos.usa_geom;
+fn main() {
+  print(g.area(2), usa_geom.areaDoLado());
+  list<g.Ponto> pts;
+  pts.add(new g.Ponto());
+  print(pts.size());
+}
+// expect: 4 9
+// expect: 1

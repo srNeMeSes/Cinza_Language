@@ -1,0 +1,6 @@
+// Fase 7: erro em Math.round.
+import Math;
+fn main() {
+  print(Math.round(100000000000000000000.0));
+}
+// expect-error: OverflowError

@@ -1,0 +1,8 @@
+// C3: num struct const, trocar o objeto guardado num campo é erro.
+class Contador { int v = 0; }
+struct Painel { Contador c = new Contador(); }
+fn main() {
+    const Painel p = new Painel();
+    p.c = new Contador();
+}
+// expect-error: que é const

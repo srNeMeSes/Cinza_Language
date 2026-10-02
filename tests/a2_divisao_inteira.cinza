@@ -1,0 +1,11 @@
+// A2 (regressão): sem decimal envolvido a divisão continua inteira; a conversão vem depois da operação.
+fn main() {
+  int i = 5;
+  print(i / 2);
+  decimal d = 5 / 2;
+  print(d);
+  print(d / 4);
+}
+// expect: 2
+// expect: 2
+// expect: 0.5

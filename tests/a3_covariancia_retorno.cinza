@@ -1,0 +1,4 @@
+// A3: return de variável list<int> em função -> list<decimal> é rejeitado.
+fn f() -> list<decimal> { list<int> a = [1]; return a; }
+fn main() {}
+// expect-error: incompatível

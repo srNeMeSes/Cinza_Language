@@ -1,0 +1,28 @@
+// C4: error Nome; declara um tipo de erro; throw lança; o except do tipo o captura.
+error SaldoInsuficiente;
+class Conta {
+    int saldo = 10;
+    pub {
+        fn saca(int v) {
+            if (v > saldo) { throw SaldoInsuficiente("saldo: " + saldo + ", pedido: " + v); }
+            saldo -= v;
+        }
+        fn get() -> int { return saldo; }
+    }
+}
+fn main() {
+    Conta c = new Conta();
+    try {
+        c.saca(3);
+        c.saca(50);
+        c.saca(1);
+    } except (SaldoInsuficiente e) {
+        print(e.kind + ": " + e.message);
+    }
+    print(c.get());
+    Error generico = SaldoInsuficiente("x");
+    print(generico);
+}
+// expect: SaldoInsuficiente: saldo: 7, pedido: 50
+// expect: 7
+// expect: SaldoInsuficiente: x

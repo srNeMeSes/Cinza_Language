@@ -4,6 +4,7 @@
 #include "ast.h"
 #include "lexer.h"
 #include <vector>
+#include <set>
 #include <string>
 #include <stdexcept>
 
@@ -27,7 +28,26 @@ private:
     std::vector<Token> tokens;
     size_t current;
     bool has_errors;
-    std::vector<std::string> error_messages;
+
+    // A8: profundidade de blocos { } em análise; 0 = nível superior.
+    // 'fn' e 'class' só são aceitos com block_depth == 0 (métodos são
+    // lidos direto no corpo da classe, sem passar por parseStatement).
+    int block_depth = 0;
+
+    // A9: chaves abertas (blocos, corpo de classe, pub { }). Com brace_depth > 0,
+    // synchronize() para em '}' sem consumi-lo, e o laço que abriu a chave a
+    // fecha normalmente (evita erros em cascata).
+    int brace_depth = 0;
+
+    // C5: apelidos dos imports deste arquivo. `apelido.nome` vira um nome
+    // qualificado (chamada, identificador, tipo, new), resolvido no semântico.
+    std::set<std::string> module_aliases;
+    bool        checkQualified() const;          // IDENT(apelido) '.' IDENT
+    static bool isWord(const Token& tok);        // identificador ou palavra-chave
+    std::string parseQualifiedName();            // consome e devolve "apelido.nome"
+    ImportDecl  parseImport();
+    StmtPtr     parseEnumDeclaration();
+    StmtPtr     parseInterfaceDeclaration();
     
     // ========================================================================
     // HELPERS  
@@ -39,6 +59,9 @@ private:
     // Retorna o token atual
     const Token& peek() const;
     
+    // Retorna o token seguinte ao atual (ou o último, END_OF_FILE)
+    const Token& peekNext() const;
+
     // Retorna o token anterior
     const Token& previous() const;
     
@@ -69,6 +92,7 @@ private:
     // ========================================================================
     
     TypePtr parseType();
+    TypePtr parseTypeInner();   // C5: parseType sem o token
     
     // ========================================================================
     // PARSING DE EXPRESSÕES (com precedência)
@@ -123,6 +147,15 @@ private:
     // ========================================================================
     
     std::vector<Parameter> parseParameterList();
+
+    // C3: campos (class e struct) e declaração de struct
+    bool             checkFieldStart() const;
+    ClassDecl::Field parseFieldDeclaration();
+    StmtPtr          parseStructDeclaration();
+
+    // C4: exceções
+    StmtPtr          parseErrorDeclaration();
+    StmtPtr          parseTryStatement();
     
 public:
     explicit Parser(std::vector<Token> token_list);
@@ -134,10 +167,8 @@ public:
     bool hasErrors() const { return has_errors; }
     
     // Retorna as mensagens de erro
-    const std::vector<std::string>& getErrors() const { return error_messages; }
     
     // Imprime erros
-    void printErrors() const;
 };
 
 } // namespace cinza

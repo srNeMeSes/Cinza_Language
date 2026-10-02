@@ -1,0 +1,6 @@
+// Fase 7: erro em Random.decimal.
+import Random;
+fn main() {
+  print(Random.decimal(1));
+}
+// expect-error: Aridade incorreta em 'Random.decimal': esperados 0 argumento(s), mas recebeu 1

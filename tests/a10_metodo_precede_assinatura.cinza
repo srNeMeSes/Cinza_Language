@@ -1,0 +1,14 @@
+// A10: a checagem de tipos também usa o método (assinatura diferente da global).
+fn soma(int a, int b) -> int { return a + b; }
+class C {
+  int base = 10;
+  pub {
+    fn soma(int a) -> int { return base + a; }
+    fn usa() -> int { return soma(5); }
+  }
+}
+fn main() {
+  C c = new C();
+  print(c.usa(), soma(1, 2));
+}
+// expect: 15 3

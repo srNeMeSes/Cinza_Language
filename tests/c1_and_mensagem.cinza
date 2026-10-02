@@ -1,0 +1,5 @@
+// C1: a mensagem de erro mostra o operador como foi escrito (and).
+fn main() {
+  print(1 and true);
+}
+// expect-error: Operador lógico 'and' requer 'bool'

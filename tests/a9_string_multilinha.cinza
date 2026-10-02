@@ -1,0 +1,11 @@
+// A9: string de várias linhas registra a linha de início (a chave repetida começa na linha 6 e termina na 7).
+fn main() {
+  dict<string, int> d = {
+    {"x
+y", 1},
+    {"x
+y", 2}
+  };
+}
+// expect-error: tests/a9_string_multilinha.cinza:6:6: SemanticError:
+// expect-not: [linha 7

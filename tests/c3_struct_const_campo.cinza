@@ -1,0 +1,7 @@
+// C3: const S o proíbe o.campo = ...
+struct Ponto { int x = 0; int y = 0; }
+fn main() {
+    const Ponto p = new Ponto();
+    p.x = 1;
+}
+// expect-error: 'p.x' altera o conteúdo de 'p', que é const

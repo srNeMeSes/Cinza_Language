@@ -1,0 +1,6 @@
+// B5/C3: .add numa lista dentro de uma lista const também é erro (antes só .add direto era barrado).
+fn main() {
+  const list<list<int>> m = [[1]];
+  m[0].add(1);
+}
+// expect-error: em lista const

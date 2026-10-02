@@ -1,0 +1,7 @@
+// A6: recursão infinita em método gera StackOverflowError.
+class Loop { int v = 0; pub { fn gira() -> int { return gira(); } } }
+fn main() {
+  Loop l = new Loop();
+  print(l.gira());
+}
+// expect-error: StackOverflowError

@@ -1,0 +1,6 @@
+// A10: divisão inteira por zero também é ZeroDivisionError.
+fn main() {
+  int z = 0;
+  print(1 / z);
+}
+// expect-error: ZeroDivisionError

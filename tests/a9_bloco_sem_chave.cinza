@@ -1,0 +1,5 @@
+// A9: corpo sem '{' é erro claro (antes o 'return' era engolido como se fosse '{').
+fn f() -> int return 1;
+fn main() {}
+// expect-error: Esperado '{' para abrir o bloco
+// expect-not: Esperado '}' após bloco
