@@ -1,0 +1,15 @@
+// CVM etapa 3: erro de runtime dentro de laço e de chamada, com posição e stack trace.
+fn divide(int a, int b) -> int { return a / b; }
+fn main() {
+  int i = 3;
+  while (i >= 0) {
+    print(divide(12, i));
+    i -= 1;
+  }
+}
+// expect: 4
+// expect: 6
+// expect: 12
+// expect-error: tests/cvm_fluxo_erros.cinza:2:43: ZeroDivisionError: divisão por zero
+// expect-error:     em divide (tests/cvm_fluxo_erros.cinza:2)
+// expect-error:     em main (tests/cvm_fluxo_erros.cinza:6)

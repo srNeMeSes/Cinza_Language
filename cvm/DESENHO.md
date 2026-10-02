@@ -122,12 +122,13 @@ resultado infinito (spec 5.3).
 
 | Instrução               | Efeito |
 |-------------------------|--------|
-| `FORPREP a b`           | `R[a] =` cópia dos elementos de `R[b]` (lista: os elementos; dict: os pares em ordem de chave; string: os caracteres), `R[a+1] = 0` |
-| `FORNEXT a bc`          | se `R[a+1] < tamanho`: `R[a+2] = R[a][R[a+1]]`, `R[a+1] += 1`; senão `pc += bc` (sai do laço) |
+| `FORPREP a b c`         | `R[a] =` cópia dos elementos de `R[b]` (lista: os elementos; dict: os pares em ordem de chave; string: os caracteres), `R[a+1] = 0`, `R[a+2] = c` (o slot do iterador) |
+| `FORNEXT a bc`          | se `R[a+1] < tamanho`: `R[slot] = R[a][R[a+1]]` (com `slot = R[a+2]`), `R[a+1] += 1`; senão `pc += bc` (sai do laço) |
 | `FORNEXT_D a bc`        | idem, convertendo o elemento para `decimal` (`for (decimal x in list<int>)`) |
 
 O laço usa três registradores consecutivos, como o `FORLOOP` do Lua: `R[a]` a cópia, `R[a+1]` o
-índice e `R[a+2]` a variável do laço — o compilador aloca o slot do iterador exatamente em `a+2`.
+índice e `R[a+2]` o número do slot do iterador. (O slot é decidido pelo semântico, B2, então não
+pode ser forçado a ser `a+2`; guardar o número dele mantém o `FORNEXT` numa instrução só.)
 A cópia no `FORPREP` é a da spec 5.5 (alterar a coleção no corpo não muda as voltas).
 
 ### 5.5 Funções e objetos

@@ -1,0 +1,28 @@
+// CVM etapa 3: for sobre range, string e com conversão para decimal; break/continue no for; laços aninhados.
+fn main() {
+  int soma = 0;
+  for (int i in range(0, 10)) {
+    if (i == 2) { continue; }
+    if (i == 6) { break; }
+    soma += i;
+  }
+  print(soma);
+  string invertido = "";
+  for (string c in "ação") { invertido = c + invertido; }
+  print(invertido);
+  decimal total = 0.0;
+  for (decimal x in range(1, 4)) { total += x / 2; }
+  print(total);
+  int pares = 0;
+  for (int a in range(0, 4)) {
+    for (int b in range(0, 4)) {
+      if (b > a) { break; }
+      pares += 1;
+    }
+  }
+  print(pares);
+}
+// expect: 13
+// expect: oãça
+// expect: 3
+// expect: 10

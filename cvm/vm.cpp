@@ -180,6 +180,53 @@ Value VM::execute(std::size_t idx, std::size_t base) {
                 case Op::JMPIF:    if (R[in.a].asBool())  f->pc += in.bc(); break;
                 case Op::JMPIFNOT: if (!R[in.a].asBool()) f->pc += in.bc(); break;
 
+                // ── for (spec 5.5: os elementos são copiados no início) ──
+                case Op::FORPREP: {
+                    const Value& col = R[in.b];
+                    std::vector<Value> elems;
+                    switch (col.kind()) {
+                        case Value::Kind::LIST:
+                            elems = col.asList()->elements;
+                            break;
+                        case Value::Kind::DICT:
+                            elems.reserve(col.asDict()->entries.size());
+                            for (const auto& [k, v] : col.asDict()->entries)
+                                elems.push_back(makePair(k, v));
+                            break;
+                        case Value::Kind::STRING: {
+                            const std::string& s = col.asString();
+                            for (std::size_t i = 0; i < s.size();) {
+                                std::size_t len = 1;
+                                while (i + len < s.size() &&
+                                       (static_cast<unsigned char>(s[i + len]) & 0xC0) == 0x80)
+                                    ++len;   // bytes de continuação: mesmo caractere
+                                elems.emplace_back(s.substr(i, len));
+                                i += len;
+                            }
+                            break;
+                        }
+                        default:
+                            throw RuntimeError("'for' esperava list, dict ou string como iterável");
+                    }
+                    R[in.a]     = makeList(std::move(elems));
+                    R[in.a + 1] = Value(std::int64_t{0});
+                    R[in.a + 2] = Value(static_cast<std::int64_t>(in.c));
+                    break;
+                }
+                case Op::FORNEXT: case Op::FORNEXT_D: {
+                    auto& elems = R[in.a].asList()->elements;
+                    const std::int64_t i = R[in.a + 1].asInt();
+                    if (i >= static_cast<std::int64_t>(elems.size())) { f->pc += in.bc(); break; }
+                    Value& destino = R[R[in.a + 2].asInt()];
+                    const Value& e = elems[static_cast<std::size_t>(i)];
+                    if (in.op == Op::FORNEXT_D && e.kind() == Value::Kind::INT)
+                        destino = Value(static_cast<double>(e.asInt()));
+                    else
+                        destino = e;
+                    R[in.a + 1] = Value(i + 1);
+                    break;
+                }
+
                 // ── chamadas ─────────────────────────────────────────────
                 case Op::CALL: {
                     const Proto& alvo = img.protos[in.b];

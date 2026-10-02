@@ -1,0 +1,25 @@
+// CVM etapa 3: if/else if/else, while, while (true) com break, continue, return dentro de laço.
+fn classifica(int n) -> string {
+  if (n < 0) { return "negativo"; } else if (n == 0) { return "zero"; } else { return "positivo"; }
+}
+fn primeiro_multiplo(int de, int a_partir) -> int {
+  int i = a_partir;
+  while (true) {
+    if (i % de == 0) { return i; }
+    i += 1;
+  }
+}
+fn main() {
+  print(classifica(-3), classifica(0), classifica(8));
+  int soma = 0;
+  int i = 0;
+  while (i < 10) {
+    i += 1;
+    if (i % 2 == 0) { continue; }
+    if (i > 7) { break; }
+    soma += i;
+  }
+  print(soma, i, primeiro_multiplo(7, 30));
+}
+// expect: negativo zero positivo
+// expect: 16 9 35

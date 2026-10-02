@@ -33,6 +33,13 @@ private:
     std::unordered_map<const FunctionDecl*, std::size_t> proto_of;
     std::unordered_map<const NativeFn*, std::size_t>     native_of;
 
+    // laços em compilação: saltos de break a corrigir e destino do continue
+    struct Laco {
+        std::vector<std::size_t> breaks;
+        std::vector<std::size_t> continues;
+    };
+    std::vector<Laco> lacos;
+
     // estado da função em compilação
     Proto*        p      = nullptr;
     std::uint16_t nlocal = 0;   // registradores 0 .. nlocal-1 são variáveis (slots do B2)
@@ -345,9 +352,76 @@ void Compiler::stmt(const Stmt* s) {
                 if (x) stmt(x.get());
             break;
 
-        case NodeKind::If: case NodeKind::While: case NodeKind::For:
-        case NodeKind::Break: case NodeKind::Continue:
-            unsupported("Controle de fluxo", 3, s->token);
+        case NodeKind::If: {
+            auto* i = static_cast<const IfStmt*>(s);
+            const std::uint16_t c = exprReg(i->condition.get());
+            const std::size_t para_else = emitBc(Op::JMPIFNOT, c, 0, s->token);
+            top = save;
+            stmt(i->then_branch.get());
+            if (i->else_branch) {
+                const std::size_t para_fim = emitBc(Op::JMP, 0, 0, s->token);
+                patch(para_else, here());
+                stmt(i->else_branch.get());
+                patch(para_fim, here());
+            } else {
+                patch(para_else, here());
+            }
+            break;
+        }
+
+        case NodeKind::While: {
+            auto* w = static_cast<const WhileStmt*>(s);
+            const std::size_t inicio = here();
+            // while (true): sem teste
+            const bool sempre = w->condition->node_kind == NodeKind::Literal &&
+                std::holds_alternative<bool>(static_cast<const LiteralExpr*>(w->condition.get())->value) &&
+                std::get<bool>(static_cast<const LiteralExpr*>(w->condition.get())->value);
+            std::size_t sai = 0;
+            if (!sempre) {
+                const std::uint16_t c = exprReg(w->condition.get());
+                sai = emitBc(Op::JMPIFNOT, c, 0, s->token);
+                top = save;
+            }
+            lacos.push_back({});
+            stmt(w->body.get());
+            const std::size_t volta = emitBc(Op::JMP, 0, 0, s->token);
+            patch(volta, inicio);
+            if (!sempre) patch(sai, here());
+            for (std::size_t j : lacos.back().breaks)    patch(j, here());
+            for (std::size_t j : lacos.back().continues) patch(j, inicio);
+            lacos.pop_back();
+            break;
+        }
+
+        case NodeKind::For: {
+            auto* f = static_cast<const ForStmt*>(s);
+            // três registradores consecutivos: cópia, índice, slot do iterador
+            const std::uint16_t a = alloc(s->token);
+            alloc(s->token);
+            alloc(s->token);
+            const std::uint16_t col = exprReg(f->iterable.get());
+            emit(Op::FORPREP, a, col, static_cast<std::uint16_t>(f->iter_slot), s->token);
+            top = static_cast<std::uint16_t>(a + 3);
+            // for (decimal x in list<int>): converte cada elemento
+            const bool para_decimal = f->type_iterator->kind == Type::Kind::DECIMAL;
+            const std::size_t prox = emitBc(para_decimal ? Op::FORNEXT_D : Op::FORNEXT, a, 0, s->token);
+            lacos.push_back({});
+            stmt(f->body.get());
+            const std::size_t volta = emitBc(Op::JMP, 0, 0, s->token);
+            patch(volta, prox);
+            patch(prox, here());
+            for (std::size_t j : lacos.back().breaks)    patch(j, here());
+            for (std::size_t j : lacos.back().continues) patch(j, prox);
+            lacos.pop_back();
+            break;
+        }
+
+        case NodeKind::Break:
+            lacos.back().breaks.push_back(emitBc(Op::JMP, 0, 0, s->token));
+            break;
+        case NodeKind::Continue:
+            lacos.back().continues.push_back(emitBc(Op::JMP, 0, 0, s->token));
+            break;
         case NodeKind::Try: case NodeKind::Throw:
             unsupported("Exceções", 7, s->token);
         default:

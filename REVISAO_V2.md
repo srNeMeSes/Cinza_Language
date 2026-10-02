@@ -902,7 +902,12 @@ Etapas:
   > mensagens. As nativas não recebem mais o `Executor&` (nenhuma o usava). Recurso ainda não compilado vira
   > `CVMError: ... ainda não é suportado pela CVM (etapa N)`. Suíte no modo CVM: 258 de 387; as 129 falhas são
   > todas recursos de etapas seguintes — nenhuma divergência. Limpo sob ASan/UBSan nos dois modos.
-- [ ] 3. Controle de fluxo: `if`, `while`, `for`, `break`, `continue`, `return`.
+- [x] 3. Controle de fluxo: `if`, `while`, `for`, `break`, `continue`, `return`. — feito em 2026-10-02
+  > Nota: `FORPREP`/`FORNEXT`/`FORNEXT_D`; o `R[a+2]` do laço guarda o número do slot do iterador (decidido
+  > pelo semântico, não pode ser forçado a `a+2`). `while (true)` sem teste. Testes `cvm_fluxo_*` e
+  > `cvm_recursao` (stack trace do estouro idêntico nos dois modos). Suíte na CVM: 266 de 391, sem
+  > divergência. Benchmark (`bench/medir.ps1`, agora nos dois modos): `fib` 122 → 50 ms (2,4×), `laco`
+  > 315 → 89 ms (3,5×); Python 3.13: 59 e 251 ms. Limpo sob ASan/UBSan.
 - [ ] 4. Coleções: `list`, `dict`, `pair`, literais, índices, métodos embutidos, `const`.
 - [ ] 5. `struct`, classes, `self`, campos, métodos, construtores.
 - [ ] 6. Interfaces, `enum`, `op<...>`, `type()`.

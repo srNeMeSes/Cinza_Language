@@ -59,8 +59,10 @@ std::string disassemble(const Image& img) {
                 case Op::MOVE: case Op::NEG_I: case Op::NEG_D: case Op::I2D: case Op::NOT:
                                     ops = ra + ", " + rb; break;
                 case Op::JMP:       ops = alvo(); break;
-                case Op::JMPIF: case Op::JMPIFNOT:
+                case Op::JMPIF: case Op::JMPIFNOT: case Op::FORNEXT: case Op::FORNEXT_D:
                                     ops = ra + ", " + alvo(); break;
+                case Op::FORPREP:   ops = ra + ", " + rb;
+                                    nota = "iterador em r" + std::to_string(in.c); break;
                 case Op::CALL:
                     ops  = ra + ", " + img.protos[in.b].name + ", " + std::to_string(in.c);
                     break;

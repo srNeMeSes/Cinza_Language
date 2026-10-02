@@ -41,6 +41,10 @@ namespace cinza::cvm {
     X(JMP)        /* pc += bc                                        */          \
     X(JMPIF)      /* se R[a]: pc += bc                               */          \
     X(JMPIFNOT)   /* se !R[a]: pc += bc                              */          \
+    /* for: R[a] cópia dos elementos, R[a+1] índice, R[a+2] slot do iterador */ \
+    X(FORPREP)    /* R[a] = cópia de R[b]; R[a+1] = 0; R[a+2] = c    */          \
+    X(FORNEXT)    /* próximo elemento em R[slot], ou pc += bc        */          \
+    X(FORNEXT_D)  /* idem, convertendo int em decimal                */          \
     /* chamadas */                                                              \
     X(CALL)       /* R[a] = proto b(R[a] ... R[a+c-1])               */          \
     X(CALLNATIVE) /* R[a] = nativa b(R[a] ... R[a+c-1])              */          \

@@ -1,0 +1,13 @@
+// CVM etapa 3: recursão funda e StackOverflowError com o mesmo trace do interpretador.
+fn soma(int n) -> int {
+  if (n == 0) { return 0; }
+  return n + soma(n - 1);
+}
+fn infinita(int n) -> int { return infinita(n + 1); }
+fn main() {
+  print(soma(1500));
+  print(infinita(0));
+}
+// expect: 1125750
+// expect-error: StackOverflowError: profundidade máxima de chamadas (2000) excedida ao chamar 'infinita'
+// expect-error: ... (1989 chamadas omitidas)
