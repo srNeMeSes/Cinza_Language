@@ -926,7 +926,12 @@ Etapas:
   > 393, sem divergência (o resto é das etapas 6 e 7). Benchmark: `objetos` 176 → 128 ms (1,4×), `ciclos`
   > 929 → 796 ms — o custo está no mecanismo da chamada de método (frame, limpeza da janela, cópia do
   > `shared_ptr`), não no bytecode; fica para as otimizações (desenho, seção 11). Limpo sob ASan/UBSan.
-- [ ] 6. Interfaces, `enum`, `op<...>`, `type()`.
+- [x] 6. Interfaces, `enum`, `op<...>`, `type()`. — feito em 2026-10-02
+  > Nota: `runtimeType`, `narrowValue` e `keepLock` saíram do `Executor` para `operacoes.cpp`, compartilhados.
+  > `CALLIFACE` escolhe o protótipo pela tabela de interface da classe real do objeto; valores de enum e tipos
+  > escritos como valor são constantes (`LOADK`); `TYPEOF`, `CAST` (conversões de/para op), `KEEPLOCK` e as
+  > operações genéricas `ADD`...`LE`/`NEG` só para operandos op de tipo travado desconhecido. Suíte na CVM:
+  > 359 de 393, sem divergência — as 34 restantes são todas exceções (etapa 7). Limpo sob ASan/UBSan.
 - [ ] 7. Exceções: `try`/`except`/`finally`/`throw`, stack trace, `StackOverflowError`.
 - [ ] 8. Módulos, `const` globais, funções nativas e biblioteca padrão.
 - [ ] 9. CVM como padrão, `--interp` para o interpretador; suíte nos dois modos; benchmark final.

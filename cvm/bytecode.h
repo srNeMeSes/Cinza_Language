@@ -6,6 +6,7 @@
 #include "../natives.h"
 #include "../value.h"
 #include <cstdint>
+#include <unordered_map>
 #include <string>
 #include <vector>
 
@@ -61,6 +62,13 @@ namespace cinza::cvm {
     X(NEWSTRUCT)  /* R[a] = struct b com os campos R[a] ... R[a+c-1] */          \
     X(GETFIELD)   /* R[a] = R[b].campo[c]                            */          \
     X(SETFIELD)   /* R[a].campo[b] = R[c]                            */          \
+    /* interfaces, op<...> e type() */                                          \
+    X(CALLIFACE)  /* método c da interface b pela classe de R[a]     */          \
+    X(TYPEOF)     /* R[a] = tipo real de R[b] (K[c]: tipo estático)  */          \
+    X(CAST)       /* R[a] = conversão de R[b] para K[c] (op<...>)    */          \
+    X(KEEPLOCK)   /* R[a] = R[b] mantendo o tipo travado de R[a]     */          \
+    /* operações genéricas: operandos op<...> de tipo travado desconhecido */  \
+    X(ADD) X(SUB) X(MUL) X(DIV) X(MOD) X(LT) X(LE) X(NEG)                       \
     /* chamadas */                                                              \
     X(CALL)       /* R[a] = proto b(R[a] ... R[a+c-1])               */          \
     X(CALLNATIVE) /* R[a] = nativa b(R[a] ... R[a+c-1])              */          \
@@ -115,6 +123,8 @@ struct ClassRef {
     const ClassDecl* decl = nullptr;
     std::size_t      ctor = none;
     std::size_t      init = none;
+    // para cada interface cumprida, os protótipos na ordem dos métodos dela
+    std::vector<std::pair<const InterfaceDecl*, std::vector<std::size_t>>> itables;
 };
 
 // Imagem: o programa compilado (protótipos e tabelas globais)
@@ -123,6 +133,8 @@ struct Image {
     std::vector<const NativeFn*> natives;
     std::vector<ClassRef>        classes;
     std::vector<const StructDecl*> structs;
+    std::vector<const InterfaceDecl*> interfaces;
+    std::unordered_map<const ClassDecl*, std::size_t> class_index;   // classe de um objeto → classes
     std::vector<std::size_t>     inits;        // inicialização dos const de cada módulo, em ordem
     std::size_t                  main = 0;     // protótipo da main
     bool                         main_has_args = false;

@@ -988,62 +988,18 @@ Value Executor::callCollectionMethod(Value& obj, const std::string& method,
 // dict e um pair por op, então o tipo vem do op.
 // ============================================================================
 
-TypeRef Executor::runtimeType(const Value& v, TypeRef st) {
-    auto& t = TypeContext::instance();
-    using K = TypeInfo::Kind;
-
-    // Erro guardado como Error (a raiz): o tipo real é o do erro
-    if (v.kind() == Value::Kind::ERROR) return t.errorType(v.asError()->kind);
-    // Objeto guardado como interface: o tipo real é a classe
-    if (v.kind() == Value::Kind::INSTANCE && st->is(K::Interface))
-        return t.classType(v.asInstance()->class_name);
-    if (!st->is(K::Op)) return st;
-
-    auto doOp = [&](K kind) -> TypeRef {
-        for (TypeRef m : st->params) if (m->is(kind)) return m;
-        return t.varType();   // não acontece: o semântico só deixa entrar tipos do op
-    };
-    switch (v.kind()) {
-        case Value::Kind::INT:      return t.intType();
-        case Value::Kind::DECIMAL:  return t.decimalType();
-        case Value::Kind::STRING:   return t.stringType();
-        case Value::Kind::BOOL:     return t.boolType();
-        case Value::Kind::TYPE:     return t.typeType();
-        case Value::Kind::LIST:     return doOp(K::List);
-        case Value::Kind::DICT:     return doOp(K::Dict);
-        case Value::Kind::PAIR:     return doOp(K::Pair);
-        case Value::Kind::INSTANCE: return t.classType(v.asInstance()->class_name);
-        case Value::Kind::STRUCT:   return t.structType(v.asStruct()->decl->name);
-        case Value::Kind::ENUM:     return t.enumType(v.asEnum().decl->name);
-        default:                    return t.voidType();
-    }
-}
 
 Value Executor::narrow(Value v, TypeRef from, TypeRef to, const Token& tok) const {
-    using K = TypeInfo::Kind;
-    TypeRef real = runtimeType(v, from);
-    if (!TypeChecker::isAssignable(to, real))
-        throwRuntimeError("TypeError: esperado '" + stripModulePrefixes(to->str()) +
-                          "', mas o valor é '" + stripModulePrefixes(real->str()) + "'", tok);
-
-    // int → decimal: destino decimal, ou op que tem decimal e não tem int
-    if (v.kind() == Value::Kind::INT) {
-        const bool quer_decimal = to->is(K::Decimal) ||
-            (to->is(K::Op) && to->hasMember(TypeContext::instance().decimalType()) &&
-             !to->hasMember(TypeContext::instance().intType()));
-        if (quer_decimal) return Value(static_cast<double>(v.asInt()));
+    try {
+        return narrowValue(std::move(v), from, to);   // CVM: regra compartilhada
+    } catch (RuntimeError& err) {
+        raise(RuntimeError(err.kind, err.message, tok.line, tok.column, tok.file_id));
     }
-    return v;
 }
 
 
 // op<...>: o valor novo de quem já travou mantém o tipo travado. A única
 // conversão implícita da linguagem é int → decimal, então basta ela.
-Value Executor::keepLock(const Value& atual, Value novo) {
-    if (atual.kind() == Value::Kind::DECIMAL && novo.kind() == Value::Kind::INT)
-        return Value(static_cast<double>(novo.asInt()));
-    return novo;
-}
 
 // ============================================================================
 // RESOLUCAO DE NOMES (A1 + B2)

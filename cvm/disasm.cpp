@@ -83,6 +83,18 @@ std::string disassemble(const Image& img) {
                 case Op::SETFIELD:
                     ops = ra + ", #" + std::to_string(in.b) + ", " + rc;
                     break;
+                case Op::CALLIFACE: {
+                    const InterfaceDecl* i = img.interfaces[in.b];
+                    ops = ra + ", " + displayName(i->name) + "." + i->methods[in.c].name;
+                    break;
+                }
+                case Op::TYPEOF: case Op::CAST:
+                    ops  = ra + ", " + rb + ", k" + std::to_string(in.c);
+                    nota = p.consts[in.c].toString();
+                    break;
+                case Op::KEEPLOCK: case Op::NEG:
+                    ops = ra + ", " + rb;
+                    break;
                 case Op::GETFIRST: case Op::GETSECOND:
                     ops = ra + ", " + rb;
                     break;

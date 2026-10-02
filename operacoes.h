@@ -45,6 +45,20 @@ Builtin     builtinFor(Value::Kind kind, const std::string& name);
 const char* builtinName(Builtin b);
 Value       callBuiltin(Builtin b, Value& obj, std::span<const Value> args);
 
+// ── op<...>, interfaces e type() ──────────────────────────────────────────
+
+// Tipo real de um valor cujo tipo estático é `st` (spec 3.9): o tipo do op que
+// o valor guarda, a classe de um objeto guardado como interface, o tipo de erro
+TypeRef runtimeType(const Value& v, TypeRef st);
+
+// Conversão inserida pelo semântico de/para op<...>: confere o tipo (TypeError,
+// que não ocorre num programa aceito) e converte int → decimal se o destino pede
+Value   narrowValue(Value v, TypeRef from, TypeRef to);
+
+// Atribuição a quem já travou num tipo desconhecido: mantém o tipo travado
+// (spec 3.7 — v = 5 guarda 5.0 se v travou em decimal)
+Value   keepLock(const Value& atual, Value novo);
+
 } // namespace cinza
 
 #endif // CINZA_OPERACOES_H

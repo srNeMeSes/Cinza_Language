@@ -294,9 +294,39 @@ Value VM::execute(std::size_t idx, std::size_t base) {
                     break;
                 }
 
+                // ── op<...> e type() (regras em operacoes.cpp) ────────────
+                case Op::TYPEOF:
+                    R[in.a] = Value(runtimeType(R[in.b], K[in.c].asType()));
+                    break;
+                case Op::CAST:
+                    R[in.a] = narrowValue(R[in.b], K[in.c + 1].asType(), K[in.c].asType());
+                    break;
+                case Op::KEEPLOCK:
+                    R[in.a] = keepLock(R[in.a], R[in.b]);
+                    break;
+                case Op::ADD: R[in.a] = applyBinaryOp(TokenType::OP_PLUS,       R[in.b], R[in.c]); break;
+                case Op::SUB: R[in.a] = applyBinaryOp(TokenType::OP_MINUS,      R[in.b], R[in.c]); break;
+                case Op::MUL: R[in.a] = applyBinaryOp(TokenType::OP_MULTIPLY,   R[in.b], R[in.c]); break;
+                case Op::DIV: R[in.a] = applyBinaryOp(TokenType::OP_DIVIDE,     R[in.b], R[in.c]); break;
+                case Op::MOD: R[in.a] = applyBinaryOp(TokenType::OP_MODULO,     R[in.b], R[in.c]); break;
+                case Op::LT:  R[in.a] = applyBinaryOp(TokenType::OP_LESS,       R[in.b], R[in.c]); break;
+                case Op::LE:  R[in.a] = applyBinaryOp(TokenType::OP_LESS_EQUAL, R[in.b], R[in.c]); break;
+                case Op::NEG: R[in.a] = negateOp(R[in.b]); break;
+
                 // ── chamadas ─────────────────────────────────────────────
-                case Op::CALL: {
-                    const Proto& alvo = img.protos[in.b];
+                case Op::CALL: case Op::CALLIFACE: {
+                    std::size_t idx = in.b;
+                    if (in.op == Op::CALLIFACE) {   // pela classe real do objeto
+                        const ClassDecl* c = R[in.a].asInstance()->decl;
+                        const ClassRef& ref = img.classes[img.class_index.at(c)];
+                        const InterfaceDecl* iface = img.interfaces[in.b];
+                        idx = ClassRef::none;
+                        for (const auto& [i, protos] : ref.itables)
+                            if (i == iface) idx = protos[in.c];
+                        if (idx == ClassRef::none)
+                            throw RuntimeError("Erro interno: a classe não cumpre a interface");
+                    }
+                    const Proto& alvo = img.protos[idx];
                     if (!alvo.hidden() && depth >= max_call_depth) {
                         // como o CallGuard: posição da declaração chamada
                         RuntimeError err("StackOverflowError",

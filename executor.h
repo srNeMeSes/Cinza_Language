@@ -210,12 +210,12 @@ private:
     // ── op<...> ───────────────────────────────────────────────────────────
     // Tipo real de um valor cujo tipo estático é `st` (se `st` for um op, o
     // tipo do op que o valor guarda agora)
-    static TypeRef runtimeType(const Value& v, TypeRef st);
+
     // Confere se o valor (de tipo estático `from`) cabe em `to`; TypeError se
     // não couber. Converte int em decimal quando `to` pede.
     Value narrow(Value v, TypeRef from, TypeRef to, const Token& tok) const;
     // Atribuição a quem já travou (tipo desconhecido na compilação): mantém o tipo
-    static Value keepLock(const Value& atual, Value novo);
+
 
     // ── Utilitário de erro ────────────────────────────────────────────────
     [[noreturn]] void throwRuntimeError(const std::string& msg,

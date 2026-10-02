@@ -34,6 +34,7 @@ private:
     std::unordered_map<const void*, std::size_t>         proto_of;    // FunctionDecl*/Constructor* → protótipo
     std::unordered_map<std::string, std::size_t>         class_of;    // nome completo → img.classes
     std::unordered_map<std::string, std::size_t>         struct_of;   // nome completo → img.structs
+    std::unordered_map<const InterfaceDecl*, std::size_t> iface_of;   // → img.interfaces
     std::unordered_map<const NativeFn*, std::size_t>     native_of;
 
     // laços em compilação: saltos de break a corrigir e destino do continue
@@ -184,8 +185,9 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
                 case Resolution::Kind::Self:
                     if (dst != 0) emit(Op::MOVE, dst, 0, 0, e->token);
                     break;
-                case Resolution::Kind::Type:
-                    unsupported("Tipo como valor", 6, e->token);
+                case Resolution::Kind::Type:   // Pessoa, Cor... usado como valor (type(x) == Pessoa)
+                    emit(Op::LOADK, dst, constant(Value(id->type_value), e->token), 0, e->token);
+                    break;
                 case Resolution::Kind::None:
                     throw Unsupported("identificador sem resolução (erro interno)", e->token);
             }
@@ -194,9 +196,14 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
 
         case NodeKind::Cast: {
             auto* c = static_cast<const CastExpr*>(e);
-            if (hasOp(c->operand->resolved_type) || hasOp(c->resolved_type))
-                unsupported("op<...>", 6, e->token);
-            if (c->resolved_type->is(TK::Decimal) && c->operand->resolved_type->is(TK::Int)) {
+            if (c->operand->resolved_type->is(TK::Op) || c->resolved_type->is(TK::Op)) {
+                // conversão de/para op (como o evalCast): K[c] é o tipo de destino;
+                // o tipo de origem vai numa segunda constante logo depois
+                const std::uint16_t r = exprReg(c->operand.get());
+                const std::uint16_t k = constant(Value(c->resolved_type), e->token);
+                constant(Value(c->operand->resolved_type), e->token);
+                emit(Op::CAST, dst, r, k, e->token);
+            } else if (c->resolved_type->is(TK::Decimal) && c->operand->resolved_type->is(TK::Int)) {
                 const std::uint16_t r = exprReg(c->operand.get());
                 emit(Op::I2D, dst, r, 0, e->token);
             } else {
@@ -207,10 +214,11 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
 
         case NodeKind::Unary: {
             auto* u = static_cast<const UnaryExpr*>(e);
-            if (hasOp(u->operand->resolved_type)) unsupported("op<...>", 6, e->token);
             const std::uint16_t r = exprReg(u->operand.get());
             if (u->op == TokenType::OP_NOT)
                 emit(Op::NOT, dst, r, 0, e->token);
+            else if (hasOp(u->operand->resolved_type))   // tipo travado desconhecido
+                emit(Op::NEG, dst, r, 0, e->token);
             else
                 emit(u->operand->resolved_type->is(TK::Int) ? Op::NEG_I : Op::NEG_D, dst, r, 0, e->token);
             break;
@@ -258,7 +266,12 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
         case NodeKind::MemberAccess: {
             auto* m = static_cast<const MemberAccessExpr*>(e);
             TypeRef t = m->object->resolved_type;
-            if (m->enum_decl) unsupported("enum", 6, e->token);
+            if (m->enum_decl) {   // Cor.Verde: uma constante
+                emit(Op::LOADK, dst,
+                     constant(Value(EnumValue{m->enum_decl, static_cast<std::uint32_t>(m->field_index)}),
+                              e->token), 0, e->token);
+                break;
+            }
             if (t->is(TK::Error)) unsupported("Campos de erro", 7, e->token);
             const std::uint16_t o = exprReg(m->object.get());
             if (t->is(TK::Pair))
@@ -272,21 +285,26 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
             auto* mc = static_cast<const MethodCallExpr*>(e);
             TypeRef t = mc->object->resolved_type;
             if (t->is(TK::List) || t->is(TK::Dict) || t->is(TK::String)) { builtinCall(mc, dst); break; }
-            if (mc->iface || !mc->target) unsupported("Chamada por interface", 6, e->token);
             // o objeto vira o self (r0) da janela do método; argumentos depois dele
             const std::uint16_t base = alloc(e->token);
             expr(mc->object.get(), base);
             for (const auto& arg : mc->arguments) expr(arg.get(), alloc(e->token));
-            emit(Op::CALL, base, u16(proto_of.at(mc->target), e->token, "funções"),
-                 u16(mc->arguments.size(), e->token, "argumentos"), e->token);
+            if (mc->iface)   // pela interface: o método sai da tabela da classe do objeto
+                emit(Op::CALLIFACE, base, static_cast<std::uint16_t>(iface_of.at(mc->iface)),
+                     static_cast<std::uint16_t>(mc->iface_method), e->token);
+            else
+                emit(Op::CALL, base, u16(proto_of.at(mc->target), e->token, "funções"),
+                     u16(mc->arguments.size(), e->token, "argumentos"), e->token);
             if (dst != base) emit(Op::MOVE, dst, base, 0, e->token);
             break;
         }
         case NodeKind::New:
             newExpr(static_cast<const NewExpr*>(e), dst);
             break;
-        case NodeKind::TypeLiteral:
-            unsupported("Tipo como valor", 6, e->token);
+        case NodeKind::TypeLiteral:   // int, list<int>... escrito como valor
+            emit(Op::LOADK, dst,
+                 constant(Value(static_cast<const TypeLiteralExpr*>(e)->value), e->token), 0, e->token);
+            break;
         default:
             throw Unsupported("expressão desconhecida (erro interno)", e->token);
     }
@@ -309,7 +327,6 @@ void Compiler::binary(const BinaryExpr* e, std::uint16_t dst) {
     }
 
     TypeRef lt = e->left->resolved_type, rt = e->right->resolved_type;
-    if (hasOp(lt) || hasOp(rt)) unsupported("op<...>", 6, tok);
 
     // operandos na ordem do fonte; a instrução final pode trocar os registradores
     const std::uint16_t l = exprReg(e->left.get());
@@ -322,6 +339,24 @@ void Compiler::arith(TokenType op, TypeRef lt, std::uint16_t l, TypeRef rt, std:
                      std::uint16_t dst, const Token& tok) {
     if (op == TokenType::OP_EQUAL)     { emit(Op::EQ, dst, l, r, tok); return; }
     if (op == TokenType::OP_NOT_EQUAL) { emit(Op::NE, dst, l, r, tok); return; }
+
+    // op<...> de tipo travado desconhecido: o tipo real só aparece em runtime;
+    // o semântico garantiu que toda combinação é válida (spec 3.7)
+    if (hasOp(lt) || hasOp(rt)) {
+        switch (op) {
+            case TokenType::OP_PLUS:          emit(Op::ADD, dst, l, r, tok); break;
+            case TokenType::OP_MINUS:         emit(Op::SUB, dst, l, r, tok); break;
+            case TokenType::OP_MULTIPLY:      emit(Op::MUL, dst, l, r, tok); break;
+            case TokenType::OP_DIVIDE:        emit(Op::DIV, dst, l, r, tok); break;
+            case TokenType::OP_MODULO:        emit(Op::MOD, dst, l, r, tok); break;
+            case TokenType::OP_LESS:          emit(Op::LT, dst, l, r, tok); break;
+            case TokenType::OP_LESS_EQUAL:    emit(Op::LE, dst, l, r, tok); break;
+            case TokenType::OP_GREATER:       emit(Op::LT, dst, r, l, tok); break;
+            case TokenType::OP_GREATER_EQUAL: emit(Op::LE, dst, r, l, tok); break;
+            default: throw Unsupported("operador desconhecido (erro interno)", tok);
+        }
+        return;
+    }
 
     if (op == TokenType::OP_PLUS && (lt->is(TK::String) || rt->is(TK::String))) {
         emit(Op::CONCAT, dst, l, r, tok);
@@ -357,7 +392,11 @@ void Compiler::arith(TokenType op, TypeRef lt, std::uint16_t l, TypeRef rt, std:
 
 void Compiler::call(const CallExpr* e, std::uint16_t dst) {
     const Token& tok = e->token;
-    if (e->type_of) unsupported("type()", 6, tok);
+    if (e->type_of) {   // type(x): o tipo real, com o tipo estático em K[c]
+        const std::uint16_t r = exprReg(e->arguments[0].get());
+        emit(Op::TYPEOF, dst, r, constant(Value(e->type_of), tok), tok);
+        return;
+    }
 
     const bool nativa = e->native != nullptr;
     if (!nativa && !e->target) unsupported("Criar um erro (Tipo(\"...\"))", 7, tok);
@@ -565,37 +604,47 @@ void Compiler::stmt(const Stmt* s) {
 
 void Compiler::assign(const AssignStmt* s) {
     const Token& tok = s->token;
-    if (s->keep_lock) unsupported("op<...>", 6, tok);
     if (s->target->node_kind != NodeKind::Identifier) { assignPlace(s); return; }
     auto* id = static_cast<const IdentifierExpr*>(s->target.get());
     TypeRef tt = s->target->resolved_type, vt = s->value->resolved_type;
 
     if (id->res.kind == Resolution::Kind::Field) {   // campo do objeto atual
         const auto campo = u16(id->res.slot, tok, "campos");
-        if (s->op == TokenType::OP_ASSIGN) {
-            emit(Op::SETFIELD, 0, campo, exprReg(s->value.get()), tok);
-            return;
+        std::uint16_t v = exprReg(s->value.get());
+        if (s->op != TokenType::OP_ASSIGN || s->keep_lock) {
+            const std::uint16_t atual = alloc(tok);
+            emit(Op::GETFIELD, atual, 0, campo, tok);   // lido depois do valor (spec 5.2)
+            if (s->op != TokenType::OP_ASSIGN) {
+                const std::uint16_t r = alloc(tok);
+                arith(compoundBaseOp(s->op), tt, atual, vt, v, r, tok);
+                v = r;
+            }
+            if (s->keep_lock) { emit(Op::KEEPLOCK, atual, v, 0, tok); v = atual; }
         }
-        if (hasOp(tt) || hasOp(vt)) unsupported("op<...>", 6, tok);
-        const std::uint16_t v = exprReg(s->value.get());
-        const std::uint16_t atual = alloc(tok);
-        emit(Op::GETFIELD, atual, 0, campo, tok);   // lido depois do valor (spec 5.2)
-        arith(compoundBaseOp(s->op), tt, atual, vt, v, atual, tok);
-        emit(Op::SETFIELD, 0, campo, atual, tok);
+        emit(Op::SETFIELD, 0, campo, v, tok);
         return;
     }
     if (id->res.kind != Resolution::Kind::Local)
         throw Unsupported("alvo de atribuição inesperado (erro interno)", tok);
     const auto slot = slotReg(id->res.slot);
 
-    if (s->op == TokenType::OP_ASSIGN) {
+    if (s->op == TokenType::OP_ASSIGN && !s->keep_lock) {
         expr(s->value.get(), slot);
         return;
     }
     // a op= b: o valor primeiro, depois o valor atual do alvo (spec 5.2)
-    if (hasOp(tt) || hasOp(vt)) unsupported("op<...>", 6, tok);
-    const std::uint16_t v = exprReg(s->value.get());
-    arith(compoundBaseOp(s->op), tt, slot, vt, v, slot, tok);
+    std::uint16_t v = exprReg(s->value.get());
+    if (!s->keep_lock) {   // a op= b direto no registrador da variável
+        arith(compoundBaseOp(s->op), tt, slot, vt, v, slot, tok);
+        return;
+    }
+    if (s->op != TokenType::OP_ASSIGN) {
+        const std::uint16_t r = alloc(tok);
+        arith(compoundBaseOp(s->op), tt, slot, vt, v, r, tok);
+        v = r;
+    }
+    // op<...> de tipo travado desconhecido: o valor novo mantém o tipo travado
+    emit(Op::KEEPLOCK, slot, v, 0, tok);
 }
 
 // Gravação num lugar com passos de índice e campo: x[i].c = v, o.lista[0] += v,
@@ -614,9 +663,6 @@ void Compiler::assignPlace(const AssignStmt* s) {
         e = e->node_kind == NodeKind::IndexAccess ? static_cast<const IndexAccessExpr*>(e)->object.get()
                                                   : static_cast<const MemberAccessExpr*>(e)->object.get();
     }
-    for (const Expr* x : passos)
-        if (x->node_kind == NodeKind::MemberAccess && static_cast<const MemberAccessExpr*>(x)->enum_decl)
-            unsupported("enum", 6, x->token);
 
     // base: variável local e self são o próprio registrador (alteração no lugar);
     // campo do objeto atual é lido depois do valor e devolvido se for struct
@@ -638,7 +684,6 @@ void Compiler::assignPlace(const AssignStmt* s) {
             chaves[i] = exprReg(static_cast<const IndexAccessExpr*>(passos[i])->index.get());
 
     TypeRef tt = s->target->resolved_type, vt = s->value->resolved_type;
-    if (s->op != TokenType::OP_ASSIGN && (hasOp(tt) || hasOp(vt))) unsupported("op<...>", 6, tok);
     std::uint16_t v = exprReg(s->value.get());
 
     if (campo_base) emit(Op::GETFIELD, base, 0, campo, tok);
@@ -667,12 +712,16 @@ void Compiler::assignPlace(const AssignStmt* s) {
         nivel.push_back(t);
     }
     const std::size_t ult = passos.size() - 1;
-    if (s->op != TokenType::OP_ASSIGN) {
+    if (s->op != TokenType::OP_ASSIGN || s->keep_lock) {
         // o valor atual é lido depois do lado direito (spec 5.2)
         const std::uint16_t atual = alloc(tok);
         ler(ult, atual, nivel[ult]);
-        arith(compoundBaseOp(s->op), tt, atual, vt, v, atual, tok);
-        v = atual;
+        if (s->op != TokenType::OP_ASSIGN) {
+            const std::uint16_t r = alloc(tok);
+            arith(compoundBaseOp(s->op), tt, atual, vt, v, r, tok);
+            v = r;
+        }
+        if (s->keep_lock) { emit(Op::KEEPLOCK, atual, v, 0, tok); v = atual; }
     }
     gravar(ult, nivel[ult], v);
 
@@ -777,6 +826,7 @@ Image Compiler::run() {
                     proto_of[c->constructor.get()] = ref.ctor;
                 }
                 if (!c->fields.empty()) ref.init = newProto("", c->token);   // oculto
+                img.class_index[c] = img.classes.size();
                 class_of[c->class_name] = img.classes.size();
                 img.classes.push_back(ref);
             } else if (s->node_kind == NodeKind::StructDecl) {
@@ -785,6 +835,29 @@ Image Compiler::run() {
                 img.structs.push_back(st);
             }
         }
+
+    // tabelas de interface: para cada interface cumprida, os protótipos na ordem
+    // dos métodos dela (montadas pelo semântico em ClassDecl::itables)
+    for (ClassRef& ref : img.classes)
+        for (const auto& [iface, metodos] : ref.decl->itables) {
+            if (!iface_of.count(iface)) {
+                iface_of[iface] = img.interfaces.size();
+                img.interfaces.push_back(iface);
+            }
+            std::vector<std::size_t> protos;
+            for (const FunctionDecl* m : metodos) protos.push_back(proto_of.at(m));
+            ref.itables.emplace_back(iface, std::move(protos));
+        }
+    // interfaces que nenhuma classe cumpre ainda podem aparecer em chamadas
+    for (const auto* prog : programs)
+        for (const auto& s : prog->statements)
+            if (s->node_kind == NodeKind::InterfaceDecl) {
+                auto* in = static_cast<const InterfaceDecl*>(s.get());
+                if (!iface_of.count(in)) {
+                    iface_of[in] = img.interfaces.size();
+                    img.interfaces.push_back(in);
+                }
+            }
 
     // 2. inicialização dos const de cada módulo, na ordem topológica
     for (const auto* prog : programs) moduleInit(prog);
