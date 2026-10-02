@@ -1,0 +1,9 @@
+// CVM (desenho, item 2): em l[0].x = f(), a alteração que f() faz em outro campo de l[0] é preservada.
+struct P { int x = 0; int y = 0; }
+fn f(list<P> l) -> int { l[0].y = 7; return 5; }
+fn main() {
+  list<P> l = [new P()];
+  l[0].x = f(l);
+  print(l[0]);
+}
+// expect: P{x: 5, y: 7}

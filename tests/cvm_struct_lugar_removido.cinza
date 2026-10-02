@@ -1,0 +1,8 @@
+// CVM (desenho, item 2): se o valor remove o elemento, a gravação lança IndexError.
+struct P { int x = 0; }
+fn f(list<P> l) -> int { l.remove(0); return 5; }
+fn main() {
+  list<P> l = [new P()];
+  try { l[0].x = f(l); } except (IndexError e) { print(e.kind, l.size()); }
+}
+// expect: IndexError 0

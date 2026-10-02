@@ -35,7 +35,24 @@ fn main() {
 - `&&`/`and` e `||`/`or` avaliam o lado direito só se necessário (curto-circuito).
 - Numa atribuição, primeiro são avaliadas as partes do alvo (base e índices, da esquerda para a
   direita), depois o valor; então o valor é gravado. Em `a op= b`, o alvo é avaliado **uma única
-  vez**.
+  vez**, e o valor atual do alvo é lido **depois** de avaliar `b`. Se o valor alterar o lugar de
+  destino (por exemplo, outro campo do mesmo struct), essa alteração é preservada; se removê-lo,
+  a gravação lança o erro correspondente (`IndexError`, `KeyError`).
+
+```cinza
+struct P { int x = 1; int y = 0; }
+fn g(list<P> l) -> int {
+  l[0].y = 7;
+  l[0].x = 100;
+  return 5;
+}
+fn main() {
+  list<P> l = [new P()];
+  l[0].x += g(l);
+  print(l[0]);
+}
+// expect: P{x: 105, y: 7}
+```
 
 ```cinza
 fn mostra(int n) -> int {

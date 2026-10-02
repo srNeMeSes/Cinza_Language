@@ -23,7 +23,7 @@ de registradores.
 | `num_params`    | parâmetros (num método e construtor, mais 1: o `self` em `r0`) |
 | `num_regs`      | registradores usados: parâmetros + locais (slots do B2) + temporários |
 | `code`          | as instruções |
-| `linhas`        | para cada instrução, o arquivo e a linha de origem (diagnósticos e stack trace) |
+| `linhas`        | para cada instrução, arquivo, linha **e coluna** de origem (diagnósticos, `e.column` e stack trace precisam sair idênticos aos do interpretador; se o tamanho pesar, comprimir em faixas) |
 | `constantes`    | valores usados pelas instruções: inteiros grandes, decimais, textos, valores de enum, tipos |
 | `tratadores`    | tabela de exceções (seção 6) |
 
@@ -43,6 +43,18 @@ globais (o `GlobalLayout` do B2).
   os parâmetros dele, sem cópia. O resultado volta em `rA`. O compilador garante que `rA` é o topo
   dos temporários vivos (o que está acima pode ser sobrescrito pelo chamado).
 - Cada chamada soma um nível; acima de 2000, `StackOverflowError` (spec 5.8).
+- **Sem recursão em C++.** Um `CALL` da Cinza empilha um frame (protótipo, `pc`, base da janela,
+  registrador de retorno) num vetor da VM e continua o **mesmo** laço de despacho; `RET` desempilha.
+  O laço nunca chama a si mesmo. O inicializador de campos e o construtor são protótipos chamados
+  assim. Só as funções nativas são chamadas do C++, e elas não chamam código Cinza.
+- **Crescimento da área.** A área é um `std::vector<Value>` que pode crescer. Na entrada de cada
+  função, a VM garante que `base + num_regs` cabe, crescendo ali se preciso. Como crescer invalida
+  ponteiros, nenhum `Value*`/`Value&` para a área sobrevive a uma instrução que pode chamar código ou
+  alocar: depois de `CALL*`, `INITOBJ` e `NEWOBJ` (onde a coleta pode rodar), o ponteiro da base é
+  recalculado.
+- **Registradores mortos.** Os registradores seguram objetos e contam como raízes para a coleta. No
+  `RET` e no desempilhamento por erro, a janela do chamado é **limpa** (os `Value` voltam a vazio),
+  para a VM não manter vivo um objeto que o interpretador já teria liberado.
 - `Value` continua o mesmo do interpretador: copiar um registrador que guarda struct clona o
   struct (cópia rasa), list/dict/objeto são compartilhados — a semântica da spec 5.1 vem de graça.
 
@@ -57,6 +69,13 @@ struct Instr { uint16_t op; uint16_t a; uint16_t b; uint16_t c; };
 Operandos de 16 bits permitem até 65.535 registradores, constantes e entradas de tabela por
 função. Saltos e inteiros imediatos usam `b` e `c` juntos como um inteiro de 32 bits com sinal
 (`bc` abaixo). Notação: `R[x]` registrador, `K[x]` constante, `G[x]` slot global.
+
+Uma instrução usa **ou** `b` e `c` separados **ou** `bc`, nunca os dois.
+
+**Verificador de bytecode** (só no build de debug): depois de compilar, confere em cada protótipo
+que todo registrador está abaixo de `num_regs`, todo salto cai dentro do código, todo índice de
+constante, protótipo, classe e nativa existe, e todo intervalo da tabela de tratadores é válido.
+Erro de formato aparece na hora, e não como comportamento estranho em runtime.
 
 ## 5. Instruções
 
@@ -84,7 +103,7 @@ resultado infinito (spec 5.3).
 | `NEG_I a b`, `NEG_D a b`                    | `R[a] = -R[b]` |
 | `I2D a b`                                   | `R[a] = decimal(R[b])` |
 | `CONCAT a b c`                              | `R[a] = texto(R[b]) + texto(R[c])` (spec 5.4) |
-| `LT_I a b c`, `LE_I`, `LT_D`, `LE_D`, `LT_S`, `LE_S` | `R[a] = R[b] < R[c]` (ou `<=`); `>` e `>=` invertem os operandos |
+| `LT_I a b c`, `LE_I`, `LT_D`, `LE_D`, `LT_S`, `LE_S` | `R[a] = R[b] < R[c]` (ou `<=`); `>` e `>=` trocam os **registradores** na instrução final (`a > b` vira `LT r, rb, ra`) — os operandos continuam sendo avaliados na ordem do fonte |
 | `EQ a b c`, `NE a b c`                      | igualdade da spec 5.3 (valor, estrutural ou identidade) |
 | `NOT a b`                                   | `R[a] = !R[b]` |
 | `ADD a b c`, `SUB`, `MUL`, `DIV`, `MOD`, `NEG`, `LT`, `LE` | **genéricas**: decidem pelo tipo real dos valores. Só para operandos `op<...>` de tipo travado desconhecido (spec 3.7), onde o tipo varia em runtime mas o semântico garantiu que toda combinação é válida |
@@ -104,9 +123,11 @@ resultado infinito (spec 5.3).
 | Instrução               | Efeito |
 |-------------------------|--------|
 | `FORPREP a b`           | `R[a] =` cópia dos elementos de `R[b]` (lista: os elementos; dict: os pares em ordem de chave; string: os caracteres), `R[a+1] = 0` |
-| `FORNEXT a b bc`        | se `R[a+1] < tamanho`: `R[b] = R[a][R[a+1]]`, `R[a+1] += 1`; senão `pc += bc` (sai do laço) |
-| `FORNEXT_D a b bc`      | idem, convertendo o elemento para `decimal` (`for (decimal x in list<int>)`) |
+| `FORNEXT a bc`          | se `R[a+1] < tamanho`: `R[a+2] = R[a][R[a+1]]`, `R[a+1] += 1`; senão `pc += bc` (sai do laço) |
+| `FORNEXT_D a bc`        | idem, convertendo o elemento para `decimal` (`for (decimal x in list<int>)`) |
 
+O laço usa três registradores consecutivos, como o `FORLOOP` do Lua: `R[a]` a cópia, `R[a+1]` o
+índice e `R[a+2]` a variável do laço — o compilador aloca o slot do iterador exatamente em `a+2`.
 A cópia no `FORPREP` é a da spec 5.5 (alterar a coleção no corpo não muda as voltas).
 
 ### 5.5 Funções e objetos
@@ -115,7 +136,7 @@ A cópia no `FORPREP` é a da spec 5.5 (alterar a coleção no corpo não muda a
 |----------------------------|--------|
 | `CALL a b c`               | chama o protótipo `b` com `c` argumentos em `R[a]...`; resultado em `R[a]` |
 | `CALLMETHOD a b c`         | idem para método: `R[a]` é o `self`, argumentos em `R[a+1]...` |
-| `CALLIFACE a b c`          | chamada pela interface `b`, método `c`: escolhe o protótipo pela classe de `R[a]` (tabela de interface); argumentos em `R[a+1]...` |
+| `CALLIFACE a b c`          | chamada pela interface `b`, método `c`: escolhe o protótipo pela classe de `R[a]` (tabela de interface); argumentos em `R[a+1]...`, na quantidade da assinatura do método na interface |
 | `CALLNATIVE a b c`         | nativa `b` com `c` argumentos em `R[a]...`; resultado em `R[a]` |
 | `TYPEOF a b c`             | `R[a] =` tipo real de `R[b]`, sendo `K[c]` o tipo estático (spec 3.9) |
 | `RET a` / `RETVOID`        | retorna `R[a]` / retorna sem valor |
@@ -154,36 +175,97 @@ padrão (`new S()`) são calculados no próprio chamador, antes do `NEWSTRUCT`.
 
 ## 6. Exceções e `finally`
 
-Cada protótipo tem uma tabela de tratadores: `{início, fim, destino, tipo, registrador}` — "um
-erro nas instruções de *início* a *fim* cujo tipo é *tipo* (ou qualquer, para `Error`) vai para
-*destino*, com o erro guardado em *registrador*".
+### Tabela de tratadores
 
-Quando um erro acontece, a VM procura um tratador na função atual pela instrução corrente; se não
-houver, encerra a janela e procura na função de quem chamou, e assim por diante. Sem tratador em
-lugar nenhum, o erro termina o programa com o diagnóstico e o stack trace da spec 7.3. O `try`
-não custa nada quando não há erro.
+Cada protótipo tem uma tabela de entradas `{início, fim, destino, tipo, registrador}` — "um erro
+lançado numa instrução de *início* a *fim* (exclusive) cujo tipo é *tipo* (ou qualquer, para
+`Error`) vai para *destino*, com o erro guardado em *registrador*".
 
-**`finally`** é compilado em linha em cada saída do bloco, como faz o compilador Java:
+Quando um erro acontece, a VM percorre a tabela **em ordem** e usa a primeira entrada que cobre a
+instrução corrente. As entradas ficam ordenadas com o `try` **mais interno primeiro**, então a
+busca linear acha o tratador mais aninhado. Sem entrada na função atual, a janela é limpa (seção
+3), o frame é desempilhado e a busca continua em quem chamou, a partir da instrução da chamada. Sem
+tratador em lugar nenhum, o erro termina o programa com o diagnóstico e o stack trace da spec 7.3.
+O `try` não custa nada quando não há erro.
+
+### `finally` em linha e intervalos partidos
+
+O `finally` é copiado em cada saída do bloco protegido:
 
 - no fim normal do `try` e de cada `except`;
 - antes de cada `return`, `break` ou `continue` que saia do `try` ou de um `except` (o valor do
-  `return` é calculado antes e guardado num registrador);
-- num tratador extra que captura qualquer erro do `try` e dos `except`, roda o `finally` e relança
-  o erro.
+  `return` é calculado **antes** e guardado num registrador);
+- num tratador "pega-tudo", que guarda o erro, roda o `finally` e relança.
 
-Isso reproduz a spec 5.6: o `finally` sempre roda, e depois o fluxo pendente continua.
+Uma cópia do `finally` **não pode** ficar dentro de um intervalo protegido pelo próprio `try`: se o
+`finally` lançasse um erro, o `except` desse `try` o capturaria, ou o pega-tudo rodaria o `finally`
+de novo. Por isso os intervalos são **partidos**: o compilador mantém um intervalo aberto enquanto
+emite código do `try` e o **fecha antes de cada cópia do `finally`**, reabrindo depois dela. Cada
+trecho limpo vira uma entrada (repetida para cada `except` e para o pega-tudo). O mesmo vale para os
+intervalos do pega-tudo sobre os blocos `except`.
+
+`return`, `break` e `continue` **dentro** do `finally` são proibidos pela linguagem (spec 5.6), então
+um `finally` nunca descarta um retorno ou um erro pendente.
+
+### Exemplo
+
+```cinza
+fn f(int n) -> int {
+  try {
+    return 10 / n;
+  } except (ZeroDivisionError e) {
+    return -1;
+  } finally {
+    print("fim");
+  }
+}
+```
+
+```
+fn f  (1 parâmetro, 4 registradores)
+  0000  LOADINT    r1, 10
+  0001  DIV_I      r1, r1, r0          ; 10 / n          ← protegido
+  0002  <finally>  print("fim")        ; cópia 1 (antes do return)
+  0004  RET        r1
+  0005  LOADINT    r1, -1              ; except          ← protegido só pelo pega-tudo
+  0006  <finally>  print("fim")        ; cópia 2
+  0008  RET        r1
+  0009  <finally>  print("fim")        ; pega-tudo: r3 = erro
+  0011  THROW      r3
+tratadores (mais interno primeiro):
+  [0001, 0002)  ZeroDivisionError → 0005, erro em r2
+  [0001, 0002)  qualquer          → 0009, erro em r3
+  [0005, 0006)  qualquer          → 0009, erro em r3
+```
+
+As cópias do `finally` (0002, 0006, 0009) ficam fora de todos os intervalos: um erro lançado por
+elas sobe para quem chamou `f`, como no interpretador.
 
 ## 7. Atribuição a lugares
 
 `x = v` vira um `MOVE` (ou o cálculo direto em `R[x]`). Para campo e índice, o compilador segue a
 ordem da spec 5.2: avalia a base e os índices, depois o valor, e então grava.
 
-Struct é um valor: `l[0].x = 5` lê o struct de `l[0]` para um temporário, grava `x` nele e
-**devolve** o struct a `l[0]`. Como os índices já foram avaliados e nenhum código do programa roda
-entre ler e devolver, o efeito é idêntico à alteração no lugar feita pelo interpretador. Em níveis
-que são objetos ou coleções (referências), a gravação vai direto, sem devolução.
+Struct é um valor. Para gravar num campo de um struct que está dentro de outro lugar
+(`l[0].x = v`, `q.p.x = v`), o compilador segue esta ordem — a mesma do interpretador:
 
-`a op= b` avalia o lugar uma única vez (spec 5.2).
+1. avalia a base e os índices, da esquerda para a direita, guardando cada um num registrador;
+2. avalia o valor;
+3. **só então** lê o struct do lugar (`l[idx]`), grava o campo e **devolve** o struct ao lugar.
+
+Ler o struct antes do passo 2 seria um erro: se o valor alterar outro campo do mesmo struct
+(`l[0].x = f()` com `f` mudando `l[0].y`), a devolução apagaria essa alteração. Na ordem acima,
+nenhum código do programa roda entre ler e devolver, e se o valor tiver removido o elemento, a
+leitura do passo 3 lança `IndexError` exatamente onde o interpretador lança na gravação.
+
+Em `a op= b`: passos 1 e 2 iguais (com `b`), depois lê o valor **atual** do lugar, calcula, grava
+e devolve. O valor atual é lido depois de `b` (spec 5.2): em `l[0].x += g()`, uma alteração que
+`g()` faça em `l[0].x` entra na conta.
+
+Em níveis que são objetos ou coleções (referências), a gravação vai direto, sem devolução.
+
+Testes: `tests/cvm_struct_lugar_valor.cinza`, `cvm_struct_lugar_composto.cinza` e
+`cvm_struct_lugar_removido.cinza` (já verdes no interpretador; a CVM precisa reproduzi-los).
 
 ## 8. Módulos e início do programa
 
@@ -237,4 +319,14 @@ Só entram com o benchmark mostrando ganho e a suíte verde nos dois modos:
 - `for (int i in range(a, b))` sem criar a lista, quando `range` é a embutida (o resultado é o
   mesmo: ela não tem efeito colateral);
 - registradores com `int`/`decimal` sem embrulho no `Value`, se a medição mostrar que o `Value`
-  pesa.
+  pesa;
+- `for` sobre `string` sem copiar os caracteres (strings são imutáveis, a cópia da spec 5.5 não é
+  observável);
+- despacho com *computed goto* (`&&rotulo`, extensão do GCC e do Clang) no lugar do `switch`, atrás
+  de um `#ifdef` — costuma ser o primeiro ganho mensurável neste tipo de VM.
+
+### Teste diferencial
+
+Além da suíte, um modo do `run_tests.py` roda cada programa dos testes e da spec nos dois modos
+(`--interp` e CVM) e compara saída, erros e código de saída **byte a byte**. Qualquer diferença é
+defeito da CVM.

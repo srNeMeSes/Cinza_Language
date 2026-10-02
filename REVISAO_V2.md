@@ -893,8 +893,8 @@ Decisões do autor:
 
 Etapas:
 
-- [ ] 1. Desenho do conjunto de instruções e do formato das funções compiladas (registradores,
-      constantes, tabela de linhas para diagnósticos).
+- [x] 1. Desenho do conjunto de instruções e do formato das funções compiladas (registradores,
+      constantes, tabela de linhas para diagnósticos). — feito em 2026-10-02 (cvm/DESENHO.md, revisado)
 - [ ] 2. Funções, chamadas, variáveis locais, aritmética e comparação; `--bytecode`.
 - [ ] 3. Controle de fluxo: `if`, `while`, `for`, `break`, `continue`, `return`.
 - [ ] 4. Coleções: `list`, `dict`, `pair`, literais, índices, métodos embutidos, `const`.

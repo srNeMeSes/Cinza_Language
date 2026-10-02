@@ -1,0 +1,10 @@
+// CVM (desenho, item 2): em l[0].x += g(), o campo é lido DEPOIS de avaliar g() (spec 5.2); a
+// alteração de g() em l[0].y é preservada e a de l[0].x entra na conta.
+struct P { int x = 1; int y = 0; }
+fn g(list<P> l) -> int { l[0].y = 7; l[0].x = 100; return 5; }
+fn main() {
+  list<P> l = [new P()];
+  l[0].x += g(l);
+  print(l[0]);
+}
+// expect: P{x: 105, y: 7}
