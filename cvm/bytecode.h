@@ -1,6 +1,7 @@
 #ifndef CINZA_CVM_BYTECODE_H
 #define CINZA_CVM_BYTECODE_H
 
+#include "../ast.h"
 #include "../diagnostics.h"
 #include "../natives.h"
 #include "../value.h"
@@ -55,6 +56,11 @@ namespace cinza::cvm {
     X(CALLBUILTIN)/* R[a] = método embutido b de R[a] com c args     */          \
     X(GETFIRST)   /* R[a] = R[b].first                               */          \
     X(GETSECOND)  /* R[a] = R[b].second                              */          \
+    /* objetos e struct */                                                      \
+    X(NEWOBJ)     /* R[a] = novo objeto da classe b (campos vazios)  */          \
+    X(NEWSTRUCT)  /* R[a] = struct b com os campos R[a] ... R[a+c-1] */          \
+    X(GETFIELD)   /* R[a] = R[b].campo[c]                            */          \
+    X(SETFIELD)   /* R[a].campo[b] = R[c]                            */          \
     /* chamadas */                                                              \
     X(CALL)       /* R[a] = proto b(R[a] ... R[a+c-1])               */          \
     X(CALLNATIVE) /* R[a] = nativa b(R[a] ... R[a+c-1])              */          \
@@ -97,12 +103,26 @@ struct Proto {
     std::vector<Instr>          code;
     std::vector<SourceLocation> lines;         // origem de cada instrução (arquivo, linha, coluna)
     std::vector<Value>          consts;
+
+    // sem nome: inicialização de módulo ou de campos — não é uma chamada da
+    // linguagem (fica fora do stack trace e do limite de profundidade)
+    bool hidden() const { return name.empty(); }
+};
+
+// Classe: a declaração e os protótipos do construtor e do inicializador de campos
+struct ClassRef {
+    static constexpr std::size_t none = static_cast<std::size_t>(-1);
+    const ClassDecl* decl = nullptr;
+    std::size_t      ctor = none;
+    std::size_t      init = none;
 };
 
 // Imagem: o programa compilado (protótipos e tabelas globais)
 struct Image {
     std::vector<Proto>           protos;
     std::vector<const NativeFn*> natives;
+    std::vector<ClassRef>        classes;
+    std::vector<const StructDecl*> structs;
     std::vector<std::size_t>     inits;        // inicialização dos const de cada módulo, em ordem
     std::size_t                  main = 0;     // protótipo da main
     bool                         main_has_args = false;

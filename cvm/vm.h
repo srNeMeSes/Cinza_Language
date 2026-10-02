@@ -33,6 +33,7 @@ private:
         std::size_t  base;        // início da janela em `regs`
         int          call_line;   // linha da chamada em quem chamou (0 na main)
     };
+    std::size_t depth = 0;        // frames visíveis (o limite de 2000 conta só estes)
 
     const Image&        img;
     std::vector<Value>  regs;

@@ -915,7 +915,17 @@ Etapas:
   > `GETFIRST`/`GETSECOND`. Atribuição a índice na ordem do interpretador (base, índices, valor, caminho,
   > gravação). `const` é só do semântico. Testes `cvm_colecoes*`. Suíte na CVM: 294 de 393, sem divergência
   > (o resto é das etapas 5 a 7). Limpo sob ASan/UBSan.
-- [ ] 5. `struct`, classes, `self`, campos, métodos, construtores.
+- [x] 5. `struct`, classes, `self`, campos, métodos, construtores. — feito em 2026-10-02
+  > Nota: métodos e construtores são protótipos com o `self` em `r0` (slots do B2 deslocados de 1); chamada
+  > de método é um `CALL` com o objeto no começo da janela. `new Classe(args)` na ordem do interpretador:
+  > argumentos, `NEWOBJ`, inicializador de campos (protótipo oculto: fora do stack trace e do limite de 2000,
+  > como no interpretador), construtor. `new Struct()` calcula os valores padrão no próprio chamador
+  > (`NEWSTRUCT`). Gravação em lugar com campos e índices (`assignPlace`): cada nível que é struct é lido,
+  > alterado e devolvido, depois do valor (desenho, seção 7) — testes `cvm_struct_lugar_*`. Coleta de ciclos
+  > no `NEWOBJ`/`NEWSTRUCT`, e `CINZA_GC_STATS` com as mesmas contagens nos dois modos. Suíte na CVM: 338 de
+  > 393, sem divergência (o resto é das etapas 6 e 7). Benchmark: `objetos` 176 → 128 ms (1,4×), `ciclos`
+  > 929 → 796 ms — o custo está no mecanismo da chamada de método (frame, limpeza da janela, cópia do
+  > `shared_ptr`), não no bytecode; fica para as otimizações (desenho, seção 11). Limpo sob ASan/UBSan.
 - [ ] 6. Interfaces, `enum`, `op<...>`, `type()`.
 - [ ] 7. Exceções: `try`/`except`/`finally`/`throw`, stack trace, `StackOverflowError`.
 - [ ] 8. Módulos, `const` globais, funções nativas e biblioteca padrão.

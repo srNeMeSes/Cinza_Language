@@ -1,6 +1,9 @@
 #include "vm.h"
 #include "../operacoes.h"
+#include "../gc.h"
 #include <cmath>
+#include <cstdlib>
+#include <iostream>
 #include <limits>
 
 namespace cinza::cvm {
@@ -15,7 +18,7 @@ std::vector<std::string> VM::trace(int error_line) const {
     for (std::size_t i = frames.size(); i-- > 0;) {
         // a inicialização dos const não é uma chamada: fica fora do trace,
         // como no interpretador (lá os const rodam sem frame de chamada)
-        if (frames[i].proto->name.empty()) continue;
+        if (frames[i].proto->hidden()) continue;
         t.push_back("em " + frames[i].proto->name + " (" +
                     formatPosition({frames[i].proto->decl.file_id, line, 0}) + ")");
         line = frames[i].call_line;
@@ -59,12 +62,20 @@ void VM::run(const std::vector<std::string>& args) {
         regs[0] = makeList(std::move(elems));
     }
     execute(img.main, 0);
+
+    // CINZA_GC_STATS=1: coleta final e resumo, como no interpretador (testes gc_*)
+    if (const char* e = std::getenv("CINZA_GC_STATS"); e && *e) {
+        gcCollect();
+        std::cout << "[gc] liberados em ciclos: " << gc_stats.liberados
+                  << ", contêineres vivos: " << gc_registro.vivos << "\n";
+    }
 }
 
 Value VM::execute(std::size_t idx, std::size_t base) {
     const std::size_t entrada = frames.size();
     ensure(base + img.protos[idx].num_regs);
     frames.push_back(Frame{&img.protos[idx], 0, base, 0});
+    if (!img.protos[idx].hidden()) ++depth;
 
     Frame*       f    = &frames.back();
     const Instr* code = f->proto->code.data();
@@ -252,10 +263,41 @@ Value VM::execute(std::size_t idx, std::size_t base) {
                 case Op::GETFIRST:  R[in.a] = Value(R[in.b].asPair()->first);  break;
                 case Op::GETSECOND: R[in.a] = Value(R[in.b].asPair()->second); break;
 
+                // ── objetos e struct ─────────────────────────────────────
+                case Op::NEWOBJ: {
+                    // coleta de ciclos na criação de objetos, como o evalNew; a
+                    // coleta não move registradores, mas pode liberar objetos
+                    gcMaybeCollect();
+                    const ClassDecl* c = img.classes[in.b].decl;
+                    R[in.a] = makeInstance(c->class_name, c);
+                    break;
+                }
+                case Op::NEWSTRUCT: {
+                    gcMaybeCollect();
+                    auto sv  = std::make_shared<StructValue>();
+                    sv->decl = img.structs[in.b];
+                    sv->fields.assign(R + in.a, R + in.a + in.c);
+                    R[in.a] = Value(std::move(sv));
+                    break;
+                }
+                case Op::GETFIELD: {
+                    const Value& o = R[in.b];
+                    Value v = o.kind() == Value::Kind::STRUCT ? o.asStruct()->fields[in.c]
+                                                              : o.asInstance()->fields[in.c];
+                    R[in.a] = std::move(v);
+                    break;
+                }
+                case Op::SETFIELD: {
+                    Value& o = R[in.a];
+                    if (o.kind() == Value::Kind::STRUCT) o.asStruct()->fields[in.b] = R[in.c];
+                    else                                 o.asInstance()->fields[in.b] = R[in.c];
+                    break;
+                }
+
                 // ── chamadas ─────────────────────────────────────────────
                 case Op::CALL: {
                     const Proto& alvo = img.protos[in.b];
-                    if (frames.size() >= max_call_depth) {
+                    if (!alvo.hidden() && depth >= max_call_depth) {
                         // como o CallGuard: posição da declaração chamada
                         RuntimeError err("StackOverflowError",
                                          "profundidade máxima de chamadas (" +
@@ -269,6 +311,7 @@ Value VM::execute(std::size_t idx, std::size_t base) {
                     const int linha = f->proto->lines[f->pc - 1].line;
                     ensure(nova_base + alvo.num_regs);
                     frames.push_back(Frame{&alvo, 0, nova_base, linha});
+                    if (!alvo.hidden()) ++depth;
                     recarrega();
                     break;
                 }
@@ -283,6 +326,7 @@ Value VM::execute(std::size_t idx, std::size_t base) {
                     // janela morta: solta o que ela segurava (seção 3 do desenho)
                     for (std::size_t i = 0; i < f->proto->num_regs; ++i) R[i] = Value();
                     const std::size_t base_retorno = f->base;
+                    if (!f->proto->hidden()) --depth;
                     frames.pop_back();
                     if (frames.size() == entrada) return resultado;
                     regs[base_retorno] = std::move(resultado);   // R[a] de quem chamou
@@ -303,7 +347,10 @@ Value VM::execute(std::size_t idx, std::size_t base) {
         } catch (const RuntimeError& e) {
             final = e;
         }
-        frames.resize(entrada);
+        while (frames.size() > entrada) {
+            if (!frames.back().proto->hidden()) --depth;
+            frames.pop_back();
+        }
         throw final;
     }
 }

@@ -35,7 +35,7 @@ std::string disassemble(const Image& img) {
     std::ostringstream out;
     for (std::size_t pi = 0; pi < img.protos.size(); ++pi) {
         const Proto& p = img.protos[pi];
-        out << (p.name.empty() ? "<inicialização de módulo>" : "fn " + p.name)
+        out << (p.hidden() ? "<inicialização>" : "fn " + p.name)
             << "  (" << p.num_params << (p.num_params == 1 ? " parâmetro, " : " parâmetros, ")
             << p.num_regs << (p.num_regs == 1 ? " registrador)" : " registradores)") << "\n";
 
@@ -65,10 +65,23 @@ std::string disassemble(const Image& img) {
                 case Op::FORPREP:   ops = ra + ", " + rb;
                                     nota = "iterador em r" + std::to_string(in.c); break;
                 case Op::CALL:
-                    ops  = ra + ", " + img.protos[in.b].name + ", " + std::to_string(in.c);
+                    ops  = ra + ", " + (img.protos[in.b].hidden() ? std::string("<inicialização>") : img.protos[in.b].name) +
+                           ", " + std::to_string(in.c);
                     break;
                 case Op::NEWLIST: case Op::NEWDICT:
                     ops = ra + ", " + rb + ", " + std::to_string(in.c);
+                    break;
+                case Op::NEWOBJ:
+                    ops = ra + ", " + displayName(img.classes[in.b].decl->class_name);
+                    break;
+                case Op::NEWSTRUCT:
+                    ops = ra + ", " + displayName(img.structs[in.b]->name) + ", " + std::to_string(in.c);
+                    break;
+                case Op::GETFIELD:
+                    ops = ra + ", " + rb + ", #" + std::to_string(in.c);
+                    break;
+                case Op::SETFIELD:
+                    ops = ra + ", #" + std::to_string(in.b) + ", " + rc;
                     break;
                 case Op::GETFIRST: case Op::GETSECOND:
                     ops = ra + ", " + rb;
