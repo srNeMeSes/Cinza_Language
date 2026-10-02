@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Runner de testes da linguagem Cinza.
 
-Uso: python tests/run_tests.py [binario] [filtro]
+Uso: python tests/run_tests.py [binario] [filtro] [--cvm]
+
+--cvm: executa cada programa na máquina virtual (o interpretador é o padrão).
 
 Cada tests/*.cinza declara a saída esperada em comentários:
     // expect: <linha exata do stdout>
@@ -108,7 +110,7 @@ def rodar(binario, caminho):
 
     try:
         proc = subprocess.run(
-            [str(binario), str(caminho.relative_to(RAIZ))] + ler_argumentos(caminho),
+            [str(binario)] + OPCOES + [str(caminho.relative_to(RAIZ))] + ler_argumentos(caminho),
             cwd=RAIZ, capture_output=True, timeout=TIMEOUT_S, env=ler_ambiente(caminho),
             input=ler_entrada(caminho),
         )
@@ -177,7 +179,13 @@ def exemplos_da_spec(filtro):
     return exemplos
 
 
+OPCOES = []   # opções do interpretador antes do arquivo (ex.: --cvm)
+
+
 def main():
+    if "--cvm" in sys.argv:
+        sys.argv.remove("--cvm")
+        OPCOES.append("--cvm")
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
 

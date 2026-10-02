@@ -1,6 +1,7 @@
 #include "executor.h"
 #include "semantic.h"   // op<...>: TypeChecker valida operações em runtime
 #include "gc.h"         // coleta de ciclos
+#include "operacoes.h"   // aritmética compartilhada com a CVM
 #include <cstdlib>
 #include <iostream>
 #include <cmath>
@@ -500,7 +501,7 @@ Value Executor::callNative(const NativeFn& fn, const CallExpr* expr) {
     for (const auto& arg : expr->arguments)
         args.push_back(evalExpr(arg.get()));
     try {
-        Value r = fn.impl(*this, std::span<const Value>(args));
+        Value r = fn.impl(std::span<const Value>(args));
         // Fase 7: nativa genérica que devolve int onde o tipo é decimal
         // (Lists.sum de uma list<decimal> vazia)
         if (r.kind() == Value::Kind::INT && expr->resolved_type &&
@@ -607,98 +608,14 @@ Value Executor::evalBinary(const BinaryExpr* expr) {
 // uma única vez (B5) e aplicam a operação aqui.
 Value Executor::applyBinary(TokenType op, const Value& left, const Value& right,
                             const Token& tok) {
-
-    // v2.00 #3: concatenação string + qualquer primitivo
-    if (op == TokenType::OP_PLUS) {
-        if (left.kind() == Value::Kind::STRING && right.kind() == Value::Kind::STRING)
-            return Value(left.asString() + right.asString());
-        if (left.kind() == Value::Kind::STRING)
-            return Value(left.asString() + right.toString());
-        if (right.kind() == Value::Kind::STRING)
-            return Value(left.toString() + right.asString());
-    }
-
-    // A5: int op int usa aritmética nativa de 64 bits com checagem de
-    // overflow, sem passar por double (que perdia precisão e gerava UB)
-    if (left.kind() == Value::Kind::INT && right.kind() == Value::Kind::INT) {
-        const std::int64_t a = left.asInt();
-        const std::int64_t b = right.asInt();
-        std::int64_t r = 0;
-
-        auto overflow = [&](const char* op) -> Value {
-            throwRuntimeError("OverflowError: " + std::to_string(a) + " " + op + " " +
-                              std::to_string(b) + " excede a faixa de int "
-                              "(-9223372036854775808 a 9223372036854775807)", tok);
-        };
-        constexpr std::int64_t int_min = std::numeric_limits<std::int64_t>::min();
-
-        switch (op) {
-            case TokenType::OP_PLUS:
-                if (__builtin_add_overflow(a, b, &r)) return overflow("+");
-                return Value(r);
-            case TokenType::OP_MINUS:
-                if (__builtin_sub_overflow(a, b, &r)) return overflow("-");
-                return Value(r);
-            case TokenType::OP_MULTIPLY:
-                if (__builtin_mul_overflow(a, b, &r)) return overflow("*");
-                return Value(r);
-            case TokenType::OP_DIVIDE:
-                if (b == 0) throwRuntimeError("ZeroDivisionError: divisão por zero", tok);
-                if (a == int_min && b == -1) return overflow("/");
-                return Value(a / b);
-            case TokenType::OP_MODULO:
-                if (b == 0) throwRuntimeError("ZeroDivisionError: módulo por zero", tok);
-                if (a == int_min && b == -1) return overflow("%");
-                return Value(a % b);
-            default:
-                break;  // comparações: tratadas abaixo
-        }
-    }
-
-    auto toDouble = [](const Value& v) -> double {
-        return (v.kind() == Value::Kind::INT)
-            ? static_cast<double>(v.asInt()) : v.asDecimal();
-    };
-
-    // Revisão: decimal que estoura vira OverflowError, como int (antes saía
-    // inf e depois nan em silêncio)
-    auto finito = [&](double r, const char* simbolo) -> Value {
-        if (!std::isfinite(r))
-            throwRuntimeError(std::string("OverflowError: ") + left.toString() + " " + simbolo +
-                              " " + right.toString() + " excede a faixa de decimal", tok);
-        return Value(r);
-    };
-
-    switch (op) {
-        case TokenType::OP_PLUS:
-            return finito(toDouble(left) + toDouble(right), "+");
-
-        case TokenType::OP_MINUS:
-            return finito(toDouble(left) - toDouble(right), "-");
-
-        case TokenType::OP_MULTIPLY:
-            return finito(toDouble(left) * toDouble(right), "*");
-
-        case TokenType::OP_DIVIDE: {
-            double d = toDouble(right);
-            if (d == 0.0) throwRuntimeError("ZeroDivisionError: divisão por zero", tok);
-            return finito(toDouble(left) / d, "/");
-        }
-
-        case TokenType::OP_MODULO:
-            // A10: divisor 0 ou 0.0 (antes 0.0 gerava NaN em silêncio)
-            if (toDouble(right) == 0.0)
-                throwRuntimeError("ZeroDivisionError: módulo por zero", tok);
-            return Value(std::fmod(toDouble(left), toDouble(right)));
-
-        case TokenType::OP_LESS:          return Value(left <  right);
-        case TokenType::OP_LESS_EQUAL:    return Value(left <= right);
-        case TokenType::OP_GREATER:       return Value(left >  right);
-        case TokenType::OP_GREATER_EQUAL: return Value(left >= right);
-        case TokenType::OP_EQUAL:         return Value(left == right);
-        case TokenType::OP_NOT_EQUAL:     return Value(left != right);
-
-        default: throwRuntimeError("Operador binário desconhecido", tok);
+    // CVM: a regra mora em applyBinaryOp (operacoes.cpp), compartilhada com a
+    // VM; aqui só se completa a posição do erro
+    try {
+        return applyBinaryOp(op, left, right);
+    } catch (RuntimeError& err) {
+        if (err.line == 0)
+            raise(RuntimeError(err.kind, err.message, tok.line, tok.column, tok.file_id));
+        throw;
     }
 }
 
@@ -708,15 +625,12 @@ Value Executor::evalUnary(const UnaryExpr* expr) {
 
     switch (expr->op) {
         case TokenType::OP_MINUS:
-            if (operand.kind() == Value::Kind::INT) {
-                // A5: -INT_MIN não cabe em 64 bits
-                if (operand.asInt() == std::numeric_limits<std::int64_t>::min())
-                    throwRuntimeError("OverflowError: -(" + std::to_string(operand.asInt()) +
-                                      ") excede a faixa de int "
-                                      "(-9223372036854775808 a 9223372036854775807)", expr->token);
-                return Value(-operand.asInt());
+            try {
+                return negateOp(operand);   // CVM: regra compartilhada (operacoes.cpp)
+            } catch (RuntimeError& err) {
+                raise(RuntimeError(err.kind, err.message, expr->token.line, expr->token.column,
+                                   expr->token.file_id));
             }
-            return Value(-operand.asDecimal());
         case TokenType::OP_NOT:
             return Value(!operand.asBool());
         default:

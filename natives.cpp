@@ -10,7 +10,7 @@ namespace cinza {
 // ============================================================================
 
 // print(any...) -> void: argumentos separados por espaço, e fim de linha
-static Value nativePrint(Executor&, std::span<const Value> args) {
+static Value nativePrint(std::span<const Value> args) {
     for (size_t i = 0; i < args.size(); ++i) {
         if (i > 0) std::cout << " ";
         std::cout << args[i].toString();
@@ -21,7 +21,7 @@ static Value nativePrint(Executor&, std::span<const Value> args) {
 
 // range(int inicio, int fim[, int passo]) -> list<int>: de inicio (inclusive)
 // até fim (exclusive). Passo negativo conta para baixo; passo 0 é ValueError.
-static Value nativeRange(Executor&, std::span<const Value> args) {
+static Value nativeRange(std::span<const Value> args) {
     const std::int64_t inicio = args[0].asInt();
     const std::int64_t fim    = args[1].asInt();
     const std::int64_t passo  = args.size() == 3 ? args[2].asInt() : 1;
@@ -39,7 +39,7 @@ static Value nativeRange(Executor&, std::span<const Value> args) {
 
 // input(string prompt) -> string: mostra o prompt (sem pular linha) e lê uma
 // linha da entrada, sem o fim de linha. Fim da entrada é IOError.
-static Value nativeInput(Executor&, std::span<const Value> args) {
+static Value nativeInput(std::span<const Value> args) {
     std::cout << args[0].asString() << std::flush;
     std::string linha;
     if (!std::getline(std::cin, linha))

@@ -4,6 +4,8 @@
 #include "semantic.h"
 #include "executor.h"
 #include "module_loader.h"
+#include "cvm/compiler.h"
+#include "cvm/vm.h"
 #include <filesystem>
 #include <iostream>
 #include <fstream>
@@ -193,6 +195,8 @@ void printHelp() {
     std::cout << "Opções:\n";
     std::cout << "  --tokens, -t     Exibe tokens detalhados\n";
     std::cout << "  --ast, -a        Exibe a árvore sintática (AST)\n";
+    std::cout << "  --cvm            Executa na máquina virtual (CVM, em construção)\n";
+    std::cout << "  --bytecode       Mostra o bytecode da CVM e executa nela\n";
     std::cout << "  --help, -h       Exibe esta ajuda\n\n";
     std::cout << "Exemplo:\n";
     std::cout << "  cinza --ast exemplo.cinza\n";
@@ -222,6 +226,11 @@ int main(int argc, char* argv[]) {
     std::vector<std::string> program_args;
     bool show_tokens = false;
     bool show_ast = false; // por padrão NÃO mostra AST
+    // CVM (em construção): --cvm executa na máquina virtual; --bytecode mostra o
+    // bytecode gerado e executa na CVM. Enquanto a CVM não estiver completa, o
+    // padrão continua sendo o interpretador.
+    bool use_cvm = false;
+    bool show_bytecode = false;
 
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
@@ -236,6 +245,10 @@ int main(int argc, char* argv[]) {
             show_tokens = true;
         } else if (arg == "--ast" || arg == "-a") {
             show_ast = true;
+        } else if (arg == "--cvm") {
+            use_cvm = true;
+        } else if (arg == "--bytecode") {
+            use_cvm = show_bytecode = true;
         } else if (!arg.empty() && arg[0] != '-') {
             filename = arg;
         }
@@ -315,6 +328,27 @@ int main(int argc, char* argv[]) {
         // ====================================================================
         //std::cout << "[4] Executando...\n";
         //std::cout << std::string(80, '-') << "\n";
+
+        if (use_cvm) {
+            cvm::Image img;
+            try {
+                img = cvm::compile(programs, analyzer.globalLayout());
+            } catch (const cvm::Unsupported& e) {
+                diagnostics().report("CVMError", e.what(), e.loc);
+                diagnostics().flush(std::cerr);
+                return 1;
+            }
+            if (show_bytecode) std::cout << cvm::disassemble(img);
+            try {
+                cvm::VM vm(img);
+                vm.run(program_args);
+            } catch (const RuntimeError& e) {
+                diagnostics().report(e.kind, e.message, e.location(), e.trace);
+                diagnostics().flush(std::cerr);
+                return 1;
+            }
+            return 0;
+        }
 
         Executor executor;
         try {

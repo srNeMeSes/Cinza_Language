@@ -9,8 +9,6 @@
 
 namespace cinza {
 
-class Executor;
-
 // ============================================================================
 // FUNÇÕES NATIVAS (C6)
 //
@@ -32,7 +30,7 @@ struct NativeFn {
     std::string          name;
     std::vector<TypeRef> params;
     TypeRef              ret;
-    Value (*impl)(Executor&, std::span<const Value>);
+    Value (*impl)(std::span<const Value>);
 
     // Parâmetros obrigatórios (os demais, no fim, são opcionais: range(a, b[, p]))
     size_t min_params = 0;

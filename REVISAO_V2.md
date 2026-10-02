@@ -895,7 +895,13 @@ Etapas:
 
 - [x] 1. Desenho do conjunto de instruções e do formato das funções compiladas (registradores,
       constantes, tabela de linhas para diagnósticos). — feito em 2026-10-02 (cvm/DESENHO.md, revisado)
-- [ ] 2. Funções, chamadas, variáveis locais, aritmética e comparação; `--bytecode`.
+- [x] 2. Funções, chamadas, variáveis locais, aritmética e comparação; `--bytecode`. — feito em 2026-10-02
+  > Nota: `cvm/bytecode.h`, `compiler.cpp`, `vm.cpp`, `disasm.cpp`. Opções `--cvm` e `--bytecode` (o padrão
+  > continua o interpretador até a etapa 9); `make test-cvm` / `run_tests.py --cvm`. A aritmética saiu do
+  > `Executor` para `operacoes.cpp` (`applyBinaryOp`, `negateOp`), compartilhada com a VM: mesmas regras e
+  > mensagens. As nativas não recebem mais o `Executor&` (nenhuma o usava). Recurso ainda não compilado vira
+  > `CVMError: ... ainda não é suportado pela CVM (etapa N)`. Suíte no modo CVM: 258 de 387; as 129 falhas são
+  > todas recursos de etapas seguintes — nenhuma divergência. Limpo sob ASan/UBSan nos dois modos.
 - [ ] 3. Controle de fluxo: `if`, `while`, `for`, `break`, `continue`, `return`.
 - [ ] 4. Coleções: `list`, `dict`, `pair`, literais, índices, métodos embutidos, `const`.
 - [ ] 5. `struct`, classes, `self`, campos, métodos, construtores.

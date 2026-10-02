@@ -101,19 +101,19 @@ Value decimalParaInt(double d, const char* fn) {
 // Strings
 // ============================================================================
 
-Value strUpper(Executor&, Args a) {
+Value strUpper(Args a) {
     std::u32string s = decodifica(a[0].asString());
     for (char32_t& c : s) c = paraMaiuscula(c);
     return Value(codifica(s));
 }
 
-Value strLower(Executor&, Args a) {
+Value strLower(Args a) {
     std::u32string s = decodifica(a[0].asString());
     for (char32_t& c : s) c = paraMinuscula(c);
     return Value(codifica(s));
 }
 
-Value strTrim(Executor&, Args a) {
+Value strTrim(Args a) {
     const std::string& s = a[0].asString();
     const char* brancos = " \t\n\r\f\v";
     const size_t ini = s.find_first_not_of(brancos);
@@ -122,7 +122,7 @@ Value strTrim(Executor&, Args a) {
     return Value(s.substr(ini, fim - ini + 1));
 }
 
-Value strSplit(Executor&, Args a) {
+Value strSplit(Args a) {
     const std::string& s   = a[0].asString();
     const std::string& sep = a[1].asString();
     if (sep.empty()) falha("ValueError: o separador de 'split' não pode ser vazio");
@@ -134,7 +134,7 @@ Value strSplit(Executor&, Args a) {
     return makeList(std::move(partes));
 }
 
-Value strJoin(Executor&, Args a) {
+Value strJoin(Args a) {
     const auto& elems = a[0].asList()->elements;
     const std::string& sep = a[1].asString();
     std::string out;
@@ -145,11 +145,11 @@ Value strJoin(Executor&, Args a) {
     return Value(std::move(out));
 }
 
-Value strContains(Executor&, Args a) {
+Value strContains(Args a) {
     return Value(a[0].asString().find(a[1].asString()) != std::string::npos);
 }
 
-Value strReplace(Executor&, Args a) {
+Value strReplace(Args a) {
     const std::string& s    = a[0].asString();
     const std::string& de   = a[1].asString();
     const std::string& para = a[2].asString();
@@ -163,7 +163,7 @@ Value strReplace(Executor&, Args a) {
 }
 
 // substr(s, inicio, tamanho): em caracteres; o trecho precisa caber na string
-Value strSubstr(Executor&, Args a) {
+Value strSubstr(Args a) {
     const std::u32string s = decodifica(a[0].asString());
     const std::int64_t ini = a[1].asInt();
     const std::int64_t len = a[2].asInt();
@@ -175,7 +175,7 @@ Value strSubstr(Executor&, Args a) {
 }
 
 // find(s, trecho): índice (em caracteres) da primeira ocorrência, ou -1
-Value strFind(Executor&, Args a) {
+Value strFind(Args a) {
     const std::string& s = a[0].asString();
     const size_t pos = s.find(a[1].asString());
     if (pos == std::string::npos) return Value(std::int64_t{-1});
@@ -185,7 +185,7 @@ Value strFind(Executor&, Args a) {
     return Value(idx);
 }
 
-Value strStartsWith(Executor&, Args a) {
+Value strStartsWith(Args a) {
     const std::string& s = a[0].asString();
     const std::string& p = a[1].asString();
     return Value(s.compare(0, p.size(), p) == 0);
@@ -195,7 +195,7 @@ Value strStartsWith(Executor&, Args a) {
 // Files
 // ============================================================================
 
-Value filesRead(Executor&, Args a) {
+Value filesRead(Args a) {
     const std::string& caminho = a[0].asString();
     std::ifstream f(caminho, std::ios::binary);
     if (!f.is_open()) falha("IOError: não foi possível abrir '" + caminho + "' para leitura");
@@ -204,7 +204,7 @@ Value filesRead(Executor&, Args a) {
     return Value(conteudo.str());
 }
 
-Value filesWrite(Executor&, Args a) {
+Value filesWrite(Args a) {
     const std::string& caminho = a[0].asString();
     std::ofstream f(caminho, std::ios::binary | std::ios::trunc);
     if (!f.is_open()) falha("IOError: não foi possível abrir '" + caminho + "' para escrita");
@@ -217,20 +217,20 @@ Value filesWrite(Executor&, Args a) {
 // Math
 // ============================================================================
 
-Value mathSqrt(Executor&, Args a) {
+Value mathSqrt(Args a) {
     const double x = a[0].asDecimal();
     if (x < 0) falha("ValueError: 'sqrt' de número negativo");
     return Value(std::sqrt(x));
 }
 
-Value mathPow(Executor&, Args a) {
+Value mathPow(Args a) {
     const double r = std::pow(a[0].asDecimal(), a[1].asDecimal());
     if (std::isnan(r)) falha("ValueError: 'pow' sem resultado real");
     if (std::isinf(r)) falha("OverflowError: resultado de 'pow' grande demais");
     return Value(r);
 }
 
-Value mathAbs(Executor&, Args a) {
+Value mathAbs(Args a) {
     if (a[0].kind() == Value::Kind::INT) {
         const std::int64_t v = a[0].asInt();
         if (v == std::numeric_limits<std::int64_t>::min())
@@ -240,19 +240,19 @@ Value mathAbs(Executor&, Args a) {
     return Value(std::fabs(a[0].asDecimal()));
 }
 
-Value mathFloor(Executor&, Args a) { return decimalParaInt(std::floor(a[0].asDecimal()), "floor"); }
-Value mathCeil (Executor&, Args a) { return decimalParaInt(std::ceil (a[0].asDecimal()), "ceil"); }
+Value mathFloor(Args a) { return decimalParaInt(std::floor(a[0].asDecimal()), "floor"); }
+Value mathCeil (Args a) { return decimalParaInt(std::ceil (a[0].asDecimal()), "ceil"); }
 // round: metade se afasta do zero (2.5 → 3, -2.5 → -3)
-Value mathRound(Executor&, Args a) { return decimalParaInt(std::round(a[0].asDecimal()), "round"); }
+Value mathRound(Args a) { return decimalParaInt(std::round(a[0].asDecimal()), "round"); }
 
-Value mathMin(Executor&, Args a) { return numero(a[1]) < numero(a[0]) ? a[1] : a[0]; }
-Value mathMax(Executor&, Args a) { return numero(a[1]) > numero(a[0]) ? a[1] : a[0]; }
+Value mathMin(Args a) { return numero(a[1]) < numero(a[0]) ? a[1] : a[0]; }
+Value mathMax(Args a) { return numero(a[1]) > numero(a[0]) ? a[1] : a[0]; }
 
-Value mathSin(Executor&, Args a) { return Value(std::sin(a[0].asDecimal())); }
-Value mathCos(Executor&, Args a) { return Value(std::cos(a[0].asDecimal())); }
+Value mathSin(Args a) { return Value(std::sin(a[0].asDecimal())); }
+Value mathCos(Args a) { return Value(std::cos(a[0].asDecimal())); }
 
 // log(x): logaritmo natural
-Value mathLog(Executor&, Args a) {
+Value mathLog(Args a) {
     const double x = a[0].asDecimal();
     if (x <= 0) falha("ValueError: 'log' só é definido para números positivos");
     return Value(std::log(x));
@@ -267,13 +267,13 @@ std::mt19937_64& gerador() {
     return g;
 }
 
-Value randSeed(Executor&, Args a) {
+Value randSeed(Args a) {
     gerador().seed(static_cast<std::uint64_t>(a[0].asInt()));
     return Value();
 }
 
 // int(a, b): inteiro de a até b, os dois inclusive
-Value randInt(Executor&, Args a) {
+Value randInt(Args a) {
     const std::int64_t lo = a[0].asInt();
     const std::int64_t hi = a[1].asInt();
     if (lo > hi)
@@ -284,12 +284,12 @@ Value randInt(Executor&, Args a) {
 }
 
 // decimal(): de 0.0 (inclusive) até 1.0 (exclusive)
-Value randDecimal(Executor&, Args) {
+Value randDecimal(Args) {
     std::uniform_real_distribution<double> d(0.0, 1.0);
     return Value(d(gerador()));
 }
 
-Value randChoice(Executor&, Args a) {
+Value randChoice(Args a) {
     const auto& elems = a[0].asList()->elements;
     if (elems.empty()) falha("IndexError: 'choice' de uma lista vazia");
     std::uniform_int_distribution<size_t> d(0, elems.size() - 1);
@@ -301,7 +301,7 @@ Value randChoice(Executor&, Args a) {
 // ============================================================================
 
 // to_int(string): só sinal opcional e dígitos, sem espaços
-Value convToInt(Executor&, Args a) {
+Value convToInt(Args a) {
     const std::string& s = a[0].asString();
     const char* fim = s.data() + s.size();
     // from_chars aceita '-' mas não '+'; "+-5" não é válido
@@ -318,7 +318,7 @@ Value convToInt(Executor&, Args a) {
 }
 
 // to_decimal(string): [sinal] dígitos [. dígitos] [e [sinal] dígitos]
-Value convToDecimal(Executor&, Args a) {
+Value convToDecimal(Args a) {
     const std::string& s = a[0].asString();
     size_t i = 0;
     auto digitos = [&]() {
@@ -343,10 +343,10 @@ Value convToDecimal(Executor&, Args a) {
     return Value(v);
 }
 
-Value convToString(Executor&, Args a) { return Value(a[0].toString()); }
+Value convToString(Args a) { return Value(a[0].toString()); }
 
 // to_bool(string): só "true" ou "false"
-Value convToBool(Executor&, Args a) {
+Value convToBool(Args a) {
     const std::string& s = a[0].asString();
     if (s == "true")  return Value(true);
     if (s == "false") return Value(false);
@@ -363,24 +363,24 @@ bool menor(const Value& x, const Value& y) {
     return numero(x) < numero(y);
 }
 
-Value listSort(Executor&, Args a) {
+Value listSort(Args a) {
     auto& elems = a[0].asList()->elements;
     std::stable_sort(elems.begin(), elems.end(), menor);
     return Value();
 }
 
-Value listReverse(Executor&, Args a) {
+Value listReverse(Args a) {
     auto& elems = a[0].asList()->elements;
     std::reverse(elems.begin(), elems.end());
     return Value();
 }
 
-Value listContains(Executor&, Args a) {
+Value listContains(Args a) {
     const auto& elems = a[0].asList()->elements;
     return Value(std::find(elems.begin(), elems.end(), a[1]) != elems.end());
 }
 
-Value listIndexOf(Executor&, Args a) {
+Value listIndexOf(Args a) {
     const auto& elems = a[0].asList()->elements;
     auto it = std::find(elems.begin(), elems.end(), a[1]);
     return Value(it == elems.end() ? std::int64_t{-1}
@@ -388,7 +388,7 @@ Value listIndexOf(Executor&, Args a) {
 }
 
 // slice(l, inicio, fim): nova lista com os elementos de inicio até fim (exclusive)
-Value listSlice(Executor&, Args a) {
+Value listSlice(Args a) {
     const auto& elems = a[0].asList()->elements;
     const std::int64_t ini = a[1].asInt();
     const std::int64_t fim = a[2].asInt();
@@ -401,7 +401,7 @@ Value listSlice(Executor&, Args a) {
 
 // sum(l): soma de int (com OverflowError) ou de decimal; lista vazia → 0
 // (o executor ajusta para 0.0 quando o tipo do resultado é decimal)
-Value listSum(Executor&, Args a) {
+Value listSum(Args a) {
     const auto& elems = a[0].asList()->elements;
     if (!elems.empty() && elems[0].kind() == Value::Kind::DECIMAL) {
         double total = 0;

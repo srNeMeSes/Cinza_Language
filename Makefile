@@ -7,7 +7,8 @@ CXX = g++
 CXXFLAGS = -std=c++20 -O3 -Wall -Wextra -pedantic
 DEPFLAGS = -MMD -MP
 TARGET = cinza
-SOURCES = main.cpp lexer.cpp parser.cpp ast.cpp semantic.cpp executor.cpp natives.cpp stdlib.cpp module_loader.cpp
+SOURCES = main.cpp lexer.cpp parser.cpp ast.cpp semantic.cpp executor.cpp operacoes.cpp natives.cpp stdlib.cpp module_loader.cpp \
+          cvm/compiler.cpp cvm/vm.cpp cvm/disasm.cpp
 OBJECTS = $(SOURCES:.cpp=.o)
 DEPS = $(OBJECTS:.o=.d)
 
@@ -76,6 +77,10 @@ $(TARGET_BIN): $(OBJECTS)
 debug: CXXFLAGS = -std=c++20 -O0 -g -Wall -Wextra -fsanitize=address,undefined
 debug: clean $(TARGET_BIN)
 
+# CVM em construção: a mesma suíte executada na máquina virtual
+test-cvm: $(TARGET_BIN)
+	$(PYTHON) tests/run_tests.py $(TARGET_BIN) --cvm
+
 # Roda a suíte de testes em tests/
 test: $(TARGET_BIN) $(UNIT_BIN) $(UNIT_TYPES) $(UNIT_GC)
 	./$(UNIT_BIN)
@@ -106,7 +111,7 @@ test-ast: $(TARGET_BIN)
 # Limpeza
 clean:
 	@echo "$(YELLOW)Limpando arquivos de compilação...$(NC)"
-	-$(RM) $(OBJECTS) $(DEPS) $(TARGET_BIN) $(call fixpath,$(UNIT_BIN) $(UNIT_TYPES) $(UNIT_GC))
+	-$(RM) $(call fixpath,$(OBJECTS) $(DEPS)) $(TARGET_BIN) $(call fixpath,$(UNIT_BIN) $(UNIT_TYPES) $(UNIT_GC))
 	@echo "$(GREEN)✓ Limpeza concluída!$(NC)"
 
 # Rebuild completo
