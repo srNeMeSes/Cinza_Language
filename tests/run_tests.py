@@ -11,6 +11,11 @@ Cada tests/*.cinza declara a saída esperada em comentários:
     // env: NOME=valor (variável de ambiente; caminhos relativos à raiz do projeto)
     // stdin: linha   (uma linha da entrada padrão; várias diretivas = várias linhas)
 
+Também roda os exemplos executáveis da especificação (spec/*.md): todo bloco
+```cinza que tenha `// expect:` ou `// expect-error:` é extraído para
+tests/spec_exemplos/ e conferido com as mesmas regras. Blocos sem essas linhas
+são só ilustrativos.
+
 Sem expect-error: o programa deve sair com código 0 e o stdout deve ser
 exatamente a sequência de linhas `expect`.
 Com expect-error: o programa deve sair com código 1 e o trecho deve
@@ -26,6 +31,9 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
 DIR_TESTES = RAIZ / "tests"
+DIR_SPEC = RAIZ / "spec"
+DIR_EXEMPLOS = DIR_TESTES / "spec_exemplos"   # gerado a cada execução (fora do git)
+RE_BLOCO = re.compile(r"^```cinza[ \t]*\r?\n(.*?)^```", re.M | re.S)
 TIMEOUT_S = 10
 
 RE_EXPECT = re.compile(r"//\s*expect:\s?(.*)$")
@@ -143,6 +151,32 @@ def rodar(binario, caminho):
     return True, "", ""
 
 
+def exemplos_da_spec(filtro):
+    """Extrai os exemplos executáveis de spec/*.md. Devolve [(nome, caminho)],
+    com nome no formato "spec/arquivo.md:linha"."""
+    if not DIR_SPEC.is_dir():
+        return []
+    DIR_EXEMPLOS.mkdir(exist_ok=True)
+    for velho in DIR_EXEMPLOS.glob("*.cinza"):
+        velho.unlink()
+    exemplos = []
+    for md in sorted(DIR_SPEC.glob("*.md")):
+        texto = md.read_text(encoding="utf-8")
+        for m in RE_BLOCO.finditer(texto):
+            codigo = m.group(1)
+            if not (RE_EXPECT.search(codigo) or RE_EXPECT_ERROR.search(codigo) or
+                    any(RE_EXPECT.search(l) or RE_EXPECT_ERROR.search(l) for l in codigo.splitlines())):
+                continue
+            linha = texto.count("\n", 0, m.start()) + 1
+            nome = f"spec/{md.name}:{linha}"
+            if filtro and filtro not in nome:
+                continue
+            caminho = DIR_EXEMPLOS / f"{md.stem}_{linha}.cinza"
+            caminho.write_text(codigo, encoding="utf-8")
+            exemplos.append((nome, caminho))
+    return exemplos
+
+
 def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
@@ -161,19 +195,20 @@ def main():
         print(f"Binário não encontrado: {binario} (rode 'make' antes)")
         return 2
 
-    testes = sorted(p for p in DIR_TESTES.glob("*.cinza") if filtro in p.name)
+    testes = [(p.name, p) for p in sorted(DIR_TESTES.glob("*.cinza")) if filtro in p.name]
+    testes += exemplos_da_spec(filtro)
     if not testes:
         print(f"Nenhum teste encontrado em {DIR_TESTES} com o filtro '{filtro}'")
         return 2
 
     falhas = 0
-    for caminho in testes:
+    for nome, caminho in testes:
         passou, motivo, detalhes = rodar(binario, caminho)
         if passou:
-            print(f"PASS  {caminho.name}")
+            print(f"PASS  {nome}")
         else:
             falhas += 1
-            print(f"FAIL  {caminho.name}: {motivo}")
+            print(f"FAIL  {nome}: {motivo}")
             if detalhes:
                 print(detalhes)
 

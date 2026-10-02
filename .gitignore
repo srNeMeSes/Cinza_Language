@@ -8,3 +8,6 @@ tests/modulos/saida_files.txt
 
 # Arquivo vazio criado no Windows por redirecionamento para "nul"
 nul
+
+# Exemplos da especificação extraídos pelo run_tests.py
+tests/spec_exemplos/

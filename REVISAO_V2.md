@@ -789,6 +789,11 @@ não `Files.read_file`). Não há namespace `io`.
   > métodos de cada interface (`ClassDecl::itables`), e a chamada pela interface escolhe o método por ela.
   > Correção junto: o iterador do `for` não aceitava tipo de módulo (`for (fm.Forma f in l)`); coberto por
   > `iface_modulo`. Testes `iface_*` (18).
+- [x] Especificação da linguagem em `spec/` (Markdown, 7 capítulos: léxico, gramática em EBNF, tipos,
+      declarações, execução, biblioteca padrão, erros e diagnósticos). — feito em 2026-10-02
+  > Nota: os blocos ` ```cinza ` com `// expect:`/`// expect-error:` são exemplos executáveis — o
+  > `run_tests.py` os extrai para `tests/spec_exemplos/` (fora do git) e os roda junto com a suíte (56
+  > exemplos). Toda afirmação foi conferida no código e nos testes; quem mudar a linguagem atualiza a spec.
 - [x] ~~Genéricos do usuário~~ — descartado em 2026-09-30: a Cinza não terá genéricos (decisão do autor).
 - [x] Coleta de ciclos: `shared_ptr` vaza memória em ciclos como `class A { list<A> xs; }` com `a.xs.add(a)`. — feito em 2026-09-30
   > Nota: `gc_object.h` e `gc.h`. Algoritmo "trial deletion", como no CPython: todo contêiner (list, dict,
