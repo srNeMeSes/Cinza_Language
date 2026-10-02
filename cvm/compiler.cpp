@@ -44,6 +44,20 @@ private:
     };
     std::vector<Laco> lacos;
 
+    // try com finally em compilação (desenho, seção 6): ação e valor pendentes
+    struct Finally {
+        std::size_t              loops;          // lacos.size() quando o try começou
+        std::uint16_t            acao, valor;    // registradores
+        std::vector<std::size_t> saltos;         // saídas que vão para o finally
+        bool usa_return = false, usa_break = false, usa_continue = false;
+    };
+    std::vector<Finally> finallys;
+    bool ret_void = false;   // a função em compilação é void
+
+    void emitReturn(std::uint16_t reg, bool tem_valor, const Token& tok);
+    void emitBreak(bool continua, const Token& tok);
+    void tryStmt(const TryStmt* t);
+
     // estado da função em compilação
     Proto*        p      = nullptr;
     std::uint16_t nlocal = 0;   // registradores 0 .. nlocal-1 são variáveis (slots do B2)
@@ -120,7 +134,7 @@ private:
     // ── funções ──────────────────────────────────────────────────────────
     std::size_t newProto(const std::string& name, const Token& decl);
     void        body(Proto* pr, std::uint32_t num_slots, std::size_t nparams, bool metodo,
-                     const Stmt* corpo, const Token& tok);
+                     const Stmt* corpo, const Token& tok, bool vazio);
     void        classInit(const ClassDecl* cls, std::size_t idx);
     void        moduleInit(const ::cinza::Program* prog);
 };
@@ -272,7 +286,13 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
                               e->token), 0, e->token);
                 break;
             }
-            if (t->is(TK::Error)) unsupported("Campos de erro", 7, e->token);
+            if (t->is(TK::Error)) {   // e.kind, e.message, e.line, e.column
+                const std::uint16_t o = exprReg(m->object.get());
+                const std::string& n = m->member_name;
+                const std::uint16_t c = n == "kind" ? 0 : n == "message" ? 1 : n == "line" ? 2 : 3;
+                emit(Op::ERRFIELD, dst, o, c, e->token);
+                break;
+            }
             const std::uint16_t o = exprReg(m->object.get());
             if (t->is(TK::Pair))
                 emit(m->member_name == "first" ? Op::GETFIRST : Op::GETSECOND, dst, o, 0, e->token);
@@ -399,7 +419,11 @@ void Compiler::call(const CallExpr* e, std::uint16_t dst) {
     }
 
     const bool nativa = e->native != nullptr;
-    if (!nativa && !e->target) unsupported("Criar um erro (Tipo(\"...\"))", 7, tok);
+    if (!nativa && !e->target) {   // Tipo("mensagem"): cria um erro, na posição da chamada
+        const std::uint16_t msg = e->arguments.empty() ? NO_REG : exprReg(e->arguments[0].get());
+        emit(Op::NEWERROR, dst, constant(Value(e->function_name), tok), msg, tok);
+        return;
+    }
     // argumentos em registradores consecutivos a partir de `base` (convenção do Lua)
     const std::uint16_t base = top;
     // m() dentro de um método: o self atual (r0) vai antes dos argumentos
@@ -514,8 +538,8 @@ void Compiler::stmt(const Stmt* s) {
 
         case NodeKind::Return: {
             auto* r = static_cast<const ReturnStmt*>(s);
-            if (r->value) emit(Op::RET, exprReg(r->value.get()), 0, 0, s->token);
-            else          emit(Op::RETVOID, 0, 0, 0, s->token);
+            if (r->value) emitReturn(exprReg(r->value.get()), true, s->token);
+            else          emitReturn(0, false, s->token);
             break;
         }
 
@@ -589,13 +613,17 @@ void Compiler::stmt(const Stmt* s) {
         }
 
         case NodeKind::Break:
-            lacos.back().breaks.push_back(emitBc(Op::JMP, 0, 0, s->token));
+            emitBreak(false, s->token);
             break;
         case NodeKind::Continue:
-            lacos.back().continues.push_back(emitBc(Op::JMP, 0, 0, s->token));
+            emitBreak(true, s->token);
             break;
-        case NodeKind::Try: case NodeKind::Throw:
-            unsupported("Exceções", 7, s->token);
+        case NodeKind::Throw:
+            emit(Op::THROW, exprReg(static_cast<const ThrowStmt*>(s)->value.get()), 0, 0, s->token);
+            break;
+        case NodeKind::Try:
+            tryStmt(static_cast<const TryStmt*>(s));
+            break;
         default:
             throw Unsupported("instrução desconhecida (erro interno)", s->token);
     }
@@ -732,6 +760,106 @@ void Compiler::assignPlace(const AssignStmt* s) {
 }
 
 // ============================================================================
+// EXCEÇÕES (desenho, seção 6)
+// ============================================================================
+
+// return: dentro de um try com finally, grava a ação pendente e vai para o
+// finally (o despacho no fim dele faz o return de verdade, no contexto de fora)
+void Compiler::emitReturn(std::uint16_t reg, bool tem_valor, const Token& tok) {
+    if (!finallys.empty()) {
+        Finally& f = finallys.back();
+        if (tem_valor) emit(Op::MOVE, f.valor, reg, 0, tok);
+        emitBc(Op::LOADINT, f.acao, 1, tok);
+        f.saltos.push_back(emitBc(Op::JMP, 0, 0, tok));
+        f.usa_return = true;
+        return;
+    }
+    if (tem_valor) emit(Op::RET, reg, 0, 0, tok);
+    else           emit(Op::RETVOID, 0, 0, 0, tok);
+}
+
+// break/continue: só passa pelo finally se sair do try (o laço é de fora dele)
+void Compiler::emitBreak(bool continua, const Token& tok) {
+    if (!finallys.empty() && finallys.back().loops == lacos.size()) {
+        Finally& f = finallys.back();
+        emitBc(Op::LOADINT, f.acao, continua ? 3 : 2, tok);
+        f.saltos.push_back(emitBc(Op::JMP, 0, 0, tok));
+        (continua ? f.usa_continue : f.usa_break) = true;
+        return;
+    }
+    auto& destino = continua ? lacos.back().continues : lacos.back().breaks;
+    destino.push_back(emitBc(Op::JMP, 0, 0, tok));
+}
+
+void Compiler::tryStmt(const TryStmt* t) {
+    const Token& tok = t->token;
+    const bool tem_finally = t->finally_block != nullptr;
+    std::vector<Handler> tabela;          // deste try (os de dentro já foram para a tabela)
+    std::vector<std::size_t> para_fim;    // saídas sem finally
+
+    std::uint16_t acao = 0, valor = 0;
+    if (tem_finally) {
+        acao  = alloc(tok);
+        valor = alloc(tok);
+        finallys.push_back({lacos.size(), acao, valor, {}});
+    }
+    auto sair = [&] {   // fim normal do try ou de um except
+        if (tem_finally) {
+            emitBc(Op::LOADINT, acao, 0, tok);
+            finallys.back().saltos.push_back(emitBc(Op::JMP, 0, 0, tok));
+        } else {
+            para_fim.push_back(emitBc(Op::JMP, 0, 0, tok));
+        }
+    };
+
+    const auto ini = static_cast<std::uint32_t>(here());
+    stmt(t->body.get());
+    const auto fim = static_cast<std::uint32_t>(here());
+    sair();
+
+    std::vector<std::pair<std::uint32_t, std::uint32_t>> blocos_except;
+    for (const auto& h : t->handlers) {
+        const auto alvo = static_cast<std::uint32_t>(here());
+        tabela.push_back({ini, fim, alvo, h.type_name == "Error" ? std::string() : h.type_name,
+                          slotReg(h.var_slot)});
+        stmt(h.body.get());
+        blocos_except.emplace_back(alvo, static_cast<std::uint32_t>(here()));
+        sair();
+    }
+
+    if (tem_finally) {
+        Finally f = std::move(finallys.back());
+        finallys.pop_back();   // o finally e o despacho são do contexto de fora
+
+        // pega-tudo: erro do try ou de um except roda o finally e é relançado
+        const auto pega = static_cast<std::uint32_t>(here());
+        tabela.push_back({ini, fim, pega, "", valor});
+        for (const auto& [a, b] : blocos_except) tabela.push_back({a, b, pega, "", valor});
+        emitBc(Op::LOADINT, acao, 4, tok);
+
+        const std::size_t inicio_finally = here();
+        for (std::size_t j : f.saltos) patch(j, inicio_finally);
+        stmt(t->finally_block.get());
+
+        // despacho da ação pendente
+        const std::uint16_t cmp = alloc(tok);
+        auto caso = [&](int codigo, auto&& acao_pendente) {
+            emitBc(Op::LOADINT, cmp, codigo, tok);
+            emit(Op::EQ, cmp, acao, cmp, tok);
+            const std::size_t pula = emitBc(Op::JMPIFNOT, cmp, 0, tok);
+            acao_pendente();
+            patch(pula, here());
+        };
+        if (f.usa_return)   caso(1, [&] { emitReturn(valor, !ret_void, tok); });
+        if (f.usa_break)    caso(2, [&] { emitBreak(false, tok); });
+        if (f.usa_continue) caso(3, [&] { emitBreak(true, tok); });
+        caso(4, [&] { emit(Op::THROW, valor, 0, 0, tok); });
+    }
+    for (std::size_t j : para_fim) patch(j, here());
+    for (auto& h : tabela) p->handlers.push_back(std::move(h));
+}
+
+// ============================================================================
 // FUNÇÕES E MÓDULOS
 // ============================================================================
 
@@ -745,8 +873,9 @@ std::size_t Compiler::newProto(const std::string& name, const Token& decl) {
 
 // Corpo de função (metodo = false) ou de método/construtor (self em r0)
 void Compiler::body(Proto* pr, std::uint32_t num_slots, std::size_t nparams, bool metodo,
-                    const Stmt* corpo, const Token& tok) {
+                    const Stmt* corpo, const Token& tok, bool vazio) {
     p      = pr;
+    ret_void = vazio;
     off    = metodo ? 1 : 0;
     nlocal = u16(num_slots + off, tok, "variáveis locais");
     top    = nlocal;
@@ -868,17 +997,17 @@ Image Compiler::run() {
             if (s->node_kind == NodeKind::FunctionDecl) {
                 auto* fn = static_cast<const FunctionDecl*>(s.get());
                 body(&img.protos[proto_of.at(fn)], fn->num_slots, fn->parameters.size(), false,
-                     fn->body.get(), fn->token);
+                     fn->body.get(), fn->token, fn->return_type->kind == Type::Kind::VOID);
             } else if (s->node_kind == NodeKind::ClassDecl) {
                 auto* c = static_cast<const ClassDecl*>(s.get());
                 const ClassRef& ref = img.classes[class_of.at(c->class_name)];
                 for (const auto* m : metodos(c))
                     body(&img.protos[proto_of.at(m)], m->num_slots, m->parameters.size(), true,
-                         m->body.get(), m->token);
+                         m->body.get(), m->token, m->return_type->kind == Type::Kind::VOID);
                 if (c->constructor)
                     body(&img.protos[ref.ctor], c->constructor->num_slots,
                          c->constructor->parameters.size(), true, c->constructor->body.get(),
-                         c->constructor->token);
+                         c->constructor->token, true);
                 if (ref.init != ClassRef::none) classInit(c, ref.init);
             }
         }

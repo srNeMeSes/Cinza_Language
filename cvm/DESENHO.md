@@ -189,24 +189,35 @@ busca linear acha o tratador mais aninhado. Sem entrada na função atual, a jan
 tratador em lugar nenhum, o erro termina o programa com o diagnóstico e o stack trace da spec 7.3.
 O `try` não custa nada quando não há erro.
 
-### `finally` em linha e intervalos partidos
+### `finally` compilado uma vez, com ação pendente
 
-O `finally` é copiado em cada saída do bloco protegido:
+(Decisão de 2026-10-02: substitui a cópia do `finally` em cada saída com intervalos partidos —
+mais simples e sem os erros clássicos da cópia.)
 
-- no fim normal do `try` e de cada `except`;
-- antes de cada `return`, `break` ou `continue` que saia do `try` ou de um `except` (o valor do
-  `return` é calculado **antes** e guardado num registrador);
-- num tratador "pega-tudo", que guarda o erro, roda o `finally` e relança.
+O `finally` é compilado **uma única vez**. Um `try` com `finally` reserva dois registradores: a
+**ação pendente** (`int`) e o **valor pendente**. Toda saída do bloco protegido grava o que fazer
+depois e salta para o `finally`:
 
-Uma cópia do `finally` **não pode** ficar dentro de um intervalo protegido pelo próprio `try`: se o
-`finally` lançasse um erro, o `except` desse `try` o capturaria, ou o pega-tudo rodaria o `finally`
-de novo. Por isso os intervalos são **partidos**: o compilador mantém um intervalo aberto enquanto
-emite código do `try` e o **fecha antes de cada cópia do `finally`**, reabrindo depois dela. Cada
-trecho limpo vira uma entrada (repetida para cada `except` e para o pega-tudo). O mesmo vale para os
-intervalos do pega-tudo sobre os blocos `except`.
+| Saída                                   | Ação pendente | Valor pendente |
+|-----------------------------------------|---------------|----------------|
+| fim normal do `try` ou de um `except`   | 0 (seguir)    | —              |
+| `return v` dentro do `try`/`except`     | 1             | `v`            |
+| `break` que sai do `try`                | 2             | —              |
+| `continue` que sai do `try`             | 3             | —              |
+| erro não tratado (tratador pega-tudo)   | 4             | o erro         |
 
-`return`, `break` e `continue` **dentro** do `finally` são proibidos pela linguagem (spec 5.6), então
-um `finally` nunca descarta um retorno ou um erro pendente.
+No fim do `finally`, um despacho compilado testa a ação e a executa **no contexto de fora**: um
+`return` pendente vira um `return` ali (que, se houver outro `try` com `finally` por fora, passa
+pelo `finally` dele também), o mesmo para `break` e `continue`; a ação 4 relança o erro, que
+preserva tipo, mensagem, posição e stack trace. A ação 0 segue para depois do `try`.
+
+Os intervalos da tabela cobrem só o bloco `try` (para cada `except` e para o pega-tudo) e os
+blocos `except` (só para o pega-tudo). O `finally` e o despacho ficam **fora** de todos os
+intervalos do próprio `try`: um erro lançado pelo `finally` sobe para fora, como no interpretador,
+e nunca roda o `finally` duas vezes.
+
+`return`, `break` e `continue` **dentro** do `finally` são proibidos pela linguagem (spec 5.6),
+então um `finally` nunca descarta um retorno ou um erro pendente.
 
 ### Exemplo
 
@@ -223,24 +234,17 @@ fn f(int n) -> int {
 ```
 
 ```
-fn f  (1 parâmetro, 4 registradores)
-  0000  LOADINT    r1, 10
-  0001  DIV_I      r1, r1, r0          ; 10 / n          ← protegido
-  0002  <finally>  print("fim")        ; cópia 1 (antes do return)
-  0004  RET        r1
-  0005  LOADINT    r1, -1              ; except          ← protegido só pelo pega-tudo
-  0006  <finally>  print("fim")        ; cópia 2
-  0008  RET        r1
-  0009  <finally>  print("fim")        ; pega-tudo: r3 = erro
-  0011  THROW      r3
+  try:      calcula 10 / n em v ......... ação = 1, pendente = v, salta para FINALLY
+  except:   pendente = -1, ação = 1, salta para FINALLY
+  pega-tudo: pendente = erro, ação = 4
+  FINALLY:  print("fim")
+            se ação == 1: RET pendente
+            se ação == 4: THROW pendente
 tratadores (mais interno primeiro):
-  [0001, 0002)  ZeroDivisionError → 0005, erro em r2
-  [0001, 0002)  qualquer          → 0009, erro em r3
-  [0005, 0006)  qualquer          → 0009, erro em r3
+  [try]     ZeroDivisionError → except
+  [try]     qualquer          → pega-tudo
+  [except]  qualquer          → pega-tudo
 ```
-
-As cópias do `finally` (0002, 0006, 0009) ficam fora de todos os intervalos: um erro lançado por
-elas sobe para quem chamou `f`, como no interpretador.
 
 ## 7. Atribuição a lugares
 

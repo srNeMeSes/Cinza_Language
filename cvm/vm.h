@@ -42,6 +42,8 @@ private:
 
     // Executa o protótipo `idx` com a janela em `base` até ele retornar
     Value execute(std::size_t idx, std::size_t base);
+    Value dispatch(std::size_t entrada);                          // laço de execução
+    bool  handle(const RuntimeError& err, std::size_t entrada);   // procura um tratador
 
     void ensure(std::size_t n) { if (regs.size() < n) regs.resize(n + n / 2 + 64); }
     std::vector<std::string> trace(int error_line) const;

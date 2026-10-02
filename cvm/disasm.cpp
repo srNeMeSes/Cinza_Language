@@ -95,6 +95,18 @@ std::string disassemble(const Image& img) {
                 case Op::KEEPLOCK: case Op::NEG:
                     ops = ra + ", " + rb;
                     break;
+                case Op::NEWERROR:
+                    ops = ra + ", " + displayName(p.consts[in.b].asString()) + ", " +
+                          (in.c == NO_REG ? std::string("-") : rc);
+                    break;
+                case Op::ERRFIELD: {
+                    static const char* const campos[] = {"kind", "message", "line", "column"};
+                    ops = ra + ", " + rb + "." + campos[in.c & 3];
+                    break;
+                }
+                case Op::THROW:
+                    ops = ra;
+                    break;
                 case Op::GETFIRST: case Op::GETSECOND:
                     ops = ra + ", " + rb;
                     break;
@@ -115,6 +127,13 @@ std::string disassemble(const Image& img) {
                 linha += "; " + nota;
             }
             out << linha << "\n";
+        }
+        if (!p.handlers.empty()) {
+            out << "  tratadores (mais interno primeiro):\n";
+            for (const Handler& h : p.handlers)
+                out << "    [" << pos4(h.start) << ", " << pos4(h.end) << ")  "
+                    << (h.kind.empty() ? std::string("qualquer") : displayName(h.kind))
+                    << " -> " << pos4(h.target) << ", erro em r" << h.reg << "\n";
         }
         out << "\n";
     }

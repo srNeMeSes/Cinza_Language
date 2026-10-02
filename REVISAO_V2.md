@@ -932,7 +932,15 @@ Etapas:
   > escritos como valor são constantes (`LOADK`); `TYPEOF`, `CAST` (conversões de/para op), `KEEPLOCK` e as
   > operações genéricas `ADD`...`LE`/`NEG` só para operandos op de tipo travado desconhecido. Suíte na CVM:
   > 359 de 393, sem divergência — as 34 restantes são todas exceções (etapa 7). Limpo sob ASan/UBSan.
-- [ ] 7. Exceções: `try`/`except`/`finally`/`throw`, stack trace, `StackOverflowError`.
+- [x] 7. Exceções: `try`/`except`/`finally`/`throw`, stack trace, `StackOverflowError`. — feito em 2026-10-02
+  > Nota: tabela de tratadores por protótipo (mais interno primeiro); um erro procura tratador do frame do erro
+  > para fora, limpando a janela de cada frame desempilhado. `finally` compilado UMA vez, com ação e valor
+  > pendentes e despacho no fim (decisão de 2026-10-02, desenho seção 6, no lugar da cópia com intervalos
+  > partidos). `NEWERROR`, `ERRFIELD`, `THROW` (relançar preserva tipo, posição e trace). O laço de despacho
+  > foi para `VM::dispatch`, separado do `try`/`catch` (`VM::handle`): sem isso as variáveis quentes iam para
+  > a memória e o `laco` piorava ~30%. Teste `cvm_finally` (try aninhados, break/continue/return por dois
+  > finally, erro no finally e no except, relançamento com trace). **Suíte inteira na CVM: 394 de 394**, sem
+  > divergência. Limpo sob ASan/UBSan.
 - [ ] 8. Módulos, `const` globais, funções nativas e biblioteca padrão.
 - [ ] 9. CVM como padrão, `--interp` para o interpretador; suíte nos dois modos; benchmark final.
 

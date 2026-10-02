@@ -69,6 +69,10 @@ namespace cinza::cvm {
     X(KEEPLOCK)   /* R[a] = R[b] mantendo o tipo travado de R[a]     */          \
     /* operações genéricas: operandos op<...> de tipo travado desconhecido */  \
     X(ADD) X(SUB) X(MUL) X(DIV) X(MOD) X(LT) X(LE) X(NEG)                       \
+    /* exceções */                                                              \
+    X(NEWERROR)   /* R[a] = erro de tipo K[b] com mensagem R[c] (c = sem: "") */ \
+    X(ERRFIELD)   /* R[a] = kind/message/line/column (c = 0..3) de R[b] */       \
+    X(THROW)      /* lança o erro R[a]                               */          \
     /* chamadas */                                                              \
     X(CALL)       /* R[a] = proto b(R[a] ... R[a+c-1])               */          \
     X(CALLNATIVE) /* R[a] = nativa b(R[a] ... R[a+c-1])              */          \
@@ -102,6 +106,18 @@ struct Instr {
 };
 static_assert(sizeof(Instr) == 8, "instrução da CVM tem 8 bytes");
 
+// Tratador de erro: um erro numa instrução de `start` a `end` (exclusive)
+// cujo tipo é `kind` (vazio: qualquer) vai para `target`, guardado em R[reg].
+// A tabela fica com o try mais interno primeiro.
+struct Handler {
+    std::uint32_t start  = 0;
+    std::uint32_t end    = 0;
+    std::uint32_t target = 0;
+    std::string   kind;
+    std::uint16_t reg    = 0;
+};
+inline constexpr std::uint16_t NO_REG = 0xFFFF;   // operando ausente (NEWERROR sem mensagem)
+
 // Função compilada (protótipo)
 struct Proto {
     std::string                 name;          // nome no stack trace (trace_name)
@@ -111,6 +127,7 @@ struct Proto {
     std::vector<Instr>          code;
     std::vector<SourceLocation> lines;         // origem de cada instrução (arquivo, linha, coluna)
     std::vector<Value>          consts;
+    std::vector<Handler>        handlers;
 
     // sem nome: inicialização de módulo ou de campos — não é uma chamada da
     // linguagem (fica fora do stack trace e do limite de profundidade)

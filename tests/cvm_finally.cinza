@@ -1,0 +1,105 @@
+// CVM etapa 7: casos difíceis do finally (desenho, seção 6) — try aninhados, break/continue/return
+// atravessando dois finally, erro dentro do finally e dentro do except, relançamento com o trace.
+error Falha;
+fn aninhado(int n) -> int {
+  try {
+    try {
+      if (n == 0) { return 10; }
+      if (n == 1) { throw Falha("um"); }
+    } finally {
+      print("finally de dentro", n);
+    }
+    return 20;
+  } except (Falha e) {
+    print("capturado:", e.message);
+    return 30;
+  } finally {
+    print("finally de fora", n);
+  }
+}
+fn laco() -> int {
+  int voltas = 0;
+  for (int i in range(0, 5)) {
+    try {
+      try {
+        if (i == 1) { continue; }
+        if (i == 3) { break; }
+        voltas += 1;
+      } finally {
+        print("dentro", i);
+      }
+    } finally {
+      print("fora", i);
+    }
+  }
+  return voltas;
+}
+fn erro_no_finally() {
+  try {
+    try {
+      print("corpo");
+    } finally {
+      throw Falha("do finally");
+    }
+  } except (Falha e) {
+    print("pegou", e.message, e.line);
+  }
+}
+fn erro_no_except() -> string {
+  try {
+    try {
+      throw ValueError("primeiro");
+    } except (ValueError e) {
+      throw Falha("do except");
+    } finally {
+      print("finally roda mesmo assim");
+    }
+  } except (Falha e) {
+    return e.kind + ": " + e.message;
+  }
+}
+fn fundo(int n) -> int {
+  if (n == 0) { throw Falha("lá do fundo"); }
+  return fundo(n - 1);
+}
+fn main() {
+  print(aninhado(0));
+  print(aninhado(1));
+  print(aninhado(2));
+  print(laco());
+  erro_no_finally();
+  print(erro_no_except());
+  try {
+    print(fundo(3));
+  } except (Falha e) {
+    print(e.kind, e.line);
+    throw e;
+  }
+}
+// expect: finally de dentro 0
+// expect: finally de fora 0
+// expect: 10
+// expect: finally de dentro 1
+// expect: capturado: um
+// expect: finally de fora 1
+// expect: 30
+// expect: finally de dentro 2
+// expect: finally de fora 2
+// expect: 20
+// expect: dentro 0
+// expect: fora 0
+// expect: dentro 1
+// expect: fora 1
+// expect: dentro 2
+// expect: fora 2
+// expect: dentro 3
+// expect: fora 3
+// expect: 2
+// expect: corpo
+// expect: pegou do finally 42
+// expect: finally roda mesmo assim
+// expect: Falha: do except
+// expect: Falha 62
+// expect-error: tests/cvm_finally.cinza:62:23: Falha: lá do fundo
+// expect-error:     em fundo (tests/cvm_finally.cinza:62)
+// expect-error:     em main (tests/cvm_finally.cinza:73)

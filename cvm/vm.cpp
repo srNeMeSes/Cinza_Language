@@ -77,6 +77,19 @@ Value VM::execute(std::size_t idx, std::size_t base) {
     frames.push_back(Frame{&img.protos[idx], 0, base, 0});
     if (!img.protos[idx].hidden()) ++depth;
 
+    for (;;) {
+        try {
+            return dispatch(entrada);
+        } catch (const RuntimeError& err) {
+            if (!handle(err, entrada)) throw;   // sem tratador até `entrada`: sobe
+            // tratado: o despacho recomeça no tratador
+        }
+    }
+}
+
+// Laço de despacho, num frame próprio de C++: as variáveis quentes (f, code,
+// R, K) não atravessam o catch, então o compilador as mantém em registradores
+Value VM::dispatch(std::size_t entrada) {
     Frame*       f    = &frames.back();
     const Instr* code = f->proto->code.data();
     Value*       R    = regs.data() + f->base;
@@ -90,8 +103,8 @@ Value VM::execute(std::size_t idx, std::size_t base) {
         K    = f->proto->consts.data();
     };
 
-    try {
-        for (;;) {
+    for (;;) {
+        {
             const Instr in = code[f->pc++];
             switch (in.op) {
                 // ── carga e movimento ────────────────────────────────────
@@ -313,6 +326,36 @@ Value VM::execute(std::size_t idx, std::size_t base) {
                 case Op::LE:  R[in.a] = applyBinaryOp(TokenType::OP_LESS_EQUAL, R[in.b], R[in.c]); break;
                 case Op::NEG: R[in.a] = negateOp(R[in.b]); break;
 
+                // ── exceções ─────────────────────────────────────────────
+                case Op::NEWERROR: {   // posição: a da criação (a da chamada Tipo(...))
+                    const SourceLocation& loc = f->proto->lines[f->pc - 1];
+                    auto ev     = std::make_shared<ErrorValue>();
+                    ev->kind    = K[in.b].asString();
+                    ev->message = in.c == NO_REG ? std::string() : R[in.c].asString();
+                    ev->line    = loc.line;
+                    ev->column  = loc.column;
+                    ev->file_id = loc.file_id;
+                    R[in.a] = Value(std::move(ev));
+                    break;
+                }
+                case Op::ERRFIELD: {
+                    const ErrorValue& ev = *R[in.b].asError();
+                    switch (in.c) {
+                        case 0:  R[in.a] = Value(displayName(ev.kind)); break;   // sem prefixo de módulo
+                        case 1:  R[in.a] = Value(ev.message); break;
+                        case 2:  R[in.a] = Value(ev.line); break;
+                        default: R[in.a] = Value(ev.column); break;
+                    }
+                    break;
+                }
+                case Op::THROW: {   // relançar preserva tipo, posição e stack trace
+                    const ErrorValue& ev = *R[in.a].asError();
+                    RuntimeError err(ev.kind, ev.message, static_cast<int>(ev.line),
+                                     static_cast<int>(ev.column), ev.file_id);
+                    err.trace = ev.trace;   // vazio num erro novo: o catch tira o trace de agora
+                    throw err;
+                }
+
                 // ── chamadas ─────────────────────────────────────────────
                 case Op::CALL: case Op::CALLIFACE: {
                     std::size_t idx = in.b;
@@ -368,20 +411,41 @@ Value VM::execute(std::size_t idx, std::size_t base) {
                     throw RuntimeError("Erro interno da CVM: instrução desconhecida");
             }
         }
-    } catch (const RuntimeError& err) {
-        // sem try/except ainda (etapa 7): o erro sobe para quem chamou a VM
-        const Frame topo = frames.back();
-        RuntimeError final = err;
-        try {
-            fail(err, topo);
-        } catch (const RuntimeError& e) {
-            final = e;
+    }
+}
+
+// Erro de runtime: completa posição e stack trace no ponto do erro e procura um
+// tratador, do frame do erro para fora; cada frame sem tratador é desempilhado
+// e tem a janela limpa. Devolve false se não houver tratador acima de
+// `entrada` (o erro já completo é lançado por handle).
+bool VM::handle(const RuntimeError& err, std::size_t entrada) {
+    RuntimeError e = err;
+    try {
+        fail(err, frames.back());
+    } catch (const RuntimeError& completo) {
+        e = completo;
+    }
+    for (;;) {
+        Frame& fr = frames.back();
+        const auto pc = static_cast<std::uint32_t>(fr.pc - 1);   // a instrução do erro / da chamada
+        for (const Handler& h : fr.proto->handlers) {
+            if (pc < h.start || pc >= h.end) continue;
+            if (!h.kind.empty() && h.kind != e.kind) continue;
+            auto ev     = std::make_shared<ErrorValue>();
+            ev->kind    = e.kind;
+            ev->message = e.message;
+            ev->line    = e.line;
+            ev->column  = e.column;
+            ev->trace   = e.trace;
+            ev->file_id = e.file_id;
+            regs[fr.base + h.reg] = Value(std::move(ev));
+            fr.pc = h.target;
+            return true;
         }
-        while (frames.size() > entrada) {
-            if (!frames.back().proto->hidden()) --depth;
-            frames.pop_back();
-        }
-        throw final;
+        for (std::size_t i = 0; i < fr.proto->num_regs; ++i) regs[fr.base + i] = Value();
+        if (!fr.proto->hidden()) --depth;
+        frames.pop_back();
+        if (frames.size() == entrada) throw e;
     }
 }
 
