@@ -868,6 +868,44 @@ Pontos que mudam a linguagem (aguardam decisão do autor):
 
 ---
 
+## F. CVM — máquina virtual da Cinza (alinhamento de 2026-10-02)
+
+Regras:
+
+1. A especificação (`spec/`) é a lei: mesmas saídas, erros, mensagens e stack trace do interpretador.
+   Diferença de comportamento entre os dois é defeito.
+2. O `make test` roda a suíte inteira (testes e exemplos da spec) no interpretador e na CVM; uma
+   etapa só fecha com tudo verde nos dois, também sob ASan/UBSan.
+3. Nada dinâmico: a CVM confia no semântico; instruções específicas por tipo; em runtime só as
+   conferências que a spec manda (overflow, índice, chave, divisão por zero, recursão).
+4. Reaproveita lexer, parser, semântico, `Value`, coleções, biblioteca padrão, coleta de ciclos e
+   diagnósticos; o novo é o compilador AST → bytecode e o laço de execução.
+5. Etapas pequenas, cada uma com testes, benchmark (`bench/`, contra o interpretador e o Python) e commit.
+6. Meta: pelo menos 2× mais rápida que o interpretador; mirar alcançar ou passar o Python em `fib` e no laço.
+
+Decisões do autor:
+
+- Arquitetura de **registradores** (como a VM do Lua 5), aproveitando os slots do B2.
+- A CVM vira o modo padrão quando estiver completa; o interpretador fica como **referência**
+  (opção `--interp`), e os testes rodam nos dois.
+- Bytecode **só em memória** por ora (formato de arquivo fica para quando estiver estável).
+- **Desmontador**: opção `--bytecode` mostra as instruções de cada função.
+
+Etapas:
+
+- [ ] 1. Desenho do conjunto de instruções e do formato das funções compiladas (registradores,
+      constantes, tabela de linhas para diagnósticos).
+- [ ] 2. Funções, chamadas, variáveis locais, aritmética e comparação; `--bytecode`.
+- [ ] 3. Controle de fluxo: `if`, `while`, `for`, `break`, `continue`, `return`.
+- [ ] 4. Coleções: `list`, `dict`, `pair`, literais, índices, métodos embutidos, `const`.
+- [ ] 5. `struct`, classes, `self`, campos, métodos, construtores.
+- [ ] 6. Interfaces, `enum`, `op<...>`, `type()`.
+- [ ] 7. Exceções: `try`/`except`/`finally`/`throw`, stack trace, `StackOverflowError`.
+- [ ] 8. Módulos, `const` globais, funções nativas e biblioteca padrão.
+- [ ] 9. CVM como padrão, `--interp` para o interpretador; suíte nos dois modos; benchmark final.
+
+---
+
 ## Registro de decisões
 
 | Data | Item | Decisão | Motivo |

@@ -1,0 +1,240 @@
+# CVM — desenho do conjunto de instruções
+
+Documento técnico da implementação (não é parte da especificação da linguagem: a `spec/` diz
+*o que* a Cinza faz; aqui está *como* a CVM faz). Decisões e regras: seção F do REVISAO_V2.md.
+
+## 1. Visão geral
+
+```
+fonte → Lexer → Parser → Semântico ─┬→ Executor (interpretador de referência, --interp)
+                                    └→ Compilador CVM → bytecode → VM (padrão)
+```
+
+O compilador CVM recebe a AST **já analisada** — tipos resolvidos, slots do B2, alvos de chamada,
+tabelas de interface, conversões inseridas — e gera uma função compilada (**protótipo**) para
+cada função, método, construtor e inicializador. A VM executa os protótipos sobre uma área única
+de registradores.
+
+## 2. Protótipo (função compilada)
+
+| Campo           | Conteúdo |
+|-----------------|----------|
+| `nome`          | nome no stack trace (`f`, `Classe.metodo`, `new Classe`) — o `trace_name` atual |
+| `num_params`    | parâmetros (num método e construtor, mais 1: o `self` em `r0`) |
+| `num_regs`      | registradores usados: parâmetros + locais (slots do B2) + temporários |
+| `code`          | as instruções |
+| `linhas`        | para cada instrução, o arquivo e a linha de origem (diagnósticos e stack trace) |
+| `constantes`    | valores usados pelas instruções: inteiros grandes, decimais, textos, valores de enum, tipos |
+| `tratadores`    | tabela de exceções (seção 6) |
+
+Tabelas globais da VM, referenciadas por índice nas instruções: protótipos, classes (com as
+tabelas de interface já montadas pelo semântico), structs, funções nativas e os slots dos `const`
+globais (o `GlobalLayout` do B2).
+
+## 3. Registradores e chamadas
+
+- Uma área contínua de `Value`. Cada chamada ocupa uma **janela**: `r0` é o primeiro registrador
+  da janela. Nada é alocado por chamada.
+- Ordem na janela: `self` (só em métodos, construtores e inicializadores), parâmetros, variáveis
+  locais (um registrador por slot do B2) e, acima delas, temporários alocados pelo compilador em
+  pilha.
+- **Convenção de chamada** (como no Lua): o chamador põe os argumentos em registradores
+  consecutivos `rA, rA+1, ...`; a janela do chamado **começa em `rA`**, então os argumentos já são
+  os parâmetros dele, sem cópia. O resultado volta em `rA`. O compilador garante que `rA` é o topo
+  dos temporários vivos (o que está acima pode ser sobrescrito pelo chamado).
+- Cada chamada soma um nível; acima de 2000, `StackOverflowError` (spec 5.8).
+- `Value` continua o mesmo do interpretador: copiar um registrador que guarda struct clona o
+  struct (cópia rasa), list/dict/objeto são compartilhados — a semântica da spec 5.1 vem de graça.
+
+## 4. Formato das instruções
+
+Tamanho fixo de 8 bytes: `op` e três operandos de 16 bits.
+
+```
+struct Instr { uint16_t op; uint16_t a; uint16_t b; uint16_t c; };
+```
+
+Operandos de 16 bits permitem até 65.535 registradores, constantes e entradas de tabela por
+função. Saltos e inteiros imediatos usam `b` e `c` juntos como um inteiro de 32 bits com sinal
+(`bc` abaixo). Notação: `R[x]` registrador, `K[x]` constante, `G[x]` slot global.
+
+## 5. Instruções
+
+### 5.1 Carga e movimento
+
+| Instrução               | Efeito |
+|-------------------------|--------|
+| `MOVE a b`              | `R[a] = R[b]` |
+| `LOADK a b`             | `R[a] = K[b]` |
+| `LOADINT a bc`          | `R[a] = bc` (inteiro de 32 bits) |
+| `LOADBOOL a b`          | `R[a] = (b != 0)` |
+| `GETGLOBAL a b`         | `R[a] = G[b]` |
+| `SETGLOBAL a b`         | `G[b] = R[a]` (só na avaliação dos `const`) |
+
+### 5.2 Aritmética e comparação (específicas por tipo)
+
+O semântico já inseriu as conversões (`int` → `decimal`); cada operação sabe o tipo dos
+operandos. As versões `_I` conferem overflow e divisão por zero, as `_D`, divisão por zero e
+resultado infinito (spec 5.3).
+
+| Instrução                                   | Efeito |
+|---------------------------------------------|--------|
+| `ADD_I a b c`, `SUB_I`, `MUL_I`, `DIV_I`, `MOD_I` | `R[a] = R[b] op R[c]` em `int` |
+| `ADD_D a b c`, `SUB_D`, `MUL_D`, `DIV_D`, `MOD_D` | idem em `decimal` |
+| `NEG_I a b`, `NEG_D a b`                    | `R[a] = -R[b]` |
+| `I2D a b`                                   | `R[a] = decimal(R[b])` |
+| `CONCAT a b c`                              | `R[a] = texto(R[b]) + texto(R[c])` (spec 5.4) |
+| `LT_I a b c`, `LE_I`, `LT_D`, `LE_D`, `LT_S`, `LE_S` | `R[a] = R[b] < R[c]` (ou `<=`); `>` e `>=` invertem os operandos |
+| `EQ a b c`, `NE a b c`                      | igualdade da spec 5.3 (valor, estrutural ou identidade) |
+| `NOT a b`                                   | `R[a] = !R[b]` |
+| `ADD a b c`, `SUB`, `MUL`, `DIV`, `MOD`, `NEG`, `LT`, `LE` | **genéricas**: decidem pelo tipo real dos valores. Só para operandos `op<...>` de tipo travado desconhecido (spec 3.7), onde o tipo varia em runtime mas o semântico garantiu que toda combinação é válida |
+
+`&&` e `||` não são instruções: viram saltos (curto-circuito).
+
+### 5.3 Saltos
+
+| Instrução               | Efeito |
+|-------------------------|--------|
+| `JMP bc`                | `pc += bc` |
+| `JMPIF a bc`            | se `R[a]`, `pc += bc` |
+| `JMPIFNOT a bc`         | se não `R[a]`, `pc += bc` |
+
+### 5.4 Laço `for`
+
+| Instrução               | Efeito |
+|-------------------------|--------|
+| `FORPREP a b`           | `R[a] =` cópia dos elementos de `R[b]` (lista: os elementos; dict: os pares em ordem de chave; string: os caracteres), `R[a+1] = 0` |
+| `FORNEXT a b bc`        | se `R[a+1] < tamanho`: `R[b] = R[a][R[a+1]]`, `R[a+1] += 1`; senão `pc += bc` (sai do laço) |
+| `FORNEXT_D a b bc`      | idem, convertendo o elemento para `decimal` (`for (decimal x in list<int>)`) |
+
+A cópia no `FORPREP` é a da spec 5.5 (alterar a coleção no corpo não muda as voltas).
+
+### 5.5 Funções e objetos
+
+| Instrução                  | Efeito |
+|----------------------------|--------|
+| `CALL a b c`               | chama o protótipo `b` com `c` argumentos em `R[a]...`; resultado em `R[a]` |
+| `CALLMETHOD a b c`         | idem para método: `R[a]` é o `self`, argumentos em `R[a+1]...` |
+| `CALLIFACE a b c`          | chamada pela interface `b`, método `c`: escolhe o protótipo pela classe de `R[a]` (tabela de interface); argumentos em `R[a+1]...` |
+| `CALLNATIVE a b c`         | nativa `b` com `c` argumentos em `R[a]...`; resultado em `R[a]` |
+| `TYPEOF a b c`             | `R[a] =` tipo real de `R[b]`, sendo `K[c]` o tipo estático (spec 3.9) |
+| `RET a` / `RETVOID`        | retorna `R[a]` / retorna sem valor |
+| `NEWOBJ a b`               | `R[a] =` novo objeto da classe `b` (campos ainda vazios) |
+| `INITOBJ a b`              | roda o inicializador de campos da classe `b` com `self = R[a]` |
+| `NEWSTRUCT a b c`          | `R[a] =` struct `b` com os campos `R[a+1]...R[a+c]` |
+| `GETFIELD a b c`, `SETFIELD a b c` | campo `c` do objeto ou struct: `R[a] = R[b].c` / `R[a].c = R[b]` |
+| `GETFIRST a b`, `GETSECOND a b` | campos de um `pair` |
+| `ERRFIELD a b c`           | `kind`, `message`, `line` ou `column` de um erro |
+
+**`new Classe(args)`** vira, nesta ordem (a do interpretador): argumentos em `R[a+1]...`,
+`NEWOBJ a`, `INITOBJ a`, `CALLMETHOD a <construtor> n`. Os campos de um struct com valores
+padrão (`new S()`) são calculados no próprio chamador, antes do `NEWSTRUCT`.
+
+### 5.6 Coleções
+
+| Instrução                                     | Efeito |
+|-----------------------------------------------|--------|
+| `NEWLIST a b c`                               | `R[a] =` lista com `R[b]...R[b+c-1]` |
+| `NEWDICT a b c`                               | `R[a] =` dict com `c` pares (chave, valor) a partir de `R[b]` |
+| `NEWPAIR a b c`                               | `R[a] = {R[b], R[c]}` |
+| `GETINDEX_L a b c`, `SETINDEX_L a b c`        | índice de lista (`IndexError`) |
+| `GETINDEX_D a b c`, `SETINDEX_D a b c`        | chave de dict (`KeyError`; o `SET` só atualiza) |
+| `LIST_ADD`, `LIST_REMOVE`, `LIST_SIZE`, `LIST_HAS` | métodos de `list` (spec 5.7) |
+| `DICT_ADD`, `DICT_REMOVE`, `DICT_SIZE`, `DICT_HAS`, `DICT_KEYS`, `DICT_VALUES` | métodos de `dict` |
+| `STR_SIZE a b`                                | `R[a] =` caracteres de `R[b]` |
+
+### 5.7 `op<...>` e exceções
+
+| Instrução               | Efeito |
+|-------------------------|--------|
+| `CAST a b c`            | conversão inserida pelo semântico de/para `op` (`K[c]` = tipo de destino; só `int` → `decimal` acontece de fato) |
+| `KEEPLOCK a b`          | atribuição a um `op` de tipo travado desconhecido: se `R[a]` guarda `decimal` e `R[b]` é `int`, converte; depois `R[a] = R[b]` |
+| `NEWERROR a b c`        | `R[a] =` erro do tipo `K[b]` com a mensagem `R[c]` |
+| `THROW a`               | lança o erro `R[a]` (relançar preserva posição e trace) |
+
+## 6. Exceções e `finally`
+
+Cada protótipo tem uma tabela de tratadores: `{início, fim, destino, tipo, registrador}` — "um
+erro nas instruções de *início* a *fim* cujo tipo é *tipo* (ou qualquer, para `Error`) vai para
+*destino*, com o erro guardado em *registrador*".
+
+Quando um erro acontece, a VM procura um tratador na função atual pela instrução corrente; se não
+houver, encerra a janela e procura na função de quem chamou, e assim por diante. Sem tratador em
+lugar nenhum, o erro termina o programa com o diagnóstico e o stack trace da spec 7.3. O `try`
+não custa nada quando não há erro.
+
+**`finally`** é compilado em linha em cada saída do bloco, como faz o compilador Java:
+
+- no fim normal do `try` e de cada `except`;
+- antes de cada `return`, `break` ou `continue` que saia do `try` ou de um `except` (o valor do
+  `return` é calculado antes e guardado num registrador);
+- num tratador extra que captura qualquer erro do `try` e dos `except`, roda o `finally` e relança
+  o erro.
+
+Isso reproduz a spec 5.6: o `finally` sempre roda, e depois o fluxo pendente continua.
+
+## 7. Atribuição a lugares
+
+`x = v` vira um `MOVE` (ou o cálculo direto em `R[x]`). Para campo e índice, o compilador segue a
+ordem da spec 5.2: avalia a base e os índices, depois o valor, e então grava.
+
+Struct é um valor: `l[0].x = 5` lê o struct de `l[0]` para um temporário, grava `x` nele e
+**devolve** o struct a `l[0]`. Como os índices já foram avaliados e nenhum código do programa roda
+entre ler e devolver, o efeito é idêntico à alteração no lugar feita pelo interpretador. Em níveis
+que são objetos ou coleções (referências), a gravação vai direto, sem devolução.
+
+`a op= b` avalia o lugar uma única vez (spec 5.2).
+
+## 8. Módulos e início do programa
+
+Cada módulo ganha um protótipo de inicialização com os `const` globais (`SETGLOBAL`). A VM roda
+os de todos os módulos na ordem topológica (spec 4.2) e depois chama a `main`, com `args` em `r0`
+se ela tiver o parâmetro. As constantes dos módulos nativos (`Math.pi`) já começam nos seus slots.
+
+## 9. Coleta de ciclos
+
+Os registradores guardam `Value`, então os objetos que eles seguram contam como referências
+externas para o coletor (gc.h). A coleta continua sendo disparada na criação de objetos
+(`NEWOBJ`), que é um ponto seguro: a VM não guarda ponteiros crus para dentro dos registradores
+ou dos contêineres entre instruções.
+
+## 10. Desmontador (`--bytecode`)
+
+Uma linha por instrução: posição, nome, operandos e, quando ajuda, um comentário.
+
+```cinza
+fn fib(int n) -> int {
+  if (n < 2) { return n; }
+  return fib(n - 1) + fib(n - 2);
+}
+```
+
+```
+fn fib  (1 parâmetro, 3 registradores)
+  0000  LOADINT    r1, 2
+  0001  LT_I       r1, r0, r1        ; n < 2
+  0002  JMPIFNOT   r1, -> 0004
+  0003  RET        r0
+  0004  LOADINT    r1, 1
+  0005  SUB_I      r1, r0, r1        ; n - 1
+  0006  CALL       r1, fib, 1        ; r1 = fib(n - 1)
+  0007  LOADINT    r2, 2
+  0008  SUB_I      r2, r0, r2        ; n - 2
+  0009  CALL       r2, fib, 1        ; r2 = fib(n - 2)
+  0010  ADD_I      r1, r1, r2
+  0011  RET        r1
+```
+
+São 12 instruções; o interpretador percorre, para a mesma função, cerca de 20 nós da AST por
+chamada, cada um com despacho, cópias de `Value` e montagem de frame.
+
+## 11. Otimizações previstas (depois de tudo funcionar)
+
+Só entram com o benchmark mostrando ganho e a suíte verde nos dois modos:
+
+- instruções com constante imediata (`ADDK_I r1, r0, 1`) e comparação-e-salto fundidos
+  (`JLT_I r0, r1, -> 0004`), que reduzem o número de instruções dos laços;
+- `for (int i in range(a, b))` sem criar a lista, quando `range` é a embutida (o resultado é o
+  mesmo: ela não tem efeito colateral);
+- registradores com `int`/`decimal` sem embrulho no `Value`, se a medição mostrar que o `Value`
+  pesa.
