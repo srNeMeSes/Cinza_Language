@@ -1,8 +1,10 @@
 #include "natives.h"
 #include "runtime_error.h"
 #include <algorithm>
+#include <cctype>
 #include <charconv>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -1003,57 +1005,157 @@ Value randChoice(Args a) {
 // Convert
 // ============================================================================
 
-// to_int(string): só sinal opcional e dígitos, sem espaços
-Value convToInt(Args a) {
-    const std::string& s = a[0].asString();
+// Leitura estrita de texto, comum a to_*, is_* e to_*_or (aceitam os mesmos textos)
+enum class Leitura { ok, invalido, fora };
+
+// int: só sinal opcional e dígitos, sem espaços
+Leitura lerInt(const std::string& s, std::int64_t& v) {
     const char* fim = s.data() + s.size();
     // from_chars aceita '-' mas não '+'; "+-5" não é válido
     const size_t pula = (!s.empty() && s[0] == '+') ? 1 : 0;
-    if (s.empty() || (pula && (s.size() == 1 || s[1] == '-')))
-        falha("ValueError: '" + s + "' não é um int válido");
-    std::int64_t v = 0;
+    if (s.empty() || (pula && (s.size() == 1 || s[1] == '-'))) return Leitura::invalido;
     auto [ptr, ec] = std::from_chars(s.data() + pula, fim, v);
-    if (ptr != fim || ec == std::errc::invalid_argument)
-        falha("ValueError: '" + s + "' não é um int válido");
-    if (ec == std::errc::result_out_of_range)
-        falha("ValueError: '" + s + "' está fora do intervalo de int");
-    return Value(v);
+    if (ptr != fim || ec == std::errc::invalid_argument) return Leitura::invalido;
+    if (ec == std::errc::result_out_of_range) return Leitura::fora;
+    return Leitura::ok;
 }
 
-// to_decimal(string): [sinal] dígitos [. dígitos] [e [sinal] dígitos]
-Value convToDecimal(Args a) {
-    const std::string& s = a[0].asString();
+// decimal: [sinal] dígitos [. dígitos] [e [sinal] dígitos]
+Leitura lerDecimal(const std::string& s, double& v) {
     size_t i = 0;
     auto digitos = [&]() {
         const size_t antes = i;
         while (i < s.size() && s[i] >= '0' && s[i] <= '9') ++i;
         return i > antes;
     };
-    bool ok = true;
     if (i < s.size() && (s[i] == '+' || s[i] == '-')) ++i;
-    ok = digitos();
+    bool ok = digitos();
     if (ok && i < s.size() && s[i] == '.') { ++i; ok = digitos(); }
     if (ok && i < s.size() && (s[i] == 'e' || s[i] == 'E')) {
         ++i;
         if (i < s.size() && (s[i] == '+' || s[i] == '-')) ++i;
         ok = digitos();
     }
-    if (!ok || i != s.size()) falha("ValueError: '" + s + "' não é um decimal válido");
+    if (!ok || i != s.size()) return Leitura::invalido;
     const char* ini = s.data() + (s[0] == '+' ? 1 : 0);
+    auto [ptr, ec] = std::from_chars(ini, s.data() + s.size(), v);
+    (void)ptr;
+    if (ec == std::errc::result_out_of_range) {
+        // from_chars não diz se estourou ou ficou pequeno demais (e não toca em
+        // v); strtod diz: grande demais é erro, pequeno demais vira 0
+        const double r = std::strtod(std::string(ini, s.data() + s.size()).c_str(), nullptr);
+        if (std::isinf(r)) return Leitura::fora;
+        v = 0.0;
+    }
+    return Leitura::ok;
+}
+
+// bool: só "true" ou "false"
+Leitura lerBool(const std::string& s, bool& v) {
+    if (s == "true")  { v = true;  return Leitura::ok; }
+    if (s == "false") { v = false; return Leitura::ok; }
+    return Leitura::invalido;
+}
+
+Value convToInt(Args a) {
+    const std::string& s = a[0].asString();
+    std::int64_t v = 0;
+    switch (lerInt(s, v)) {
+        case Leitura::invalido: falha("ValueError: '" + s + "' não é um int válido");
+        case Leitura::fora:     falha("ValueError: '" + s + "' está fora do intervalo de int");
+        case Leitura::ok:       break;
+    }
+    return Value(v);
+}
+
+Value convToDecimal(Args a) {
+    const std::string& s = a[0].asString();
     double v = 0;
-    std::from_chars(ini, s.data() + s.size(), v);
-    if (!std::isfinite(v)) falha("ValueError: '" + s + "' está fora do intervalo de decimal");
+    switch (lerDecimal(s, v)) {
+        case Leitura::invalido: falha("ValueError: '" + s + "' não é um decimal válido");
+        case Leitura::fora:     falha("ValueError: '" + s + "' está fora do intervalo de decimal");
+        case Leitura::ok:       break;
+    }
     return Value(v);
 }
 
 Value convToString(Args a) { return Value(a[0].toString()); }
 
-// to_bool(string): só "true" ou "false"
 Value convToBool(Args a) {
     const std::string& s = a[0].asString();
-    if (s == "true")  return Value(true);
-    if (s == "false") return Value(false);
-    falha("ValueError: '" + s + "' não é um bool válido (use \"true\" ou \"false\")");
+    bool v = false;
+    if (lerBool(s, v) != Leitura::ok)
+        falha("ValueError: '" + s + "' não é um bool válido (use \"true\" ou \"false\")");
+    return Value(v);
+}
+
+// is_*: o texto seria aceito pelo to_* correspondente
+Value convIsInt(Args a)     { std::int64_t v; return Value(lerInt(a[0].asString(), v) == Leitura::ok); }
+Value convIsDecimal(Args a) { double v;       return Value(lerDecimal(a[0].asString(), v) == Leitura::ok); }
+Value convIsBool(Args a)    { bool v;         return Value(lerBool(a[0].asString(), v) == Leitura::ok); }
+
+// to_*_or: o valor convertido, ou o padrão se o texto não for aceito
+Value convToIntOr(Args a) {
+    std::int64_t v;
+    return lerInt(a[0].asString(), v) == Leitura::ok ? Value(v) : a[1];
+}
+Value convToDecimalOr(Args a) {
+    double v;
+    return lerDecimal(a[0].asString(), v) == Leitura::ok ? Value(v) : a[1];
+}
+Value convToBoolOr(Args a) {
+    bool v;
+    return lerBool(a[0].asString(), v) == Leitura::ok ? Value(v) : a[1];
+}
+
+std::int64_t confereBase(std::int64_t base, const char* fn) {
+    if (base < 2 || base > 36)
+        falha(std::string("ValueError: a base de '") + fn + "' precisa estar entre 2 e 36 (recebeu " +
+              std::to_string(base) + ")");
+    return base;
+}
+
+// n na base dada, com dígitos 0-9 e a-z; negativo com '-'; sem prefixo
+std::string paraBase(std::int64_t n, std::int64_t base) {
+    std::uint64_t m = magnitude(n);
+    std::string r;
+    do {
+        r += "0123456789abcdefghijklmnopqrstuvwxyz"[m % static_cast<std::uint64_t>(base)];
+        m /= static_cast<std::uint64_t>(base);
+    } while (m != 0);
+    if (n < 0) r += '-';
+    std::reverse(r.begin(), r.end());
+    return r;
+}
+
+Value convToBase(Args a)   { return Value(paraBase(a[0].asInt(), confereBase(a[1].asInt(), "to_base"))); }
+Value convToHex(Args a)    { return Value(paraBase(a[0].asInt(), 16)); }
+Value convToBinary(Args a) { return Value(paraBase(a[0].asInt(), 2)); }
+Value convToOctal(Args a)  { return Value(paraBase(a[0].asInt(), 8)); }
+
+// from_base(s, base): sinal opcional e dígitos da base (maiúsculas ou minúsculas), sem prefixo
+Value convFromBase(Args a) {
+    const std::string& s = a[0].asString();
+    const auto base = static_cast<std::uint64_t>(confereBase(a[1].asInt(), "from_base"));
+    const std::string invalido = "ValueError: '" + s + "' não é um número válido na base " + std::to_string(base);
+    size_t i = 0;
+    const bool negativo = !s.empty() && s[0] == '-';
+    if (!s.empty() && (s[0] == '+' || s[0] == '-')) ++i;
+    if (i == s.size()) falha(invalido);
+    // limite da magnitude: 2^63 - 1, ou 2^63 para negativo
+    const std::uint64_t limite = static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()) + (negativo ? 1 : 0);
+    std::uint64_t m = 0;
+    for (; i < s.size(); ++i) {
+        const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(s[i])));
+        std::uint64_t d;
+        if (c >= '0' && c <= '9')      d = static_cast<std::uint64_t>(c - '0');
+        else if (c >= 'a' && c <= 'z') d = static_cast<std::uint64_t>(c - 'a' + 10);
+        else falha(invalido);
+        if (d >= base) falha(invalido);
+        if (__builtin_mul_overflow(m, base, &m) || __builtin_add_overflow(m, d, &m) || m > limite)
+            falha("ValueError: '" + s + "' está fora do intervalo de int");
+    }
+    return Value(negativo ? static_cast<std::int64_t>(std::uint64_t{0} - m) : static_cast<std::int64_t>(m));
 }
 
 // ============================================================================
@@ -1260,6 +1362,17 @@ std::vector<NativeModule> criaModulos() {
         {"to_decimal", {S},   D, convToDecimal},
         {"to_string",  {ANY}, S, convToString},
         {"to_bool",    {S},   B, convToBool},
+        {"is_int",        {S},    B, convIsInt},
+        {"is_decimal",    {S},    B, convIsDecimal},
+        {"is_bool",       {S},    B, convIsBool},
+        {"to_int_or",     {S, I}, I, convToIntOr},
+        {"to_decimal_or", {S, D}, D, convToDecimalOr},
+        {"to_bool_or",    {S, B}, B, convToBoolOr},
+        {"to_base",       {I, I}, S, convToBase},
+        {"from_base",     {S, I}, I, convFromBase},
+        {"to_hex",        {I},    S, convToHex},
+        {"to_binary",     {I},    S, convToBinary},
+        {"to_octal",      {I},    S, convToOctal},
     }, {}});
 
     m.push_back({"Lists", {

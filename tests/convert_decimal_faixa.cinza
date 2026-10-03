@@ -1,0 +1,13 @@
+// Convert.to_decimal: texto grande demais para decimal lança ValueError (antes devolvia 0 em
+// silêncio); pequeno demais vira 0, como num cálculo com decimal.
+import Convert as cv;
+fn main() {
+  try { print(cv.to_decimal("1e999")); } except (ValueError e) { print(e.message); }
+  try { print(cv.to_decimal("-1e400")); } except (ValueError e) { print(e.message); }
+  print(cv.to_decimal("1e-999"), cv.to_decimal("-1e-400"), cv.to_decimal("1e308") > 0);
+  print(cv.is_decimal("1e999"), cv.is_decimal("1e-999"), cv.to_decimal_or("1e999", -1));
+}
+// expect: '1e999' está fora do intervalo de decimal
+// expect: '-1e400' está fora do intervalo de decimal
+// expect: 0 0 true
+// expect: false true -1

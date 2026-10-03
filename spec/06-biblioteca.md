@@ -322,23 +322,48 @@ fn main() {
 
 ### `Convert`
 
+**Converter texto** — estrito: nada de espaços, vírgula decimal ou prefixos
+
 | Função | Descrição |
 |--------|-----------|
-| `to_int(string s) -> int` | sinal opcional (`+` ou `-`) seguido de dígitos, sem espaços; texto inválido ou fora da faixa de `int` lança `ValueError` |
-| `to_decimal(string s) -> decimal` | `[sinal] dígitos [. dígitos] [e [sinal] dígitos]`; texto inválido ou fora da faixa lança `ValueError` |
-| `to_string(T x) -> string` | a forma textual da seção 5.4 |
+| `to_int(string s) -> int` | sinal opcional (`+` ou `-`) seguido de dígitos; texto inválido ou fora da faixa de `int` lança `ValueError` |
+| `to_decimal(string s) -> decimal` | `[sinal] dígitos [. dígitos] [e [sinal] dígitos]`; texto inválido ou grande demais para `decimal` lança `ValueError`; pequeno demais vira `0` |
 | `to_bool(string s) -> bool` | só `"true"` ou `"false"`; outro texto lança `ValueError` |
+| `to_string(T x) -> string` | a forma textual da seção 5.4 |
 
-`to_decimal` aceita expoente (`"1e2"`), embora os literais da linguagem não aceitem.
+`to_decimal` aceita expoente (`"1e2"`), embora os literais da linguagem não aceitem. Para aceitar
+vírgula decimal, troque-a antes: `to_decimal(Strings.replace(s, ",", "."))`.
+
+**Validar e converter com padrão** — aceitam exatamente os mesmos textos que `to_int`,
+`to_decimal` e `to_bool`, sem lançar erro
+
+| Função | Descrição |
+|--------|-----------|
+| `is_int(string s) -> bool`, `is_decimal(...)`, `is_bool(...)` | `true` se o `to_*` correspondente aceitaria o texto |
+| `to_int_or(string s, int padrao) -> int` | o valor convertido, ou `padrao` se o texto não for aceito |
+| `to_decimal_or(string s, decimal padrao) -> decimal` | idem |
+| `to_bool_or(string s, bool padrao) -> bool` | idem |
+
+**Bases numéricas** — dígitos `0`–`9` e `a`–`z`, sem prefixo (`0x`, `0b`); negativo com `-`
+
+| Função | Descrição |
+|--------|-----------|
+| `to_base(int n, int base) -> string` | `n` na base dada, de 2 a 36 (senão `ValueError`), em minúsculas |
+| `to_hex(int n) -> string`, `to_binary(...)`, `to_octal(...)` | atalhos para as bases 16, 2 e 8 |
+| `from_base(string s, int base) -> int` | o inverso: sinal opcional e dígitos da base (maiúsculas ou minúsculas); dígito inválido ou fora da faixa de `int` lança `ValueError` |
 
 ```cinza
 import Convert as cv;
 fn main() {
   print(cv.to_int("42") + 1, cv.to_decimal("2.5"), cv.to_string(10) + "!", cv.to_bool("true"));
   try { print(cv.to_int("12a")); } except (ValueError e) { print(e.message); }
+  print(cv.is_int("12a"), cv.to_int_or("12a", 0), cv.to_int_or("12", 0));
+  print(cv.to_hex(255), cv.to_binary(5), cv.from_base("ff", 16), cv.to_base(35, 36));
 }
 // expect: 43 2.5 10! true
 // expect: '12a' não é um int válido
+// expect: false 0 12
+// expect: ff 101 255 z
 ```
 
 ### `Lists`

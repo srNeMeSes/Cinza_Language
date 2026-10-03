@@ -1,0 +1,22 @@
+// Convert: base fora de 2 a 36, dígito inválido para a base e estouro lançam ValueError.
+import Convert as cv;
+fn main() {
+  try { print(cv.to_base(10, 1)); } except (ValueError e) { print(e.message); }
+  try { print(cv.to_base(10, 37)); } except (ValueError e) { print(e.message); }
+  try { print(cv.from_base("10", 0)); } except (ValueError e) { print(e.message); }
+  try { print(cv.from_base("12", 2)); } except (ValueError e) { print(e.message); }
+  try { print(cv.from_base("0x1f", 16)); } except (ValueError e) { print(e.message); }
+  try { print(cv.from_base("", 10)); } except (ValueError e) { print(e.message); }
+  try { print(cv.from_base("-", 10)); } except (ValueError e) { print(e.message); }
+  try { print(cv.from_base("8000000000000000", 16)); } except (ValueError e) { print(e.message); }
+  try { print(cv.from_base("-8000000000000001", 16)); } except (ValueError e) { print(e.message); }
+}
+// expect: a base de 'to_base' precisa estar entre 2 e 36 (recebeu 1)
+// expect: a base de 'to_base' precisa estar entre 2 e 36 (recebeu 37)
+// expect: a base de 'from_base' precisa estar entre 2 e 36 (recebeu 0)
+// expect: '12' não é um número válido na base 2
+// expect: '0x1f' não é um número válido na base 16
+// expect: '' não é um número válido na base 10
+// expect: '-' não é um número válido na base 10
+// expect: '8000000000000000' está fora do intervalo de int
+// expect: '-8000000000000001' está fora do intervalo de int

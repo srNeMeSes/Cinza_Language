@@ -1019,7 +1019,14 @@ interpretador chamam as mesmas nativas).
   > auxiliar comum); `capitalize`, `title`; `is_empty`, `is_digit`, `is_alpha`, `is_alnum`, `is_space`,
   > `is_upper`, `is_lower`; `ord`, `chr`; `equals_ignore_case`, `compare`. Índices em caracteres.
   > Testes `strings_completo`, `strings_erros`. 410/410/410, limpo sob ASan/UBSan.
-- [ ] 4. `Convert`
+- [x] 4. `Convert` — feito em 2026-10-03
+  > Nota: de 4 para 15 funções: `is_int`, `is_decimal`, `is_bool`; `to_int_or`, `to_decimal_or`,
+  > `to_bool_or`; `to_base`, `from_base` (bases 2 a 36), `to_hex`, `to_binary`, `to_octal`. A leitura
+  > estrita virou auxiliar comum (`lerInt`/`lerDecimal`/`lerBool`), então `is_*`, `to_*_or` e `to_*`
+  > aceitam exatamente os mesmos textos. **Defeito corrigido:** `to_decimal("1e999")` devolvia `0` em
+  > silêncio (`from_chars` não toca no valor quando estoura); agora lança `ValueError`, e o pequeno
+  > demais (`"1e-999"`) vira `0`. Testes `convert_completo`, `convert_erros`, `convert_decimal_faixa`.
+  > 413/413/413, limpo sob ASan/UBSan.
 - [ ] 5. `Random`
 - [ ] 6. `Lists`
 - [ ] 7. `Time` (módulo novo; data de modificação de arquivo entra aqui)
@@ -1056,3 +1063,4 @@ interpretador chamam as mesmas nativas).
 | 2026-10-03 | G1 | `Files`: apagar o que não existe lança `IOError`; `copy`/`move` recebem `bool substituir` explícito; `delete_dir` só apaga pasta vazia e `delete_tree` apaga tudo; as funções de caminho ficam dentro de `Files`. | Decisão do autor da linguagem: nada falha em silêncio, e o perigo fica explícito na chamada. |
 | 2026-10-03 | G2 | `Math`: sem `inf`, `is_nan` e `is_inf` (a linguagem nunca produz infinito nem NaN); `min`/`max` continuam com 2 argumentos (máximo de lista vai para `Lists.max`); `round_to` só arredonda o valor (exibir `2.50` é formatação de texto, em `Strings`/`Convert`); `factorial` e `is_prime` entram. | Decisão do autor da linguagem. |
 | 2026-10-03 | G3 | `Strings`: casas fixas em `Strings.fixed(x, casas)`; sem `format` com marcadores (a concatenação já aceita primitivos); preenchimento de `pad_left`/`pad_right`/`center` opcional (espaço); sem `swap_case`. | Decisão do autor da linguagem. |
+| 2026-10-03 | G4 | `Convert`: validação (`is_*`) e conversão com padrão (`to_*_or`), as duas; bases com `to_base`/`from_base` e os atalhos `to_hex`/`to_binary`/`to_octal`; `to_decimal` só aceita ponto (vírgula: `Strings.replace` antes); sem conversão entre `bool` e `int`. | Decisão do autor da linguagem; `bool` e `int` continuam tipos distintos. |

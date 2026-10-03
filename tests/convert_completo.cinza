@@ -1,0 +1,27 @@
+// Convert: validar sem try (is_*), converter com padrão (to_*_or) e bases numéricas.
+// is_* e to_*_or aceitam exatamente os mesmos textos que to_*.
+import Convert as cv;
+fn main() {
+  print(cv.is_int("42"), cv.is_int("+7"), cv.is_int("-0"), cv.is_int(""), cv.is_int(" 1"), cv.is_int("1.0"), cv.is_int("99999999999999999999"));
+  print(cv.is_decimal("2.5"), cv.is_decimal("-3"), cv.is_decimal("1e3"), cv.is_decimal("2,5"), cv.is_decimal(".5"), cv.is_decimal("1e999"));
+  print(cv.is_bool("true"), cv.is_bool("false"), cv.is_bool("True"), cv.is_bool("1"));
+  print(cv.to_int_or("42", 0), cv.to_int_or("abc", -1), cv.to_int_or("99999999999999999999", 0));
+  decimal d = cv.to_decimal_or("x", 1);
+  print(cv.to_decimal_or("2.5", 0.0), d, type(d), cv.to_bool_or("false", true), cv.to_bool_or("sim", true));
+  // bases: dígitos minúsculos, sem prefixo; negativo com '-'
+  print(cv.to_hex(255), cv.to_binary(10), cv.to_octal(8), cv.to_base(35, 36), cv.to_base(0, 2), cv.to_hex(-255));
+  print(cv.to_hex(-9223372036854775807 - 1), cv.to_binary(9223372036854775807).size());
+  print(cv.from_base("ff", 16), cv.from_base("FF", 16), cv.from_base("-1010", 2), cv.from_base("+z", 36), cv.from_base("777", 8));
+  print(cv.from_base("-8000000000000000", 16), cv.from_base("7fffffffffffffff", 16));
+  print(cv.from_base(cv.to_base(123456789, 7), 7));
+}
+// expect: true true true false false false false
+// expect: true true true false false false
+// expect: true true false false
+// expect: 42 -1 0
+// expect: 2.5 1 decimal false true
+// expect: ff 1010 10 z 0 -ff
+// expect: -8000000000000000 63
+// expect: 255 255 -10 35 511
+// expect: -9223372036854775808 9223372036854775807
+// expect: 123456789
