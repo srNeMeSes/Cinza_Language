@@ -1,0 +1,34 @@
+// Lists: lista vazia, índice inválido, valor ausente e tamanhos diferentes lançam erro.
+import Lists as L;
+fn main() {
+  list<int> v;
+  try { print(L.min(v)); } except (ValueError e) { print(e.message); }
+  try { print(L.max(v)); } except (ValueError e) { print(e.message); }
+  try { print(L.average(v)); } except (ValueError e) { print(e.message); }
+  try { print(L.first(v)); } except (IndexError e) { print(e.message); }
+  try { print(L.last(v)); } except (IndexError e) { print(e.message); }
+  try { print(L.pop(v)); } except (IndexError e) { print(e.message); }
+  list<int> l = [1, 2];
+  try { L.insert(l, 3, 0); } except (IndexError e) { print(e.message); }
+  try { L.insert(l, -1, 0); } except (IndexError e) { print(e.message); }
+  try { L.swap(l, 0, 2); } except (IndexError e) { print(e.message); }
+  try { L.remove_value(l, 5); } except (ValueError e) { print(e.message); }
+  try { L.sort_by(l, ["a"]); } except (ValueError e) { print(e.message); }
+  try { print(L.repeat(1, -1)); } except (ValueError e) { print(e.message); }
+  try { print(L.product([9223372036854775807, 2])); } except (OverflowError e) { print(e.message); }
+  print(l);
+}
+// expect: 'min' de uma lista vazia
+// expect: 'max' de uma lista vazia
+// expect: 'average' de uma lista vazia
+// expect: 'first' de uma lista vazia
+// expect: 'last' de uma lista vazia
+// expect: 'pop' de uma lista vazia
+// expect: índice 3 fora dos limites de uma lista de tamanho 2
+// expect: índice -1 fora dos limites de uma lista de tamanho 2
+// expect: índice 2 fora dos limites de uma lista de tamanho 2
+// expect: 'remove_value': 5 não está na lista
+// expect: 'sort_by' precisa de uma chave por elemento (lista de tamanho 2, 1 chaves)
+// expect: a quantidade de 'repeat' não pode ser negativa
+// expect: o produto de 'product' não cabe em int
+// expect: [1, 2]

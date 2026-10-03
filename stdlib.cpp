@@ -10,6 +10,7 @@
 #include <fstream>
 #include <limits>
 #include <random>
+#include <set>
 #include <sstream>
 
 namespace cinza {
@@ -1293,6 +1294,208 @@ Value listSum(Args a) {
     return Value(total);
 }
 
+Value listSortDesc(Args a) {
+    auto& elems = a[0].asList()->elements;
+    std::stable_sort(elems.begin(), elems.end(), [](const Value& x, const Value& y) { return menor(y, x); });
+    return Value();
+}
+
+// sort_by(l, chaves): ordena l pela chave de mesma posição (estável); as chaves
+// são reorganizadas junto
+Value listSortBy(Args a) {
+    auto& elems  = a[0].asList()->elements;
+    auto& chaves = a[1].asList()->elements;
+    if (elems.size() != chaves.size())
+        falha("ValueError: 'sort_by' precisa de uma chave por elemento (lista de tamanho " +
+              std::to_string(elems.size()) + ", " + std::to_string(chaves.size()) + " chaves)");
+    std::vector<size_t> ordem(elems.size());
+    for (size_t i = 0; i < ordem.size(); ++i) ordem[i] = i;
+    std::stable_sort(ordem.begin(), ordem.end(),
+                     [&](size_t x, size_t y) { return menor(chaves[x], chaves[y]); });
+    std::vector<Value> e2, c2;
+    e2.reserve(ordem.size());
+    c2.reserve(ordem.size());
+    for (size_t i : ordem) { e2.push_back(elems[i]); c2.push_back(chaves[i]); }
+    // mesma lista nos dois argumentos: elems e chaves são o mesmo vetor
+    elems = std::move(e2);
+    if (&elems != &chaves) chaves = std::move(c2);
+    return Value();
+}
+
+Value listSorted(Args a) {
+    std::vector<Value> out = a[0].asList()->elements;
+    std::stable_sort(out.begin(), out.end(), menor);
+    return makeList(std::move(out));
+}
+
+Value listReversed(Args a) {
+    const auto& elems = a[0].asList()->elements;
+    return makeList(std::vector<Value>(elems.rbegin(), elems.rend()));
+}
+
+const std::vector<Value>& naoVazia(Args a, const char* fn) {
+    const auto& elems = a[0].asList()->elements;
+    if (elems.empty()) falha(std::string("ValueError: '") + fn + "' de uma lista vazia");
+    return elems;
+}
+
+Value listMin(Args a) {
+    const auto& elems = naoVazia(a, "min");
+    return *std::min_element(elems.begin(), elems.end(), menor);
+}
+Value listMax(Args a) {
+    const auto& elems = naoVazia(a, "max");
+    // o primeiro dos maiores, como min
+    return *std::max_element(elems.begin(), elems.end(), menor);
+}
+
+// average: sempre decimal
+Value listAverage(Args a) {
+    const auto& elems = naoVazia(a, "average");
+    double total = 0;
+    for (const auto& v : elems) total += numero(v);
+    return decimalFinito(total / static_cast<double>(elems.size()), "average");
+}
+
+// product: lista vazia dá 1; estouro lança OverflowError
+Value listProduct(Args a) {
+    const auto& elems = a[0].asList()->elements;
+    if (!elems.empty() && elems[0].kind() == Value::Kind::DECIMAL) {
+        double total = 1;
+        for (const auto& v : elems) total *= v.asDecimal();
+        if (!std::isfinite(total)) falha("OverflowError: o produto de 'product' excede a faixa de decimal");
+        return Value(total);
+    }
+    std::int64_t total = 1;
+    for (const auto& v : elems)
+        if (__builtin_mul_overflow(total, v.asInt(), &total))
+            falha("OverflowError: o produto de 'product' não cabe em int");
+    return Value(total);
+}
+
+Value listCount(Args a) {
+    const auto& elems = a[0].asList()->elements;
+    return Value(static_cast<std::int64_t>(std::count(elems.begin(), elems.end(), a[1])));
+}
+
+Value listLastIndexOf(Args a) {
+    const auto& elems = a[0].asList()->elements;
+    for (size_t i = elems.size(); i > 0; --i)
+        if (elems[i - 1] == a[1]) return Value(static_cast<std::int64_t>(i - 1));
+    return Value(std::int64_t{-1});
+}
+
+Value listFirst(Args a) {
+    const auto& elems = a[0].asList()->elements;
+    if (elems.empty()) falha("IndexError: 'first' de uma lista vazia");
+    return elems.front();
+}
+Value listLast(Args a) {
+    const auto& elems = a[0].asList()->elements;
+    if (elems.empty()) falha("IndexError: 'last' de uma lista vazia");
+    return elems.back();
+}
+
+Value listIsEmpty(Args a) { return Value(a[0].asList()->elements.empty()); }
+
+std::string foraDosLimites(std::int64_t i, size_t n) {
+    return "IndexError: índice " + std::to_string(i) + " fora dos limites de uma lista de tamanho " +
+           std::to_string(n);
+}
+
+// insert(l, i, x): i de 0 ao tamanho (no fim = acrescentar)
+Value listInsert(Args a) {
+    auto& elems = a[0].asList()->elements;
+    const std::int64_t i = a[1].asInt();
+    if (i < 0 || i > static_cast<std::int64_t>(elems.size())) falha(foraDosLimites(i, elems.size()));
+    Value x = a[2];   // cópia antes de mexer no vetor (x pode ser elemento dele)
+    elems.insert(elems.begin() + i, std::move(x));
+    return Value();
+}
+
+// pop(l): remove e devolve o último
+Value listPop(Args a) {
+    auto& elems = a[0].asList()->elements;
+    if (elems.empty()) falha("IndexError: 'pop' de uma lista vazia");
+    Value v = std::move(elems.back());
+    elems.pop_back();
+    return v;
+}
+
+// remove_value(l, x): remove a primeira ocorrência; ausente lança ValueError
+Value listRemoveValue(Args a) {
+    auto& elems = a[0].asList()->elements;
+    auto it = std::find(elems.begin(), elems.end(), a[1]);
+    if (it == elems.end()) falha("ValueError: 'remove_value': " + a[1].toString() + " não está na lista");
+    elems.erase(it);
+    return Value();
+}
+
+Value listClear(Args a) {
+    a[0].asList()->elements.clear();
+    return Value();
+}
+
+// extend(l, outra): acrescenta os elementos de outra ao fim de l
+Value listExtend(Args a) {
+    auto& elems = a[0].asList()->elements;
+    const std::vector<Value> outra = a[1].asList()->elements;   // cópia: outra pode ser l
+    elems.insert(elems.end(), outra.begin(), outra.end());
+    return Value();
+}
+
+Value listSwap(Args a) {
+    auto& elems = a[0].asList()->elements;
+    const std::int64_t i = a[1].asInt(), j = a[2].asInt();
+    const auto n = static_cast<std::int64_t>(elems.size());
+    if (i < 0 || i >= n) falha(foraDosLimites(i, elems.size()));
+    if (j < 0 || j >= n) falha(foraDosLimites(j, elems.size()));
+    std::swap(elems[static_cast<size_t>(i)], elems[static_cast<size_t>(j)]);
+    return Value();
+}
+
+Value listConcat(Args a) {
+    std::vector<Value> out = a[0].asList()->elements;
+    const auto& b = a[1].asList()->elements;
+    out.insert(out.end(), b.begin(), b.end());
+    return makeList(std::move(out));
+}
+
+// Tipos em que operator< é uma ordem total (os demais são comparados com ==)
+bool ordenavel(const Value& v) {
+    switch (v.kind()) {
+        case Value::Kind::INT: case Value::Kind::DECIMAL: case Value::Kind::STRING:
+        case Value::Kind::BOOL: case Value::Kind::ENUM:
+            return true;
+        default:
+            return false;
+    }
+}
+
+// unique: sem repetidos, mantendo a primeira ocorrência e a ordem
+Value listUnique(Args a) {
+    const auto& elems = a[0].asList()->elements;
+    std::vector<Value> out;
+    const bool rapido = std::all_of(elems.begin(), elems.end(), ordenavel);
+    std::set<Value> vistos;
+    for (const auto& v : elems) {
+        if (rapido) { if (!vistos.insert(v).second) continue; }
+        else if (std::find(out.begin(), out.end(), v) != out.end()) continue;
+        out.push_back(v);
+    }
+    return makeList(std::move(out));
+}
+
+// repeat(x, n): lista com n cópias de x (cópia rasa, como a atribuição)
+Value listRepeat(Args a) {
+    const std::int64_t n = a[1].asInt();
+    if (n < 0) falha("ValueError: a quantidade de 'repeat' não pode ser negativa");
+    if (n > 100'000'000) falha("ValueError: 'repeat' de mais de 100 milhões de elementos");
+    return makeList(std::vector<Value>(static_cast<size_t>(n), a[0]));
+}
+
+Value listCopy(Args a) { return makeList(std::vector<Value>(a[0].asList()->elements)); }
+
 std::vector<NativeModule> criaModulos() {
     auto& t = TypeContext::instance();
     const TypeRef I = t.intType(), D = t.decimalType(), S = t.stringType(),
@@ -1461,6 +1664,29 @@ std::vector<NativeModule> criaModulos() {
         {"index_of", {t.list(T), T},    I,         listIndexOf},
         {"slice",    {t.list(T), I, I}, t.list(T), listSlice},
         {"sum",      {t.list(N)},       N,         listSum},
+        {"sort_desc",     {t.list(C)},             V,         listSortDesc,    0, false, 1},
+        {"sort_by",       {t.list(T), t.list(C)},  V,         listSortBy,      0, false, 3},
+        {"sorted",        {t.list(C)},             t.list(C), listSorted},
+        {"reversed",      {t.list(T)},             t.list(T), listReversed},
+        {"min",           {t.list(C)},             C,         listMin},
+        {"max",           {t.list(C)},             C,         listMax},
+        {"average",       {t.list(N)},             D,         listAverage},
+        {"product",       {t.list(N)},             N,         listProduct},
+        {"count",         {t.list(T), T},          I,         listCount},
+        {"last_index_of", {t.list(T), T},          I,         listLastIndexOf},
+        {"first",         {t.list(T)},             T,         listFirst},
+        {"last",          {t.list(T)},             T,         listLast},
+        {"is_empty",      {t.list(T)},             B,         listIsEmpty},
+        {"insert",        {t.list(T), I, T},       V,         listInsert,      0, false, 1},
+        {"pop",           {t.list(T)},             T,         listPop,         0, false, 1},
+        {"remove_value",  {t.list(T), T},          V,         listRemoveValue, 0, false, 1},
+        {"clear",         {t.list(T)},             V,         listClear,       0, false, 1},
+        {"extend",        {t.list(T), t.list(T)},  V,         listExtend,      0, false, 1},
+        {"swap",          {t.list(T), I, I},       V,         listSwap,        0, false, 1},
+        {"concat",        {t.list(T), t.list(T)},  t.list(T), listConcat},
+        {"unique",        {t.list(T)},             t.list(T), listUnique},
+        {"repeat",        {T, I},                  t.list(T), listRepeat},
+        {"copy",          {t.list(T)},             t.list(T), listCopy},
     }, {}});
 
     return m;

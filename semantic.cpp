@@ -2407,16 +2407,16 @@ TypeRef SemanticAnalyzer::analyzeNativeCall(CallExpr* expr, const NativeFn& fn) 
             coerceInPlace(expr->arguments[i], concreto);
     }
 
-    // op<...>: nem coleção de op com tipo travado desconhecido
-    if (fn.mutates_first && n > 0 &&
-        TypeChecker::containsOp(expr->arguments[0]->resolved_type))
-        throwError(readOnlyMessage(expr->arguments[0]->resolved_type), expr->token);
-
-    // Fase 7: nativa que altera o 1º argumento (Lists.sort) não aceita const
-    if (fn.mutates_first && n > 0)
-        if (const Symbol* root = constRoot(expr->arguments[0].get()))
+    // Fase 7: nativa que altera um argumento (Lists.sort, Lists.sort_by) não aceita
+    // const nem coleção de op com tipo travado desconhecido
+    for (size_t i = 0; i < n && i < 32; ++i) {
+        if (!(fn.mutates & (1u << i))) continue;
+        if (TypeChecker::containsOp(expr->arguments[i]->resolved_type))
+            throwError(readOnlyMessage(expr->arguments[i]->resolved_type), expr->token);
+        if (const Symbol* root = constRoot(expr->arguments[i].get()))
             throwError("'" + nome + "' altera a lista, mas '" + root->name + "' é const. "
                        "Listas const não podem ser modificadas.", expr->token);
+    }
 
     TypeRef ret = substitute(fn.ret, binds);
     if (!ret) throwError("Erro interno: retorno de '" + nome + "' ficou sem tipo", expr->token);

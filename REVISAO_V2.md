@@ -1033,7 +1033,15 @@ interpretador chamam as mesmas nativas).
   > `k` = 0 dá `[]` mesmo com lista vazia. Testes por propriedade (a sequência não é especificada):
   > `random_completo`, `random_erros`, `random_shuffle_const`. 416/416/416, limpo sob ASan/UBSan
   > (que usa outra biblioteca C++ e outra sequência — os testes não dependem dela).
-- [ ] 6. `Lists`
+- [x] 6. `Lists` — feito em 2026-10-03
+  > Nota: de 6 para 29 funções: `sort_desc`, `sort_by` (ordena por lista de chaves paralela — a forma
+  > estática de ordenar objetos e structs, sem closures), `sorted`, `reversed`; `min`, `max`,
+  > `average`, `product`; `count`, `last_index_of`, `first`, `last`, `is_empty`; `insert`, `pop`,
+  > `remove_value`, `clear`, `extend`, `swap`; `concat`, `unique`, `repeat`, `copy`. O campo
+  > `mutates_first` das nativas virou a máscara `mutates` (um bit por argumento), porque `sort_by` altera
+  > também as chaves: `const` e coleção de `op` desconhecido são barrados em cada argumento alterado.
+  > Testes `lists_completo`, `lists_erros`, `lists_sort_by_const`, `lists_insert_const`. 420/420/420,
+  > limpo sob ASan/UBSan.
 - [ ] 7. `Time` (módulo novo; data de modificação de arquivo entra aqui)
 
 ---
@@ -1070,3 +1078,4 @@ interpretador chamam as mesmas nativas).
 | 2026-10-03 | G3 | `Strings`: casas fixas em `Strings.fixed(x, casas)`; sem `format` com marcadores (a concatenação já aceita primitivos); preenchimento de `pad_left`/`pad_right`/`center` opcional (espaço); sem `swap_case`. | Decisão do autor da linguagem. |
 | 2026-10-03 | G4 | `Convert`: validação (`is_*`) e conversão com padrão (`to_*_or`), as duas; bases com `to_base`/`from_base` e os atalhos `to_hex`/`to_binary`/`to_octal`; `to_decimal` só aceita ponto (vírgula: `Strings.replace` antes); sem conversão entre `bool` e `int`. | Decisão do autor da linguagem; `bool` e `int` continuam tipos distintos. |
 | 2026-10-03 | G5 | `Random`: decimal num intervalo é `decimal_range(a, b)`; sem `weighted`; `sample`/`choices` com `k` = 0 dão `[]`, mesmo com lista vazia. | Decisão do autor da linguagem. |
+| 2026-10-03 | G6 | `Lists`: objetos se ordenam com `sort_by(l, chaves)` (chaves paralelas, reorganizadas junto); as funções que alteram a lista ficam no módulo (os métodos continuam só `size`/`add`/`remove`/`has`); `remove_value` de valor ausente lança `ValueError`; `sorted`/`reversed` devolvem cópias. | Decisão do autor da linguagem; ordenar sem closures nem genéricos, com tipagem estática. |

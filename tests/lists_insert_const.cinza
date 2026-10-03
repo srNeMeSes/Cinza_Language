@@ -1,0 +1,7 @@
+﻿// Funções de Lists que alteram a lista (insert, pop, clear...) não aceitam lista const.
+import Lists as L;
+fn main() {
+  const list<int> l = [1, 2];
+  L.insert(l, 0, 5);
+}
+// expect-error: 'Lists.insert' altera a lista, mas 'l' é const

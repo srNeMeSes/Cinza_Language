@@ -377,16 +377,67 @@ fn main() {
 
 ### `Lists`
 
+"Igual" é a igualdade `==` (seção 5.3). Os métodos `l.size()`, `l.add(x)`, `l.remove(i)` e
+`l.has(i)` continuam na própria lista (seção 5.7).
+
+**Ordenar** — sempre estável (elementos de mesma chave mantêm a ordem relativa)
+
 | Função | Descrição |
 |--------|-----------|
-| `sort(list<comparável> l)` | ordena `l` no lugar, em ordem crescente (estável) |
+| `sort(list<comparável> l)` | ordena `l` no lugar, em ordem crescente |
+| `sort_desc(list<comparável> l)` | idem, em ordem decrescente |
+| `sort_by(list<T> l, list<comparável> chaves)` | ordena `l` no lugar pela chave da **mesma posição**; as chaves são reorganizadas junto; tamanhos diferentes lançam `ValueError` |
+| `sorted(list<comparável> l) -> list<comparável>` | **nova** lista ordenada; `l` não muda |
 | `reverse(list<T> l)` | inverte `l` no lugar |
+| `reversed(list<T> l) -> list<T>` | **nova** lista invertida; `l` não muda |
+
+`sort_by` é a forma de ordenar objetos e structs: monte a lista de chaves com um laço.
+
+**Estatística**
+
+| Função | Descrição |
+|--------|-----------|
+| `sum(list<número> l) -> número` | soma; lista vazia dá `0`; estouro lança `OverflowError` |
+| `product(list<número> l) -> número` | produto; lista vazia dá `1`; estouro lança `OverflowError` |
+| `average(list<número> l) -> decimal` | média |
+| `min(list<comparável> l) -> comparável`, `max(...)` | o menor / o maior (o primeiro, se houver empate) |
+
+`average`, `min` e `max` de uma lista vazia lançam `ValueError`.
+
+**Buscar**
+
+| Função | Descrição |
+|--------|-----------|
 | `contains(list<T> l, T x) -> bool` | `true` se algum elemento é igual a `x` |
 | `index_of(list<T> l, T x) -> int` | índice do primeiro elemento igual a `x`, ou `-1` |
-| `slice(list<T> l, int ini, int fim) -> list<T>` | **nova** lista com os elementos de `ini` até `fim` (exclusive); exige `0 ≤ ini ≤ fim ≤ tamanho` (senão `IndexError`) |
-| `sum(list<número> l) -> número` | soma; lista vazia dá `0`; estouro lança `OverflowError` |
+| `last_index_of(list<T> l, T x) -> int` | índice do último, ou `-1` |
+| `count(list<T> l, T x) -> int` | quantos elementos são iguais a `x` |
+| `first(list<T> l) -> T`, `last(...)` | o primeiro / o último elemento; lista vazia lança `IndexError` |
+| `is_empty(list<T> l) -> bool` | `true` se não tem elementos |
 
-`sort` e `reverse` alteram a lista: são erro numa lista `const` e numa coleção de `op` de tipo
+**Alterar no lugar**
+
+| Função | Descrição |
+|--------|-----------|
+| `insert(list<T> l, int i, T x)` | insere `x` na posição `i`, de `0` ao tamanho (no tamanho = acrescentar); senão `IndexError` |
+| `pop(list<T> l) -> T` | remove e devolve o último; lista vazia lança `IndexError` |
+| `remove_value(list<T> l, T x)` | remove o primeiro elemento igual a `x`; ausente lança `ValueError` |
+| `clear(list<T> l)` | remove todos os elementos |
+| `extend(list<T> l, list<T> outra)` | acrescenta os elementos de `outra` ao fim de `l` (`outra` pode ser `l`) |
+| `swap(list<T> l, int i, int j)` | troca dois elementos de lugar (`IndexError` se um índice for inválido) |
+
+**Listas novas** — a original não muda
+
+| Função | Descrição |
+|--------|-----------|
+| `slice(list<T> l, int ini, int fim) -> list<T>` | os elementos de `ini` até `fim` (exclusive); exige `0 ≤ ini ≤ fim ≤ tamanho` (senão `IndexError`) |
+| `concat(list<T> a, list<T> b) -> list<T>` | os elementos de `a` seguidos dos de `b` |
+| `copy(list<T> l) -> list<T>` | uma cópia (rasa: objetos dentro continuam compartilhados; structs, como sempre, são valores) |
+| `unique(list<T> l) -> list<T>` | sem repetidos, mantendo a primeira ocorrência e a ordem |
+| `repeat(T x, int n) -> list<T>` | `n` cópias de `x`; `n` negativo, ou acima de 100 milhões, lança `ValueError` |
+
+As funções que alteram a lista (`sort`, `sort_desc`, `reverse`, as de "alterar no lugar" e, em
+`sort_by`, também as chaves) são erro numa lista `const` e numa coleção de `op` de tipo
 desconhecido (seção 3.7).
 
 ```cinza
@@ -397,7 +448,14 @@ fn main() {
   print(n, L.contains(n, 9), L.index_of(n, 5), L.slice(n, 1, 3), L.sum(n));
   L.reverse(n);
   print(n);
+  print(L.max(n), L.average(n), L.unique([1, 2, 1]), L.repeat("-", 3));
+  list<string> nomes = ["Caio", "Ana", "Bia"];
+  list<int> idades = [30, 25, 18];
+  L.sort_by(nomes, idades);
+  print(nomes, idades);
 }
 // expect: [1, 3, 5, 9] true 2 [3, 5] 18
 // expect: [9, 5, 3, 1]
+// expect: 9 4.5 [1, 2] ["-", "-", "-"]
+// expect: ["Bia", "Ana", "Caio"] [18, 25, 30]
 ```

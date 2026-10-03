@@ -1,0 +1,82 @@
+// Lists: ordem (inclusive de objetos por chaves), estatística, busca, alteração no lugar e listas novas.
+import Lists as L;
+struct Ponto { int x = 0; int y = 0; }
+class Pessoa {
+  string nome = "";
+  int idade = 0;
+  pub {
+    Pessoa(string n, int i) { nome = n; idade = i; }
+    fn get_nome() -> string { return nome; }
+    fn get_idade() -> int { return idade; }
+  }
+}
+fn main() {
+  list<int> n = [5, 3, 9, 1, 3];
+  L.sort_desc(n);
+  print(n, L.sorted([3, 1, 2]), L.reversed(["a", "b", "c"]), L.sorted(["b", "A", "a"]));
+  // sort_by: estável; as chaves vão junto
+  list<Pessoa> p = [new Pessoa("Ana", 30), new Pessoa("Bia", 25), new Pessoa("Caio", 30), new Pessoa("Duda", 18)];
+  list<int> idades;
+  for (Pessoa x in p) { idades.add(x.get_idade()); }
+  L.sort_by(p, idades);
+  string nomes = "";
+  for (Pessoa x in p) { nomes += x.get_nome() + " "; }
+  print(nomes, idades);
+  list<string> por_nome = ["c", "a", "b"];
+  list<string> ks = ["3", "1", "2"];
+  L.sort_by(por_nome, ks);
+  print(por_nome, ks);
+  // estatística
+  print(L.min([4, -2, 7]), L.max([4, -2, 7]), L.min(["pera", "uva", "abacaxi"]), L.max([1.5, 2.5]));
+  print(L.average([1, 2, 3, 4]), L.average([2.5]), L.product([2, 3, 4]), L.product([1.5, 2.0]));
+  list<int> vazia;
+  list<decimal> vaziad;
+  print(L.product(vazia), L.product(vaziad) + 0.5);
+  // busca
+  print(L.count([1, 2, 1, 1], 1), L.count(["a"], "b"), L.last_index_of([1, 2, 1], 1), L.last_index_of([1], 5));
+  print(L.first([7, 8, 9]), L.last([7, 8, 9]), L.is_empty(vazia), L.is_empty([0]));
+  // alterar no lugar
+  list<string> l = ["b", "d"];
+  L.insert(l, 0, "a");
+  L.insert(l, 2, "c");
+  L.insert(l, 4, "e");
+  print(l);
+  print(L.pop(l), l);
+  L.remove_value(l, "c");
+  L.swap(l, 0, 2);
+  print(l);
+  L.extend(l, ["x", "y"]);
+  L.extend(l, l);
+  print(l, l.size());
+  L.clear(l);
+  print(l, l.size());
+  // listas novas (as originais não mudam)
+  list<int> a = [1, 2];
+  list<int> b = L.concat(a, [3]);
+  list<int> c = L.copy(a);
+  c.add(99);
+  print(a, b, c, L.unique([3, 1, 3, 2, 1]), L.unique(["a", "a"]), L.repeat(0, 4), L.repeat("-", 0));
+  print(L.unique([[1], [2], [1]]), L.unique([1, 1.0, 2]));
+  // struct continua valor: repetir e copiar não cria apelidos
+  list<Ponto> pts = L.repeat(new Ponto(1, 1), 3);
+  pts[0].x = 9;
+  list<Ponto> pts2 = L.copy(pts);
+  pts2[1].y = 5;
+  print(pts[0].x, pts[1].x, pts[1].y, pts2[1].y);
+}
+// expect: [9, 5, 3, 3, 1] [1, 2, 3] ["c", "b", "a"] ["A", "a", "b"]
+// expect: Duda Bia Ana Caio  [18, 25, 30, 30]
+// expect: ["a", "b", "c"] ["1", "2", "3"]
+// expect: -2 7 abacaxi 2.5
+// expect: 2.5 2.5 24 3
+// expect: 1 1.5
+// expect: 3 0 2 -1
+// expect: 7 9 true false
+// expect: ["a", "b", "c", "d", "e"]
+// expect: e ["a", "b", "c", "d"]
+// expect: ["d", "b", "a"]
+// expect: ["d", "b", "a", "x", "y", "d", "b", "a", "x", "y"] 10
+// expect: [] 0
+// expect: [1, 2] [1, 2, 3] [1, 2, 99] [3, 1, 2] ["a"] [0, 0, 0, 0] []
+// expect: [[1], [2]] [1, 2]
+// expect: 9 1 1 5

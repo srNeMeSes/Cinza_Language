@@ -36,8 +36,9 @@ struct NativeFn {
     size_t min_params = 0;
     // O último parâmetro se repete (print(a, b, c, ...))
     bool   variadic   = false;
-    // Altera o primeiro argumento (Lists.sort): proibido se ele for const
-    bool   mutates_first = false;
+    // Argumentos que a função altera, um bit por posição (bit 0 = 1º argumento:
+    // Lists.sort; Lists.sort_by altera os dois primeiros): proibido se for const
+    unsigned mutates = 0;
 };
 
 // Constante de um módulo nativo (Math.pi)

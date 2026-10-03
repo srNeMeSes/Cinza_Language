@@ -1,0 +1,8 @@
+// Lists.sort_by reorganiza também as chaves: uma lista de chaves const é erro de compilação.
+import Lists as L;
+fn main() {
+  list<string> nomes = ["b", "a"];
+  const list<int> chaves = [2, 1];
+  L.sort_by(nomes, chaves);
+}
+// expect-error: 'Lists.sort_by' altera a lista, mas 'chaves' é const
