@@ -41,6 +41,10 @@ struct NativeFn {
     unsigned mutates = 0;
 };
 
+// x com exatamente `casas` casas decimais, arredondado como Math.round_to
+// (Strings.fixed e o {x:.2f} do printf)
+std::string fixedText(double x, std::int64_t casas);
+
 // Constante de um módulo nativo (Math.pi)
 struct NativeConst {
     std::string name;

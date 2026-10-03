@@ -1,0 +1,27 @@
+// s[i] e fatias s[ini:fim:passo] em strings, contando caracteres (UTF-8); negativo conta do fim.
+fn main() {
+  string t = "coração";
+  print(t[0], t[3], t[6], t[-1], t[-7]);
+  print(t[2:5], t[:3], t[4:], t[:], t[-3:], t[:-4], "[" + t[2:2] + "]");
+  print(t[::-1], t[::2], t[1::3], t[1:6:2], t[5:1:-1], t[-1:-4:-1], t[3::-1], t[:2:-1]);
+  // vazia
+  string v = "";
+  print("[" + v[:] + "]", "[" + v[::-1] + "]", "[" + v[0:0] + "]");
+  // emoji é um caractere; índice calculado e laço
+  string e = "a😀b";
+  print(e[1], e.size(), e[-2:]);
+  string r = "";
+  for (int i in range(0, t.size())) { r = t[i] + r; }
+  print(r == t[::-1]);
+  // a fatia é uma string nova; a original não muda
+  string s = t[0:3];
+  s += "!";
+  print(s, t);
+}
+// expect: c a o o c
+// expect: raç cor ção coração ção cor []
+// expect: oãçaroc crço oç oaã ãçar oãç aroc oãça
+// expect: [] [] []
+// expect: 😀 3 😀b
+// expect: true
+// expect: cor! coração

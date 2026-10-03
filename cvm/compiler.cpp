@@ -303,6 +303,20 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
             emit(Op::GETINDEX, dst, o, k, e->token);
             break;
         }
+        case NodeKind::Slice: {   // s[ini:fim:passo]: 4 registradores seguidos; omitido = void
+            auto* sl = static_cast<const SliceExpr*>(e);
+            const std::uint16_t b = alloc(e->token);
+            alloc(e->token); alloc(e->token); alloc(e->token);
+            expr(sl->object.get(), b);   // na ordem do fonte (spec 5.2)
+            const Expr* partes[] = {sl->start.get(), sl->end.get(), sl->step.get()};
+            for (int i = 0; i < 3; ++i) {
+                const auto r = static_cast<std::uint16_t>(b + 1 + i);
+                if (partes[i]) expr(partes[i], r);
+                else           emit(Op::LOADVOID, r, 0, 0, e->token);
+            }
+            emit(Op::SLICE, dst, b, 0, e->token);
+            break;
+        }
         case NodeKind::MemberAccess: {
             auto* m = static_cast<const MemberAccessExpr*>(e);
             TypeRef t = m->object->resolved_type;
@@ -474,6 +488,29 @@ void Compiler::call(const CallExpr* e, std::uint16_t dst) {
     if (e->type_of) {   // type(x): o tipo real, com o tipo estático em K[c]
         const std::uint16_t r = exprReg(e->arguments[0].get());
         emit(Op::TYPEOF, dst, r, constant(Value(e->type_of), tok), tok);
+        return;
+    }
+
+    // printf/format: o texto é montado em t (trecho fixo: LOADK; {expr}: FMT, que
+    // aplica o formato e converte para texto; CONCAT junta); printf o passa ao print
+    if (e->interpolated) {
+        const std::uint16_t t = alloc(tok);
+        std::uint16_t u = NO_REG;
+        if (e->interp.empty()) emit(Op::LOADK, t, constant(Value(std::string()), tok), 0, tok);
+        for (std::size_t i = 0; i < e->interp.size(); ++i) {
+            const auto& parte = e->interp[i];
+            const std::uint16_t r = i == 0 ? t : (u == NO_REG ? (u = alloc(tok)) : u);
+            if (!parte.expr) {
+                emit(Op::LOADK, r, constant(Value(parte.text), tok), 0, tok);
+            } else {
+                expr(parte.expr.get(), r);
+                const std::int64_t formato = std::int64_t{parte.width} * 1000 + parte.precision + 1;
+                emit(Op::FMT, r, r, constant(Value(formato), tok), tok);
+            }
+            if (i > 0) emit(Op::CONCAT, t, t, r, tok);
+        }
+        if (e->native) emit(Op::CALLNATIVE, t, nativeIndex(e->native), 1, tok);
+        if (dst != t) emit(Op::MOVE, dst, t, 0, tok);
         return;
     }
 

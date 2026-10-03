@@ -1,0 +1,6 @@
+// Expressão mal escrita dentro das chaves é erro de compilação.
+fn main() {
+  int x = 1;
+  printf("{x +}");
+}
+// expect-error: Expressão inválida em '{x +}'

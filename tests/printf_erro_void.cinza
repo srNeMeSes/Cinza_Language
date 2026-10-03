@@ -1,0 +1,6 @@
+// Expressão void dentro das chaves não tem valor para escrever.
+fn nada() { }
+fn main() {
+  printf("{nada()}");
+}
+// expect-error: não tem valor

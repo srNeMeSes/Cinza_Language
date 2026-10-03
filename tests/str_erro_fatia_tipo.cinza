@@ -1,0 +1,6 @@
+// As partes da fatia precisam ser int.
+fn main() {
+  string s = "abc";
+  print(s[0:1.5]);
+}
+// expect-error: O fim da fatia deve ser 'int'

@@ -1,0 +1,6 @@
+// O formato de casas decimais só vale para int e decimal.
+fn main() {
+  string n = "Ana";
+  printf("{n:.2f}");
+}
+// expect-error: só vale para int e decimal

@@ -181,6 +181,21 @@ std::string IndexAccessExpr::toString(int indent_level) const {
     return oss.str();
 }
 
+// r: Slice(object, start, end, step) — partes omitidas aparecem como "-"
+std::string SliceExpr::toString(int indent_level) const {
+    std::ostringstream oss;
+    oss << indent(indent_level) << "Slice(\n";
+    oss << indent(indent_level + 1) << "object:\n" << object->toString(indent_level + 2) << "\n";
+    const std::pair<const char*, const ExprPtr*> partes[] = {{"start", &start}, {"end", &end}, {"step", &step}};
+    for (const auto& [nome, p] : partes) {
+        oss << indent(indent_level + 1) << nome << ":";
+        if (*p) oss << "\n" << (*p)->toString(indent_level + 2) << "\n";
+        else    oss << " -\n";
+    }
+    oss << indent(indent_level) << ")";
+    return oss.str();
+}
+
 // r: MethodCall(object: Identifier(Obejto), method: add, args: [Literal("Fernanda")])
 std::string MethodCallExpr::toString(int indent_level) const {
     std::ostringstream oss;

@@ -1,0 +1,6 @@
+// Fatia '[:]' só vale para string; listas usam Lists.slice.
+fn main() {
+  list<int> l = [1, 2, 3];
+  print(l[0:2]);
+}
+// expect-error: use Lists.slice

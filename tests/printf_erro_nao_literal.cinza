@@ -1,0 +1,6 @@
+// printf só aceita um texto literal (as expressões são conferidas na compilação).
+fn main() {
+  string t = "x";
+  printf(t);
+}
+// expect-error: recebe um único texto literal entre aspas

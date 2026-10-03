@@ -1058,6 +1058,27 @@ interpretador chamam as mesmas nativas).
 
 ---
 
+## H. Ergonomia de texto (2026-10-03)
+
+- [x] 1. Interpolação: `printf("Olá, {nome}!")` e `format(...)` — feito em 2026-10-03
+  > Nota: o texto precisa ser literal; o semântico o divide em trechos e `{expr[:formato]}`, e cada
+  > expressão passa pelo próprio parser (`Parser::parseEmbedded`, com a posição dentro do texto) e pela
+  > análise normal — nome inexistente ou tipo errado é erro de compilação. Formatos `{x:.2f}` (como
+  > `Strings.fixed`, agora `fixedText` comum) e `{x:8}` (números à direita, texto à esquerda);
+  > `{{`/`}}` literais; `{n:05}` recusado (seria zero à esquerda no Python). `printf` = `print` do
+  > texto. Uma função do usuário com o nome tem precedência, como `print`. CVM: instrução `FMT`
+  > (formato num `K`) + `CONCAT`; regra de formatação única em `operacoes.cpp` (`formatPart`).
+  > Testes `printf_basico`, `printf_sombra` e 11 de erro de compilação (`printf_erro_*`, `format_erro_tipo`).
+- [x] 2. `s[i]` e fatias `s[ini:fim:passo]` em string — feito em 2026-10-03
+  > Nota: em caracteres UTF-8; negativo conta do fim; fatias **estritas** (limite fora lança
+  > `IndexError`, sem o ajuste silencioso do Python); passo negativo como no Python (`s[::-1]`); passo 0
+  > lança `ValueError`. Strings imutáveis: `s[i] = ...` é erro de compilação. Só string — listas
+  > continuam sem índice negativo, com `Lists.slice`. Novo nó `SliceExpr`, instrução `SLICE` na CVM,
+  > regra única `sliceGet` em `operacoes.cpp` (o `s[i]` entrou no `indexGet` comum). Testes
+  > `str_indice`, `str_indice_erros`, `str_erro_*`. 445/445/445, limpo sob ASan/UBSan.
+
+---
+
 ## Registro de decisões
 
 | Data | Item | Decisão | Motivo |
@@ -1092,3 +1113,5 @@ interpretador chamam as mesmas nativas).
 | 2026-10-03 | G5 | `Random`: decimal num intervalo é `decimal_range(a, b)`; sem `weighted`; `sample`/`choices` com `k` = 0 dão `[]`, mesmo com lista vazia. | Decisão do autor da linguagem. |
 | 2026-10-03 | G6 | `Lists`: objetos se ordenam com `sort_by(l, chaves)` (chaves paralelas, reorganizadas junto); as funções que alteram a lista ficam no módulo (os métodos continuam só `size`/`add`/`remove`/`has`); `remove_value` de valor ausente lança `ValueError`; `sorted`/`reversed` devolvem cópias. | Decisão do autor da linguagem; ordenar sem closures nem genéricos, com tipagem estática. |
 | 2026-10-03 | G7 | `Time`: instante é `int` em segundos desde 1970 UTC (sem tipo novo); partes, `make`, `format` e `parse` no horário local, com variantes `_utc`; padrão legível `dd/MM/yyyy HH:mm:ss`; `clock()` separado, em milissegundos, para medir duração. | Decisão do autor da linguagem; estático, comparável e ordenável sem mudar a linguagem. |
+| 2026-10-03 | H1 | Interpolação só em `printf("...")` (pula linha, como `print`) e `format("...")` (devolve o texto), com texto literal; `{expr}` aceita qualquer expressão; formatos `{x:.2f}` e `{x:8}` (sem alinhamento explícito nem zeros à esquerda). | Decisão do autor da linguagem; strings comuns não mudam (nenhum programa quebra) e tudo é conferido na compilação. |
+| 2026-10-03 | H2 | `s[i]` e fatias `s[a:b:p]` só em string, com índices negativos e passo; fatias estritas (`IndexError` fora dos limites, sem ajuste); listas ficam como estão. | Decisão do autor da linguagem. |

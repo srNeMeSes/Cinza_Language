@@ -1,4 +1,5 @@
 #include "semantic.h"
+#include "parser.h"          // printf/format: as expressões dentro do texto
 #include "runtime_error.h"   // C4: builtinErrorKinds
 #include <sstream>
 #include <algorithm>
@@ -1479,6 +1480,9 @@ TypeRef SemanticAnalyzer::analyzeLValue(Expr* target) {
         case NodeKind::IndexAccess: {
             auto* ix = static_cast<IndexAccessExpr*>(target);
             TypeRef type = analyzeIndexAccess(ix);   // tipo do índice/chave, índice negativo
+            if (ix->object->resolved_type->is(TK::String))
+                throwError("Strings são imutáveis: '" + lvalueName(ix) + "' não pode ser alterado. "
+                           "Monte um texto novo (concatenação, fatias, Strings.replace).", ix->token);
             if (TypeChecker::containsOp(ix->object->resolved_type))   // op<...>
                 throwError(readOnlyMessage(ix->object->resolved_type), ix->token);
             if (const Symbol* root = constRoot(ix->object.get()))
@@ -2105,7 +2109,8 @@ TypeRef SemanticAnalyzer::analyzeExpr(Expr* expr, TypeRef expected) {
         case NodeKind::MethodCall:   return analyzeMethodCall  (static_cast<MethodCallExpr*>(expr));
         case NodeKind::MemberAccess: return analyzeMemberAccess(static_cast<MemberAccessExpr*>(expr));
         case NodeKind::IndexAccess:  return analyzeIndexAccess (static_cast<IndexAccessExpr*>(expr));
-        case NodeKind::New:          return analyzeNew         (static_cast<NewExpr*>(expr));
+        case NodeKind::Slice:        return analyzeSlice       (static_cast<SliceExpr*>(expr));
+        case NodeKind::New:         return analyzeNew         (static_cast<NewExpr*>(expr));
         case NodeKind::ListLiteral:  return analyzeListLiteral (static_cast<ListLiteralExpr*>(expr), expected);
         case NodeKind::DictLiteral:  return analyzeDictLiteral (static_cast<DictLiteralExpr*>(expr), expected);
         case NodeKind::PairLiteral:  return analyzePairLiteral (static_cast<PairLiteralExpr*>(expr), expected);
@@ -2278,6 +2283,10 @@ TypeRef SemanticAnalyzer::analyzeCall(CallExpr* expr) {
                        "elemento.", expr->token);
         return expr->resolved_type = types.typeType();
     }
+
+    // printf/format: texto com {expr}; uma função do usuário tem precedência
+    if (!sym && (expr->function_name == "printf" || expr->function_name == "format"))
+        return analyzeInterpolation(expr);
 
     // C6: nativa do prelude (print, range); uma função do usuário tem precedência
     if (!sym) {
@@ -2774,8 +2783,143 @@ TypeRef SemanticAnalyzer::analyzeIndexAccess(IndexAccessExpr* expr) {
         return expr->resolved_type = obj_type->value();
     }
 
+    // s[i]: o caractere (string); índice negativo conta do fim
+    if (obj_type->is(TK::String)) {
+        if (!idx_type->is(TK::Int))
+            throwError("Índice de string deve ser 'int', mas recebeu '" + idx_type->str() + "'",
+                       expr->token);
+        return expr->resolved_type = types.stringType();
+    }
+
     throwError("Operador '[]' não é suportado no tipo '" + obj_type->str() + "'",
                expr->token);
+}
+
+// Formato depois de ':' num {expr:formato}: [largura][.casas f] — "8", ".2f", "8.2f"
+static bool lerFormato(const std::string& f, int& largura, int& casas) {
+    size_t i = 0;
+    auto numero = [&](int& n, int maximo) {
+        const size_t ini = i;
+        n = 0;
+        while (i < f.size() && f[i] >= '0' && f[i] <= '9') {
+            n = n * 10 + (f[i++] - '0');
+            if (n > maximo) return false;
+        }
+        return i > ini;
+    };
+    // largura começando com 0 ({n:05}) seria "zeros à esquerda" no Python: recusada
+    if (i < f.size() && f[i] == '0') return false;
+    if (i < f.size() && f[i] != '.' && !numero(largura, 1000)) return false;
+    if (i < f.size() && f[i] == '.') {
+        ++i;
+        if (!numero(casas, 100) || i >= f.size() || f[i] != 'f') return false;
+        ++i;
+    }
+    return i == f.size() && !f.empty();
+}
+
+// printf("Olá, {nome}!") / format(...): o texto literal vira trechos fixos e
+// expressões {expr[:formato]}, cada uma analisada como qualquer expressão.
+// {{ e }} escrevem chaves. printf imprime (como print, pulando linha);
+// format devolve o texto.
+TypeRef SemanticAnalyzer::analyzeInterpolation(CallExpr* expr) {
+    const std::string nome = expr->function_name;
+    const auto* lit = expr->arguments.size() == 1 && expr->arguments[0]->node_kind == NodeKind::Literal
+                          ? static_cast<const LiteralExpr*>(expr->arguments[0].get()) : nullptr;
+    if (!lit || !std::holds_alternative<std::string>(lit->value))
+        throwError("'" + nome + "' recebe um único texto literal entre aspas, ex.: " + nome +
+                   "(\"Olá, {nome}!\")", expr->token);
+    const std::string& s = std::get<std::string>(lit->value);
+    const Token& origem = lit->token;
+
+    std::string texto;
+    auto fechaTexto = [&]() {
+        if (texto.empty()) return;
+        CallExpr::InterpPart p;
+        p.text = std::move(texto);
+        expr->interp.push_back(std::move(p));
+        texto.clear();
+    };
+    for (size_t i = 0; i < s.size();) {
+        const char c = s[i];
+        if ((c == '{' || c == '}') && i + 1 < s.size() && s[i + 1] == c) { texto += c; i += 2; continue; }
+        if (c == '}')
+            throwError("'}' sem '{' no texto de '" + nome + "' (para escrever uma chave, use '}}')", origem);
+        if (c != '{') { texto += c; ++i; continue; }
+
+        // a '}' que fecha esta expressão: pula strings e chaves internas ({a, b})
+        size_t j = i + 1, dois_pontos = std::string::npos;
+        for (int prof = 0; j < s.size(); ++j) {
+            const char d = s[j];
+            if (d == '"') {
+                for (++j; j < s.size() && s[j] != '"'; ++j)
+                    if (s[j] == '\\') ++j;
+                continue;
+            }
+            if (d == '{') ++prof;
+            else if (d == '}') { if (prof == 0) break; --prof; }
+            else if (d == ':' && prof == 0) dois_pontos = j;
+        }
+        if (j >= s.size())
+            throwError("'{' sem '}' no texto de '" + nome + "' (para escrever uma chave, use '{{')", origem);
+        const size_t fim = dois_pontos == std::string::npos ? j : dois_pontos;
+        const std::string codigo = s.substr(i + 1, fim - i - 1);
+        if (codigo.find_first_not_of(" \t") == std::string::npos)
+            throwError("'{}' vazio no texto de '" + nome + "': coloque uma expressão, ex.: {nome}", origem);
+
+        CallExpr::InterpPart parte;
+        try {
+            parte.expr = Parser::parseEmbedded(codigo, origem, static_cast<int>(i + 2));
+        } catch (const ParseError& e) {
+            throwError("Expressão inválida em '{" + codigo + "}' no texto de '" + nome + "': " + e.what(),
+                       e.error_token);
+        }
+        if (dois_pontos != std::string::npos) {
+            const std::string formato = s.substr(dois_pontos + 1, j - dois_pontos - 1);
+            if (!lerFormato(formato, parte.width, parte.precision))
+                throwError("Formato inválido '" + formato + "' em '{" + codigo + ":" + formato + "}'. Use a "
+                           "largura ({x:8}), as casas decimais ({x:.2f}) ou as duas ({x:8.2f})", origem);
+        }
+        TypeRef t = analyzeExpr(parte.expr.get());
+        if (t->is(TK::Void))
+            throwError("'{" + codigo + "}' não tem valor (a expressão é 'void')", parte.expr->token);
+        if (parte.precision >= 0 && !t->is(TK::Int) && !t->is(TK::Decimal))
+            throwError("O formato de casas decimais só vale para int e decimal, mas '" + codigo + "' é '" +
+                       t->str() + "'", parte.expr->token);
+        fechaTexto();
+        expr->interp.push_back(std::move(parte));
+        i = j + 1;
+    }
+    fechaTexto();
+    expr->interpolated = true;
+    if (nome == "printf") {
+        expr->native = findPrelude("print");
+        return expr->resolved_type = types.voidType();
+    }
+    return expr->resolved_type = types.stringType();
+}
+
+// s[ini:fim:passo]: fatia de string; as partes presentes são int
+TypeRef SemanticAnalyzer::analyzeSlice(SliceExpr* expr) {
+    TypeRef obj_type = analyzeExpr(expr->object.get());
+    if (obj_type->is(TK::Op))
+        throwError(opNeedsNarrowing("A fatia '[:]'", obj_type), expr->token);
+    if (!obj_type->is(TK::String)) {
+        if (obj_type->is(TK::List))
+            throwError("Fatia '[:]' só vale para string; para listas use Lists.slice(l, ini, fim)",
+                       expr->token);
+        throwError("Fatia '[:]' não é suportada no tipo '" + obj_type->str() + "'", expr->token);
+    }
+    const std::pair<const char*, Expr*> partes[] = {
+        {"início", expr->start.get()}, {"fim", expr->end.get()}, {"passo", expr->step.get()}};
+    for (const auto& [nome, e] : partes) {
+        if (!e) continue;
+        TypeRef t = analyzeExpr(e);
+        if (!t->is(TK::Int))
+            throwError(std::string("O ") + nome + " da fatia deve ser 'int', mas recebeu '" + t->str() + "'",
+                       expr->token);
+    }
+    return expr->resolved_type = types.stringType();
 }
 
 // Instanciação de objeto:  new NomeClasse(args)

@@ -8,6 +8,8 @@ precedência.
 | Função                                        | Descrição |
 |-----------------------------------------------|-----------|
 | `print(valores...)`                           | escreve os valores na saída, separados por um espaço, e pula linha. Aceita qualquer número de argumentos de qualquer tipo (nenhum: só pula linha). Usa a forma textual da seção 5.4. |
+| `printf("texto")`                             | escreve o texto com as expressões `{...}` substituídas (abaixo) e pula linha, como `print` |
+| `format("texto") -> string`                   | o mesmo texto do `printf`, devolvido em vez de escrito |
 | `input(string prompt) -> string`              | escreve `prompt` sem pular linha e lê uma linha da entrada, sem o fim de linha. Fim da entrada lança `IOError`. |
 | `range(int ini, int fim) -> list<int>`        | os inteiros de `ini` (inclusive) até `fim` (exclusive). |
 | `range(int ini, int fim, int passo) -> list<int>` | idem, de `passo` em `passo`; passo negativo conta para baixo; passo `0` lança `ValueError`. |
@@ -24,6 +26,44 @@ fn main() {
 // expect:
 // expect: 1 2.5 a true [1, 2]
 // expect: [0, 1, 2] [3, 2, 1] []
+```
+
+### Interpolação: `printf` e `format`
+
+O argumento de `printf` e `format` é **um texto literal** entre aspas (uma variável não serve: o
+texto é analisado na compilação). Cada `{expr}` dentro dele é substituído pelo valor de `expr`,
+na forma textual da seção 5.4. `expr` é **qualquer expressão** — variável, conta, chamada, campo,
+índice — conferida na compilação como as demais: um nome inexistente ou um erro de tipo é erro
+de compilação, não de execução. As expressões são avaliadas da esquerda para a direita.
+
+Depois da expressão, um formato opcional após `:`:
+
+| Formato | Efeito |
+|---------|--------|
+| `{x:.2f}` | exatamente 2 casas decimais, arredondando como `Math.round_to`; só para `int` e `decimal` (outro tipo é erro de compilação) |
+| `{x:8}` | largura mínima de 8 caracteres: números alinham à direita, o resto à esquerda; texto mais longo fica inteiro |
+| `{x:8.2f}` | os dois |
+
+Largura de até 1000 e de 0 a 100 casas. Largura começando com `0` (`{n:05}`) é erro de
+compilação. `{{` e `}}` escrevem uma chave; uma chave sem par, `{}` vazio, uma expressão
+`void` ou mal escrita são erros de compilação.
+
+Como `print`, uma função do programa chamada `printf` ou `format` tem precedência — e recebe o
+texto sem interpolação.
+
+```cinza
+fn main() {
+  string nome = "Ana";
+  int idade = 30;
+  decimal preco = 2.5;
+  printf("Olá, {nome}! Você tem {idade} anos; ano que vem, {idade + 1}.");
+  printf("R$ {preco:.2f} | [{idade:5}] [{nome:5}] | {{chaves}}");
+  string s = format("{nome.size()} letras");
+  print(s);
+}
+// expect: Olá, Ana! Você tem 30 anos; ano que vem, 31.
+// expect: R$ 2.50 | [   30] [Ana  ] | {chaves}
+// expect: 3 letras
 ```
 
 ## 6.2 Módulos nativos

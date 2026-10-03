@@ -1,10 +1,28 @@
 #include "operacoes.h"
+#include "natives.h"         // fixedText (Strings.fixed)
 #include "runtime_error.h"
 #include "semantic.h"   // TypeChecker::isAssignable
 #include <cmath>
 #include <limits>
 
 namespace cinza {
+
+// Strings guardam UTF-8; índices e tamanhos da linguagem contam caracteres
+static std::int64_t tamanhoTexto(const std::string& s) {
+    std::int64_t n = 0;
+    for (unsigned char c : s) if ((c & 0xC0) != 0x80) ++n;
+    return n;
+}
+
+// Byte em que começa o caractere `idx` (0 <= idx <= tamanho)
+static size_t byteDoCaractere(const std::string& s, std::int64_t idx) {
+    size_t i = 0;
+    for (std::int64_t k = 0; k < idx && i < s.size(); ++k) {
+        ++i;
+        while (i < s.size() && (static_cast<unsigned char>(s[i]) & 0xC0) == 0x80) ++i;
+    }
+    return i;
+}
 
 Value applyBinaryOp(TokenType op, const Value& left, const Value& right) {
 
@@ -138,7 +156,81 @@ Value indexGet(const Value& obj, const Value& idx) {
                                "' não encontrada no dicionário");
         return it->second;
     }
+    if (obj.kind() == Value::Kind::STRING) {
+        const std::string& s = obj.asString();
+        const std::int64_t n = tamanhoTexto(s);
+        const std::int64_t i0 = idx.asInt();
+        const std::int64_t i = i0 < 0 ? i0 + n : i0;
+        if (i < 0 || i >= n)
+            throw RuntimeError("IndexError: índice " + std::to_string(i0) +
+                               " fora dos limites de uma string de tamanho " + std::to_string(n));
+        const size_t b = byteDoCaractere(s, i);
+        return Value(s.substr(b, byteDoCaractere(s, i + 1) - b));
+    }
     throw RuntimeError("Operador '[]' em tipo inválido");
+}
+
+// s[ini:fim:passo]: índices em caracteres; negativo conta do fim. Com passo
+// positivo exige 0 <= ini <= fim <= tamanho; com passo negativo, ini e fim
+// explícitos precisam ser índices válidos e ini >= fim (omitidos: do último
+// caractere até antes do primeiro). Fora disso, IndexError.
+Value sliceGet(const Value& sv, const Value& iv, const Value& fv, const Value& pv) {
+    const std::string& s = sv.asString();
+    const std::int64_t n = tamanhoTexto(s);
+    const bool tem_i = iv.kind() != Value::Kind::VOID_VAL, tem_f = fv.kind() != Value::Kind::VOID_VAL;
+    const std::int64_t passo = pv.kind() == Value::Kind::VOID_VAL ? 1 : pv.asInt();
+    if (passo == 0) throw RuntimeError("ValueError: o passo da fatia não pode ser 0");
+    auto normal = [n](std::int64_t x) { return x < 0 ? x + n : x; };
+    auto texto = [&]() {
+        auto parte = [](bool tem, const Value& v) { return tem ? std::to_string(v.asInt()) : std::string(); };
+        std::string r = "[" + parte(tem_i, iv) + ":" + parte(tem_f, fv);
+        if (pv.kind() != Value::Kind::VOID_VAL) r += ":" + std::to_string(passo);
+        return r + "]";
+    };
+    auto fora = [&]() {
+        throw RuntimeError("IndexError: fatia '" + texto() + "' fora dos limites de uma string de tamanho " +
+                           std::to_string(n));
+    };
+    // byte onde começa cada caractere (e o fim do texto no último lugar)
+    std::vector<size_t> inicio;
+    inicio.reserve(s.size() + 1);
+    for (size_t i = 0; i < s.size(); ++i)
+        if ((static_cast<unsigned char>(s[i]) & 0xC0) != 0x80) inicio.push_back(i);
+    inicio.push_back(s.size());
+    auto caractere = [&](std::int64_t k) {
+        const size_t b = inicio[static_cast<size_t>(k)];
+        return s.substr(b, inicio[static_cast<size_t>(k) + 1] - b);
+    };
+    std::string out;
+    if (passo > 0) {
+        const std::int64_t a = tem_i ? normal(iv.asInt()) : 0;
+        const std::int64_t b = tem_f ? normal(fv.asInt()) : n;
+        if (a < 0 || b > n || a > b) fora();
+        if (passo == 1)
+            return Value(s.substr(inicio[static_cast<size_t>(a)], inicio[static_cast<size_t>(b)] - inicio[static_cast<size_t>(a)]));
+        for (std::int64_t k = a; k < b; k += passo) out += caractere(k);
+    } else {
+        const std::int64_t a = tem_i ? normal(iv.asInt()) : n - 1;
+        const std::int64_t b = tem_f ? normal(fv.asInt()) : -1;
+        if ((tem_i && (a < 0 || a >= n)) || (tem_f && (b < 0 || b >= n)) || a < b) fora();
+        for (std::int64_t k = a; k > b; k += passo) out += caractere(k);
+    }
+    return Value(std::move(out));
+}
+
+std::string formatPart(const Value& v, int largura, int casas) {
+    std::string t;
+    const bool numero = v.kind() == Value::Kind::INT || v.kind() == Value::Kind::DECIMAL;
+    if (casas >= 0 && numero)
+        t = fixedText(v.kind() == Value::Kind::INT ? static_cast<double>(v.asInt()) : v.asDecimal(), casas);
+    else
+        t = v.toString();
+    const std::int64_t n = tamanhoTexto(t);
+    if (n < largura) {
+        const std::string brancos(static_cast<size_t>(largura - n), ' ');
+        t = numero ? brancos + t : t + brancos;
+    }
+    return t;
 }
 
 Value* indexPlace(Value& obj, const Value& key) {

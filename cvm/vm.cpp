@@ -215,6 +215,17 @@ Value VM::dispatch(std::size_t entrada) {
                     R[in.a] = Value(std::move(s));
                     break;
                 }
+                case Op::FMT: {   // {x:formato} do printf/format (regra em operacoes.cpp)
+                    const std::int64_t f = K[in.c].asInt();
+                    std::string s = formatPart(R[in.b], static_cast<int>(f / 1000), static_cast<int>(f % 1000) - 1);
+                    R[in.a] = Value(std::move(s));
+                    break;
+                }
+                case Op::SLICE: {
+                    Value r = sliceGet(R[in.b], R[in.b + 1], R[in.b + 2], R[in.b + 3]);
+                    R[in.a] = std::move(r);
+                    break;
+                }
 
                 // ── comparação ───────────────────────────────────────────
                 case Op::LT_I: R[in.a] = Value(R[in.b].asInt() <  R[in.c].asInt()); break;

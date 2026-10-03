@@ -73,7 +73,7 @@ public:
 enum class NodeKind {
     // expressões
     Literal, Identifier, Binary, Unary, Call, MemberAccess, ListLiteral,
-    DictLiteral, PairLiteral, IndexAccess, MethodCall, New, Cast, TypeLiteral,
+    DictLiteral, PairLiteral, IndexAccess, MethodCall, New, Cast, TypeLiteral, Slice,
     // statements
     VarDecl, Assign, ExprStmt, Block, If, While, For,
     Return, Break, Continue, Try, Throw, FunctionDecl, ClassDecl, StructDecl, ErrorDecl, EnumDecl,
@@ -191,7 +191,17 @@ public:
     bool implicit_method = false;
     // op<...>: type(x) embutido; guarda o tipo estático do argumento
     TypeRef type_of = nullptr;
-    
+    // printf/format embutidos: o texto literal dividido pelo semântico em
+    // trechos fixos e expressões {expr[:formato]}; no printf, native = print
+    struct InterpPart {
+        std::string text;            // trecho fixo (sem expr)
+        ExprPtr     expr;            // {expr}, ou nulo num trecho fixo
+        int         width = 0;       // {x:8}: largura mínima (0 = nenhuma)
+        int         precision = -1;  // {x:.2f}: casas decimais (-1 = nenhuma)
+    };
+    std::vector<InterpPart> interp;
+    bool interpolated = false;
+
     CallExpr(const Token& tok, const std::string& name, std::vector<ExprPtr> args)
         : Expr(NodeKind::Call, tok), function_name(name), arguments(std::move(args)) {}
     
@@ -261,6 +271,19 @@ public:
         : Expr(NodeKind::IndexAccess, tok), object(std::move(obj)), index(std::move(idx)) {}
     
     // sobrescreve  a toString
+    std::string toString(int indent = 0) const override;
+};
+
+// Fatia de string: s[ini:fim:passo]; as partes omitidas ficam nulas
+class SliceExpr : public Expr {
+public:
+    ExprPtr object;
+    ExprPtr start, end, step;
+
+    SliceExpr(const Token& tok, ExprPtr obj, ExprPtr s, ExprPtr e, ExprPtr p)
+        : Expr(NodeKind::Slice, tok), object(std::move(obj)), start(std::move(s)),
+          end(std::move(e)), step(std::move(p)) {}
+
     std::string toString(int indent = 0) const override;
 };
 

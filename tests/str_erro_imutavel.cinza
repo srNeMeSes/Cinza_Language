@@ -1,0 +1,6 @@
+// Strings são imutáveis: s[i] = ... é erro de compilação.
+fn main() {
+  string s = "abc";
+  s[0] = "x";
+}
+// expect-error: Strings são imutáveis

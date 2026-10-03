@@ -1,0 +1,10 @@
+// Uma função do programa chamada printf (ou format) tem precedência sobre a embutida, como print:
+// o texto chega sem interpolação.
+fn printf(string s) { print("meu: " + s); }
+fn format(string s) -> string { return "[" + s + "]"; }
+fn main() {
+  printf("{nada}");
+  print(format("{x}"));
+}
+// expect: meu: {nada}
+// expect: [{x}]

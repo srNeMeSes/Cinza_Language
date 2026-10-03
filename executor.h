@@ -147,6 +147,7 @@ private:
     Value evalMethodCall   (const MethodCallExpr* expr);
     Value evalMemberAccess (const MemberAccessExpr* expr);
     Value evalIndexAccess  (const IndexAccessExpr* expr);
+    Value evalSlice        (const SliceExpr* expr);
     Value evalNew          (const NewExpr* expr);
     Value evalListLiteral  (const ListLiteralExpr* expr);
     Value evalDictLiteral  (const DictLiteralExpr* expr);

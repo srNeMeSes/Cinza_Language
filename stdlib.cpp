@@ -490,15 +490,12 @@ Value strCompare(Args a) {
 
 // fixed(x, casas): o decimal como texto com exatamente `casas` casas
 // (arredonda como Math.round_to; sem "-0.00")
-std::string arredondaTexto(double x, std::int64_t casas);
 Value strFixed(Args a) {
     const double x = a[0].asDecimal();
     const std::int64_t casas = a[1].asInt();
     if (casas < 0 || casas > 100)
         falha("ValueError: o número de casas de 'fixed' precisa estar entre 0 e 100");
-    std::string r = arredondaTexto(x, casas);
-    const bool zero = r.find_first_not_of("0.") == std::string::npos;
-    return Value(x < 0 && !zero ? "-" + r : r);
+    return Value(fixedText(x, casas));
 }
 
 // ============================================================================
@@ -1988,6 +1985,13 @@ std::vector<NativeModule> criaModulos() {
 }
 
 } // namespace
+
+// sem "-0.00": um resultado que arredonda para zero não leva sinal
+std::string fixedText(double x, std::int64_t casas) {
+    std::string r = arredondaTexto(x, casas);
+    const bool zero = r.find_first_not_of("0.") == std::string::npos;
+    return x < 0 && !zero ? "-" + r : r;
+}
 
 const std::vector<NativeModule>& nativeModules() {
     static const std::vector<NativeModule> modulos = criaModulos();

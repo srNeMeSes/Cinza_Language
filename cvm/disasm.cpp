@@ -68,6 +68,18 @@ std::string disassemble(const Image& img) {
                     ops = ra + ", " + rb; break;
                 case Op::JLTK_I: case Op::JLEK_I: case Op::JGTK_I: case Op::JGEK_I:
                     ops = ra + ", " + std::to_string(static_cast<std::int16_t>(in.b)); break;
+                case Op::FMT: {
+                    ops = ra + ", " + rb;
+                    const std::int64_t f = p.consts[in.c].asInt();
+                    const std::int64_t largura = f / 1000, casas = f % 1000 - 1;
+                    if (largura > 0 || casas >= 0)
+                        nota = "formato " + (largura > 0 ? std::to_string(largura) : std::string()) +
+                               (casas >= 0 ? "." + std::to_string(casas) + "f" : std::string());
+                    break;
+                }
+                case Op::SLICE:     ops = ra + ", " + rb; nota = "fatia r" + std::to_string(in.b) + "[r" +
+                                    std::to_string(in.b + 1) + ":r" + std::to_string(in.b + 2) + ":r" +
+                                    std::to_string(in.b + 3) + "]"; break;
                 case Op::RANGEPREP: ops = ra; nota = "iterador em r" + std::to_string(in.b); break;
                 case Op::JMPIF: case Op::JMPIFNOT: case Op::FORNEXT: case Op::FORNEXT_D:
                 case Op::FORRANGE: case Op::FORRANGE_D:

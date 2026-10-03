@@ -1,0 +1,6 @@
+// Índice de string precisa ser int.
+fn main() {
+  string s = "abc";
+  print(s["a"]);
+}
+// expect-error: Índice de string deve ser 'int'

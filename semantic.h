@@ -332,6 +332,8 @@ private:
     TypeRef analyzeMethodCall   (MethodCallExpr* expr);
     TypeRef analyzeMemberAccess (MemberAccessExpr* expr);
     TypeRef analyzeIndexAccess  (IndexAccessExpr* expr);
+    TypeRef analyzeSlice        (SliceExpr* expr);
+    TypeRef analyzeInterpolation(CallExpr* expr);   // printf / format
     TypeRef analyzeNew          (NewExpr* expr);
     TypeRef analyzeListLiteral  (ListLiteralExpr* expr, TypeRef expected);
     TypeRef analyzeDictLiteral  (DictLiteralExpr* expr, TypeRef expected);

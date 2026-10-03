@@ -1,0 +1,6 @@
+// Zeros à esquerda ({n:05}) não são aceitos (seriam outra coisa no Python).
+fn main() {
+  int n = 7;
+  printf("{n:05}");
+}
+// expect-error: Formato inválido '05'

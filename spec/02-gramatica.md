@@ -112,7 +112,8 @@ comparacao    = soma { ( "<" | "<=" | ">" | ">=" ) soma } ;
 soma          = produto { ( "+" | "-" ) produto } ;
 produto       = unario { ( "*" | "/" | "%" ) unario } ;
 unario        = ( "-" | "!" | "not" ) unario | posfixo ;
-posfixo       = primario { "." nome [ argumentos ] | "[" expressao "]" } ;
+posfixo       = primario { "." nome [ argumentos ] | "[" expressao "]" | fatia } ;
+fatia         = "[" [ expressao ] ":" [ expressao ] [ ":" [ expressao ] ] "]" ;   (* só string *)
 
 primario      = literal
               | nome [ argumentos ]                      (* variável ou chamada *)
@@ -142,7 +143,7 @@ literal       = inteiro | decimal | texto | "true" | "false" ;
 | 5           | `+` `-`                          |
 | 6           | `*` `/` `%`                      |
 | 7           | `-` `!` `not` (unários)          |
-| 8 (maior)   | `.campo`, `.metodo(...)`, `[i]`, chamada |
+| 8 (maior)   | `.campo`, `.metodo(...)`, `[i]`, `[a:b]`, chamada |
 
 ```cinza
 fn main() {

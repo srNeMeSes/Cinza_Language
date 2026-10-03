@@ -26,8 +26,18 @@ Value negateOp(const Value& v);
 
 // ── Coleções ──────────────────────────────────────────────────────────────
 
-// Leitura obj[idx] (list: IndexError; dict: KeyError)
+// Leitura obj[idx] (list: IndexError; dict: KeyError; string: o caractere,
+// índice negativo conta do fim)
 Value indexGet(const Value& obj, const Value& idx);
+
+// Fatia s[ini:fim:passo] de uma string; parte omitida chega como void
+Value sliceGet(const Value& s, const Value& ini, const Value& fim, const Value& passo);
+
+// ── printf / format ───────────────────────────────────────────────────────
+
+// Um {expr[:formato]}: o valor como texto (forma da seção 5.4), com `casas`
+// decimais fixas (>= 0) e largura mínima (números à direita, o resto à esquerda)
+std::string formatPart(const Value& v, int largura, int casas);
 
 // Lugar obj[idx] para gravar (B5): list exige índice válido; dict só
 // ATUALIZA chave existente (para inserir, .add)

@@ -257,6 +257,23 @@ TypePtr Parser::parseTypeInner() {
     // primary          : literals, identifiers, calls, member access
 // ============================================================================
 
+ExprPtr Parser::parseEmbedded(const std::string& codigo, const Token& origem, int coluna) {
+    Lexer lexer(codigo, origem.file_id);
+    std::vector<Token> toks = lexer.tokenize();
+    for (Token& t : toks) {   // o texto do printf fica numa linha só
+        t.line   = origem.line;
+        t.column = origem.column + coluna + t.column - 1;
+    }
+    for (const Token& t : toks)
+        if (t.type == TokenType::UNKNOWN)
+            throw ParseError("Caractere inválido '" + t.lexeme + "'", t);
+    Parser p(std::move(toks));
+    ExprPtr e = p.parseExpression();
+    if (!p.isAtEnd())
+        throw ParseError("Esperado o fim da expressão (sobrou '" + p.peek().lexeme + "')", p.peek());
+    return e;
+}
+
 // começa o encadeamento de expressões
 ExprPtr Parser::parseExpression() {
     return parseLogicalOrExpr();
@@ -585,11 +602,22 @@ ExprPtr Parser::parsePostfixExpr(ExprPtr expr) {
                                                           member_token.lexeme);
             }
         } else if (match(TokenType::LBRACKET)) {
-            // Acesso por índice ou chave: lista[0] ou dict["chave"]
+            // Acesso por índice ou chave: lista[0] ou dict["chave"]; com ':' é
+            // fatia de string: s[ini:fim:passo], cada parte opcional
             Token bracket_token = previous();
-            ExprPtr index = parseExpression();
+            ExprPtr index;
+            if (!check(TokenType::COLON)) index = parseExpression();
+            if (match(TokenType::COLON)) {
+                ExprPtr fim, passo;
+                if (!check(TokenType::COLON) && !check(TokenType::RBRACKET)) fim = parseExpression();
+                if (match(TokenType::COLON) && !check(TokenType::RBRACKET)) passo = parseExpression();
+                consume(TokenType::RBRACKET, "Esperado ']' após a fatia");
+                expr = std::make_unique<SliceExpr>(bracket_token, std::move(expr), std::move(index),
+                                                   std::move(fim), std::move(passo));
+                continue;
+            }
             consume(TokenType::RBRACKET, "Esperado ']' após índice/chave");
-            
+
             expr = std::make_unique<IndexAccessExpr>(bracket_token, std::move(expr),
                                                      std::move(index));
         } else {

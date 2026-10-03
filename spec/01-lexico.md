@@ -60,7 +60,7 @@ int  decimal  string  str  bool  void  var  list  dict  pair  op
 `and`, `or` e `not` são sinônimos exatos de `&&`, `||` e `!`; `str` é sinônimo exato de
 `string`.
 
-`print`, `input`, `range` e `type` **não** são palavras reservadas: são funções embutidas
+`print`, `printf`, `format`, `input`, `range` e `type` **não** são palavras reservadas: são funções embutidas
 (capítulo 6), e uma função do programa com o mesmo nome tem precedência sobre elas.
 
 Logo depois de `apelido.` (nome qualificado de um módulo importado, seção 4.11), uma palavra

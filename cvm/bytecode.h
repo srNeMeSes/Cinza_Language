@@ -41,6 +41,8 @@ namespace cinza::cvm {
     X(JLT_I) X(JLE_I)                     /* se R[a] cmp R[b]: salta         */  \
     X(JLTK_I) X(JLEK_I) X(JGTK_I) X(JGEK_I) /* se R[a] cmp b (16 bits): salta */  \
     X(CONCAT)     /* R[a] = texto(R[b]) + texto(R[c])                */          \
+    X(FMT)        /* R[a] = {R[b]:formato K[c]} (largura*1000 + casas+1) */      \
+    X(SLICE)      /* R[a] = R[b][R[b+1]:R[b+2]:R[b+3]] (void = omitido)  */      \
     /* comparação */                                                            \
     X(LT_I) X(LE_I) X(LT_D) X(LE_D) X(LT_S) X(LE_S) /* R[a] = R[b] < R[c] */     \
     X(EQ) X(NE)   /* igualdade da spec 5.3                           */          \

@@ -1,0 +1,5 @@
+// '{}' vazio é erro de compilação.
+fn main() {
+  printf("a {} b");
+}
+// expect-error: '{}' vazio

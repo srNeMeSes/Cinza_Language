@@ -1,0 +1,26 @@
+// s[i] fora do tamanho e fatias com limites fora da string lançam IndexError (sem ajuste silencioso);
+// passo 0 lança ValueError.
+fn main() {
+  string s = "abc";
+  int i = 3;
+  try { print(s[i]); } except (IndexError e) { print(e.message); }
+  try { print(s[-4]); } except (IndexError e) { print(e.message); }
+  try { print(s[1:9]); } except (IndexError e) { print(e.message); }
+  try { print(s[2:1]); } except (IndexError e) { print(e.message); }
+  try { print(s[-5:]); } except (IndexError e) { print(e.message); }
+  try { print(s[3::-1]); } except (IndexError e) { print(e.message); }
+  try { print(s[0:2:-1]); } except (IndexError e) { print(e.message); }
+  int zero = 0;
+  try { print(s[::zero]); } except (ValueError e) { print(e.message); }
+  string v = "";
+  try { print(v[0]); } except (IndexError e) { print(e.message); }
+}
+// expect: índice 3 fora dos limites de uma string de tamanho 3
+// expect: índice -4 fora dos limites de uma string de tamanho 3
+// expect: fatia '[1:9]' fora dos limites de uma string de tamanho 3
+// expect: fatia '[2:1]' fora dos limites de uma string de tamanho 3
+// expect: fatia '[-5:]' fora dos limites de uma string de tamanho 3
+// expect: fatia '[3::-1]' fora dos limites de uma string de tamanho 3
+// expect: fatia '[0:2:-1]' fora dos limites de uma string de tamanho 3
+// expect: o passo da fatia não pode ser 0
+// expect: índice 0 fora dos limites de uma string de tamanho 0

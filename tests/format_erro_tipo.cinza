@@ -1,0 +1,5 @@
+// format devolve string: atribuir a int é erro de tipo.
+fn main() {
+  int n = format("{1}");
+}
+// expect-error: string

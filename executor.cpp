@@ -541,6 +541,7 @@ Value Executor::evalExpr(const Expr* expr) {
         case NodeKind::MethodCall:   return evalMethodCall  (static_cast<const MethodCallExpr*>(expr));
         case NodeKind::MemberAccess: return evalMemberAccess(static_cast<const MemberAccessExpr*>(expr));
         case NodeKind::IndexAccess:  return evalIndexAccess (static_cast<const IndexAccessExpr*>(expr));
+        case NodeKind::Slice:        return evalSlice       (static_cast<const SliceExpr*>(expr));
         case NodeKind::New:          return evalNew         (static_cast<const NewExpr*>(expr));
         case NodeKind::ListLiteral:  return evalListLiteral (static_cast<const ListLiteralExpr*>(expr));
         case NodeKind::DictLiteral:  return evalDictLiteral (static_cast<const DictLiteralExpr*>(expr));
@@ -630,6 +631,17 @@ Value Executor::evalCall(const CallExpr* expr) {
     if (expr->type_of) {
         Value v = evalExpr(expr->arguments[0].get());
         return Value(runtimeType(v, expr->type_of));
+    }
+    // printf/format: monta o texto; printf o entrega ao print
+    if (expr->interpolated) {
+        std::string texto;
+        for (const auto& parte : expr->interp) {
+            if (!parte.expr) { texto += parte.text; continue; }
+            texto += formatPart(evalExpr(parte.expr.get()), parte.width, parte.precision);
+        }
+        if (!expr->native) return Value(std::move(texto));
+        const Value arg(std::move(texto));
+        return expr->native->impl(std::span<const Value>(&arg, 1));
     }
     // C6/Fase 7: nativa já resolvida pelo semântico (prelude ou módulo nativo)
     if (expr->native) return callNative(*expr->native, expr);
@@ -770,6 +782,19 @@ Value Executor::evalMemberAccess(const MemberAccessExpr* expr) {
     }
 
     throwRuntimeError("Acesso a membro em tipo inválido", expr->token);
+}
+
+Value Executor::evalSlice(const SliceExpr* expr) {
+    Value obj = evalExpr(expr->object.get());   // na ordem do fonte (spec 5.2)
+    Value ini   = expr->start ? evalExpr(expr->start.get()) : Value();
+    Value fim   = expr->end   ? evalExpr(expr->end.get())   : Value();
+    Value passo = expr->step  ? evalExpr(expr->step.get())  : Value();
+    try {
+        return sliceGet(obj, ini, fim, passo);   // regra compartilhada (operacoes.cpp)
+    } catch (RuntimeError& err) {
+        raise(RuntimeError(err.kind, err.message, expr->token.line, expr->token.column,
+                           expr->token.file_id));
+    }
 }
 
 Value Executor::evalIndexAccess(const IndexAccessExpr* expr) {

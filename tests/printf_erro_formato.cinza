@@ -1,0 +1,6 @@
+// Formato desconhecido é erro de compilação.
+fn main() {
+  int x = 1;
+  printf("{x:abc}");
+}
+// expect-error: Formato inválido 'abc'

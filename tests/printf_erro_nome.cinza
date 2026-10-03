@@ -1,0 +1,5 @@
+// Nome inexistente dentro das chaves é erro de compilação, não de execução.
+fn main() {
+  printf("Olá, {nmoe}!");
+}
+// expect-error: nmoe

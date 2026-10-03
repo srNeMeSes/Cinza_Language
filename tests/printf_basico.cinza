@@ -1,0 +1,47 @@
+// printf/format: {expr} com qualquer expressão, formatos {x:.2f} e {x:8}, chaves literais {{ }}.
+// printf pula linha como print; format devolve o texto.
+class Pessoa {
+  string nome = "";
+  pub {
+    Pessoa(string n) { nome = n; }
+    fn get_nome() -> string { return nome; }
+  }
+}
+struct Ponto { int x = 0; int y = 0; }
+enum Cor { Verde, Azul }
+fn dobro(int n) -> int { return n * 2; }
+fn main() {
+  string nome = "Ana";
+  int idade = 30;
+  decimal preco = 2.5;
+  printf("Olá, {nome}! Você tem {idade} anos.");
+  printf("{idade + 1} {dobro(idade)} {nome.size()} {idade > 18} {preco * 2}");
+  // qualquer tipo, na forma do print
+  list<int> l = [1, 2];
+  dict<string, int> d = {{"a", 1}};
+  Pessoa p = new Pessoa("Bia");
+  printf("{l} {d} {l[0]} {d[\"a\"]} {p.get_nome()} {new Ponto(1, 2)} {Cor.Azul} {type(preco)}");
+  // formatos
+  printf("R$ {preco:.2f} | {idade:.1f} | {2.675:.2f} | {-0.004:.2f} | {7:.0f}");
+  printf("[{idade:5}] [{nome:5}] [{preco:8.3f}] [{nome:2}] [{\"ção\":5}]");
+  // chaves literais e texto sem expressões
+  printf("{{x}} = {idade}; vazio: {{}}");
+  printf("sem chaves");
+  printf("");
+  // format devolve o texto; pode ler a própria variável
+  string s = format("{nome}!");
+  s = format("<{s}>");
+  print(s, format("{idade}") == "30", format("{idade:4}").size());
+  // strings e chaves dentro da expressão
+  printf("{\"a}b\" + nome} {Cor.Verde}");
+}
+// expect: Olá, Ana! Você tem 30 anos.
+// expect: 31 60 3 true 5
+// expect: [1, 2] {"a": 1} 1 1 Bia Ponto{x: 1, y: 2} Cor.Azul decimal
+// expect: R$ 2.50 | 30.0 | 2.68 | 0.00 | 7
+// expect: [   30] [Ana  ] [   2.500] [Ana] [ção  ]
+// expect: {x} = 30; vazio: {}
+// expect: sem chaves
+// expect:
+// expect: <Ana!> true 4
+// expect: a}bAna Cor.Verde

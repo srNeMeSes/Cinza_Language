@@ -1,0 +1,5 @@
+// '}' sem '{' é erro de compilação; para escrever uma chave, '}}'.
+fn main() {
+  printf("total: x}");
+}
+// expect-error: '}' sem '{'

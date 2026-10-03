@@ -320,6 +320,17 @@ Termina o programa com código 1 e mostra o erro no formato do capítulo 7, segu
 | `string`           | Efeito                                                      |
 |--------------------|-------------------------------------------------------------|
 | `s.size()`         | número de caracteres (code points UTF-8), não de bytes      |
+| `s[i]`             | o caractere do índice `i`, como `string`; `i` negativo conta do fim (`s[-1]` é o último); fora do tamanho, `IndexError` |
+| `s[ini:fim]`       | o trecho de `ini` até `fim` (exclusive); `ini` omitido é `0`, `fim` omitido é o tamanho |
+| `s[ini:fim:passo]` | de `passo` em `passo`; passo negativo anda para trás (`s[::-1]` inverte); passo `0` lança `ValueError` |
+
+Índices e fatias contam **caracteres** e aceitam negativos, que contam do fim. As fatias **não**
+ajustam limites: com passo positivo, `ini` e `fim` precisam ficar entre `0` e o tamanho, com
+`ini ≤ fim`; com passo negativo, `ini` e `fim` explícitos precisam ser índices válidos, com
+`ini ≥ fim` (omitidos: do último caractere até antes do primeiro). Fora disso, `IndexError`.
+
+Strings são **imutáveis**: `s[i] = ...` é erro de compilação. Índices negativos e fatias valem só
+para `string`; em `list` o índice continua não-negativo e a fatia é `Lists.slice`.
 
 As demais funções de texto e de lista estão nos módulos `Strings` e `Lists` (capítulo 6).
 
@@ -330,9 +341,14 @@ fn main() {
   d["a"] = 10;
   print(d, d.keys(), "ação".size());
   try { d["z"] = 0; } except (KeyError e) { print(e.kind); }
+  string s = "coração";
+  print(s[0], s[-1], s[2:5], s[:3], s[4:], s[::-1]);
+  try { print(s[2:10]); } except (IndexError e) { print(e.kind); }
 }
 // expect: {"a": 10, "b": 2} ["a", "b"] 4
 // expect: KeyError
+// expect: c o raç cor ção oãçaroc
+// expect: IndexError
 ```
 
 ## 5.8 Recursão
