@@ -1,0 +1,32 @@
+// Files: caminho inexistente ou do tipo errado lança IOError, sem nunca agir em silêncio.
+import Files;
+fn main() {
+  str n = "tests/_nao_existe_files";
+  try { Files.delete(n); } except (IOError e) { print(e.message); }
+  try { Files.delete_dir(n); } except (IOError e) { print(e.message); }
+  try { Files.delete_tree(n); } except (IOError e) { print(e.message); }
+  try { print(Files.size(n)); } except (IOError e) { print(e.message); }
+  try { print(Files.lines(n)); } except (IOError e) { print(e.kind); }
+  try { Files.copy(n, "tests/_x", false); } except (IOError e) { print(e.message); }
+  try { Files.move(n, "tests/_x", true); } except (IOError e) { print(e.message); }
+  try { print(Files.list_dir(n)); } except (IOError e) { print(e.message); }
+  // tipo errado
+  try { Files.delete("tests"); } except (IOError e) { print(e.message); }
+  try { print(Files.size("tests")); } except (IOError e) { print(e.message); }
+  try { print(Files.list_dir("tests/files_erros_novos.cinza")); } except (IOError e) { print(e.message); }
+  try { Files.delete_tree("tests/files_erros_novos.cinza"); } except (IOError e) { print(e.message); }
+  try { Files.make_dir("tests/files_erros_novos.cinza"); } except (IOError e) { print(e.message); }
+}
+// expect: não existe: 'tests/_nao_existe_files'
+// expect: não existe: 'tests/_nao_existe_files'
+// expect: não existe: 'tests/_nao_existe_files'
+// expect: não existe: 'tests/_nao_existe_files'
+// expect: IOError
+// expect: não existe: 'tests/_nao_existe_files'
+// expect: não existe: 'tests/_nao_existe_files'
+// expect: não existe: 'tests/_nao_existe_files'
+// expect: é uma pasta (use delete_dir ou delete_tree): 'tests'
+// expect: não é um arquivo: 'tests'
+// expect: não é uma pasta: 'tests/files_erros_novos.cinza'
+// expect: não é uma pasta: 'tests/files_erros_novos.cinza'
+// expect: já existe um arquivo com esse nome: 'tests/files_erros_novos.cinza'

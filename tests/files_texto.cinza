@@ -1,0 +1,39 @@
+// Files: linhas, acréscimo, consultas e tamanho em bytes; nome de arquivo com acento.
+import Files;
+fn main() {
+  str d = "tests/_tmp_files_texto";
+  if (Files.exists(d)) { Files.delete_tree(d); }
+  Files.make_dir(d);
+  str a = Files.join(d, "notas.txt");
+  Files.write_lines(a, ["um", "dois"]);
+  Files.append_line(a, "três");
+  Files.append(a, "quatro");
+  print(Files.lines(a));
+  print(Files.read(a).size(), Files.size(a));
+  // \r\n vira linha sem o \r; \n final não gera linha vazia; arquivo vazio: lista vazia
+  Files.write(a, "x\r\ny\n");
+  print(Files.lines(a), Files.lines(a).size());
+  Files.write(a, "");
+  print(Files.lines(a), Files.size(a));
+  Files.write(a, "\n\n");
+  print(Files.lines(a));
+  // append cria o arquivo
+  str novo = Files.join(d, "ação.log");
+  print(Files.exists(novo));
+  Files.append(novo, "ok");
+  print(Files.exists(novo), Files.is_file(novo), Files.is_dir(novo), Files.read(novo));
+  print(Files.is_dir(d), Files.is_file(d), Files.exists(Files.join(d, "nada")));
+  print(Files.list_dir(d));
+  Files.delete_tree(d);
+  print(Files.exists(d));
+}
+// expect: ["um", "dois", "três", "quatro"]
+// expect: 19 20
+// expect: ["x", "y"] 2
+// expect: [] 0
+// expect: ["", ""]
+// expect: false
+// expect: true true false ok
+// expect: true false false
+// expect: ["ação.log", "notas.txt"]
+// expect: false

@@ -990,6 +990,29 @@ Etapas:
 
 ---
 
+## G. Biblioteca padrão rica (2026-10-03)
+
+Enriquecer os módulos nativos, um por vez, nesta ordem; cada um com spec (capítulo 6), testes e as
+decisões de nome e comportamento tomadas pelo autor. Implementação única em `stdlib.cpp` (a CVM e o
+interpretador chamam as mesmas nativas).
+
+- [x] 1. `Files` — feito em 2026-10-03
+  > Nota: de 2 para 23 funções: `lines`, `append`, `write_lines`, `append_line`, `exists`, `is_file`,
+  > `is_dir`, `size` (bytes), `copy`/`move` (com `bool substituir`), `delete`, `make_dir`, `list_dir`,
+  > `delete_dir` (só vazia), `delete_tree`, `current_dir` e os caminhos `join`, `name`, `extension`,
+  > `parent`, `absolute`. Sobre `std::filesystem`; caminhos convertidos de/para UTF-8 explicitamente
+  > (no Windows o `std::string` virava caminho pela página de código ANSI — nomes acentuados falhavam
+  > também no `read`/`write` antigos); separador `/` na saída. Testes `files_texto`, `files_pastas`,
+  > `files_caminhos`, `files_erros_novos`. 406/406/406, limpo sob ASan/UBSan.
+- [ ] 2. `Math`
+- [ ] 3. `Strings`
+- [ ] 4. `Convert`
+- [ ] 5. `Random`
+- [ ] 6. `Lists`
+- [ ] 7. `Time` (módulo novo; data de modificação de arquivo entra aqui)
+
+---
+
 ## Registro de decisões
 
 | Data | Item | Decisão | Motivo |
@@ -1017,3 +1040,4 @@ Etapas:
 | 2026-09-29 | D | Backend: VM própria (CVM), não LLVM. (Decidido primeiro LLVM, revisto no mesmo dia.) | A CVM reaproveita o runtime em C++ e se depura com as mesmas ferramentas (ASan, testes); o LLVM exigiria reescrever o runtime com interface em C, contagem de referências no IR e exceções próprias — de 3 a 5 vezes mais trabalho. |
 | 2026-09-29 | C6 | Depois de `apelido.` o parser aceita palavra-chave como nome (`Random.int`, `Random.decimal`). | Mantém os nomes da biblioteca; não há ambiguidade depois de um apelido de módulo. |
 | 2026-09-26 | Fase 2.5 | `const` global aceita literais, operadores e outros `const`; sem chamadas, `new` ou literais de coleção. | Avaliável antes da `main` sem efeitos colaterais; `const` ainda não é imutável em profundidade. |
+| 2026-10-03 | G1 | `Files`: apagar o que não existe lança `IOError`; `copy`/`move` recebem `bool substituir` explícito; `delete_dir` só apaga pasta vazia e `delete_tree` apaga tudo; as funções de caminho ficam dentro de `Files`. | Decisão do autor da linguagem: nada falha em silêncio, e o perigo fica explícito na chamada. |

@@ -1,0 +1,47 @@
+// Files: pastas, cópia, movimento e remoção; o destino existente só é trocado com substituir = true.
+import Files;
+fn main() {
+  str d = "tests/_tmp_files_pastas";
+  if (Files.exists(d)) { Files.delete_tree(d); }
+  Files.make_dir(d + "/a/b/c");
+  Files.make_dir(d + "/a");
+  print(Files.list_dir(d), Files.list_dir(d + "/a"), Files.is_dir(d + "/a/b/c"));
+  Files.write(d + "/x.txt", "xis");
+  Files.copy(d + "/x.txt", d + "/y.txt", false);
+  print(Files.read(d + "/y.txt"));
+  Files.write(d + "/x.txt", "novo");
+  try { Files.copy(d + "/x.txt", d + "/y.txt", false); } except (IOError e) { print(e.message); }
+  Files.copy(d + "/x.txt", d + "/y.txt", true);
+  print(Files.read(d + "/y.txt"));
+  Files.move(d + "/y.txt", d + "/z.txt", false);
+  print(Files.list_dir(d));
+  try { Files.move(d + "/x.txt", d + "/z.txt", false); } except (IOError e) { print(e.message); }
+  Files.write(d + "/z.txt", "velho");
+  Files.move(d + "/x.txt", d + "/z.txt", true);
+  print(Files.list_dir(d), Files.read(d + "/z.txt"));
+  // move também renomeia pastas
+  Files.move(d + "/a", d + "/pasta", false);
+  print(Files.list_dir(d));
+  try { Files.copy(d + "/z.txt", d + "/pasta", true); } except (IOError e) { print(e.message); }
+  Files.delete(d + "/z.txt");
+  try { Files.delete_dir(d + "/pasta"); } except (IOError e) { print(e.message); }
+  Files.delete_dir(d + "/pasta/b/c");
+  print(Files.list_dir(d + "/pasta/b"));
+  Files.delete_tree(d + "/pasta");
+  print(Files.list_dir(d));
+  Files.delete_dir(d);
+  print(Files.exists(d));
+}
+// expect: ["a"] ["b"] true
+// expect: xis
+// expect: o destino já existe: 'tests/_tmp_files_pastas/y.txt'
+// expect: novo
+// expect: ["a", "x.txt", "z.txt"]
+// expect: o destino já existe: 'tests/_tmp_files_pastas/z.txt'
+// expect: ["a", "z.txt"] novo
+// expect: ["pasta", "z.txt"]
+// expect: o destino é uma pasta, não pode ser substituído: 'tests/_tmp_files_pastas/pasta'
+// expect: a pasta não está vazia (use delete_tree): 'tests/_tmp_files_pastas/pasta'
+// expect: []
+// expect: []
+// expect: false

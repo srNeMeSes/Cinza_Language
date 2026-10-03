@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <charconv>
 #include <cmath>
+#include <filesystem>
 #include <fstream>
 #include <limits>
 #include <random>
@@ -22,6 +23,7 @@ namespace cinza {
 namespace {
 
 using Args = std::span<const Value>;
+namespace fs = std::filesystem;
 
 [[noreturn]] void falha(const std::string& tipo_e_mensagem) {
     throw RuntimeError(tipo_e_mensagem);
@@ -192,25 +194,228 @@ Value strStartsWith(Args a) {
 }
 
 // ============================================================================
-// Files
+// Files — cada função faz a operação inteira (não há arquivo "aberto").
+// Caminhos: o texto da linguagem é UTF-8; no Windows, std::string viraria
+// caminho pela página de código ANSI, então a conversão é sempre explícita.
+// Caminhos devolvidos usam '/' em qualquer sistema. Falhas: IOError.
 // ============================================================================
 
-Value filesRead(Args a) {
-    const std::string& caminho = a[0].asString();
-    std::ifstream f(caminho, std::ios::binary);
-    if (!f.is_open()) falha("IOError: não foi possível abrir '" + caminho + "' para leitura");
+fs::path caminho(const std::string& s) {
+    return fs::path(std::u8string(s.begin(), s.end()));
+}
+
+std::string texto(const fs::path& p) {
+    const std::u8string u = p.generic_u8string();
+    return std::string(u.begin(), u.end());
+}
+
+Value textoValor(const fs::path& p) { return Value(texto(p)); }
+
+[[noreturn]] void falhaIO(const std::string& motivo, const std::string& c) {
+    falha("IOError: " + motivo + " '" + c + "'");
+}
+
+std::string lerArquivo(const std::string& c) {
+    std::ifstream f(caminho(c), std::ios::binary);
+    if (!f.is_open()) falha("IOError: não foi possível abrir '" + c + "' para leitura");
     std::ostringstream conteudo;
     conteudo << f.rdbuf();
-    return Value(conteudo.str());
+    return conteudo.str();
+}
+
+void gravarArquivo(const std::string& c, const std::string& conteudo, std::ios::openmode modo) {
+    std::ofstream f(caminho(c), std::ios::binary | modo);
+    if (!f.is_open()) falha("IOError: não foi possível abrir '" + c + "' para escrita");
+    f << conteudo;
+    if (!f) falha("IOError: falha ao escrever em '" + c + "'");
+}
+
+Value filesRead(Args a) { return Value(lerArquivo(a[0].asString())); }
+
+// lines: sem o fim de linha (\n ou \r\n); o \n final não gera linha vazia
+Value filesLines(Args a) {
+    const std::string s = lerArquivo(a[0].asString());
+    std::vector<Value> linhas;
+    size_t ini = 0;
+    while (ini < s.size()) {
+        size_t fim = s.find('\n', ini);
+        if (fim == std::string::npos) fim = s.size();
+        size_t corte = fim;
+        if (corte > ini && s[corte - 1] == '\r') --corte;
+        linhas.emplace_back(s.substr(ini, corte - ini));
+        ini = fim + 1;
+    }
+    return makeList(std::move(linhas));
 }
 
 Value filesWrite(Args a) {
-    const std::string& caminho = a[0].asString();
-    std::ofstream f(caminho, std::ios::binary | std::ios::trunc);
-    if (!f.is_open()) falha("IOError: não foi possível abrir '" + caminho + "' para escrita");
-    f << a[1].asString();
-    if (!f) falha("IOError: falha ao escrever em '" + caminho + "'");
+    gravarArquivo(a[0].asString(), a[1].asString(), std::ios::trunc);
     return Value();
+}
+
+Value filesAppend(Args a) {
+    gravarArquivo(a[0].asString(), a[1].asString(), std::ios::app);
+    return Value();
+}
+
+Value filesWriteLines(Args a) {
+    std::string conteudo;
+    for (const auto& l : a[1].asList()->elements) { conteudo += l.asString(); conteudo += '\n'; }
+    gravarArquivo(a[0].asString(), conteudo, std::ios::trunc);
+    return Value();
+}
+
+Value filesAppendLine(Args a) {
+    gravarArquivo(a[0].asString(), a[1].asString() + "\n", std::ios::app);
+    return Value();
+}
+
+Value filesExists(Args a) {
+    std::error_code ec;
+    return Value(fs::exists(caminho(a[0].asString()), ec));
+}
+
+Value filesIsFile(Args a) {
+    std::error_code ec;
+    return Value(fs::is_regular_file(caminho(a[0].asString()), ec));
+}
+
+Value filesIsDir(Args a) {
+    std::error_code ec;
+    return Value(fs::is_directory(caminho(a[0].asString()), ec));
+}
+
+// Exige um arquivo existente (size, copy, delete)
+fs::path arquivoExistente(const std::string& c) {
+    const fs::path p = caminho(c);
+    std::error_code ec;
+    if (!fs::exists(p, ec))          falhaIO("não existe:", c);
+    if (!fs::is_regular_file(p, ec)) falhaIO("não é um arquivo:", c);
+    return p;
+}
+
+// Exige uma pasta existente (list_dir, delete_dir, delete_tree)
+fs::path pastaExistente(const std::string& c) {
+    const fs::path p = caminho(c);
+    std::error_code ec;
+    if (!fs::exists(p, ec))       falhaIO("não existe:", c);
+    if (!fs::is_directory(p, ec)) falhaIO("não é uma pasta:", c);
+    return p;
+}
+
+// size: em bytes (não em caracteres)
+Value filesSize(Args a) {
+    const fs::path p = arquivoExistente(a[0].asString());
+    std::error_code ec;
+    const auto n = fs::file_size(p, ec);
+    if (ec) falhaIO("não foi possível ler o tamanho de", a[0].asString());
+    return Value(static_cast<std::int64_t>(n));
+}
+
+// Destino de copy/move: existente só com substituir = true, e só se for arquivo
+void confereDestino(const fs::path& d, const std::string& c, bool substituir) {
+    std::error_code ec;
+    if (!fs::exists(d, ec)) return;
+    if (!substituir)                 falhaIO("o destino já existe:", c);
+    if (!fs::is_regular_file(d, ec)) falhaIO("o destino é uma pasta, não pode ser substituído:", c);
+}
+
+Value filesCopy(Args a) {
+    const fs::path o = arquivoExistente(a[0].asString());
+    const fs::path d = caminho(a[1].asString());
+    confereDestino(d, a[1].asString(), a[2].asBool());
+    std::error_code ec;
+    fs::copy_file(o, d, fs::copy_options::overwrite_existing, ec);
+    if (ec) falhaIO("não foi possível copiar para", a[1].asString());
+    return Value();
+}
+
+// move: arquivo ou pasta; também renomeia
+Value filesMove(Args a) {
+    const fs::path o = caminho(a[0].asString());
+    std::error_code ec;
+    if (!fs::exists(o, ec)) falhaIO("não existe:", a[0].asString());
+    const fs::path d = caminho(a[1].asString());
+    confereDestino(d, a[1].asString(), a[2].asBool());
+    if (fs::exists(d, ec)) fs::remove(d, ec);   // arquivo, com substituir = true
+    fs::rename(o, d, ec);
+    if (ec) falhaIO("não foi possível mover para", a[1].asString());
+    return Value();
+}
+
+Value filesDelete(Args a) {
+    const std::string& c = a[0].asString();
+    const fs::path p = caminho(c);
+    std::error_code ec;
+    if (!fs::exists(p, ec))          falhaIO("não existe:", c);
+    if (fs::is_directory(p, ec))     falhaIO("é uma pasta (use delete_dir ou delete_tree):", c);
+    if (!fs::remove(p, ec) || ec)    falhaIO("não foi possível apagar", c);
+    return Value();
+}
+
+// make_dir: cria também as pastas intermediárias; já existir não é erro
+Value filesMakeDir(Args a) {
+    const std::string& c = a[0].asString();
+    const fs::path p = caminho(c);
+    std::error_code ec;
+    if (fs::is_directory(p, ec)) return Value();
+    if (fs::exists(p, ec)) falhaIO("já existe um arquivo com esse nome:", c);
+    fs::create_directories(p, ec);
+    if (ec) falhaIO("não foi possível criar a pasta", c);
+    return Value();
+}
+
+// list_dir: só os nomes, em ordem alfabética
+Value filesListDir(Args a) {
+    const fs::path p = pastaExistente(a[0].asString());
+    std::vector<std::string> nomes;
+    std::error_code ec;
+    for (const auto& e : fs::directory_iterator(p, ec)) nomes.push_back(texto(e.path().filename()));
+    if (ec) falhaIO("não foi possível listar", a[0].asString());
+    std::sort(nomes.begin(), nomes.end());
+    std::vector<Value> out;
+    out.reserve(nomes.size());
+    for (auto& n : nomes) out.emplace_back(std::move(n));
+    return makeList(std::move(out));
+}
+
+// delete_dir: só pasta vazia
+Value filesDeleteDir(Args a) {
+    const std::string& c = a[0].asString();
+    const fs::path p = pastaExistente(c);
+    std::error_code ec;
+    if (!fs::is_empty(p, ec)) falhaIO("a pasta não está vazia (use delete_tree):", c);
+    if (!fs::remove(p, ec) || ec) falhaIO("não foi possível apagar", c);
+    return Value();
+}
+
+// delete_tree: a pasta e todo o conteúdo
+Value filesDeleteTree(Args a) {
+    const fs::path p = pastaExistente(a[0].asString());
+    std::error_code ec;
+    fs::remove_all(p, ec);
+    if (ec) falhaIO("não foi possível apagar", a[0].asString());
+    return Value();
+}
+
+Value filesCurrentDir(Args) {
+    std::error_code ec;
+    const fs::path p = fs::current_path(ec);
+    if (ec) falha("IOError: não foi possível obter a pasta atual");
+    return textoValor(p);
+}
+
+// Caminhos: só texto, sem tocar no disco
+Value filesJoin(Args a)      { return textoValor(caminho(a[0].asString()) / caminho(a[1].asString())); }
+Value filesName(Args a)      { return textoValor(caminho(a[0].asString()).filename()); }
+Value filesExtension(Args a) { return textoValor(caminho(a[0].asString()).extension()); }
+Value filesParent(Args a)    { return textoValor(caminho(a[0].asString()).parent_path()); }
+
+Value filesAbsolute(Args a) {
+    std::error_code ec;
+    const fs::path p = fs::absolute(caminho(a[0].asString()), ec);
+    if (ec) falhaIO("não foi possível obter o caminho completo de", a[0].asString());
+    return textoValor(p.lexically_normal());
 }
 
 // ============================================================================
@@ -441,8 +646,29 @@ std::vector<NativeModule> criaModulos() {
     }, {}});
 
     m.push_back({"Files", {
-        {"read",  {S},    S, filesRead},
-        {"write", {S, S}, V, filesWrite},
+        {"read",        {S},             S,         filesRead},
+        {"lines",       {S},             t.list(S), filesLines},
+        {"write",       {S, S},          V,         filesWrite},
+        {"append",      {S, S},          V,         filesAppend},
+        {"write_lines", {S, t.list(S)},  V,         filesWriteLines},
+        {"append_line", {S, S},          V,         filesAppendLine},
+        {"exists",      {S},             B,         filesExists},
+        {"is_file",     {S},             B,         filesIsFile},
+        {"is_dir",      {S},             B,         filesIsDir},
+        {"size",        {S},             I,         filesSize},
+        {"copy",        {S, S, B},       V,         filesCopy},
+        {"move",        {S, S, B},       V,         filesMove},
+        {"delete",      {S},             V,         filesDelete},
+        {"make_dir",    {S},             V,         filesMakeDir},
+        {"list_dir",    {S},             t.list(S), filesListDir},
+        {"delete_dir",  {S},             V,         filesDeleteDir},
+        {"delete_tree", {S},             V,         filesDeleteTree},
+        {"current_dir", {},              S,         filesCurrentDir},
+        {"join",        {S, S},          S,         filesJoin},
+        {"name",        {S},             S,         filesName},
+        {"extension",   {S},             S,         filesExtension},
+        {"parent",      {S},             S,         filesParent},
+        {"absolute",    {S},             S,         filesAbsolute},
     }, {}});
 
     m.push_back({"Math", {

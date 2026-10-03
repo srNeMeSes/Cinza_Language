@@ -70,13 +70,75 @@ fn main() {
 
 ### `Files`
 
+Cada função faz a operação inteira: não há arquivo "aberto". Caminhos relativos partem da pasta
+em que o programa foi executado; caminhos devolvidos usam `/` como separador em qualquer sistema.
+Toda falha lança `IOError` — nada falha em silêncio: apagar o que não existe, copiar por cima de
+algo existente sem pedir ou apagar uma pasta com conteúdo pela função errada são erros.
+
+**Ler e gravar**
+
 | Função | Descrição |
 |--------|-----------|
 | `read(string caminho) -> string` | o conteúdo inteiro do arquivo |
+| `lines(string caminho) -> list<string>` | as linhas, sem o fim de linha (`\n` ou `\r\n`); o `\n` no fim do arquivo não gera uma linha vazia; arquivo vazio dá `[]` |
 | `write(string caminho, string conteudo)` | grava o arquivo, substituindo o conteúdo anterior |
+| `append(string caminho, string conteudo)` | acrescenta ao fim; cria o arquivo se não existir |
+| `write_lines(string caminho, list<string> linhas)` | grava cada linha seguida de `\n`, substituindo o conteúdo anterior |
+| `append_line(string caminho, string linha)` | acrescenta a linha seguida de `\n`; cria o arquivo se não existir |
 
-Caminhos relativos partem da pasta em que o interpretador foi executado. Não conseguir abrir,
-ler ou gravar lança `IOError`.
+**Consultar**
+
+| Função | Descrição |
+|--------|-----------|
+| `exists(string caminho) -> bool` | `true` se existe (arquivo ou pasta) |
+| `is_file(string caminho) -> bool` | `true` se é um arquivo |
+| `is_dir(string caminho) -> bool` | `true` se é uma pasta |
+| `size(string caminho) -> int` | tamanho do arquivo em **bytes** (não em caracteres) |
+
+**Arquivos e pastas**
+
+| Função | Descrição |
+|--------|-----------|
+| `copy(string origem, string destino, bool substituir)` | copia um arquivo; destino existente só é trocado com `substituir` = `true`, e nunca se for uma pasta |
+| `move(string origem, string destino, bool substituir)` | move ou renomeia um arquivo ou uma pasta; mesma regra do destino |
+| `delete(string caminho)` | apaga um arquivo (uma pasta é erro) |
+| `make_dir(string caminho)` | cria a pasta e as intermediárias; já existir não é erro (um arquivo com o nome é) |
+| `list_dir(string caminho) -> list<string>` | os nomes do que há na pasta, em ordem alfabética |
+| `delete_dir(string caminho)` | apaga uma pasta **vazia** |
+| `delete_tree(string caminho)` | apaga uma pasta e todo o seu conteúdo |
+| `current_dir() -> string` | a pasta em que o programa foi executado (caminho completo) |
+
+**Caminhos** — só manipulam o texto, sem consultar o disco:
+
+| Função | Descrição |
+|--------|-----------|
+| `join(string a, string b) -> string` | `a` e `b` unidos por `/` (`b` absoluto substitui `a`) |
+| `name(string caminho) -> string` | o último componente: `"dados/a.txt"` → `"a.txt"` |
+| `extension(string caminho) -> string` | a extensão com o ponto: `"a.tar.gz"` → `".gz"`; sem extensão, `""` |
+| `parent(string caminho) -> string` | o caminho sem o último componente: `"dados/a.txt"` → `"dados"`; sem pasta, `""` |
+| `absolute(string caminho) -> string` | o caminho completo, com `.` e `..` resolvidos |
+
+```cinza
+import Files;
+fn main() {
+  str d = "tests/_tmp_spec_files";
+  if (Files.exists(d)) { Files.delete_tree(d); }
+  Files.make_dir(d);
+  str a = Files.join(d, "lista.txt");
+  Files.write_lines(a, ["pão", "leite"]);
+  Files.append_line(a, "café");
+  print(Files.lines(a), Files.size(a));
+  Files.copy(a, Files.join(d, "copia.txt"), false);
+  print(Files.list_dir(d), Files.extension(a), Files.name(a));
+  try { Files.delete_dir(d); } except (IOError e) { print(e.message); }
+  Files.delete_tree(d);
+  print(Files.exists(d));
+}
+// expect: ["pão", "leite", "café"] 17
+// expect: ["copia.txt", "lista.txt"] .txt lista.txt
+// expect: a pasta não está vazia (use delete_tree): 'tests/_tmp_spec_files'
+// expect: false
+```
 
 ### `Math`
 

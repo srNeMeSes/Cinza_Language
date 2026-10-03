@@ -1,0 +1,14 @@
+// Files: funções de caminho (só texto, separador sempre '/').
+import Files;
+fn main() {
+  print(Files.join("dados", "a.txt"), Files.join("dados/", "sub/b.csv"), Files.join("", "c"));
+  print(Files.name("dados/sub/a.tar.gz"), Files.extension("dados/sub/a.tar.gz"), Files.parent("dados/sub/a.tar.gz"));
+  print("[" + Files.extension("LEIAME") + "]", "[" + Files.parent("a.txt") + "]", Files.name("relatório.pdf"));
+  print(Files.absolute("x/../y/z.txt") == Files.join(Files.current_dir(), "y/z.txt"));
+  print(Files.absolute(Files.current_dir()) == Files.current_dir());
+}
+// expect: dados/a.txt dados/sub/b.csv c
+// expect: a.tar.gz .gz dados/sub
+// expect: [] [] relatório.pdf
+// expect: true
+// expect: true
