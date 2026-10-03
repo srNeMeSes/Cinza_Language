@@ -47,6 +47,11 @@ namespace cinza::cvm {
     X(FORPREP)    /* R[a] = cópia de R[b]; R[a+1] = 0; R[a+2] = c    */          \
     X(FORNEXT)    /* próximo elemento em R[slot], ou pc += bc        */          \
     X(FORNEXT_D)  /* idem, convertendo int em decimal                */          \
+    /* for sobre range(a, b[, p]) sem criar a lista (otimização, seção 11): */  \
+    /* R[a] atual, R[a+1] fim, R[a+2] passo, R[a+3] slot do iterador */         \
+    X(RANGEPREP)  /* confere o passo (ValueError se 0); R[a+3] = b   */          \
+    X(FORRANGE)   /* próximo inteiro em R[slot], ou pc += bc         */          \
+    X(FORRANGE_D) /* idem, como decimal                              */          \
     /* coleções */                                                              \
     X(NEWLIST)    /* R[a] = [R[b] ... R[b+c-1]]                      */          \
     X(NEWDICT)    /* R[a] = c pares (R[b], R[b+1]), (R[b+2], ...)    */          \

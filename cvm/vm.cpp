@@ -237,6 +237,24 @@ Value VM::dispatch(std::size_t entrada) {
                     R[in.a + 2] = Value(static_cast<std::int64_t>(in.c));
                     break;
                 }
+                case Op::RANGEPREP:
+                    if (R[in.a + 2].asInt() == 0)   // mesma mensagem da nativa range
+                        throw RuntimeError("ValueError: o passo de 'range' não pode ser 0");
+                    R[in.a + 3] = Value(static_cast<std::int64_t>(in.b));
+                    break;
+                case Op::FORRANGE: case Op::FORRANGE_D: {
+                    const std::int64_t i = R[in.a].asInt(), fim = R[in.a + 1].asInt(),
+                                       passo = R[in.a + 2].asInt();
+                    if (passo > 0 ? i >= fim : i <= fim) { f->pc += in.bc(); break; }
+                    Value& destino = R[R[in.a + 3].asInt()];
+                    if (in.op == Op::FORRANGE_D) destino = Value(static_cast<double>(i));
+                    else                         destino = Value(i);
+                    std::int64_t prox;
+                    // chegou ao limite de int: este foi o último (como a nativa range)
+                    if (__builtin_add_overflow(i, passo, &prox)) R[in.a] = R[in.a + 1];
+                    else                                         R[in.a] = Value(prox);
+                    break;
+                }
                 case Op::FORNEXT: case Op::FORNEXT_D: {
                     auto& elems = R[in.a].asList()->elements;
                     const std::int64_t i = R[in.a + 1].asInt();

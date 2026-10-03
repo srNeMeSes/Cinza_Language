@@ -591,6 +591,31 @@ void Compiler::stmt(const Stmt* s) {
 
         case NodeKind::For: {
             auto* f = static_cast<const ForStmt*>(s);
+            // for (int i in range(...)) com o range embutido: conta direto, sem
+            // criar a lista — o resultado é o mesmo, a lista não é observável
+            if (f->iterable->node_kind == NodeKind::Call &&
+                static_cast<const CallExpr*>(f->iterable.get())->native == findPrelude("range")) {
+                auto* rc = static_cast<const CallExpr*>(f->iterable.get());
+                const std::uint16_t a = alloc(s->token);
+                alloc(s->token); alloc(s->token); alloc(s->token);
+                expr(rc->arguments[0].get(), a);   // na ordem dos argumentos do range
+                expr(rc->arguments[1].get(), static_cast<std::uint16_t>(a + 1));
+                if (rc->arguments.size() == 3) expr(rc->arguments[2].get(), static_cast<std::uint16_t>(a + 2));
+                else emitBc(Op::LOADINT, static_cast<std::uint16_t>(a + 2), 1, s->token);
+                // o erro de passo 0 sai na posição da chamada, como na nativa
+                emit(Op::RANGEPREP, a, slotReg(f->iter_slot), 0, rc->token);
+                const bool para_decimal = f->type_iterator->kind == Type::Kind::DECIMAL;
+                const std::size_t prox = emitBc(para_decimal ? Op::FORRANGE_D : Op::FORRANGE, a, 0, s->token);
+                lacos.push_back({});
+                stmt(f->body.get());
+                const std::size_t volta = emitBc(Op::JMP, 0, 0, s->token);
+                patch(volta, prox);
+                patch(prox, here());
+                for (std::size_t j : lacos.back().breaks)    patch(j, here());
+                for (std::size_t j : lacos.back().continues) patch(j, prox);
+                lacos.pop_back();
+                break;
+            }
             // três registradores consecutivos: cópia, índice, slot do iterador
             const std::uint16_t a = alloc(s->token);
             alloc(s->token);

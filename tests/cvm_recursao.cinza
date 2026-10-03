@@ -4,6 +4,7 @@ fn soma(int n) -> int {
   return n + soma(n - 1);
 }
 fn infinita(int n) -> int { return infinita(n + 1); }
+
 fn main() {
   print(soma(1500));
   print(infinita(0));

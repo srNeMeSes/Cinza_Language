@@ -27,6 +27,7 @@ fn total(list<Forma> formas) -> decimal {
   return soma;
 }
 fn descreve(Forma f) -> string { return f.nome() + " de área " + f.area(); }
+
 fn main() {
   list<Forma> formas = [new Circulo(1.0), new Retangulo(2.0, 3.0)];
   print(total(formas));

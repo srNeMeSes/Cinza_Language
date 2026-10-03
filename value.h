@@ -137,18 +137,21 @@ struct Value {
     }
 
     // ── Acessores tipados ─────────────────────────────────────────────────
+    // Otimização (CVM, seção 11): os ponteiros compartilhados são devolvidos por
+    // referência — devolver por cópia mexia no contador de referências (atômico)
+    // a cada leitura de campo ou elemento.
 
     std::int64_t asInt()     const { return std::get<std::int64_t>(data); }
     double      asDecimal()  const { return std::get<double>(data); }
     bool        asBool()     const { return std::get<bool>(data); }
     const std::string& asString() const { return std::get<std::string>(data); }
 
-    std::shared_ptr<CinzaList>     asList()     const { return std::get<std::shared_ptr<CinzaList>>(data); }
-    std::shared_ptr<CinzaDict>     asDict()     const { return std::get<std::shared_ptr<CinzaDict>>(data); }
-    std::shared_ptr<CinzaPair>     asPair()     const { return std::get<std::shared_ptr<CinzaPair>>(data); }
-    std::shared_ptr<ClassInstance> asInstance() const { return std::get<std::shared_ptr<ClassInstance>>(data); }
-    std::shared_ptr<StructValue>   asStruct()   const { return std::get<std::shared_ptr<StructValue>>(data); }
-    std::shared_ptr<ErrorValue>    asError()    const { return std::get<std::shared_ptr<ErrorValue>>(data); }
+    const std::shared_ptr<CinzaList>&    asList() const { return std::get<std::shared_ptr<CinzaList>>(data); }
+    const std::shared_ptr<CinzaDict>&    asDict() const { return std::get<std::shared_ptr<CinzaDict>>(data); }
+    const std::shared_ptr<CinzaPair>&    asPair() const { return std::get<std::shared_ptr<CinzaPair>>(data); }
+    const std::shared_ptr<ClassInstance>& asInstance() const { return std::get<std::shared_ptr<ClassInstance>>(data); }
+    const std::shared_ptr<StructValue>&  asStruct() const { return std::get<std::shared_ptr<StructValue>>(data); }
+    const std::shared_ptr<ErrorValue>&   asError() const { return std::get<std::shared_ptr<ErrorValue>>(data); }
     const TypeInfo*                asType()     const { return std::get<const TypeInfo*>(data); }
     EnumValue                      asEnum()     const { return std::get<EnumValue>(data); }
 
