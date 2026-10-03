@@ -1,0 +1,6 @@
+// Código depois de exit(...) nunca roda: é código morto (erro de compilação, como depois de return).
+fn main() {
+  exit(1);
+  print("nunca");
+}
+// expect-error: Código inalcançável

@@ -503,7 +503,9 @@ bool VM::handle(const RuntimeError& err, std::size_t entrada) {
         const auto pc = static_cast<std::uint32_t>(fr.pc - 1);   // a instrução do erro / da chamada
         for (const Handler& h : fr.proto->handlers) {
             if (pc < h.start || pc >= h.end) continue;
-            if (!h.kind.empty() && h.kind != e.kind) continue;
+            // vazio: pega-tudo do finally (até o exit); "Error": todo erro, menos o exit
+            const bool pega = h.kind.empty() || h.kind == e.kind || (h.kind == "Error" && !isExit(e));
+            if (!pega) continue;
             auto ev     = std::make_shared<ErrorValue>();
             ev->kind    = e.kind;
             ev->message = e.message;

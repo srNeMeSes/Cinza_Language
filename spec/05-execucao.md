@@ -223,7 +223,7 @@ retorno se termina em `return` ou `throw`, se é um `if`/`else` com os dois ramo
 ### Código inalcançável
 
 Uma instrução depois de outra que **sempre sai do bloco** é erro de compilação. Sempre saem:
-`return`, `throw`, `break`, `continue`, um `if`/`else` com os dois ramos saindo, um
+`return`, `throw`, `exit(...)`, `break`, `continue`, um `if`/`else` com os dois ramos saindo, um
 `while (true)` sem `break` e um `try` com o bloco e todos os `except` saindo.
 
 ```cinza

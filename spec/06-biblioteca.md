@@ -14,6 +14,7 @@ precedência.
 | `range(int ini, int fim) -> list<int>`        | os inteiros de `ini` (inclusive) até `fim` (exclusive). |
 | `range(int ini, int fim, int passo) -> list<int>` | idem, de `passo` em `passo`; passo negativo conta para baixo; passo `0` lança `ValueError`. |
 | `type(x) -> type`                             | o tipo real de `x` (seção 3.9). |
+| `exit([int codigo])`                          | encerra o programa com o código de saída (padrão `0`, sucesso; de `0` a `255`, senão `ValueError`), depois de rodar os `finally` pendentes (abaixo). |
 
 Uma expressão `void` não pode ser argumento de nenhuma delas.
 
@@ -26,6 +27,38 @@ fn main() {
 // expect:
 // expect: 1 2.5 a true [1, 2]
 // expect: [0, 1, 2] [3, 2, 1] []
+```
+
+### `exit`
+
+`exit(codigo)` encerra o programa de qualquer ponto — inclusive de dentro de funções chamadas pela
+`main`. O que já foi escrito na saída fica. Antes de encerrar, rodam os `finally` pendentes, do
+mais interno para fora, em todas as funções da pilha; **nenhum `except` o captura**, nem
+`except (Error e)`. Se um `finally` lançar um erro, esse erro segue como qualquer outro.
+
+Para a análise de fluxo, `exit(...)` encerra o caminho como `throw`: uma função com retorno pode
+terminar num `exit` sem `return` depois, e uma instrução logo depois de `exit(...)` é código
+inalcançável (erro de compilação, seção 5.5). Como `print`, uma função do programa chamada `exit`
+tem precedência — e é uma chamada comum.
+
+```cinza
+fn le_idade(int n) -> int {
+  if (n >= 0) { return n; }
+  print("idade inválida:", n);
+  exit(2);
+}
+fn main() {
+  try {
+    print(le_idade(30));
+    print(le_idade(-1));
+  } finally {
+    print("limpeza");
+  }
+}
+// expect: 30
+// expect: idade inválida: -1
+// expect: limpeza
+// expect-exit: 2
 ```
 
 ### Interpolação: `printf` e `format`

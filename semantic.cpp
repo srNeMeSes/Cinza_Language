@@ -1114,11 +1114,21 @@ void SemanticAnalyzer::analyzeBlock(BlockStmt* block) {
 
 static bool hasBreak(const Stmt* s);
 
-// Revisão: a instrução sempre sai do bloco (return, throw, break, continue,
+// exit(...) embutido como instrução: encerra o caminho, como throw (uma função
+// do usuário chamada exit tem precedência e é uma chamada comum)
+static bool isExitStmt(const Stmt* s) {
+    if (!s || s->node_kind != NodeKind::ExprStmt) return false;
+    const Expr* e = static_cast<const ExprStmt*>(s)->expression.get();
+    return e && e->node_kind == NodeKind::Call &&
+           static_cast<const CallExpr*>(e)->native == findPrelude("exit");
+}
+
+// Revisão: a instrução sempre sai do bloco (return, throw, exit, break, continue,
 // if/else com os dois ramos saindo, while (true) sem break, try com o bloco e
 // todos os except saindo)? O que vier depois dela nunca é executado.
 static bool alwaysLeaves(const Stmt* s) {
     if (!s) return false;
+    if (isExitStmt(s)) return true;
     switch (s->node_kind) {
         case NodeKind::Return: case NodeKind::Throw:
         case NodeKind::Break:  case NodeKind::Continue:
@@ -1158,7 +1168,7 @@ void SemanticAnalyzer::analyzeStatements(const std::vector<StmtPtr>& stmts) {
         analyzeStmt(stmts[i].get());
         if (alwaysLeaves(stmts[i].get()) && i + 1 < stmts.size() && stmts[i + 1])
             throwError("Código inalcançável: esta instrução nunca é executada, porque a anterior "
-                       "sempre sai do bloco (return, break, continue ou throw).",
+                       "sempre sai do bloco (return, break, continue, throw ou exit).",
                        stmts[i + 1]->token);
     }
 }
@@ -2390,7 +2400,8 @@ TypeRef SemanticAnalyzer::analyzeNativeCall(CallExpr* expr, const NativeFn& fn) 
     if (auto p = nome.find("::"); p != std::string::npos) nome.replace(p, 2, ".");
     const size_t n     = expr->arguments.size();
     const size_t max_n = fn.params.size();
-    const size_t min_n = fn.min_params ? fn.min_params : (fn.variadic ? 0 : max_n);
+    const size_t min_n = fn.min_params == NativeFn::SEM_OBRIGATORIOS ? 0
+                       : fn.min_params ? fn.min_params : (fn.variadic ? 0 : max_n);
     if (n < min_n || (!fn.variadic && n > max_n)) {
         const std::string esperados = (min_n == max_n) ? std::to_string(max_n)
                                     : std::to_string(min_n) + " a " + std::to_string(max_n);
@@ -3292,6 +3303,7 @@ static bool hasBreak(const Stmt* s) {
 
 bool SemanticAnalyzer::allPathsReturn(const Stmt* stmt) const {
     if (!stmt) return false;
+    if (isExitStmt(stmt)) return true;   // exit(...) encerra o programa
 
     switch (stmt->node_kind) {
         // return expr; → garante retorno neste caminho

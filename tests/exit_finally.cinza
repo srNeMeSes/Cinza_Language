@@ -1,0 +1,32 @@
+// exit roda os finally pendentes, do mais interno para fora, em todas as funções da pilha, mas
+// nenhum except o captura — nem `except (Error e)`.
+fn interna() {
+  try {
+    print("interna: saindo");
+    exit(7);
+  } except (Error e) {
+    print("nunca: except", e.kind);
+  } finally {
+    print("finally interno");
+  }
+  print("nunca: depois do try");
+}
+fn main() {
+  try {
+    try {
+      interna();
+    } finally {
+      print("finally do meio");
+    }
+  } except (Error e) {
+    print("nunca: except de fora");
+  } finally {
+    print("finally de fora");
+  }
+  print("nunca: fim da main");
+}
+// expect: interna: saindo
+// expect: finally interno
+// expect: finally do meio
+// expect: finally de fora
+// expect-exit: 7

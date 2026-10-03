@@ -345,6 +345,7 @@ int main(int argc, char* argv[]) {
                 cvm::VM vm(img);
                 vm.run(program_args);
             } catch (const RuntimeError& e) {
+                if (isExit(e)) { std::cout.flush(); return std::stoi(e.message); }   // exit(código)
                 diagnostics().report(e.kind, e.message, e.location(), e.trace);
                 diagnostics().flush(std::cerr);
                 return 1;
@@ -356,6 +357,7 @@ int main(int argc, char* argv[]) {
         try {
             executor.execute(programs, analyzer.globalLayout(), program_args);
         } catch (const RuntimeError& e) {
+            if (isExit(e)) { std::cout.flush(); return std::stoi(e.message); }   // exit(código)
             // C4/B6: erro não tratado — tipo, mensagem e stack trace
             diagnostics().report(e.kind, e.message, e.location(), e.trace);
             diagnostics().flush(std::cerr);

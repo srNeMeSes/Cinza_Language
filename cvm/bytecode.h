@@ -120,7 +120,8 @@ struct Instr {
 static_assert(sizeof(Instr) == 8, "instrução da CVM tem 8 bytes");
 
 // Tratador de erro: um erro numa instrução de `start` a `end` (exclusive)
-// cujo tipo é `kind` (vazio: qualquer) vai para `target`, guardado em R[reg].
+// cujo tipo é `kind` vai para `target`, guardado em R[reg]. "Error" pega todo
+// erro menos o exit(); vazio (o pega-tudo do finally) pega até o exit().
 // A tabela fica com o try mais interno primeiro.
 struct Handler {
     std::uint32_t start  = 0;

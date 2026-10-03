@@ -179,8 +179,11 @@ padrão (`new S()`) são calculados no próprio chamador, antes do `NEWSTRUCT`.
 ### Tabela de tratadores
 
 Cada protótipo tem uma tabela de entradas `{início, fim, destino, tipo, registrador}` — "um erro
-lançado numa instrução de *início* a *fim* (exclusive) cujo tipo é *tipo* (ou qualquer, para
-`Error`) vai para *destino*, com o erro guardado em *registrador*".
+lançado numa instrução de *início* a *fim* (exclusive) cujo tipo é *tipo* vai para *destino*, com
+o erro guardado em *registrador*". `Error` pega qualquer erro, **menos** o sinal do `exit()`; o
+tipo vazio (o pega-tudo do `finally`, abaixo) pega também o `exit()` — é assim que o `exit()` roda
+os `finally` pendentes sem que nenhum `except` o capture. No topo, o sinal encerra o programa com
+o código.
 
 Quando um erro acontece, a VM percorre a tabela **em ordem** e usa a primeira entrada que cobre a
 instrução corrente. As entradas ficam ordenadas com o `try` **mais interno primeiro**, então a

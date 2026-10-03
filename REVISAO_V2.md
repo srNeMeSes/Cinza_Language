@@ -1076,6 +1076,15 @@ interpretador chamam as mesmas nativas).
   > continuam sem índice negativo, com `Lists.slice`. Novo nó `SliceExpr`, instrução `SLICE` na CVM,
   > regra única `sliceGet` em `operacoes.cpp` (o `s[i]` entrou no `indexGet` comum). Testes
   > `str_indice`, `str_indice_erros`, `str_erro_*`. 445/445/445, limpo sob ASan/UBSan.
+- [x] 3. `exit([código])` embutido — feito em 2026-10-03
+  > Nota: código opcional (padrão 0), de 0 a 255 (senão `ValueError`). É um sinal (`EXIT_KIND`) que
+  > desce a pilha pelo mecanismo de erros: roda os `finally` pendentes, mas nenhum `except` o
+  > captura — na CVM, `except (Error e)` passou a ter o tipo "Error" na tabela (pega tudo, menos o
+  > exit), e o tipo vazio ficou só para o pega-tudo do `finally`; no topo, `main.cpp` encerra com o
+  > código. Para a análise de fluxo, `exit(...)` encerra o caminho (função com retorno pode terminar
+  > nele; código depois é inalcançável). `NativeFn::SEM_OBRIGATORIOS` para nativa só com opcionais.
+  > O runner ganhou `// expect-exit: N` (código de saída exato). Testes `exit_codigo`, `exit_padrao`,
+  > `exit_finally`, `exit_fluxo`, `exit_codigo_morto`, `exit_sombra`. 454/454/454, limpo sob ASan/UBSan.
 
 ---
 
@@ -1115,3 +1124,4 @@ interpretador chamam as mesmas nativas).
 | 2026-10-03 | G7 | `Time`: instante é `int` em segundos desde 1970 UTC (sem tipo novo); partes, `make`, `format` e `parse` no horário local, com variantes `_utc`; padrão legível `dd/MM/yyyy HH:mm:ss`; `clock()` separado, em milissegundos, para medir duração. | Decisão do autor da linguagem; estático, comparável e ordenável sem mudar a linguagem. |
 | 2026-10-03 | H1 | Interpolação só em `printf("...")` (pula linha, como `print`) e `format("...")` (devolve o texto), com texto literal; `{expr}` aceita qualquer expressão; formatos `{x:.2f}` e `{x:8}` (sem alinhamento explícito nem zeros à esquerda). | Decisão do autor da linguagem; strings comuns não mudam (nenhum programa quebra) e tudo é conferido na compilação. |
 | 2026-10-03 | H2 | `s[i]` e fatias `s[a:b:p]` só em string, com índices negativos e passo; fatias estritas (`IndexError` fora dos limites, sem ajuste); listas ficam como estão. | Decisão do autor da linguagem. |
+| 2026-10-03 | H3 | `exit([código])`: padrão 0, de 0 a 255; roda os `finally` pendentes e nenhum `except` o captura; encerra o caminho na análise de fluxo. | Decisão do autor da linguagem; 0–255 dá o mesmo resultado em todo sistema. |

@@ -1,0 +1,18 @@
+// exit(código) encerra o programa na hora, de dentro de qualquer função, com o código pedido;
+// a saída já escrita fica (o resto do programa não roda).
+fn verifica(int n) {
+  if (n > 2) {
+    print("encerrando com", n);
+    exit(n);
+  }
+  print("ok", n);
+}
+fn main() {
+  for (int i in range(0, 10)) { verifica(i); }
+  print("nunca");
+}
+// expect: ok 0
+// expect: ok 1
+// expect: ok 2
+// expect: encerrando com 3
+// expect-exit: 3

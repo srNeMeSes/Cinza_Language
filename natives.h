@@ -32,7 +32,9 @@ struct NativeFn {
     TypeRef              ret;
     Value (*impl)(std::span<const Value>);
 
-    // Parâmetros obrigatórios (os demais, no fim, são opcionais: range(a, b[, p]))
+    // Parâmetros obrigatórios (os demais, no fim, são opcionais: range(a, b[, p]));
+    // 0 = todos obrigatórios; SEM_OBRIGATORIOS = todos opcionais (exit([código]))
+    static constexpr size_t SEM_OBRIGATORIOS = static_cast<size_t>(-1);
     size_t min_params = 0;
     // O último parâmetro se repete (print(a, b, c, ...))
     bool   variadic   = false;

@@ -85,6 +85,14 @@ private:
     }
 };
 
+// exit(código): um sinal com este tipo desce a pilha como um erro, rodando os
+// finally pendentes, mas nenhum except o captura (nem `except (Error e)`); no
+// topo, o programa encerra com o código (guardado na mensagem). O nome não é um
+// identificador válido, então nenhum programa declara um erro com ele.
+inline const std::string EXIT_KIND = "<exit>";
+
+inline bool isExit(const RuntimeError& e) { return e.kind == EXIT_KIND; }
+
 } // namespace cinza
 
 #endif // CINZA_RUNTIME_ERROR_H

@@ -48,6 +48,16 @@ static Value nativeInput(std::span<const Value> args) {
     return Value(std::move(linha));
 }
 
+// exit([int código]) -> void: encerra o programa com o código (padrão 0, de 0
+// a 255), depois de rodar os finally pendentes (EXIT_KIND, runtime_error.h)
+static Value nativeExit(std::span<const Value> args) {
+    const std::int64_t codigo = args.empty() ? 0 : args[0].asInt();
+    if (codigo < 0 || codigo > 255)
+        throw RuntimeError("ValueError: o código de 'exit' precisa estar entre 0 e 255 (recebeu " +
+                           std::to_string(codigo) + ")");
+    throw RuntimeError(EXIT_KIND, std::to_string(codigo), 0, 0);
+}
+
 const NativeFn* findPrelude(const std::string& name) {
     auto& t = TypeContext::instance();
     static const std::unordered_map<std::string, NativeFn> prelude = {
@@ -55,6 +65,7 @@ const NativeFn* findPrelude(const std::string& name) {
         {"range", {"range", {t.intType(), t.intType(), t.intType()},
                    t.list(t.intType()), nativeRange, 2, false}},
         {"input", {"input", {t.stringType()}, t.stringType(), nativeInput}},
+        {"exit",  {"exit",  {t.intType()}, t.voidType(), nativeExit, NativeFn::SEM_OBRIGATORIOS}},
     };
     auto it = prelude.find(name);
     return it != prelude.end() ? &it->second : nullptr;

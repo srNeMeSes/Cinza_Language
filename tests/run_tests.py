@@ -13,6 +13,7 @@ Cada tests/*.cinza declara a saída esperada em comentários:
     // expect: <linha exata do stdout>
     // expect-error: <trecho da mensagem de erro>
     // expect-not: <trecho que NÃO pode aparecer em stdout+stderr>
+    // expect-exit: N (o programa encerra com exit(N): código de saída exato N)
     // args: a b c   (argumentos passados depois do arquivo → main(list<string> args))
     // env: NOME=valor (variável de ambiente; caminhos relativos à raiz do projeto)
     // stdin: linha   (uma linha da entrada padrão; várias diretivas = várias linhas)
@@ -22,8 +23,8 @@ Também roda os exemplos executáveis da especificação (spec/*.md): todo bloco
 tests/spec_exemplos/ e conferido com as mesmas regras. Blocos sem essas linhas
 são só ilustrativos.
 
-Sem expect-error: o programa deve sair com código 0 e o stdout deve ser
-exatamente a sequência de linhas `expect`.
+Sem expect-error: o programa deve sair com código 0 (ou o de `expect-exit`) e o
+stdout deve ser exatamente a sequência de linhas `expect`.
 Com expect-error: o programa deve sair com código 1 e o trecho deve
 aparecer em stdout+stderr; linhas `expect`, se houver, devem casar com o
 início do stdout.
@@ -45,6 +46,7 @@ TIMEOUT_S = 10
 RE_EXPECT = re.compile(r"//\s*expect:\s?(.*)$")
 RE_EXPECT_ERROR = re.compile(r"//\s*expect-error:\s?(.*)$")
 RE_EXPECT_NOT = re.compile(r"//\s*expect-not:\s?(.*)$")
+RE_EXPECT_EXIT = re.compile(r"//\s*expect-exit:\s?(\d+)\s*$")
 RE_ARGS = re.compile(r"//\s*args:\s?(.*)$")
 RE_STDIN = re.compile(r"//\s*stdin:\s?(.*)$")
 RE_ENV = re.compile(r"//\s*env:\s?(\w+)=(.*)$")
@@ -97,6 +99,15 @@ def ler_expectativas(caminho):
     return esperado, erros, proibidos
 
 
+def ler_codigo_saida(caminho):
+    """Código de `// expect-exit: N`, ou 0 se não houver."""
+    for linha in caminho.read_text(encoding="utf-8-sig").splitlines():
+        m = RE_EXPECT_EXIT.search(linha)
+        if m:
+            return int(m.group(1))
+    return 0
+
+
 def descrever_codigo(codigo):
     """Traduz códigos de saída de crash em algo legível."""
     if codigo < 0:
@@ -109,7 +120,8 @@ def descrever_codigo(codigo):
 def rodar(binario, caminho):
     """Executa um teste. Retorna (passou, motivo, detalhes)."""
     esperado, erros, proibidos = ler_expectativas(caminho)
-    if not esperado and not erros:
+    codigo_esperado = ler_codigo_saida(caminho)
+    if not esperado and not erros and not codigo_esperado:
         return False, "nenhum '// expect' encontrado no arquivo", ""
 
     try:
@@ -150,8 +162,9 @@ def rodar(binario, caminho):
             return False, "stdout antes do erro difere do esperado", detalhes
         return True, "", ""
 
-    if proc.returncode != 0:
-        return False, f"código de saída {descrever_codigo(proc.returncode)}", detalhes
+    if proc.returncode != codigo_esperado:
+        return False, (f"código de saída {descrever_codigo(proc.returncode)}, esperado "
+                       f"{codigo_esperado}"), detalhes
     if linhas != esperado:
         return False, "stdout difere do esperado", detalhes
     return True, "", ""
@@ -171,7 +184,8 @@ def exemplos_da_spec(filtro):
         for m in RE_BLOCO.finditer(texto):
             codigo = m.group(1)
             if not (RE_EXPECT.search(codigo) or RE_EXPECT_ERROR.search(codigo) or
-                    any(RE_EXPECT.search(l) or RE_EXPECT_ERROR.search(l) for l in codigo.splitlines())):
+                    any(RE_EXPECT.search(l) or RE_EXPECT_ERROR.search(l) or RE_EXPECT_EXIT.search(l)
+                        for l in codigo.splitlines())):
                 continue
             linha = texto.count("\n", 0, m.start()) + 1
             nome = f"spec/{md.name}:{linha}"

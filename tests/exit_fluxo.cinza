@@ -1,0 +1,18 @@
+// Para a análise de fluxo, exit encerra o caminho como throw: uma função com retorno compila
+// mesmo sem return depois do exit. O código fora de 0 a 255 lança ValueError (capturável).
+fn le_positivo(int n) -> int {
+  if (n > 0) { return n; }
+  print("número inválido:", n);
+  exit(2);
+}
+fn main() {
+  try { exit(256); } except (ValueError e) { print(e.message); }
+  try { exit(-1); } except (ValueError e) { print(e.message); }
+  print(le_positivo(5));
+  print(le_positivo(0));
+}
+// expect: o código de 'exit' precisa estar entre 0 e 255 (recebeu 256)
+// expect: o código de 'exit' precisa estar entre 0 e 255 (recebeu -1)
+// expect: 5
+// expect: número inválido: 0
+// expect-exit: 2

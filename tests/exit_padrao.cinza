@@ -1,0 +1,6 @@
+// exit() sem argumento encerra com sucesso (código 0).
+fn main() {
+  print("antes");
+  exit();
+}
+// expect: antes

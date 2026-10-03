@@ -1,0 +1,9 @@
+// Uma função do programa chamada exit tem precedência (como print): é uma chamada comum, que
+// não encerra o programa nem conta como fim de caminho.
+fn exit(int c) { print("meu exit", c); }
+fn main() {
+  exit(3);
+  print("continua");
+}
+// expect: meu exit 3
+// expect: continua

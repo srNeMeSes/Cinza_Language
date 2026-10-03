@@ -117,5 +117,6 @@ cinza [opções] arquivo.cinza [argumentos para main...]
 As opções vêm **antes** do arquivo; tudo o que vem depois dele vai para `main(list<string> args)`,
 mesmo que comece com `-`.
 
-O código de saída é **0** quando a `main` termina normalmente e **1** em qualquer erro de
-compilação ou erro de runtime não capturado.
+O código de saída é **0** quando a `main` termina normalmente, **1** em qualquer erro de
+compilação ou erro de runtime não capturado, e o código pedido quando o programa chama
+`exit(codigo)` (capítulo 6).

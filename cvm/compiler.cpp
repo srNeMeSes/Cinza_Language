@@ -944,8 +944,8 @@ void Compiler::tryStmt(const TryStmt* t) {
     std::vector<std::pair<std::uint32_t, std::uint32_t>> blocos_except;
     for (const auto& h : t->handlers) {
         const auto alvo = static_cast<std::uint32_t>(here());
-        tabela.push_back({ini, fim, alvo, h.type_name == "Error" ? std::string() : h.type_name,
-                          slotReg(h.var_slot)});
+        // kind vazio fica para o pega-tudo do finally; "Error" captura todo erro, menos o exit()
+        tabela.push_back({ini, fim, alvo, h.type_name, slotReg(h.var_slot)});
         stmt(h.body.get());
         blocos_except.emplace_back(alvo, static_cast<std::uint32_t>(here()));
         sair();

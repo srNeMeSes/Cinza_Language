@@ -444,8 +444,9 @@ Flow Executor::executeTry(const TryStmt* stmt) {
         flow = executeStmt(stmt->body.get());
     } catch (const RuntimeError& err) {
         const ExceptClause* handler = nullptr;
-        for (const auto& h : stmt->handlers)
-            if (h.type_name == "Error" || h.type_name == err.kind) { handler = &h; break; }
+        if (!isExit(err))   // exit(): só os finally rodam
+            for (const auto& h : stmt->handlers)
+                if (h.type_name == "Error" || h.type_name == err.kind) { handler = &h; break; }
 
         if (!handler) {
             pendente = std::current_exception();
