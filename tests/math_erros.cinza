@@ -1,0 +1,37 @@
+// Math: fora do domínio lança ValueError; resultado grande demais lança OverflowError (nunca infinito).
+import Math;
+fn main() {
+  try { print(Math.asin(2)); } except (ValueError e) { print(e.message); }
+  try { print(Math.acos(-1.5)); } except (ValueError e) { print(e.message); }
+  try { print(Math.log10(0)); } except (ValueError e) { print(e.message); }
+  try { print(Math.log2(-1)); } except (ValueError e) { print(e.message); }
+  try { print(Math.log_base(8, 1)); } except (ValueError e) { print(e.message); }
+  try { print(Math.log_base(-8, 2)); } except (ValueError e) { print(e.message); }
+  try { print(Math.exp(1000)); } except (OverflowError e) { print(e.message); }
+  try { print(Math.sinh(1000)); } except (OverflowError e) { print(e.message); }
+  decimal enorme = Math.pow(10, 308) * 1.5;
+  try { print(Math.hypot(enorme, enorme)); } except (OverflowError e) { print(e.kind); }
+  try { print(Math.trunc(Math.pow(10, 30))); } except (OverflowError e) { print(e.message); }
+  try { print(Math.round_to(1.5, -1)); } except (ValueError e) { print(e.message); }
+  try { print(Math.factorial(-1)); } except (ValueError e) { print(e.message); }
+  try { print(Math.factorial(21)); } except (OverflowError e) { print(e.message); }
+  try { print(Math.gcd(-9223372036854775807 - 1, 0)); } except (OverflowError e) { print(e.message); }
+  try { print(Math.lcm(9223372036854775807, 2)); } except (OverflowError e) { print(e.message); }
+  try { print(Math.clamp(5, 10, 0)); } except (ValueError e) { print(e.message); }
+}
+// expect: 'asin' só é definido de -1 a 1
+// expect: 'acos' só é definido de -1 a 1
+// expect: 'log10' só é definido para números positivos
+// expect: 'log2' só é definido para números positivos
+// expect: a base de 'log_base' precisa ser positiva e diferente de 1
+// expect: 'log_base' só é definido para números positivos
+// expect: resultado de 'exp' grande demais
+// expect: resultado de 'sinh' grande demais
+// expect: OverflowError
+// expect: resultado de 'trunc' fora do intervalo de int
+// expect: o número de casas de 'round_to' não pode ser negativo
+// expect: 'factorial' de número negativo
+// expect: 'factorial(21)' não cabe em int (o máximo é 20)
+// expect: resultado de 'gcd' fora do intervalo de int
+// expect: resultado de 'lcm' fora do intervalo de int
+// expect: em 'clamp' o mínimo não pode ser maior que o máximo

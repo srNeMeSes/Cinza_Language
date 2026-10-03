@@ -1,0 +1,42 @@
+// Math: trigonometria, potências, logaritmos, arredondamento, inteiros e comparação de decimais.
+import Math;
+fn main() {
+  print(Math.tau == 2 * Math.pi, Math.degrees(Math.pi), Math.radians(180) == Math.pi);
+  print(Math.round_to(Math.tan(Math.pi / 4), 9), Math.asin(1) == Math.pi / 2, Math.acos(1), Math.atan(0));
+  print(Math.degrees(Math.atan2(1, 1)), Math.degrees(Math.atan2(-1, -1)));
+  print(Math.sinh(0), Math.cosh(0), Math.tanh(0));
+  print(Math.cbrt(27), Math.cbrt(-8), Math.exp(0), Math.log10(1000), Math.log2(1024), Math.log_base(81, 3));
+  print(Math.hypot(3, 4));
+  // trunc corta em direção ao zero; floor desce
+  print(Math.trunc(2.7), Math.trunc(-2.7), Math.floor(-2.7));
+  // round_to arredonda o número como é escrito: metade se afasta do zero
+  print(Math.round_to(2.675, 2), Math.round_to(-2.675, 2), Math.round_to(3.14159, 3), Math.round_to(2.5, 0));
+  print(Math.round_to(9.995, 2), Math.round_to(0.004, 2), Math.round_to(-0.004, 2), Math.round_to(1.5, 10), Math.round_to(7, 2));
+  print(Math.gcd(12, 18), Math.gcd(-12, 18), Math.gcd(0, 5), Math.gcd(0, 0));
+  print(Math.lcm(4, 6), Math.lcm(-4, 6), Math.lcm(0, 7));
+  print(Math.is_even(4), Math.is_even(-3), Math.is_odd(-3), Math.is_odd(0));
+  print(Math.sign(-5), Math.sign(0), Math.sign(2.5), Math.sign(-0.1));
+  print(Math.clamp(15, 0, 10), Math.clamp(-3, 0, 10), Math.clamp(5, 0, 10), Math.clamp(1.5, 0.0, 1.0));
+  print(Math.factorial(0), Math.factorial(5), Math.factorial(20));
+  print(Math.is_prime(2), Math.is_prime(1), Math.is_prime(-7), Math.is_prime(97), Math.is_prime(91));
+  print(Math.is_prime(9223372036854775783), Math.is_prime(9223372036854775807), Math.is_prime(3215031751));
+  print(0.1 + 0.2 == 0.3, Math.is_close(0.1 + 0.2, 0.3), Math.is_close(1.0, 1.001), Math.is_close(0.1 + 0.2 - 0.3, 0));
+}
+// expect: true 180 true
+// expect: 1 true 0 0
+// expect: 45 -135
+// expect: 0 1 0
+// expect: 3 -2 1 3 10 4
+// expect: 5
+// expect: 2 -2 -3
+// expect: 2.68 -2.68 3.142 3
+// expect: 10 0 0 1.5 7
+// expect: 6 6 5 0
+// expect: 12 12 0
+// expect: true false true false
+// expect: -1 0 1 -1
+// expect: 10 0 5 1
+// expect: 1 120 2432902008176640000
+// expect: true false false true false
+// expect: true false false
+// expect: false true false true

@@ -142,21 +142,71 @@ fn main() {
 
 ### `Math`
 
-| Nome | Descrição |
-|------|-----------|
-| `pi`, `e` | as constantes π e *e* (`decimal`) |
+Nenhuma função produz infinito nem NaN: fora do domínio lança `ValueError`; resultado grande
+demais lança `OverflowError`. Argumentos `int` em parâmetros `decimal` são convertidos.
+
+**Constantes** (`decimal`): `pi` (π), `e`, `tau` (2π).
+
+**Potências, raízes e logaritmos**
+
+| Função | Descrição |
+|--------|-----------|
 | `sqrt(decimal x) -> decimal` | raiz quadrada; `x` negativo lança `ValueError` |
-| `pow(decimal b, decimal x) -> decimal` | `b` elevado a `x`; sem resultado real lança `ValueError`, resultado infinito lança `OverflowError` |
-| `abs(número x) -> número` | valor absoluto; `abs` do menor `int` lança `OverflowError` |
+| `cbrt(decimal x) -> decimal` | raiz cúbica (aceita negativos: `cbrt(-8)` = `-2`) |
+| `pow(decimal b, decimal x) -> decimal` | `b` elevado a `x`; sem resultado real lança `ValueError` |
+| `exp(decimal x) -> decimal` | *e* elevado a `x` |
+| `log(decimal x) -> decimal` | logaritmo natural |
+| `log10(decimal x) -> decimal`, `log2(...)` | logaritmo na base 10 / na base 2 |
+| `log_base(decimal x, decimal base) -> decimal` | logaritmo na base dada; a base precisa ser positiva e diferente de 1 |
+| `hypot(decimal x, decimal y) -> decimal` | √(x² + y²), sem estourar no meio do cálculo |
+
+Os logaritmos lançam `ValueError` para `x` ≤ 0.
+
+**Trigonometria** (ângulos em radianos)
+
+| Função | Descrição |
+|--------|-----------|
+| `sin`, `cos`, `tan(decimal x) -> decimal` | seno, cosseno, tangente |
+| `asin`, `acos(decimal x) -> decimal` | arco seno e arco cosseno; `x` fora de -1 a 1 lança `ValueError` |
+| `atan(decimal x) -> decimal` | arco tangente |
+| `atan2(decimal y, decimal x) -> decimal` | ângulo do ponto (x, y), de -π a π (note a ordem: `y` primeiro) |
+| `sinh`, `cosh`, `tanh(decimal x) -> decimal` | funções hiperbólicas |
+| `degrees(decimal rad) -> decimal`, `radians(decimal graus)` | conversão entre radianos e graus |
+
+**Arredondamento**
+
+| Função | Descrição |
+|--------|-----------|
 | `floor(decimal x) -> int` | maior inteiro ≤ `x` |
 | `ceil(decimal x) -> int` | menor inteiro ≥ `x` |
 | `round(decimal x) -> int` | inteiro mais próximo; metade se afasta do zero (`2.5` → `3`, `-2.5` → `-3`) |
-| `min(número a, número b) -> número`, `max(...)` | o menor / o maior |
-| `sin(decimal x) -> decimal`, `cos(...)` | seno e cosseno (`x` em radianos) |
-| `log(decimal x) -> decimal` | logaritmo natural; `x` ≤ 0 lança `ValueError` |
+| `trunc(decimal x) -> int` | corta as casas, em direção ao zero (`-2.7` → `-2`) |
+| `round_to(decimal x, int casas) -> decimal` | arredonda para `casas` casas decimais (metade se afasta do zero); `casas` negativo lança `ValueError` |
 
-`floor`, `ceil` e `round` lançam `OverflowError` se o resultado não couber em `int`. Argumentos
-`int` em parâmetros `decimal` são convertidos.
+`floor`, `ceil`, `round` e `trunc` lançam `OverflowError` se o resultado não couber em `int`.
+
+`round_to` arredonda o número **como ele é escrito** (a forma da seção 5.4), não a sua representação
+binária: `round_to(2.675, 2)` é `2.68`, embora `2.675` não seja exato em binário. O resultado é um
+`decimal`, mostrado pela forma da seção 5.4: `round_to(2.5, 2)` é `2.5`, não `2.50`.
+
+**Inteiros e sinais**
+
+| Função | Descrição |
+|--------|-----------|
+| `abs(número x) -> número` | valor absoluto; `abs` do menor `int` lança `OverflowError` |
+| `sign(número x) -> int` | `-1`, `0` ou `1` |
+| `min(número a, número b) -> número`, `max(...)` | o menor / o maior (para uma lista, `Lists`) |
+| `clamp(número x, número min, número max) -> número` | `x` limitado ao intervalo; `min > max` lança `ValueError` |
+| `gcd(int a, int b) -> int`, `lcm(...)` | máximo divisor comum / mínimo múltiplo comum, sempre ≥ 0; `gcd(0, 0)` = `0`, `lcm` com zero = `0` |
+| `is_even(int n) -> bool`, `is_odd(...)` | par / ímpar |
+| `factorial(int n) -> int` | n!; negativo lança `ValueError`; acima de `20` não cabe em `int` (`OverflowError`) |
+| `is_prime(int n) -> bool` | `true` se `n` é primo (exato em toda a faixa de `int`; menores que 2 não são) |
+
+**Comparar decimais**
+
+| Função | Descrição |
+|--------|-----------|
+| `is_close(decimal a, decimal b) -> bool` | iguais a menos de erro de arredondamento: diferença relativa até 10⁻⁹, ou absoluta até 10⁻¹² (perto de zero). `0.1 + 0.2 == 0.3` é `false`; `is_close(0.1 + 0.2, 0.3)` é `true` |
 
 ```cinza
 import Math;
@@ -164,10 +214,16 @@ fn main() {
   print(Math.sqrt(16.0), Math.pow(2, 10), Math.abs(-3), Math.abs(-2.5));
   print(Math.floor(2.7), Math.ceil(2.1), Math.round(2.5), Math.round(-2.5), Math.min(3, 7));
   print(Math.pi);
+  print(Math.round_to(2.675, 2), Math.trunc(-2.7), Math.hypot(3, 4), Math.log_base(8, 2));
+  print(Math.gcd(12, 18), Math.lcm(4, 6), Math.factorial(5), Math.is_prime(97), Math.clamp(15, 0, 10));
+  print(0.1 + 0.2 == 0.3, Math.is_close(0.1 + 0.2, 0.3));
 }
 // expect: 4 1024 3 2.5
 // expect: 2 3 3 -3 3
 // expect: 3.141592653589793
+// expect: 2.68 -2 5 3
+// expect: 6 12 120 true 10
+// expect: false true
 ```
 
 ### `Random`

@@ -463,6 +463,193 @@ Value mathLog(Args a) {
     return Value(std::log(x));
 }
 
+// Resultado decimal de uma função: a linguagem nunca produz infinito nem NaN
+Value decimalFinito(double r, const char* fn) {
+    if (std::isnan(r)) falha(std::string("ValueError: '") + fn + "' sem resultado real");
+    if (std::isinf(r)) falha(std::string("OverflowError: resultado de '") + fn + "' grande demais");
+    return Value(r);
+}
+
+Value mathTan(Args a)  { return decimalFinito(std::tan(a[0].asDecimal()), "tan"); }
+Value mathAtan(Args a) { return Value(std::atan(a[0].asDecimal())); }
+Value mathAtan2(Args a) { return Value(std::atan2(a[0].asDecimal(), a[1].asDecimal())); }
+
+// asin/acos: só de -1 a 1
+Value mathAsin(Args a) {
+    const double x = a[0].asDecimal();
+    if (x < -1 || x > 1) falha("ValueError: 'asin' só é definido de -1 a 1");
+    return Value(std::asin(x));
+}
+Value mathAcos(Args a) {
+    const double x = a[0].asDecimal();
+    if (x < -1 || x > 1) falha("ValueError: 'acos' só é definido de -1 a 1");
+    return Value(std::acos(x));
+}
+
+constexpr double PI = 3.14159265358979323846;
+Value mathDegrees(Args a) { return decimalFinito(a[0].asDecimal() * (180.0 / PI), "degrees"); }
+Value mathRadians(Args a) { return Value(a[0].asDecimal() * (PI / 180.0)); }
+
+Value mathSinh(Args a) { return decimalFinito(std::sinh(a[0].asDecimal()), "sinh"); }
+Value mathCosh(Args a) { return decimalFinito(std::cosh(a[0].asDecimal()), "cosh"); }
+Value mathTanh(Args a) { return Value(std::tanh(a[0].asDecimal())); }
+
+Value mathCbrt(Args a)  { return Value(std::cbrt(a[0].asDecimal())); }
+Value mathExp(Args a)   { return decimalFinito(std::exp(a[0].asDecimal()), "exp"); }
+Value mathHypot(Args a) { return decimalFinito(std::hypot(a[0].asDecimal(), a[1].asDecimal()), "hypot"); }
+
+Value mathLog10(Args a) {
+    const double x = a[0].asDecimal();
+    if (x <= 0) falha("ValueError: 'log10' só é definido para números positivos");
+    return Value(std::log10(x));
+}
+Value mathLog2(Args a) {
+    const double x = a[0].asDecimal();
+    if (x <= 0) falha("ValueError: 'log2' só é definido para números positivos");
+    return Value(std::log2(x));
+}
+// log_base(x, base): logaritmo de x na base dada
+Value mathLogBase(Args a) {
+    const double x = a[0].asDecimal(), base = a[1].asDecimal();
+    if (x <= 0) falha("ValueError: 'log_base' só é definido para números positivos");
+    if (base <= 0 || base == 1) falha("ValueError: a base de 'log_base' precisa ser positiva e diferente de 1");
+    return Value(std::log(x) / std::log(base));
+}
+
+// trunc: corta as casas, em direção ao zero
+Value mathTrunc(Args a) { return decimalParaInt(std::trunc(a[0].asDecimal()), "trunc"); }
+
+// round_to(x, casas): arredonda o número como ele é escrito (a forma decimal
+// mais curta, a mesma do print), não o valor binário — round_to(2.675, 2) é
+// 2.68 (em binário 2.675 é 2.67499999...). Metade se afasta do zero, como round.
+Value mathRoundTo(Args a) {
+    const double x = a[0].asDecimal();
+    const std::int64_t casas = a[1].asInt();
+    if (casas < 0) falha("ValueError: o número de casas de 'round_to' não pode ser negativo");
+    char buf[512];
+    auto [fim, ec] = std::to_chars(buf, buf + sizeof buf, std::fabs(x), std::chars_format::fixed);
+    if (ec != std::errc()) return Value(x);
+    std::string s(buf, fim);
+    const size_t ponto = s.find('.');
+    if (ponto == std::string::npos || static_cast<std::int64_t>(s.size() - ponto - 1) <= casas)
+        return Value(x);   // já tem casas de menos
+    std::string digitos = s.substr(0, ponto) + s.substr(ponto + 1, static_cast<size_t>(casas));
+    const bool sobe = s[ponto + 1 + static_cast<size_t>(casas)] >= '5';
+    if (sobe) {   // soma 1 na última casa mantida, com vai-um
+        size_t i = digitos.size();
+        while (i > 0 && digitos[i - 1] == '9') digitos[--i] = '0';
+        if (i == 0) digitos.insert(digitos.begin(), '1');
+        else        ++digitos[i - 1];
+    }
+    const size_t int_len = digitos.size() - static_cast<size_t>(casas);
+    std::string r = digitos.substr(0, int_len);
+    if (casas > 0) r += "." + digitos.substr(int_len);
+    double v = 0;
+    std::from_chars(r.data(), r.data() + r.size(), v);
+    if (v == 0) return Value(0.0);   // sem -0
+    return decimalFinito(x < 0 ? -v : v, "round_to");
+}
+
+// Magnitude de um int como unsigned (|menor int| não cabe em int)
+std::uint64_t magnitude(std::int64_t v) {
+    return v < 0 ? std::uint64_t{0} - static_cast<std::uint64_t>(v) : static_cast<std::uint64_t>(v);
+}
+
+std::uint64_t mdcU(std::uint64_t x, std::uint64_t y) {
+    while (y != 0) { const std::uint64_t r = x % y; x = y; y = r; }
+    return x;
+}
+
+// gcd: máximo divisor comum, sempre >= 0; gcd(0, 0) = 0
+Value mathGcd(Args a) {
+    const std::uint64_t g = mdcU(magnitude(a[0].asInt()), magnitude(a[1].asInt()));
+    if (g > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()))
+        falha("OverflowError: resultado de 'gcd' fora do intervalo de int");
+    return Value(static_cast<std::int64_t>(g));
+}
+
+// lcm: mínimo múltiplo comum, sempre >= 0; com um zero, 0
+Value mathLcm(Args a) {
+    const std::uint64_t x = magnitude(a[0].asInt()), y = magnitude(a[1].asInt());
+    if (x == 0 || y == 0) return Value(std::int64_t{0});
+    std::uint64_t r;
+    if (__builtin_mul_overflow(x / mdcU(x, y), y, &r) ||
+        r > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()))
+        falha("OverflowError: resultado de 'lcm' fora do intervalo de int");
+    return Value(static_cast<std::int64_t>(r));
+}
+
+Value mathIsEven(Args a) { return Value(a[0].asInt() % 2 == 0); }
+Value mathIsOdd(Args a)  { return Value(a[0].asInt() % 2 != 0); }
+
+// sign: -1, 0 ou 1
+Value mathSign(Args a) {
+    const double x = numero(a[0]);
+    return Value(std::int64_t{x > 0 ? 1 : (x < 0 ? -1 : 0)});
+}
+
+// clamp(x, min, max): x limitado ao intervalo
+Value mathClamp(Args a) {
+    if (numero(a[1]) > numero(a[2]))
+        falha("ValueError: em 'clamp' o mínimo não pode ser maior que o máximo");
+    if (numero(a[0]) < numero(a[1])) return a[1];
+    if (numero(a[0]) > numero(a[2])) return a[2];
+    return a[0];
+}
+
+// factorial(n): até 20! (o maior que cabe em int)
+Value mathFactorial(Args a) {
+    const std::int64_t n = a[0].asInt();
+    if (n < 0)  falha("ValueError: 'factorial' de número negativo");
+    if (n > 20) falha("OverflowError: 'factorial(" + std::to_string(n) + ")' não cabe em int (o máximo é 20)");
+    std::int64_t r = 1;
+    for (std::int64_t i = 2; i <= n; ++i) r *= i;
+    return Value(r);
+}
+
+// is_prime: Miller-Rabin determinístico para 64 bits (estas bases bastam)
+__extension__ typedef unsigned __int128 u128;   // extensão do GCC/Clang, de propósito
+std::uint64_t mulMod(std::uint64_t x, std::uint64_t y, std::uint64_t m) {
+    return static_cast<std::uint64_t>(static_cast<u128>(x) * y % m);
+}
+std::uint64_t powMod(std::uint64_t b, std::uint64_t e, std::uint64_t m) {
+    std::uint64_t r = 1;
+    for (b %= m; e; e >>= 1, b = mulMod(b, b, m))
+        if (e & 1) r = mulMod(r, b, m);
+    return r;
+}
+Value mathIsPrime(Args a) {
+    const std::int64_t v = a[0].asInt();
+    if (v < 2) return Value(false);
+    const auto n = static_cast<std::uint64_t>(v);
+    for (std::uint64_t p : {2ull, 3ull, 5ull, 7ull, 11ull, 13ull, 17ull, 19ull, 23ull, 29ull, 31ull, 37ull}) {
+        if (n == p) return Value(true);
+        if (n % p == 0) return Value(false);
+    }
+    std::uint64_t d = n - 1;
+    int s = 0;
+    while (d % 2 == 0) { d /= 2; ++s; }
+    for (std::uint64_t b : {2ull, 3ull, 5ull, 7ull, 11ull, 13ull, 17ull, 19ull, 23ull, 29ull, 31ull, 37ull}) {
+        std::uint64_t x = powMod(b, d, n);
+        if (x == 1 || x == n - 1) continue;
+        bool composto = true;
+        for (int r = 1; r < s; ++r) {
+            x = mulMod(x, x, n);
+            if (x == n - 1) { composto = false; break; }
+        }
+        if (composto) return Value(false);
+    }
+    return Value(true);
+}
+
+// is_close(a, b): iguais a menos de erro de arredondamento — diferença
+// relativa até 1e-9, ou absoluta até 1e-12 (perto de zero)
+Value mathIsClose(Args a) {
+    const double x = a[0].asDecimal(), y = a[1].asDecimal();
+    const double dif = std::fabs(x - y);
+    return Value(dif <= 1e-9 * std::max(std::fabs(x), std::fabs(y)) || dif <= 1e-12);
+}
+
 // ============================================================================
 // Random — estado único do processo; seed(n) torna a sequência reproduzível
 // ============================================================================
@@ -683,9 +870,37 @@ std::vector<NativeModule> criaModulos() {
         {"sin",   {D},    D, mathSin},
         {"cos",   {D},    D, mathCos},
         {"log",   {D},    D, mathLog},
+        {"tan",       {D},       D, mathTan},
+        {"asin",      {D},       D, mathAsin},
+        {"acos",      {D},       D, mathAcos},
+        {"atan",      {D},       D, mathAtan},
+        {"atan2",     {D, D},    D, mathAtan2},
+        {"degrees",   {D},       D, mathDegrees},
+        {"radians",   {D},       D, mathRadians},
+        {"sinh",      {D},       D, mathSinh},
+        {"cosh",      {D},       D, mathCosh},
+        {"tanh",      {D},       D, mathTanh},
+        {"cbrt",      {D},       D, mathCbrt},
+        {"exp",       {D},       D, mathExp},
+        {"log10",     {D},       D, mathLog10},
+        {"log2",      {D},       D, mathLog2},
+        {"log_base",  {D, D},    D, mathLogBase},
+        {"hypot",     {D, D},    D, mathHypot},
+        {"trunc",     {D},       I, mathTrunc},
+        {"round_to",  {D, I},    D, mathRoundTo},
+        {"gcd",       {I, I},    I, mathGcd},
+        {"lcm",       {I, I},    I, mathLcm},
+        {"is_even",   {I},       B, mathIsEven},
+        {"is_odd",    {I},       B, mathIsOdd},
+        {"sign",      {N},       I, mathSign},
+        {"clamp",     {N, N, N}, N, mathClamp},
+        {"factorial", {I},       I, mathFactorial},
+        {"is_prime",  {I},       B, mathIsPrime},
+        {"is_close",  {D, D},    B, mathIsClose},
     }, {
-        {"pi", D, Value(3.14159265358979323846)},
-        {"e",  D, Value(2.71828182845904523536)},
+        {"pi",  D, Value(PI)},
+        {"e",   D, Value(2.71828182845904523536)},
+        {"tau", D, Value(2 * PI)},
     }});
 
     m.push_back({"Random", {
