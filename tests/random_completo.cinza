@@ -1,0 +1,59 @@
+// Random: as propriedades de cada sorteio (a sequência exata não faz parte da spec).
+import Random;
+import Lists;
+fn main() {
+  Random.seed(42);
+  bool dentro = true;
+  int verdadeiros = 0;
+  for (int i in range(0, 2000)) {
+    decimal x = Random.decimal_range(-2.5, 3);
+    if (x < -2.5 || x >= 3) { dentro = false; }
+    if (Random.bool()) { verdadeiros += 1; }
+  }
+  print(dentro, verdadeiros > 800 && verdadeiros < 1200);
+  // chance: 0 nunca, 1 sempre
+  bool nunca = false;
+  bool sempre = true;
+  for (int i in range(0, 500)) {
+    if (Random.chance(0)) { nunca = true; }
+    if (!Random.chance(1)) { sempre = false; }
+  }
+  print(nunca, sempre);
+  // shuffle: mesmos elementos, no lugar
+  list<int> l = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+  Random.shuffle(l);
+  list<int> ordenada = Lists.slice(l, 0, l.size());
+  Lists.sort(ordenada);
+  print(l.size(), ordenada);
+  // sample: posições distintas
+  list<string> s = Random.sample(["a", "b", "c", "d", "e"], 5);
+  Lists.sort(s);
+  print(s, Random.sample([1, 2, 3], 0), Random.sample(["x"], 1));
+  // choices: com repetição, k pode passar do tamanho
+  list<int> c = Random.choices([7], 4);
+  print(c, Random.choices([1, 2], 0).size(), Random.choices(empty(), 0));
+  // gauss: desvio 0 devolve a média; a média dos sorteios fica perto da média pedida
+  print(Random.gauss(10, 0));
+  decimal soma = 0;
+  for (int i in range(0, 4000)) { soma += Random.gauss(100, 15); }
+  decimal media = soma / 4000;
+  print(media > 98 && media < 102);
+  // mesma semente, mesma sequência
+  Random.seed(7);
+  list<int> a = [1, 2, 3, 4, 5];
+  Random.shuffle(a);
+  decimal g1 = Random.gauss(0, 1);
+  Random.seed(7);
+  list<int> b = [1, 2, 3, 4, 5];
+  Random.shuffle(b);
+  print(a == b, g1 == Random.gauss(0, 1));
+}
+fn empty() -> list<int> { list<int> v; return v; }
+// expect: true true
+// expect: false true
+// expect: 10 [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+// expect: ["a", "b", "c", "d", "e"] [] ["x"]
+// expect: [7, 7, 7, 7] 0 []
+// expect: 10
+// expect: true
+// expect: true true

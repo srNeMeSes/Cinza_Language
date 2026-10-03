@@ -1001,6 +1001,78 @@ Value randChoice(Args a) {
     return elems[d(gerador())];
 }
 
+// decimal_range(a, b): de a (inclusive) até b (exclusive)
+Value randDecimalRange(Args a) {
+    const double lo = a[0].asDecimal(), hi = a[1].asDecimal();
+    if (!(lo < hi))
+        falha("ValueError: em 'decimal_range' o início precisa ser menor que o fim");
+    if (!std::isfinite(hi - lo)) falha("ValueError: intervalo de 'decimal_range' grande demais");
+    std::uniform_real_distribution<double> d(lo, hi);
+    const double r = d(gerador());
+    return Value(r < hi ? r : lo);   // arredondamento nunca entrega o fim
+}
+
+Value randBool(Args) { return Value(std::uniform_int_distribution<int>(0, 1)(gerador()) == 1); }
+
+// chance(p): true com probabilidade p; chance(0) nunca, chance(1) sempre
+Value randChance(Args a) {
+    const double p = a[0].asDecimal();
+    if (p < 0 || p > 1) falha("ValueError: a probabilidade de 'chance' precisa estar entre 0 e 1");
+    return Value(std::uniform_real_distribution<double>(0.0, 1.0)(gerador()) < p);
+}
+
+Value randShuffle(Args a) {
+    auto& elems = a[0].asList()->elements;
+    std::shuffle(elems.begin(), elems.end(), gerador());
+    return Value();
+}
+
+std::int64_t quantidadeSorteio(std::int64_t k, const char* fn) {
+    if (k < 0) falha(std::string("ValueError: a quantidade de '") + fn + "' não pode ser negativa");
+    return k;
+}
+
+// sample(l, k): k elementos de posições distintas, em ordem aleatória
+Value randSample(Args a) {
+    const auto& elems = a[0].asList()->elements;
+    const auto k = static_cast<size_t>(quantidadeSorteio(a[1].asInt(), "sample"));
+    if (k > elems.size())
+        falha("ValueError: 'sample' de " + std::to_string(k) + " elementos de uma lista de tamanho " +
+              std::to_string(elems.size()));
+    std::vector<size_t> idx(elems.size());
+    for (size_t i = 0; i < idx.size(); ++i) idx[i] = i;
+    std::vector<Value> out;
+    out.reserve(k);
+    for (size_t i = 0; i < k; ++i) {   // Fisher-Yates parcial
+        std::uniform_int_distribution<size_t> d(i, idx.size() - 1);
+        std::swap(idx[i], idx[d(gerador())]);
+        out.push_back(elems[idx[i]]);
+    }
+    return makeList(std::move(out));
+}
+
+// choices(l, k): k sorteios com repetição
+Value randChoices(Args a) {
+    const auto& elems = a[0].asList()->elements;
+    const auto k = static_cast<size_t>(quantidadeSorteio(a[1].asInt(), "choices"));
+    if (k > 0 && elems.empty()) falha("IndexError: 'choices' de uma lista vazia");
+    std::vector<Value> out;
+    out.reserve(k);
+    for (size_t i = 0; i < k; ++i) {
+        std::uniform_int_distribution<size_t> d(0, elems.size() - 1);
+        out.push_back(elems[d(gerador())]);
+    }
+    return makeList(std::move(out));
+}
+
+// gauss(media, desvio): distribuição normal; desvio 0 devolve a média
+Value randGauss(Args a) {
+    const double media = a[0].asDecimal(), desvio = a[1].asDecimal();
+    if (desvio < 0) falha("ValueError: o desvio de 'gauss' não pode ser negativo");
+    if (desvio == 0) return Value(media);
+    return decimalFinito(std::normal_distribution<double>(media, desvio)(gerador()), "gauss");
+}
+
 // ============================================================================
 // Convert
 // ============================================================================
@@ -1355,6 +1427,13 @@ std::vector<NativeModule> criaModulos() {
         {"int",     {I, I},      I, randInt},
         {"decimal", {},          D, randDecimal},
         {"choice",  {t.list(T)}, T, randChoice},
+        {"decimal_range", {D, D},         D,         randDecimalRange},
+        {"bool",          {},             B,         randBool},
+        {"chance",        {D},            B,         randChance},
+        {"shuffle",       {t.list(T)},    V,         randShuffle, 0, false, true},
+        {"sample",        {t.list(T), I}, t.list(T), randSample},
+        {"choices",       {t.list(T), I}, t.list(T), randChoices},
+        {"gauss",         {D, D},         D,         randGauss},
     }, {}});
 
     m.push_back({"Convert", {

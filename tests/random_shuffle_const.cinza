@@ -1,0 +1,7 @@
+// Random.shuffle altera a lista: numa lista const é erro de compilação (como Lists.sort).
+import Random;
+fn main() {
+  const list<int> l = [1, 2, 3];
+  Random.shuffle(l);
+}
+// expect-error: const

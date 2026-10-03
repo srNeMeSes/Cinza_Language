@@ -1,0 +1,23 @@
+// Random: argumentos inválidos lançam ValueError; sortear de lista vazia lança IndexError.
+import Random;
+fn main() {
+  try { print(Random.decimal_range(3, 3)); } except (ValueError e) { print(e.message); }
+  try { print(Random.decimal_range(5, 1)); } except (ValueError e) { print(e.message); }
+  try { print(Random.chance(1.5)); } except (ValueError e) { print(e.message); }
+  try { print(Random.chance(-0.1)); } except (ValueError e) { print(e.message); }
+  try { print(Random.sample([1, 2], 3)); } except (ValueError e) { print(e.message); }
+  try { print(Random.sample([1, 2], -1)); } except (ValueError e) { print(e.message); }
+  try { print(Random.choices([1, 2], -1)); } except (ValueError e) { print(e.message); }
+  list<int> vazia;
+  try { print(Random.choices(vazia, 1)); } except (IndexError e) { print(e.message); }
+  try { print(Random.gauss(0, -1)); } except (ValueError e) { print(e.message); }
+}
+// expect: em 'decimal_range' o início precisa ser menor que o fim
+// expect: em 'decimal_range' o início precisa ser menor que o fim
+// expect: a probabilidade de 'chance' precisa estar entre 0 e 1
+// expect: a probabilidade de 'chance' precisa estar entre 0 e 1
+// expect: 'sample' de 3 elementos de uma lista de tamanho 2
+// expect: a quantidade de 'sample' não pode ser negativa
+// expect: a quantidade de 'choices' não pode ser negativa
+// expect: 'choices' de uma lista vazia
+// expect: o desvio de 'gauss' não pode ser negativo

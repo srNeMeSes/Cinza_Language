@@ -305,9 +305,18 @@ fn main() {
 | `seed(int s)` | reinicia o gerador; a mesma semente produz a mesma sequência (na mesma implementação) |
 | `int(int a, int b) -> int` | inteiro de `a` até `b`, **os dois inclusive**; `a > b` lança `ValueError` |
 | `decimal() -> decimal` | de `0.0` (inclusive) até `1.0` (exclusive) |
+| `decimal_range(decimal a, decimal b) -> decimal` | de `a` (inclusive) até `b` (exclusive); `a` ≥ `b` lança `ValueError` |
+| `bool() -> bool` | `true` ou `false`, com a mesma chance |
+| `chance(decimal p) -> bool` | `true` com probabilidade `p`, de `0` (nunca) a `1` (sempre); fora disso, `ValueError` |
+| `gauss(decimal media, decimal desvio) -> decimal` | distribuição normal; desvio `0` devolve a média; desvio negativo lança `ValueError` |
 | `choice(list<T> l) -> T` | um elemento de `l`; lista vazia lança `IndexError` |
+| `choices(list<T> l, int k) -> list<T>` | `k` sorteios **com** repetição (`k` pode passar do tamanho); com `k` > 0, lista vazia lança `IndexError` |
+| `sample(list<T> l, int k) -> list<T>` | `k` elementos de posições **distintas**, em ordem aleatória; `k` maior que o tamanho lança `ValueError` |
+| `shuffle(list<T> l)` | embaralha `l` no lugar |
 
-A sequência exata gerada para uma semente não faz parte da especificação.
+`k` negativo lança `ValueError`; `k` = 0 dá `[]`, mesmo com lista vazia. `shuffle` altera a
+lista: é erro numa lista `const` e numa coleção de `op` de tipo desconhecido (seção 3.7), como
+`Lists.sort`. A sequência exata gerada para uma semente não faz parte da especificação.
 
 ```cinza
 import Random;

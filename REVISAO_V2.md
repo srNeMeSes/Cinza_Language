@@ -1027,7 +1027,12 @@ interpretador chamam as mesmas nativas).
   > silêncio (`from_chars` não toca no valor quando estoura); agora lança `ValueError`, e o pequeno
   > demais (`"1e-999"`) vira `0`. Testes `convert_completo`, `convert_erros`, `convert_decimal_faixa`.
   > 413/413/413, limpo sob ASan/UBSan.
-- [ ] 5. `Random`
+- [x] 5. `Random` — feito em 2026-10-03
+  > Nota: de 4 para 11 funções: `decimal_range`, `bool`, `chance`, `gauss`, `choices` (com repetição),
+  > `sample` (posições distintas), `shuffle` (no lugar; proibido em `const`, como `Lists.sort`).
+  > `k` = 0 dá `[]` mesmo com lista vazia. Testes por propriedade (a sequência não é especificada):
+  > `random_completo`, `random_erros`, `random_shuffle_const`. 416/416/416, limpo sob ASan/UBSan
+  > (que usa outra biblioteca C++ e outra sequência — os testes não dependem dela).
 - [ ] 6. `Lists`
 - [ ] 7. `Time` (módulo novo; data de modificação de arquivo entra aqui)
 
@@ -1064,3 +1069,4 @@ interpretador chamam as mesmas nativas).
 | 2026-10-03 | G2 | `Math`: sem `inf`, `is_nan` e `is_inf` (a linguagem nunca produz infinito nem NaN); `min`/`max` continuam com 2 argumentos (máximo de lista vai para `Lists.max`); `round_to` só arredonda o valor (exibir `2.50` é formatação de texto, em `Strings`/`Convert`); `factorial` e `is_prime` entram. | Decisão do autor da linguagem. |
 | 2026-10-03 | G3 | `Strings`: casas fixas em `Strings.fixed(x, casas)`; sem `format` com marcadores (a concatenação já aceita primitivos); preenchimento de `pad_left`/`pad_right`/`center` opcional (espaço); sem `swap_case`. | Decisão do autor da linguagem. |
 | 2026-10-03 | G4 | `Convert`: validação (`is_*`) e conversão com padrão (`to_*_or`), as duas; bases com `to_base`/`from_base` e os atalhos `to_hex`/`to_binary`/`to_octal`; `to_decimal` só aceita ponto (vírgula: `Strings.replace` antes); sem conversão entre `bool` e `int`. | Decisão do autor da linguagem; `bool` e `int` continuam tipos distintos. |
+| 2026-10-03 | G5 | `Random`: decimal num intervalo é `decimal_range(a, b)`; sem `weighted`; `sample`/`choices` com `k` = 0 dão `[]`, mesmo com lista vazia. | Decisão do autor da linguagem. |
