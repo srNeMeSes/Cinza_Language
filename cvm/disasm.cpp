@@ -60,6 +60,10 @@ std::string disassemble(const Image& img) {
                 case Op::MOVE: case Op::NEG_I: case Op::NEG_D: case Op::I2D: case Op::NOT:
                                     ops = ra + ", " + rb; break;
                 case Op::JMP:       ops = alvo(); break;
+                case Op::ADDK_I: case Op::SUBK_I: case Op::MULK_I: case Op::DIVK_I: case Op::MODK_I:
+                case Op::LTK_I: case Op::LEK_I: case Op::GTK_I: case Op::GEK_I:
+                    ops = ra + ", " + rb + ", " + std::to_string(static_cast<std::int16_t>(in.c));
+                    break;
                 case Op::RANGEPREP: ops = ra; nota = "iterador em r" + std::to_string(in.b); break;
                 case Op::JMPIF: case Op::JMPIFNOT: case Op::FORNEXT: case Op::FORNEXT_D:
                 case Op::FORRANGE: case Op::FORRANGE_D:

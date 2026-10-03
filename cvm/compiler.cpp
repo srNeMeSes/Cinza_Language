@@ -122,6 +122,9 @@ private:
     void          binary(const BinaryExpr* e, std::uint16_t dst);
     void          arith(TokenType op, TypeRef lt, std::uint16_t l, TypeRef rt, std::uint16_t r,
                         std::uint16_t dst, const Token& tok);
+    // a op k com k literal int pequeno: instrução com a constante embutida
+    bool          arithK(TokenType op, TypeRef lt, std::uint16_t l, const Expr* direita,
+                         std::uint16_t dst, const Token& tok);
     void          call(const CallExpr* e, std::uint16_t dst);
     void          builtinCall(const MethodCallExpr* e, std::uint16_t dst);
     void          newExpr(const NewExpr* e, std::uint16_t dst);
@@ -350,8 +353,41 @@ void Compiler::binary(const BinaryExpr* e, std::uint16_t dst) {
 
     // operandos na ordem do fonte; a instrução final pode trocar os registradores
     const std::uint16_t l = exprReg(e->left.get());
+    if (arithK(e->op, lt, l, e->right.get(), dst, tok)) return;   // literal não tem efeito colateral
     const std::uint16_t r = exprReg(e->right.get());
     arith(e->op, lt, l, rt, r, dst, tok);
+}
+
+// Literal int que cabe em 16 bits com sinal (constante embutida na instrução)
+static bool intPequeno(const Expr* e, std::int16_t& k) {
+    if (e->node_kind != NodeKind::Literal || !e->resolved_type || !e->resolved_type->is(TK::Int))
+        return false;
+    auto* v = std::get_if<std::int64_t>(&static_cast<const LiteralExpr*>(e)->value);
+    if (!v || *v < std::numeric_limits<std::int16_t>::min() || *v > std::numeric_limits<std::int16_t>::max())
+        return false;
+    k = static_cast<std::int16_t>(*v);
+    return true;
+}
+
+bool Compiler::arithK(TokenType op, TypeRef lt, std::uint16_t l, const Expr* direita,
+                      std::uint16_t dst, const Token& tok) {
+    std::int16_t k;
+    if (!lt->is(TK::Int) || !intPequeno(direita, k)) return false;
+    Op o;
+    switch (op) {
+        case TokenType::OP_PLUS:          o = Op::ADDK_I; break;
+        case TokenType::OP_MINUS:         o = Op::SUBK_I; break;
+        case TokenType::OP_MULTIPLY:      o = Op::MULK_I; break;
+        case TokenType::OP_DIVIDE:        o = Op::DIVK_I; break;
+        case TokenType::OP_MODULO:        o = Op::MODK_I; break;
+        case TokenType::OP_LESS:          o = Op::LTK_I;  break;
+        case TokenType::OP_LESS_EQUAL:    o = Op::LEK_I;  break;
+        case TokenType::OP_GREATER:       o = Op::GTK_I;  break;
+        case TokenType::OP_GREATER_EQUAL: o = Op::GEK_I;  break;
+        default: return false;
+    }
+    emit(o, dst, l, static_cast<std::uint16_t>(k), tok);
+    return true;
 }
 
 // a op b com os dois valores já em registradores
@@ -686,6 +722,9 @@ void Compiler::assign(const AssignStmt* s) {
         return;
     }
     // a op= b: o valor primeiro, depois o valor atual do alvo (spec 5.2)
+    if (!s->keep_lock && !hasOp(tt) &&
+        arithK(compoundBaseOp(s->op), tt, slot, s->value.get(), slot, tok))
+        return;   // x += 1: constante embutida
     std::uint16_t v = exprReg(s->value.get());
     if (!s->keep_lock) {   // a op= b direto no registrador da variável
         arith(compoundBaseOp(s->op), tt, slot, vt, v, slot, tok);

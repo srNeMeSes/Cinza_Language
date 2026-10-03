@@ -330,6 +330,21 @@ Só entram com o benchmark mostrando ganho e a suíte verde nos dois modos:
 - despacho com *computed goto* (`&&rotulo`, extensão do GCC e do Clang) no lugar do `switch`, atrás
   de um `#ifdef` — costuma ser o primeiro ganho mensurável neste tipo de VM.
 
+### Resultado (bench/medir.ps1, melhor de 5, ms na CVM)
+
+| Otimização                                         | objetos  | ciclos    | laco      | fib     |
+|----------------------------------------------------|----------|-----------|-----------|---------|
+| ponto de partida                                   | 117      | 657       | 107       | 54      |
+| acessores do `Value` por referência (não estava na lista: a cópia do `shared_ptr` mexia no contador atômico a cada leitura de campo) | 100 | — | — | — |
+| `for` sobre `range` embutido sem lista (`RANGEPREP`/`FORRANGE`) | 77 | 473 | — | — |
+| constante imediata (`ADDK_I`…`GEK_I`, 16 bits com sinal) | — | — | ~104 | ~52 |
+| *computed goto* (**descartado**, ver abaixo)       | =        | =         | =         | =       |
+
+O *computed goto* foi implementado, testado e medido lado a lado com o `switch`: nenhum ganho
+mensurável (os processadores atuais já preveem bem o salto indireto do `switch`), e ele traz uma
+armadilha — o salto computado não destrói os locais do caso (`std::string`, `Value`), o que exige
+fechar o bloco antes de cada salto. Sem ganho, não compensa; fica registrado para não ser refeito.
+
 ### Teste diferencial
 
 Além da suíte, um modo do `run_tests.py` roda cada programa dos testes e da spec nos dois modos

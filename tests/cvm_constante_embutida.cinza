@@ -1,0 +1,26 @@
+// CVM (otimização: constante embutida na instrução): mesmos resultados e erros das operações comuns
+// — limites de 16 bits, negativos, divisão truncando para zero, overflow e divisão por zero.
+fn main() {
+  int x = 7;
+  print(x + 32767, x - 32768, x * -3, x / 2, -x / 2, x % 3, -x % 3, x / -1);
+  print(x < 7, x <= 7, x > -1, x >= 8, x < 100000);
+  x += 1;
+  x -= 10;
+  x *= -4;
+  print(x);
+  decimal d = 1.5;
+  d += 1;
+  print(d, d * 2, d > 2);
+  int grande = 9223372036854775807;
+  try { grande += 1; } except (OverflowError e) { print(e.message); }
+  int menor = -9223372036854775807 - 1;
+  try { print(menor / -1); } except (OverflowError e) { print(e.kind); }
+  try { print(x % 0); } except (ZeroDivisionError e) { print(e.message); }
+}
+// expect: 32774 -32761 -21 3 -3 1 -1 -7
+// expect: false true true false true
+// expect: 8
+// expect: 2.5 5 true
+// expect: 9223372036854775807 + 1 excede a faixa de int (-9223372036854775808 a 9223372036854775807)
+// expect: OverflowError
+// expect: módulo por zero

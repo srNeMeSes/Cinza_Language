@@ -34,6 +34,9 @@ namespace cinza::cvm {
     X(ADD_D) X(SUB_D) X(MUL_D) X(DIV_D) X(MOD_D)                                \
     X(NEG_I) X(NEG_D)                             /* R[a] = -R[b]        */      \
     X(I2D)        /* R[a] = decimal(R[b])                            */          \
+    /* int com constante embutida (c = inteiro de 16 bits com sinal) */         \
+    X(ADDK_I) X(SUBK_I) X(MULK_I) X(DIVK_I) X(MODK_I) /* R[a] = R[b] op c */    \
+    X(LTK_I) X(LEK_I) X(GTK_I) X(GEK_I)               /* R[a] = R[b] cmp c */   \
     X(CONCAT)     /* R[a] = texto(R[b]) + texto(R[c])                */          \
     /* comparação */                                                            \
     X(LT_I) X(LE_I) X(LT_D) X(LE_D) X(LT_S) X(LE_S) /* R[a] = R[b] < R[c] */     \

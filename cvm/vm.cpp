@@ -173,6 +173,34 @@ Value VM::dispatch(std::size_t entrada) {
                 case Op::NEG_D:
                     R[in.a] = Value(-R[in.b].asDecimal());
                     break;
+                // ── int com constante embutida (erro: a regra compartilhada lança) ──
+                case Op::ADDK_I: case Op::SUBK_I: case Op::MULK_I: {
+                    const std::int64_t a = R[in.b].asInt();
+                    const std::int64_t k = static_cast<std::int16_t>(in.c);
+                    std::int64_t r;
+                    bool estouro;
+                    TokenType op;
+                    if (in.op == Op::ADDK_I)      { estouro = __builtin_add_overflow(a, k, &r); op = TokenType::OP_PLUS; }
+                    else if (in.op == Op::SUBK_I) { estouro = __builtin_sub_overflow(a, k, &r); op = TokenType::OP_MINUS; }
+                    else                          { estouro = __builtin_mul_overflow(a, k, &r); op = TokenType::OP_MULTIPLY; }
+                    if (estouro) applyBinaryOp(op, R[in.b], Value(k));
+                    R[in.a] = Value(r);
+                    break;
+                }
+                case Op::DIVK_I: case Op::MODK_I: {
+                    const std::int64_t a = R[in.b].asInt();
+                    const std::int64_t k = static_cast<std::int16_t>(in.c);
+                    if (k == 0 || (k == -1 && a == std::numeric_limits<std::int64_t>::min()))
+                        applyBinaryOp(in.op == Op::DIVK_I ? TokenType::OP_DIVIDE : TokenType::OP_MODULO,
+                                      R[in.b], Value(k));   // lança
+                    R[in.a] = Value(in.op == Op::DIVK_I ? a / k : a % k);
+                    break;
+                }
+                case Op::LTK_I: R[in.a] = Value(R[in.b].asInt() <  static_cast<std::int16_t>(in.c)); break;
+                case Op::LEK_I: R[in.a] = Value(R[in.b].asInt() <= static_cast<std::int16_t>(in.c)); break;
+                case Op::GTK_I: R[in.a] = Value(R[in.b].asInt() >  static_cast<std::int16_t>(in.c)); break;
+                case Op::GEK_I: R[in.a] = Value(R[in.b].asInt() >= static_cast<std::int16_t>(in.c)); break;
+
                 case Op::I2D:
                     if (R[in.b].kind() == Value::Kind::INT)
                         R[in.a] = Value(static_cast<double>(R[in.b].asInt()));
