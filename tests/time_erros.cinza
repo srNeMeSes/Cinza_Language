@@ -1,0 +1,35 @@
+// Time: data inválida, texto fora do padrão e instante fora dos anos 1 a 9999 lançam ValueError.
+import Time;
+import Files;
+fn main() {
+  try { print(Time.make(2026, 2, 29)); } except (ValueError e) { print(e.message); }
+  try { print(Time.make_utc(2026, 13, 1)); } except (ValueError e) { print(e.message); }
+  try { print(Time.make_utc(0, 1, 1)); } except (ValueError e) { print(e.message); }
+  try { print(Time.make_utc(2026, 1, 1, 24)); } except (ValueError e) { print(e.message); }
+  try { print(Time.make_utc(2026, 1, 1, 0, 60)); } except (ValueError e) { print(e.message); }
+  try { print(Time.make_utc(2026, 1, 1, 0, 0, -1)); } except (ValueError e) { print(e.message); }
+  try { print(Time.parse_utc("3/10/2026", "dd/MM/yyyy")); } except (ValueError e) { print(e.message); }
+  try { print(Time.parse_utc("03/10/2026 ", "dd/MM/yyyy")); } except (ValueError e) { print(e.message); }
+  try { print(Time.parse_utc("31/02/2026", "dd/MM/yyyy")); } except (ValueError e) { print(e.message); }
+  try { print(Time.year_utc(253402300800)); } except (ValueError e) { print(e.message); }
+  try { print(Time.format(-62135596801, "yyyy")); } except (ValueError e) { print(e.message); }
+  try { print(Time.days_in_month(2026, 0)); } except (ValueError e) { print(e.message); }
+  try { Time.sleep(-1); } except (ValueError e) { print(e.message); }
+  try { print(Time.add_days(9223372036854775807, 1)); } except (OverflowError e) { print(e.message); }
+  try { print(Files.modified("tests/_nao_existe_time")); } except (IOError e) { print(e.message); }
+}
+// expect: dia 29 inválido para 2/2026 (o mês tem 28 dias)
+// expect: mês 13 inválido (use 1 a 12)
+// expect: ano 0 fora do intervalo (use 1 a 9999)
+// expect: hora 24 inválida (use 0 a 23)
+// expect: minuto 60 inválido (use 0 a 59)
+// expect: segundo -1 inválido (use 0 a 59)
+// expect: '3/10/2026' não corresponde ao padrão 'dd/MM/yyyy'
+// expect: '03/10/2026 ' não corresponde ao padrão 'dd/MM/yyyy'
+// expect: dia 31 inválido para 2/2026 (o mês tem 28 dias)
+// expect: o instante 253402300800 está fora do intervalo de datas (anos 1 a 9999)
+// expect: o instante -62135596801 está fora do intervalo de datas (anos 1 a 9999)
+// expect: mês 0 inválido (use 1 a 12)
+// expect: o tempo de 'sleep' não pode ser negativo
+// expect: resultado de 'add_days' fora do intervalo de int
+// expect: não existe: 'tests/_nao_existe_time'

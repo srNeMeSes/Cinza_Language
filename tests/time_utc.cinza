@@ -1,0 +1,28 @@
+// Time em UTC: valores exatos (conferidos com o calendário do Python), em toda a faixa de anos 1 a 9999.
+import Time;
+fn main() {
+  int t = Time.make_utc(2026, 10, 3, 14, 30, 0);
+  print(t, Time.make_utc(2000, 2, 29), Time.make_utc(1, 1, 1), Time.make_utc(9999, 12, 31, 23, 59, 59));
+  print(Time.make_utc(1969, 12, 31, 23, 59, 59), Time.make_utc(1970, 1, 1), Time.make_utc(2026, 10, 3, 14));
+  print(Time.year_utc(t), Time.month_utc(t), Time.day_utc(t), Time.hour_utc(t), Time.minute_utc(t), Time.second_utc(t));
+  print(Time.weekday_utc(t), Time.day_of_year_utc(t), Time.weekday_utc(Time.make_utc(2000, 2, 29)), Time.weekday_utc(Time.make_utc(1, 1, 1)));
+  print(Time.day_of_year_utc(Time.make_utc(2024, 12, 31)), Time.year_utc(-1), Time.second_utc(-1));
+  print(Time.format_utc(t, "dd/MM/yyyy HH:mm:ss"), Time.format_utc(t, "yyyy-MM-dd"), Time.format_utc(Time.make_utc(5, 1, 2), "yyyy"));
+  print(Time.format_utc(t, "dia dd, às HH:mm"));
+  print(Time.parse_utc("03/10/2026 14:30", "dd/MM/yyyy HH:mm") == t, Time.parse_utc("2000-02-29", "yyyy-MM-dd"), Time.parse_utc("14:30", "HH:mm"));
+  // contas
+  print(Time.add_days(Time.make_utc(2024, 2, 28), 2) == Time.make_utc(2024, 3, 1), Time.add_hours(0, 2), Time.add_minutes(0, -1), Time.add_seconds(10, 5));
+  print(Time.is_leap_year(2024), Time.is_leap_year(1900), Time.is_leap_year(2000), Time.is_leap_year(2026));
+  print(Time.days_in_month(2024, 2), Time.days_in_month(2026, 2), Time.days_in_month(2026, 4), Time.days_in_month(2026, 12));
+}
+// expect: 1791037800 951782400 -62135596800 253402300799
+// expect: -1 0 1791036000
+// expect: 2026 10 3 14 30 0
+// expect: 6 276 2 1
+// expect: 366 1969 59
+// expect: 03/10/2026 14:30:00 2026-10-03 0005
+// expect: dia 03, às 14:30
+// expect: true 951782400 52200
+// expect: true 7200 -60 15
+// expect: true false true false
+// expect: 29 28 30 31

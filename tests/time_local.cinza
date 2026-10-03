@@ -1,0 +1,34 @@
+// Time no horário local: o resultado exato depende do fuso da máquina, então o teste confere
+// propriedades — make, partes, format e parse locais concordam entre si; relógio e sleep.
+import Time;
+import Files;
+fn main() {
+  int t = Time.make(2026, 10, 3, 14, 30, 5);
+  print(Time.year(t), Time.month(t), Time.day(t), Time.hour(t), Time.minute(t), Time.second(t));
+  print(Time.format(t, "dd/MM/yyyy HH:mm:ss"), Time.parse("03/10/2026 14:30:05", "dd/MM/yyyy HH:mm:ss") == t);
+  print(Time.weekday(t), Time.day_of_year(t), Time.make(2026, 10, 3) == Time.parse("2026-10-03", "yyyy-MM-dd"));
+  // o deslocamento do fuso fica entre -14 h e +14 h
+  int dif = Time.make(2026, 10, 3) - Time.make_utc(2026, 10, 3);
+  print(dif >= -14 * 3600 && dif <= 14 * 3600);
+  // days_between conta dias de calendário: de 23h a 1h do dia seguinte é 1 dia
+  print(Time.days_between(Time.make(2026, 1, 1, 23), Time.make(2026, 1, 2, 1)), Time.days_between(Time.make(2026, 3, 1), Time.make(2026, 1, 1)));
+  // relógio: now é depois de 2026-01-01; clock só avança e sleep espera
+  print(Time.now() > Time.make_utc(2026, 1, 1));
+  int c = Time.clock();
+  Time.sleep(30);
+  print(Time.clock() - c >= 30);
+  // Files.modified: o arquivo recém-gravado foi modificado há pouco
+  str a = "tests/_tmp_time_modified.txt";
+  Files.write(a, "x");
+  int m = Files.modified(a);
+  print(m - Time.now() < 5 && Time.now() - m < 5);
+  Files.delete(a);
+}
+// expect: 2026 10 3 14 30 5
+// expect: 03/10/2026 14:30:05 true
+// expect: 6 276 true
+// expect: true
+// expect: 1 -59
+// expect: true
+// expect: true
+// expect: true

@@ -1,8 +1,12 @@
 #include "natives.h"
+#include "plataforma.h"
 #include "runtime_error.h"
 #include <algorithm>
 #include <cctype>
 #include <charconv>
+#include <chrono>
+#include <ctime>
+#include <thread>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -1496,6 +1500,261 @@ Value listRepeat(Args a) {
 
 Value listCopy(Args a) { return makeList(std::vector<Value>(a[0].asList()->elements)); }
 
+// ============================================================================
+// Time — uma data/hora é um int: segundos desde 1970-01-01 00:00 UTC. As partes,
+// make, format e parse usam o horário local; as variantes _utc, o UTC. O
+// calendário é calculado aqui (algoritmos civis de H. Hinnant, exatos em toda a
+// faixa); do sistema só vem o deslocamento do fuso local.
+// ============================================================================
+
+constexpr std::int64_t DIA = 86400;
+
+std::int64_t divPiso(std::int64_t a, std::int64_t b) { return a / b - ((a % b != 0) && ((a < 0) != (b < 0))); }
+
+// Dias desde 1970-01-01 da data civil (ano, mês 1-12, dia 1-31)
+std::int64_t diasDaData(std::int64_t y, std::int64_t m, std::int64_t d) {
+    y -= m <= 2;
+    const std::int64_t era = divPiso(y, 400);
+    const std::int64_t yoe = y - era * 400;
+    const std::int64_t doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+    const std::int64_t doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    return era * 146097 + doe - 719468;
+}
+
+struct Data { std::int64_t ano; int mes, dia; };
+
+Data dataDosDias(std::int64_t z) {
+    z += 719468;
+    const std::int64_t era = divPiso(z, 146097);
+    const std::int64_t doe = z - era * 146097;
+    const std::int64_t yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    const std::int64_t doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    const std::int64_t mp = (5 * doy + 2) / 153;
+    const int d = static_cast<int>(doy - (153 * mp + 2) / 5 + 1);
+    const int m = static_cast<int>(mp < 10 ? mp + 3 : mp - 9);
+    return {yoe + era * 400 + (m <= 2), m, d};
+}
+
+bool bissexto(std::int64_t y) { return (y % 4 == 0 && y % 100 != 0) || y % 400 == 0; }
+
+int diasNoMes(std::int64_t y, int m) {
+    static const int dias[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    return m == 2 && bissexto(y) ? 29 : dias[m - 1];
+}
+
+// Faixa de datas: anos 1 a 9999 (o "yyyy" do format tem 4 dígitos)
+const std::int64_t T_MIN = diasDaData(1, 1, 1) * DIA;
+const std::int64_t T_MAX = diasDaData(9999, 12, 31) * DIA + DIA - 1;
+
+void confereFaixa(std::int64_t t) {
+    if (t < T_MIN || t > T_MAX)
+        falha("ValueError: o instante " + std::to_string(t) + " está fora do intervalo de datas (anos 1 a 9999)");
+}
+
+// Segundos a somar ao UTC para ter o horário local no instante t. O sistema só
+// conhece parte da faixa (no Windows, de 1970 a 3000): fora dela, usa a borda.
+std::int64_t deslocamento(std::int64_t t) {
+    const std::int64_t limite = diasDaData(3000, 12, 31) * DIA;
+    const std::time_t tt = static_cast<std::time_t>(std::clamp<std::int64_t>(t, DIA, limite));
+    std::tm tm{};
+#ifdef _WIN32
+    if (localtime_s(&tm, &tt) != 0) return 0;
+#else
+    if (!localtime_r(&tt, &tm)) return 0;
+#endif
+    const std::int64_t local = diasDaData(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday) * DIA +
+                               tm.tm_hour * 3600 + tm.tm_min * 60 + tm.tm_sec;
+    return local - static_cast<std::int64_t>(tt);
+}
+
+struct Partes { std::int64_t ano; int mes, dia, hora, minuto, segundo; std::int64_t dias; };
+
+// Partes de t (já no fuso desejado: UTC, ou UTC + deslocamento)
+Partes partesDe(std::int64_t t) {
+    const std::int64_t dias = divPiso(t, DIA);
+    const std::int64_t s = t - dias * DIA;
+    const Data d = dataDosDias(dias);
+    return {d.ano, d.mes, d.dia, static_cast<int>(s / 3600), static_cast<int>(s / 60 % 60),
+            static_cast<int>(s % 60), dias};
+}
+
+Partes partesLocal(std::int64_t t) {
+    confereFaixa(t);
+    const std::int64_t l = t + deslocamento(t);
+    confereFaixa(l);
+    return partesDe(l);
+}
+Partes partesUtc(std::int64_t t) { confereFaixa(t); return partesDe(t); }
+
+// Valida a data e devolve o instante como se fosse UTC
+std::int64_t instanteUtc(std::int64_t ano, std::int64_t mes, std::int64_t dia,
+                         std::int64_t hora, std::int64_t minuto, std::int64_t segundo) {
+    if (ano < 1 || ano > 9999) falha("ValueError: ano " + std::to_string(ano) + " fora do intervalo (use 1 a 9999)");
+    if (mes < 1 || mes > 12)   falha("ValueError: mês " + std::to_string(mes) + " inválido (use 1 a 12)");
+    const int n = diasNoMes(ano, static_cast<int>(mes));
+    if (dia < 1 || dia > n)
+        falha("ValueError: dia " + std::to_string(dia) + " inválido para " + std::to_string(mes) + "/" +
+              std::to_string(ano) + " (o mês tem " + std::to_string(n) + " dias)");
+    if (hora < 0 || hora > 23)     falha("ValueError: hora " + std::to_string(hora) + " inválida (use 0 a 23)");
+    if (minuto < 0 || minuto > 59) falha("ValueError: minuto " + std::to_string(minuto) + " inválido (use 0 a 59)");
+    if (segundo < 0 || segundo > 59) falha("ValueError: segundo " + std::to_string(segundo) + " inválido (use 0 a 59)");
+    return diasDaData(ano, mes, dia) * DIA + hora * 3600 + minuto * 60 + segundo;
+}
+
+// Instante cujo horário local é `l` (l = data local contada como UTC)
+std::int64_t deLocal(std::int64_t l) {
+    std::int64_t t = l - deslocamento(l);
+    t = l - deslocamento(t);   // segunda passada acerta a borda de horário de verão
+    return t;
+}
+
+// make(ano, mes, dia[, hora, minuto, segundo]): as horas que faltam são 0
+std::int64_t instanteDosArgs(Args a) {
+    auto arg = [&](size_t i) { return i < a.size() ? a[i].asInt() : std::int64_t{0}; };
+    return instanteUtc(arg(0), arg(1), arg(2), arg(3), arg(4), arg(5));
+}
+
+Value timeMake(Args a)    { return Value(deLocal(instanteDosArgs(a))); }
+Value timeMakeUtc(Args a) { return Value(instanteDosArgs(a)); }
+
+Value timeNow(Args) {
+    return Value(static_cast<std::int64_t>(
+        std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count()));
+}
+
+// clock: milissegundos de um relógio que só avança (para medir duração)
+Value timeClock(Args) {
+    return Value(static_cast<std::int64_t>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count()));
+}
+
+Value timeSleep(Args a) {
+    const std::int64_t ms = a[0].asInt();
+    if (ms < 0) falha("ValueError: o tempo de 'sleep' não pode ser negativo");
+    // espera pelo menos ms pelo relógio de clock(): o sleep_for do MinGW às vezes
+    // acorda antes do prazo, então repete até lá
+    const auto prazo = std::chrono::steady_clock::now() + std::chrono::milliseconds(ms);
+    for (auto agora = std::chrono::steady_clock::now(); agora < prazo; agora = std::chrono::steady_clock::now())
+        std::this_thread::sleep_for(prazo - agora);
+    return Value();
+}
+
+// weekday: ISO, 1 = segunda ... 7 = domingo (1970-01-01 foi quinta)
+int diaDaSemana(std::int64_t dias) { return static_cast<int>(((dias % 7 + 7) % 7 + 3) % 7 + 1); }
+int diaDoAno(const Partes& p) { return static_cast<int>(p.dias - diasDaData(p.ano, 1, 1) + 1); }
+
+#define CINZA_PARTES(sufixo, partes)                                                              \
+    Value timeYear##sufixo(Args a)   { return Value(partes(a[0].asInt()).ano); }                  \
+    Value timeMonth##sufixo(Args a)  { return Value(std::int64_t{partes(a[0].asInt()).mes}); }     \
+    Value timeDay##sufixo(Args a)    { return Value(std::int64_t{partes(a[0].asInt()).dia}); }     \
+    Value timeHour##sufixo(Args a)   { return Value(std::int64_t{partes(a[0].asInt()).hora}); }    \
+    Value timeMinute##sufixo(Args a) { return Value(std::int64_t{partes(a[0].asInt()).minuto}); }  \
+    Value timeSecond##sufixo(Args a) { return Value(std::int64_t{partes(a[0].asInt()).segundo}); } \
+    Value timeWeekday##sufixo(Args a) {                                                           \
+        return Value(std::int64_t{diaDaSemana(partes(a[0].asInt()).dias)});                       \
+    }                                                                                             \
+    Value timeDayOfYear##sufixo(Args a) { return Value(std::int64_t{diaDoAno(partes(a[0].asInt()))}); }
+CINZA_PARTES(, partesLocal)
+CINZA_PARTES(Utc, partesUtc)
+#undef CINZA_PARTES
+
+// Campos do padrão de format/parse: yyyy, MM, dd, HH, mm, ss; o resto é literal
+struct Campo { const char* nome; int digitos; };
+const Campo CAMPOS[] = {{"yyyy", 4}, {"MM", 2}, {"dd", 2}, {"HH", 2}, {"mm", 2}, {"ss", 2}};
+
+const Campo* campoEm(const std::string& p, size_t i) {
+    for (const Campo& c : CAMPOS)
+        if (p.compare(i, std::strlen(c.nome), c.nome) == 0) return &c;
+    return nullptr;
+}
+
+std::string formata(const Partes& t, const std::string& padrao) {
+    std::string out;
+    for (size_t i = 0; i < padrao.size();) {
+        const Campo* c = campoEm(padrao, i);
+        if (!c) { out += padrao[i++]; continue; }
+        std::int64_t v = 0;
+        switch (c->nome[0]) {
+            case 'y': v = t.ano; break;
+            case 'M': v = t.mes; break;
+            case 'd': v = t.dia; break;
+            case 'H': v = t.hora; break;
+            case 'm': v = t.minuto; break;
+            default:  v = t.segundo; break;
+        }
+        std::string s = std::to_string(v);
+        if (static_cast<int>(s.size()) < c->digitos) s.insert(0, static_cast<size_t>(c->digitos) - s.size(), '0');
+        out += s;
+        i += std::strlen(c->nome);
+    }
+    return out;
+}
+
+Value timeFormat(Args a)    { return Value(formata(partesLocal(a[0].asInt()), a[1].asString())); }
+Value timeFormatUtc(Args a) { return Value(formata(partesUtc(a[0].asInt()), a[1].asString())); }
+
+// parse(texto, padrao): o texto precisa casar exatamente com o padrão (campos com
+// o número exato de dígitos); o que o padrão não traz vale 1970, mês 1, dia 1, 0 h
+std::int64_t interpreta(const std::string& texto, const std::string& padrao) {
+    std::int64_t v[6] = {1970, 1, 1, 0, 0, 0};   // ano, mês, dia, hora, minuto, segundo
+    const std::string erro = "ValueError: '" + texto + "' não corresponde ao padrão '" + padrao + "'";
+    size_t j = 0;
+    for (size_t i = 0; i < padrao.size();) {
+        const Campo* c = campoEm(padrao, i);
+        if (!c) {
+            if (j >= texto.size() || texto[j] != padrao[i]) falha(erro);
+            ++i; ++j;
+            continue;
+        }
+        std::int64_t n = 0;
+        for (int k = 0; k < c->digitos; ++k, ++j) {
+            if (j >= texto.size() || texto[j] < '0' || texto[j] > '9') falha(erro);
+            n = n * 10 + (texto[j] - '0');
+        }
+        v[c - CAMPOS] = n;
+        i += std::strlen(c->nome);
+    }
+    if (j != texto.size()) falha(erro);
+    return instanteUtc(v[0], v[1], v[2], v[3], v[4], v[5]);
+}
+
+Value timeParse(Args a)    { return Value(deLocal(interpreta(a[0].asString(), a[1].asString()))); }
+Value timeParseUtc(Args a) { return Value(interpreta(a[0].asString(), a[1].asString())); }
+
+Value somaTempo(Args a, std::int64_t unidade, const char* fn) {
+    std::int64_t r;
+    if (__builtin_mul_overflow(a[1].asInt(), unidade, &r) || __builtin_add_overflow(a[0].asInt(), r, &r))
+        falha(std::string("OverflowError: resultado de '") + fn + "' fora do intervalo de int");
+    return Value(r);
+}
+Value timeAddDays(Args a)    { return somaTempo(a, DIA, "add_days"); }
+Value timeAddHours(Args a)   { return somaTempo(a, 3600, "add_hours"); }
+Value timeAddMinutes(Args a) { return somaTempo(a, 60, "add_minutes"); }
+Value timeAddSeconds(Args a) { return somaTempo(a, 1, "add_seconds"); }
+
+// days_between(a, b): dias de calendário (local) de a até b; negativo se b vem antes
+Value timeDaysBetween(Args a) {
+    return Value(partesLocal(a[1].asInt()).dias - partesLocal(a[0].asInt()).dias);
+}
+
+Value timeIsLeapYear(Args a) { return Value(bissexto(a[0].asInt())); }
+
+Value timeDaysInMonth(Args a) {
+    const std::int64_t m = a[1].asInt();
+    if (m < 1 || m > 12) falha("ValueError: mês " + std::to_string(m) + " inválido (use 1 a 12)");
+    return Value(std::int64_t{diasNoMes(a[0].asInt(), static_cast<int>(m))});
+}
+
+// Files.modified(caminho): instante da última modificação
+Value filesModified(Args a) {
+    const fs::path p = caminho(a[0].asString());
+    std::error_code ec;
+    if (!fs::exists(p, ec)) falhaIO("não existe:", a[0].asString());
+    std::int64_t t = 0;
+    if (!dataModificacao(p, t)) falhaIO("não foi possível ler a data de", a[0].asString());
+    return Value(t);
+}
+
 std::vector<NativeModule> criaModulos() {
     auto& t = TypeContext::instance();
     const TypeRef I = t.intType(), D = t.decimalType(), S = t.stringType(),
@@ -1578,6 +1837,7 @@ std::vector<NativeModule> criaModulos() {
         {"extension",   {S},             S,         filesExtension},
         {"parent",      {S},             S,         filesParent},
         {"absolute",    {S},             S,         filesAbsolute},
+        {"modified",    {S},             I,         filesModified},
     }, {}});
 
     m.push_back({"Math", {
@@ -1687,6 +1947,41 @@ std::vector<NativeModule> criaModulos() {
         {"unique",        {t.list(T)},             t.list(T), listUnique},
         {"repeat",        {T, I},                  t.list(T), listRepeat},
         {"copy",          {t.list(T)},             t.list(T), listCopy},
+    }, {}});
+
+    m.push_back({"Time", {
+        {"now",             {},                 I, timeNow},
+        {"clock",           {},                 I, timeClock},
+        {"sleep",           {I},                V, timeSleep},
+        {"make",            {I, I, I, I, I, I}, I, timeMake,    3},
+        {"make_utc",        {I, I, I, I, I, I}, I, timeMakeUtc, 3},
+        {"year",            {I},    I, timeYear},
+        {"month",           {I},    I, timeMonth},
+        {"day",             {I},    I, timeDay},
+        {"hour",            {I},    I, timeHour},
+        {"minute",          {I},    I, timeMinute},
+        {"second",          {I},    I, timeSecond},
+        {"weekday",         {I},    I, timeWeekday},
+        {"day_of_year",     {I},    I, timeDayOfYear},
+        {"year_utc",        {I},    I, timeYearUtc},
+        {"month_utc",       {I},    I, timeMonthUtc},
+        {"day_utc",         {I},    I, timeDayUtc},
+        {"hour_utc",        {I},    I, timeHourUtc},
+        {"minute_utc",      {I},    I, timeMinuteUtc},
+        {"second_utc",      {I},    I, timeSecondUtc},
+        {"weekday_utc",     {I},    I, timeWeekdayUtc},
+        {"day_of_year_utc", {I},    I, timeDayOfYearUtc},
+        {"format",          {I, S}, S, timeFormat},
+        {"format_utc",      {I, S}, S, timeFormatUtc},
+        {"parse",           {S, S}, I, timeParse},
+        {"parse_utc",       {S, S}, I, timeParseUtc},
+        {"add_days",        {I, I}, I, timeAddDays},
+        {"add_hours",       {I, I}, I, timeAddHours},
+        {"add_minutes",     {I, I}, I, timeAddMinutes},
+        {"add_seconds",     {I, I}, I, timeAddSeconds},
+        {"days_between",    {I, I}, I, timeDaysBetween},
+        {"is_leap_year",    {I},    B, timeIsLeapYear},
+        {"days_in_month",   {I, I}, I, timeDaysInMonth},
     }, {}});
 
     return m;

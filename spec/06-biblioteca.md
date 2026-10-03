@@ -179,6 +179,7 @@ algo existente sem pedir ou apagar uma pasta com conteúdo pela função errada 
 | `delete_dir(string caminho)` | apaga uma pasta **vazia** |
 | `delete_tree(string caminho)` | apaga uma pasta e todo o seu conteúdo |
 | `current_dir() -> string` | a pasta em que o programa foi executado (caminho completo) |
+| `modified(string caminho) -> int` | o instante da última modificação (um instante de `Time`) |
 
 **Caminhos** — só manipulam o texto, sem consultar o disco:
 
@@ -458,4 +459,64 @@ fn main() {
 // expect: [9, 5, 3, 1]
 // expect: 9 4.5 [1, 2] ["-", "-", "-"]
 // expect: ["Bia", "Ana", "Caio"] [18, 25, 30]
+```
+
+### `Time`
+
+Um **instante** é um `int`: os segundos desde 1970-01-01 00:00 UTC (negativo antes disso). Por ser
+um `int`, instantes se comparam, se ordenam, servem de chave de `dict` e se somam. A faixa de
+datas vai do ano 1 ao 9999; um instante fora dela, nas funções que leem as partes, lança
+`ValueError`.
+
+As partes, `make`, `format` e `parse` usam o **horário local** do computador (inclusive horário de
+verão); as variantes terminadas em `_utc` usam o UTC.
+
+**Relógio**
+
+| Função | Descrição |
+|--------|-----------|
+| `now() -> int` | o instante atual |
+| `clock() -> int` | milissegundos de um relógio que só avança — use a diferença entre duas leituras para medir duração |
+| `sleep(int ms)` | espera `ms` milissegundos; negativo lança `ValueError` |
+
+**Montar e desmontar**
+
+| Função | Descrição |
+|--------|-----------|
+| `make(int ano, int mes, int dia[, int hora, int minuto, int segundo]) -> int` | o instante da data local; as partes de hora que faltam valem `0`; data inválida (`31/02`, mês `13`, hora `24`...) lança `ValueError` |
+| `year(int t) -> int`, `month`, `day`, `hour`, `minute`, `second` | as partes de `t` |
+| `weekday(int t) -> int` | dia da semana, padrão ISO: `1` = segunda ... `7` = domingo |
+| `day_of_year(int t) -> int` | de `1` a `366` |
+| `make_utc(...)`, `year_utc(int t)`, `month_utc`, ..., `day_of_year_utc` | as mesmas, em UTC |
+
+**Texto** — campos do padrão: `yyyy` (ano, 4 dígitos), `MM` (mês), `dd` (dia), `HH` (hora, 0 a
+23), `mm` (minuto), `ss` (segundo), todos com 2 dígitos; o resto do padrão é texto literal
+
+| Função | Descrição |
+|--------|-----------|
+| `format(int t, string padrao) -> string` | `format(t, "dd/MM/yyyy HH:mm")` → `"03/10/2026 14:30"` |
+| `parse(string texto, string padrao) -> int` | o inverso: o texto precisa casar **exatamente** com o padrão (campos com o número exato de dígitos); o que o padrão não traz vale ano 1970, mês 1, dia 1, hora 0; texto fora do padrão ou data inválida lança `ValueError` |
+| `format_utc(...)`, `parse_utc(...)` | as mesmas, em UTC |
+
+**Contas e calendário**
+
+| Função | Descrição |
+|--------|-----------|
+| `add_days(int t, int n) -> int`, `add_hours`, `add_minutes`, `add_seconds` | `t` mais `n` dias (de 86400 segundos), horas, minutos ou segundos; `n` pode ser negativo; estouro lança `OverflowError` |
+| `days_between(int a, int b) -> int` | dias de **calendário** (local) de `a` até `b`: de 23h de um dia a 1h do seguinte é `1`; negativo se `b` vem antes |
+| `is_leap_year(int ano) -> bool` | ano bissexto |
+| `days_in_month(int ano, int mes) -> int` | dias do mês (`28` a `31`); mês inválido lança `ValueError` |
+
+```cinza
+import Time;
+fn main() {
+  int t = Time.make_utc(2026, 10, 3, 14, 30, 0);
+  print(t, Time.format_utc(t, "dd/MM/yyyy HH:mm"), Time.weekday_utc(t), Time.day_of_year_utc(t));
+  int p = Time.parse_utc("25/12/2026", "dd/MM/yyyy");
+  print(Time.days_between(Time.make(2026, 10, 3), Time.make(2026, 12, 25)), Time.format_utc(Time.add_days(p, 7), "dd/MM"));
+  print(Time.is_leap_year(2028), Time.days_in_month(2026, 2), Time.make(2026, 1, 1) < Time.now());
+}
+// expect: 1791037800 03/10/2026 14:30 6 276
+// expect: 83 01/01
+// expect: true 28 true
 ```

@@ -7,7 +7,7 @@ CXX = g++
 CXXFLAGS = -std=c++20 -O3 -Wall -Wextra -pedantic
 DEPFLAGS = -MMD -MP
 TARGET = cinza
-SOURCES = main.cpp lexer.cpp parser.cpp ast.cpp semantic.cpp executor.cpp operacoes.cpp natives.cpp stdlib.cpp module_loader.cpp \
+SOURCES = main.cpp lexer.cpp parser.cpp ast.cpp semantic.cpp executor.cpp operacoes.cpp natives.cpp stdlib.cpp plataforma.cpp module_loader.cpp \
           cvm/compiler.cpp cvm/vm.cpp cvm/disasm.cpp
 OBJECTS = $(SOURCES:.cpp=.o)
 DEPS = $(OBJECTS:.o=.d)

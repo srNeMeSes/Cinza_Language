@@ -1042,7 +1042,19 @@ interpretador chamam as mesmas nativas).
   > também as chaves: `const` e coleção de `op` desconhecido são barrados em cada argumento alterado.
   > Testes `lists_completo`, `lists_erros`, `lists_sort_by_const`, `lists_insert_const`. 420/420/420,
   > limpo sob ASan/UBSan.
-- [ ] 7. `Time` (módulo novo; data de modificação de arquivo entra aqui)
+- [x] 7. `Time` (módulo novo; data de modificação de arquivo entra aqui) — feito em 2026-10-03
+  > Nota: 33 funções. Instante = `int` (segundos desde 1970 UTC), faixa dos anos 1 a 9999. Relógio:
+  > `now`, `clock` (ms, monotônico), `sleep`; `make` (horas opcionais) e as partes `year`, `month`, `day`,
+  > `hour`, `minute`, `second`, `weekday` (ISO, 1 = segunda), `day_of_year` — horário local, mais as
+  > variantes `_utc`; `format`/`parse` com `dd/MM/yyyy HH:mm:ss` (e `_utc`); `add_days`/`add_hours`/
+  > `add_minutes`/`add_seconds`, `days_between` (dias de calendário), `is_leap_year`, `days_in_month`;
+  > e `Files.modified`. Calendário calculado com os algoritmos civis de H. Hinnant (exatos em toda a
+  > faixa, conferidos com o Python); do sistema só vem o deslocamento do fuso. Novo `plataforma.cpp`
+  > isola o `windows.h`. **Dois defeitos de plataforma achados e contornados:** (1) o `_wstat` do CRT,
+  > usado pelo `std::filesystem` do MinGW, aplica a variável `TZ` à data do arquivo — `Files.modified` lê
+  > o `FILETIME` direto; (2) o `sleep_for` do MinGW às vezes acorda antes do prazo — `sleep` repete até o
+  > relógio monotônico alcançar o prazo. Testes `time_utc` (valores exatos), `time_local` (propriedades),
+  > `time_fuso` (`TZ=JST-9`, exato), `time_erros`. 425/425/425, limpo sob ASan/UBSan.
 
 ---
 
@@ -1079,3 +1091,4 @@ interpretador chamam as mesmas nativas).
 | 2026-10-03 | G4 | `Convert`: validação (`is_*`) e conversão com padrão (`to_*_or`), as duas; bases com `to_base`/`from_base` e os atalhos `to_hex`/`to_binary`/`to_octal`; `to_decimal` só aceita ponto (vírgula: `Strings.replace` antes); sem conversão entre `bool` e `int`. | Decisão do autor da linguagem; `bool` e `int` continuam tipos distintos. |
 | 2026-10-03 | G5 | `Random`: decimal num intervalo é `decimal_range(a, b)`; sem `weighted`; `sample`/`choices` com `k` = 0 dão `[]`, mesmo com lista vazia. | Decisão do autor da linguagem. |
 | 2026-10-03 | G6 | `Lists`: objetos se ordenam com `sort_by(l, chaves)` (chaves paralelas, reorganizadas junto); as funções que alteram a lista ficam no módulo (os métodos continuam só `size`/`add`/`remove`/`has`); `remove_value` de valor ausente lança `ValueError`; `sorted`/`reversed` devolvem cópias. | Decisão do autor da linguagem; ordenar sem closures nem genéricos, com tipagem estática. |
+| 2026-10-03 | G7 | `Time`: instante é `int` em segundos desde 1970 UTC (sem tipo novo); partes, `make`, `format` e `parse` no horário local, com variantes `_utc`; padrão legível `dd/MM/yyyy HH:mm:ss`; `clock()` separado, em milissegundos, para medir duração. | Decisão do autor da linguagem; estático, comparável e ordenável sem mudar a linguagem. |
