@@ -219,8 +219,9 @@ Value VM::dispatch(std::size_t entrada) {
                     break;
                 }
                 case Op::FMT: {   // {x:formato} do printf/format (regra em operacoes.cpp)
-                    const std::int64_t f = K[in.c].asInt();
-                    std::string s = formatPart(R[in.b], static_cast<int>(f / 1000), static_cast<int>(f % 1000) - 1);
+                    const std::int64_t formato = K[in.c].asInt();   // f é o frame
+                    std::string s = formatPart(R[in.b], static_cast<int>(formato / 1000),
+                                               static_cast<int>(formato % 1000) - 1);
                     R[in.a] = Value(std::move(s));
                     break;
                 }

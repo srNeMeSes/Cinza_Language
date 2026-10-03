@@ -843,7 +843,7 @@ Value Executor::evalNew(const NewExpr* expr) {
     //     inicializador               ter rejeitado antes de chegar aqui)
     {
         InstanceGuard ig{current_instance, current_self, instance_val};
-        FrameGuard    frame{*this, 0};   // inicializadores não declaram variáveis
+        FrameGuard    guarda_frame{*this, 0};   // inicializadores não declaram variáveis
         for (size_t i = 0; i < cls->fields.size(); ++i) {
             const auto& field = cls->fields[i];
             if (field.initializer) {

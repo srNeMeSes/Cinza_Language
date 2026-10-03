@@ -1088,6 +1088,35 @@ interpretador chamam as mesmas nativas).
 
 ---
 
+## I. Revisão geral (2026-10-03)
+
+Código, testes e biblioteca padrão, com ~210 sondas de borda rodadas nos dois modos (e sob ASan).
+
+- [x] 1. Defeitos corrigidos — feito em 2026-10-03
+  > `Files.move(a, a, true)` apagava o arquivo (perda de dados); fatia com passo enorme derrubava o
+  > programa com "Erro interno" (estouro do int64); fatia com passo negativo não aceitava o fim antes
+  > do primeiro caractere (assimétrico ao passo positivo); código aninhado demais derrubava o processo
+  > sem mensagem (agora `SyntaxError` acima de 2000 níveis, relatado uma vez); lista/dict literal com
+  > mais de 65535 elementos rodava no interpretador e era recusado pela CVM (agora em blocos, `APPEND`/
+  > `DICTADD`; `LOADK` com índice de 32 bits); `Time.make` de hora inexistente (horário de verão)
+  > voltava uma hora em vez de adiantar; `Strings.is_upper("ÿ")` dava `true`; `Math.pow(0, -1)` dizia
+  > "grande demais" (agora `ZeroDivisionError`); `Strings.repeat("", n)` dava n voltas vazias.
+- [x] 2. Redundâncias removidas — feito em 2026-10-03
+  > `utf8.h` (regras de UTF-8 que estavam copiadas em 4 arquivos); `Value::asNumber()` (6 cópias);
+  > `forElements` (retrato do `for`, no interpretador e na VM); `dividirLinhas` (`Strings.lines` e
+  > `Files.lines`); VM usa o resultado da regra compartilhada nas bordas de `/` e `%`; nomes que
+  > escondiam outros (`-Wshadow`, um deles o ponteiro do frame na VM).
+- [x] 3. Documentação — feito em 2026-10-03
+  > `cvm/DESENHO.md` seção 5 reescrita a partir do `bytecode.h` (descrevia instruções planejadas que não
+  > existem e omitia 21 reais); `Time` nas listas de módulos nativos; limite de aninhamento (spec 7.2);
+  > regra simétrica das fatias (spec 5.7). 461/461/461, suíte e sondas limpas sob ASan/UBSan.
+- [ ] 4. Para decidir (não mudei sem perguntar)
+  > `menor_int % -1` lança `OverflowError` (decisão A5, linha 194), mas o resultado matemático é `0`, que
+  > cabe em `int` — o Python devolve `0`. `-0.0` aparece como `-0` no `print`. Decimais muito grandes ou
+  > pequenos saem em notação científica (`1e+21`), que não é um literal válido (item já aberto na seção E).
+
+---
+
 ## Registro de decisões
 
 | Data | Item | Decisão | Motivo |

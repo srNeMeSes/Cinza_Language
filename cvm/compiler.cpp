@@ -1131,13 +1131,13 @@ Image Compiler::run() {
     // tabelas de interface: para cada interface cumprida, os protótipos na ordem
     // dos métodos dela (montadas pelo semântico em ClassDecl::itables)
     for (ClassRef& ref : img.classes)
-        for (const auto& [iface, metodos] : ref.decl->itables) {
+        for (const auto& [iface, da_interface] : ref.decl->itables) {
             if (!iface_of.count(iface)) {
                 iface_of[iface] = img.interfaces.size();
                 img.interfaces.push_back(iface);
             }
             std::vector<std::size_t> protos;
-            for (const FunctionDecl* m : metodos) protos.push_back(proto_of.at(m));
+            for (const FunctionDecl* m : da_interface) protos.push_back(proto_of.at(m));
             ref.itables.emplace_back(iface, std::move(protos));
         }
     // interfaces que nenhuma classe cumpre ainda podem aparecer em chamadas

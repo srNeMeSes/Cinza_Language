@@ -30,8 +30,8 @@ Value applyBinaryOp(TokenType op, const Value& left, const Value& right) {
         const std::int64_t b = right.asInt();
         std::int64_t r = 0;
 
-        auto overflow = [&](const char* op) -> Value {
-            throw RuntimeError("OverflowError: " + std::to_string(a) + " " + op + " " +
+        auto overflow = [&](const char* simbolo) -> Value {
+            throw RuntimeError("OverflowError: " + std::to_string(a) + " " + simbolo + " " +
                               std::to_string(b) + " excede a faixa de int "
                               "(-9223372036854775808 a 9223372036854775807)");
         };
