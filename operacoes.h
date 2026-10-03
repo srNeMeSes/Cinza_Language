@@ -30,6 +30,11 @@ Value negateOp(const Value& v);
 // índice negativo conta do fim)
 Value indexGet(const Value& obj, const Value& idx);
 
+// Elementos de um for, copiados no início (spec 5.5): list (os elementos),
+// dict (pares chave/valor, em ordem de chave), string (um caractere por vez);
+// outro tipo lança
+std::vector<Value> forElements(const Value& col);
+
 // Fatia s[ini:fim:passo] de uma string; parte omitida chega como void
 Value sliceGet(const Value& s, const Value& ini, const Value& fim, const Value& passo);
 

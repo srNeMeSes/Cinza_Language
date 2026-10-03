@@ -154,6 +154,31 @@ Value indexGet(const Value& obj, const Value& idx) {
     throw RuntimeError("Operador '[]' em tipo inválido");
 }
 
+std::vector<Value> forElements(const Value& col) {
+    std::vector<Value> elems;
+    switch (col.kind()) {
+        case Value::Kind::LIST:
+            elems = col.asList()->elements;
+            break;
+        case Value::Kind::DICT:
+            elems.reserve(col.asDict()->entries.size());
+            for (const auto& [k, v] : col.asDict()->entries) elems.push_back(makePair(k, v));
+            break;
+        case Value::Kind::STRING: {
+            const std::string& s = col.asString();
+            for (size_t i = 0; i < s.size();) {
+                const size_t len = utf8::bytesDoCaractere(s, i);
+                elems.emplace_back(s.substr(i, len));
+                i += len;
+            }
+            break;
+        }
+        default:
+            throw RuntimeError("'for' esperava list, dict ou string como iterável");
+    }
+    return elems;
+}
+
 // s[ini:fim:passo]: índices em caracteres; negativo conta do fim. Com passo
 // positivo exige 0 <= ini <= fim <= tamanho (o fim pode ser a posição depois do
 // último); com passo negativo, simétrico: ini é um índice válido e

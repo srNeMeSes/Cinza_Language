@@ -38,7 +38,8 @@ Parser::Parser(std::vector<Token> token_list)
 // ============================================================================
 
 bool Parser::isAtEnd() const {
-    return peek().type == TokenType::END_OF_FILE;
+    // passou do limite de aninhamento: a análise para (sem erros em cascata)
+    return aninhamento_excedido || peek().type == TokenType::END_OF_FILE;
 }
 
 const Token& Parser::peek() const {
@@ -94,7 +95,8 @@ void Parser::error(const std::string& message) {
 
 void Parser::error(const std::string& message, const Token& token) {
     has_errors = true;
-    if (silencioso) return;   // parseEmbedded: quem chamou relata o erro
+    if (silencioso) return;            // parseEmbedded: quem chamou relata o erro
+    if (aninhamento_excedido) return;  // já relatado uma vez; o resto é consequência
     // B6: vai para o motor único de diagnósticos (impresso por quem chamou)
     diagnostics().report("SyntaxError", message + " (token: '" + token.lexeme + "')",
                          token.loc());
@@ -276,17 +278,47 @@ ExprPtr Parser::parseEmbedded(const std::string& codigo, const Token& origem, in
     return e;
 }
 
+// Limite de aninhamento (ver Parser::profundidade). Programas reais ficam muito
+// abaixo; sem limite, 400 mil parênteses derrubavam o processo sem mensagem.
+constexpr int MAX_ANINHAMENTO = 2000;
+
+// Níveis acrescentados por uma função do parser; descontados ao sair (também
+// quando um ParseError atravessa). O excesso é relatado como os demais erros
+// de sintaxe (error) antes de lançar — senão sumia em silêncio.
+struct Niveis {
+    Parser& p;
+    int     n = 0;
+    explicit Niveis(Parser& parser) : p(parser) {}
+    ~Niveis() noexcept { p.profundidade -= n; }
+    Niveis(const Niveis&)            = delete;
+    Niveis& operator=(const Niveis&) = delete;
+    void mais(const Token& onde) {
+        ++n;
+        if (++p.profundidade <= MAX_ANINHAMENTO) return;
+        const std::string msg = "Código aninhado demais: mais de " + std::to_string(MAX_ANINHAMENTO) +
+                                " níveis (parênteses, operadores encadeados ou blocos uns dentro dos "
+                                "outros). Divida em partes menores, com variáveis ou funções";
+        p.error(msg, onde);
+        p.aninhamento_excedido = true;   // daqui em diante a análise só termina
+        throw ParseError(msg, onde);
+    }
+};
+
 // começa o encadeamento de expressões
 ExprPtr Parser::parseExpression() {
+    Niveis nv{*this};
+    nv.mais(peek());
     return parseLogicalOrExpr();
 }
 
 // r: a || b
 ExprPtr Parser::parseLogicalOrExpr() {
+    Niveis nv{*this};   // um nível por operador da cadeia
     ExprPtr expr = parseLogicalAndExpr();
     
     while (match(TokenType::OP_OR)) {
         Token op_token = previous();
+        nv.mais(op_token);
         ExprPtr right = parseLogicalAndExpr();
         expr = std::make_unique<BinaryExpr>(op_token, std::move(expr), 
                                            TokenType::OP_OR, std::move(right));
@@ -297,10 +329,12 @@ ExprPtr Parser::parseLogicalOrExpr() {
 
 // r: a && b
 ExprPtr Parser::parseLogicalAndExpr() {
+    Niveis nv{*this};   // um nível por operador da cadeia
     ExprPtr expr = parseEqualityExpr();
     
     while (match(TokenType::OP_AND)) {
         Token op_token = previous();
+        nv.mais(op_token);
         ExprPtr right = parseEqualityExpr();
         expr = std::make_unique<BinaryExpr>(op_token, std::move(expr), 
                                            TokenType::OP_AND, std::move(right));
@@ -311,10 +345,12 @@ ExprPtr Parser::parseLogicalAndExpr() {
 
 // r: (a == b) , (a != b)
 ExprPtr Parser::parseEqualityExpr() {
+    Niveis nv{*this};   // um nível por operador da cadeia
     ExprPtr expr = parseComparisonExpr();
     
     while (match({TokenType::OP_EQUAL, TokenType::OP_NOT_EQUAL})) {
         Token op_token = previous();
+        nv.mais(op_token);
         ExprPtr right = parseComparisonExpr();
         expr = std::make_unique<BinaryExpr>(op_token, std::move(expr), 
                                            op_token.type, std::move(right));
@@ -325,11 +361,13 @@ ExprPtr Parser::parseEqualityExpr() {
 
 // r: (a < b) , (a <= b) , (a > b) , (a>= b)
 ExprPtr Parser::parseComparisonExpr() {
+    Niveis nv{*this};   // um nível por operador da cadeia
     ExprPtr expr = parseTermExpr();
     
     while (match({TokenType::OP_LESS, TokenType::OP_LESS_EQUAL, 
                   TokenType::OP_GREATER, TokenType::OP_GREATER_EQUAL})) {
         Token op_token = previous();
+        nv.mais(op_token);
         ExprPtr right = parseTermExpr();
         expr = std::make_unique<BinaryExpr>(op_token, std::move(expr), 
                                            op_token.type, std::move(right));
@@ -340,10 +378,12 @@ ExprPtr Parser::parseComparisonExpr() {
 
 // r: (a + b) , (a - b)
 ExprPtr Parser::parseTermExpr() {
+    Niveis nv{*this};   // um nível por operador da cadeia
     ExprPtr expr = parseFactorExpr();
     
     while (match({TokenType::OP_PLUS, TokenType::OP_MINUS})) {
         Token op_token = previous();
+        nv.mais(op_token);
         ExprPtr right = parseFactorExpr();
         expr = std::make_unique<BinaryExpr>(op_token, std::move(expr), 
                                            op_token.type, std::move(right));
@@ -354,10 +394,12 @@ ExprPtr Parser::parseTermExpr() {
 
 // r: (a * b) , (a / b) , (a % b)
 ExprPtr Parser::parseFactorExpr() {
+    Niveis nv{*this};   // um nível por operador da cadeia
     ExprPtr expr = parseUnaryExpr();
     
     while (match({TokenType::OP_MULTIPLY, TokenType::OP_DIVIDE, TokenType::OP_MODULO})) {
         Token op_token = previous();
+        nv.mais(op_token);
         ExprPtr right = parseUnaryExpr();
         expr = std::make_unique<BinaryExpr>(op_token, std::move(expr), 
                                            op_token.type, std::move(right));
@@ -380,6 +422,8 @@ ExprPtr Parser::parseUnaryExpr() {
 
     if (match({TokenType::OP_NOT, TokenType::OP_MINUS})) {
         Token op_token = previous();
+        Niveis nv{*this};
+        nv.mais(op_token);
         ExprPtr operand = parseUnaryExpr();
         return std::make_unique<UnaryExpr>(op_token, op_token.type, std::move(operand));
     }
@@ -698,7 +742,9 @@ ExprPtr Parser::parseDictLiteral() {
 
 // começa o encadeamento de instruções (statements)
 StmtPtr Parser::parseStatement() {
+    Niveis nv{*this};   // instruções umas dentro das outras (blocos, else if)
     try {
+        nv.mais(peek());
         // A8: fn e class só no nível superior (fn também dentro de class).
         // Antes, uma fn aninhada era aceita e nunca registrada.
         if (block_depth > 0 && (check(TokenType::KW_FN) || check(TokenType::KW_CLASS) ||

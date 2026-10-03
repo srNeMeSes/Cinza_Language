@@ -29,6 +29,13 @@ private:
     size_t current;
     bool has_errors;
     bool silencioso = false;   // não relata erros (expressão dentro de um texto)
+    // Profundidade da árvore em construção: parênteses, unários, cada operador de
+    // uma cadeia (a + b + c... cresce para a esquerda) e instruções aninhadas.
+    // Acima do limite é erro de sintaxe, antes que as etapas recursivas (parser,
+    // semântico, compilador, interpretador) estourem a pilha do C++.
+    int profundidade = 0;
+    bool aninhamento_excedido = false;   // relatado uma vez; a análise para
+    friend struct Niveis;   // parser.cpp: conta os níveis e relata o excesso
 
     // A8: profundidade de blocos { } em análise; 0 = nível superior.
     // 'fn' e 'class' só são aceitos com block_depth == 0 (métodos são

@@ -65,7 +65,7 @@ struct NativeModule {
 // Uma função do usuário com o mesmo nome tem precedência.
 const NativeFn* findPrelude(const std::string& name);
 
-// Módulos nativos: Strings, Files, Math, Random, Convert, Lists (stdlib.cpp)
+// Módulos nativos: Strings, Files, Math, Random, Convert, Lists, Time (stdlib.cpp)
 const std::vector<NativeModule>& nativeModules();
 const NativeModule*              findNativeModule(const std::string& name);
 

@@ -258,27 +258,11 @@ Value VM::dispatch(std::size_t entrada) {
                 // ── for (spec 5.5: os elementos são copiados no início) ──
                 case Op::FORPREP: {
                     const Value& col = R[in.b];
-                    std::vector<Value> elems;
-                    bool texto = false;
-                    switch (col.kind()) {
-                        case Value::Kind::LIST:
-                            elems = col.asList()->elements;
-                            break;
-                        case Value::Kind::DICT:
-                            elems.reserve(col.asDict()->entries.size());
-                            for (const auto& [k, v] : col.asDict()->entries)
-                                elems.push_back(makePair(k, v));
-                            break;
-                        case Value::Kind::STRING:
-                            // string é imutável: a cópia da spec 5.5 não é observável;
-                            // o FORNEXT corta um caractere por vez (desenho seção 11)
-                            texto = true;
-                            break;
-                        default:
-                            throw RuntimeError("'for' esperava list, dict ou string como iterável");
-                    }
-                    if (texto) R[in.a] = col;   // posição em R[a+1] conta bytes
-                    else       R[in.a] = makeList(std::move(elems));
+                    // string é imutável: a cópia da spec 5.5 não é observável; o
+                    // FORNEXT corta um caractere por vez (desenho seção 11), com a
+                    // posição em R[a+1] contando bytes. O resto: regra compartilhada.
+                    if (col.kind() == Value::Kind::STRING) R[in.a] = col;
+                    else                                   R[in.a] = makeList(forElements(col));
                     R[in.a + 1] = Value(std::int64_t{0});
                     R[in.a + 2] = Value(static_cast<std::int64_t>(in.c));
                     break;

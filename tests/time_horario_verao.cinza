@@ -1,0 +1,20 @@
+// Time no horário de verão (TZ=EST5EDT, EUA 2026: começa 08/03 às 2h, termina 01/11 às 2h).
+// Hora que não existe adianta (2h30 → 3h30; antes virava 1h30, uma hora antes do pedido);
+// hora repetida fica com a primeira ocorrência.
+// env: TZ=EST5EDT
+import Time;
+fn main() {
+  int antes = Time.make(2026, 3, 8, 1, 30);
+  int buraco = Time.make(2026, 3, 8, 2, 30);
+  print(Time.format(buraco, "dd HH:mm"), buraco - antes);
+  print(Time.parse("08/03/2026 02:30", "dd/MM/yyyy HH:mm") == buraco);
+  int dupla = Time.make(2026, 11, 1, 1, 30);
+  print(Time.format(dupla, "HH:mm"), Time.format(dupla + 3600, "HH:mm"), Time.hour_utc(dupla));
+  print(Time.days_between(Time.make(2026, 3, 7, 12), Time.make(2026, 3, 9, 12)));
+  print(Time.hour(Time.make_utc(2026, 7, 1, 12)), Time.hour(Time.make_utc(2026, 1, 1, 12)));
+}
+// expect: 08 03:30 3600
+// expect: true
+// expect: 01:30 01:30 5
+// expect: 2
+// expect: 8 7

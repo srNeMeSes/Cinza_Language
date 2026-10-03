@@ -56,6 +56,10 @@ fn main() {
 
 Se houver erro de compilação, nada do programa é executado.
 
+Mais de **2000 níveis** de aninhamento — parênteses, operadores unários, operadores de uma mesma
+cadeia (`a + b + c ...`) ou instruções umas dentro das outras — é `SyntaxError`
+("Código aninhado demais"), relatado uma só vez; a análise para ali.
+
 ```cinza
 fn main() {
   int a = ;

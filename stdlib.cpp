@@ -300,6 +300,7 @@ Value strRepeat(Args a) {
     const std::string& s = a[0].asString();
     const std::int64_t n = a[1].asInt();
     if (n < 0) falha("ValueError: a quantidade de 'repeat' não pode ser negativa");
+    if (s.empty()) return Value(std::string());   // sem isso, n voltas sem acrescentar nada
     std::uint64_t total;
     if (__builtin_mul_overflow(static_cast<std::uint64_t>(s.size()), static_cast<std::uint64_t>(n), &total) ||
         total > (std::uint64_t{1} << 30))
@@ -1528,11 +1529,17 @@ std::int64_t instanteUtc(std::int64_t ano, std::int64_t mes, std::int64_t dia,
     return diasDaData(ano, mes, dia) * DIA + hora * 3600 + minuto * 60 + segundo;
 }
 
-// Instante cujo horário local é `l` (l = data local contada como UTC)
+// Instante cujo horário local é `l` (l = data local contada como UTC). Perto da
+// mudança de horário de verão o deslocamento muda, então cada candidato é
+// conferido: na hora repetida (fim do horário de verão) fica a primeira
+// ocorrência; numa hora que não existe (o relógio pulou), adianta — 2h30 vira
+// 3h30, como no Python e no mktime.
 std::int64_t deLocal(std::int64_t l) {
-    std::int64_t t = l - deslocamento(l);
-    t = l - deslocamento(t);   // segunda passada acerta a borda de horário de verão
-    return t;
+    const std::int64_t t1 = l - deslocamento(l);
+    const std::int64_t t2 = l - deslocamento(t1);
+    if (t2 + deslocamento(t2) == l) return t2;
+    if (t1 + deslocamento(t1) == l) return t1;
+    return std::max(t1, t2);
 }
 
 // make(ano, mes, dia[, hora, minuto, segundo]): as horas que faltam são 0

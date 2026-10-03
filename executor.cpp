@@ -391,26 +391,10 @@ Flow Executor::executeFor(const ForStmt* stmt) {
     // C2: dict → pair<K,V> em ordem de chave; string → um caractere (code point
     // UTF-8) por vez, coerente com string.size() (A10)
     std::vector<Value> elements;
-    switch (iterable.kind()) {
-        case Value::Kind::LIST:
-            elements = iterable.asList()->elements;
-            break;
-        case Value::Kind::DICT:
-            elements.reserve(iterable.asDict()->entries.size());
-            for (const auto& [k, v] : iterable.asDict()->entries)
-                elements.push_back(makePair(k, v));
-            break;
-        case Value::Kind::STRING: {
-            const std::string& s = iterable.asString();
-            for (size_t i = 0; i < s.size();) {
-                const size_t len = utf8::bytesDoCaractere(s, i);
-                elements.emplace_back(s.substr(i, len));
-                i += len;
-            }
-            break;
-        }
-        default:
-            throwRuntimeError("'for' esperava list, dict ou string como iterável", stmt->token);
+    try {
+        elements = forElements(iterable);   // regra compartilhada com a CVM
+    } catch (const RuntimeError& err) {
+        throwRuntimeError(err.message, stmt->token);
     }
 
     // A2: for (decimal x in list<int>) — o iterador recebe o valor convertido
