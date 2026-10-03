@@ -84,7 +84,8 @@ fn main() {
   `1.5`).
 - Divisão ou resto por zero (`int` ou `decimal`) lança `ZeroDivisionError`.
 - Resultado de `int` fora da faixa (inclusive `-x` e `x / -1` com o menor `int`) lança
-  `OverflowError`. Resultado de `decimal` infinito também lança `OverflowError`.
+  `OverflowError`. Resultado de `decimal` infinito também lança `OverflowError`. Já `x % -1` é
+  sempre `0`, que cabe na faixa — inclusive com o menor `int`.
 - `-` unário vale para números; `+` também concatena textos (abaixo).
 
 A divisão entre inteiros acontece antes de qualquer conversão: `decimal x = 7 / 2;` guarda `3`.

@@ -53,7 +53,9 @@ Value applyBinaryOp(TokenType op, const Value& left, const Value& right) {
                 return Value(a / b);
             case TokenType::OP_MODULO:
                 if (b == 0) throw RuntimeError("ZeroDivisionError: módulo por zero");
-                if (a == int_min && b == -1) return overflow("%");   // decisão A5 (REVISAO_V2.md)
+                // x % -1 é sempre 0, que cabe em int (decisão de 2026-10-03; antes,
+                // menor_int % -1 lançava OverflowError). Em C++ essa conta é indefinida.
+                if (b == -1) return Value(std::int64_t{0});
                 return Value(a % b);
             default:
                 break;  // comparações: tratadas abaixo

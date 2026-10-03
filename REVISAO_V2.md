@@ -192,6 +192,8 @@ print(big + 1);
   > Nota: some o UB que o UBSan acusava (conversão `double` → `int` fora da faixa). `decimal % 0`
   > (divisor int) continua dando "Modulo por zero"; divisor `0.0` segue no A10.
 - [x] Cobrir os casos `-INT_MIN`, `INT_MIN / -1` e `INT_MIN % -1`, que devem gerar `OverflowError`. — feito em 2026-09-27
+  > Nota: revisto em 2026-10-03 (seção I): `INT_MIN % -1` dá `0` (o resultado cabe em `int`); `-INT_MIN`
+  > e `INT_MIN / -1` continuam lançando `OverflowError`.
   > Nota: testes `a5_*` (10 arquivos): os três casos acima, soma, subtração, multiplicação, literal
   > fora da faixa (int e decimal), `2^63` sem `-` e os limites válidos (`3000000000 * 3` funciona).
 - [x] 🟢 **Decidir e registrar aqui:** `int` passa a ter 64 bits na v2? Decisão: **sim, 64 bits (`int64_t`)** — feito em 2026-09-27
@@ -1110,10 +1112,11 @@ Código, testes e biblioteca padrão, com ~210 sondas de borda rodadas nos dois 
   > `cvm/DESENHO.md` seção 5 reescrita a partir do `bytecode.h` (descrevia instruções planejadas que não
   > existem e omitia 21 reais); `Time` nas listas de módulos nativos; limite de aninhamento (spec 7.2);
   > regra simétrica das fatias (spec 5.7). 461/461/461, suíte e sondas limpas sob ASan/UBSan.
-- [ ] 4. Para decidir (não mudei sem perguntar)
-  > `menor_int % -1` lança `OverflowError` (decisão A5, linha 194), mas o resultado matemático é `0`, que
-  > cabe em `int` — o Python devolve `0`. `-0.0` aparece como `-0` no `print`. Decimais muito grandes ou
-  > pequenos saem em notação científica (`1e+21`), que não é um literal válido (item já aberto na seção E).
+- [x] 4. Pontos levados ao autor — decididos em 2026-10-03
+  > `menor_int % -1` passou a dar `0` (antes `OverflowError`, decisão A5): o resultado cabe em `int`,
+  > como no Python; teste `a5_overflow_modulo` atualizado (registrador, constante embutida e `%=`).
+  > `-0.0` continua aparecendo como `-0`, e decimais muito grandes ou pequenos continuam em notação
+  > científica (`1e+21`) — mantidos por decisão do autor.
 
 ---
 
@@ -1153,4 +1156,5 @@ Código, testes e biblioteca padrão, com ~210 sondas de borda rodadas nos dois 
 | 2026-10-03 | G7 | `Time`: instante é `int` em segundos desde 1970 UTC (sem tipo novo); partes, `make`, `format` e `parse` no horário local, com variantes `_utc`; padrão legível `dd/MM/yyyy HH:mm:ss`; `clock()` separado, em milissegundos, para medir duração. | Decisão do autor da linguagem; estático, comparável e ordenável sem mudar a linguagem. |
 | 2026-10-03 | H1 | Interpolação só em `printf("...")` (pula linha, como `print`) e `format("...")` (devolve o texto), com texto literal; `{expr}` aceita qualquer expressão; formatos `{x:.2f}` e `{x:8}` (sem alinhamento explícito nem zeros à esquerda). | Decisão do autor da linguagem; strings comuns não mudam (nenhum programa quebra) e tudo é conferido na compilação. |
 | 2026-10-03 | H2 | `s[i]` e fatias `s[a:b:p]` só em string, com índices negativos e passo; fatias estritas (`IndexError` fora dos limites, sem ajuste); listas ficam como estão. | Decisão do autor da linguagem. |
+| 2026-10-03 | I4 | `menor_int % -1` dá `0` (revê A5); `-0.0` continua `-0` no `print`; decimais extremos continuam em notação científica. | Decisão do autor da linguagem; `x % -1` cabe sempre em `int`. |
 | 2026-10-03 | H3 | `exit([código])`: padrão 0, de 0 a 255; roda os `finally` pendentes e nenhum `except` o captura; encerra o caminho na análise de fluxo. | Decisão do autor da linguagem; 0–255 dá o mesmo resultado em todo sistema. |

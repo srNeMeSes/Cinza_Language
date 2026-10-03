@@ -1,6 +1,14 @@
-// A5: INT_MIN % -1 gera OverflowError.
+// A5 (revisto em 2026-10-03): x % -1 é sempre 0, que cabe em int — inclusive INT_MIN % -1, que
+// antes lançava OverflowError. Pelos três caminhos da CVM: registrador, constante embutida e %=.
 fn main() {
-  int m = -9223372036854775808;
-  print(m % -1);
+  int m = -9223372036854775807 - 1;
+  int menos_um = -1;
+  print(m % -1, m % menos_um, 7 % -1, -7 % menos_um);
+  int x = m;
+  x %= -1;
+  print(x);
+  try { print(m / -1); } except (OverflowError e) { print(e.kind); }
 }
-// expect-error: OverflowError
+// expect: 0 0 0 0
+// expect: 0
+// expect: OverflowError
