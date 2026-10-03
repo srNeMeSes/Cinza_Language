@@ -50,7 +50,7 @@ globais (o `GlobalLayout` do B2).
 - **Crescimento da área.** A área é um `std::vector<Value>` que pode crescer. Na entrada de cada
   função, a VM garante que `base + num_regs` cabe, crescendo ali se preciso. Como crescer invalida
   ponteiros, nenhum `Value*`/`Value&` para a área sobrevive a uma instrução que pode chamar código ou
-  alocar: depois de `CALL*`, `INITOBJ` e `NEWOBJ` (onde a coleta pode rodar), o ponteiro da base é
+  alocar: depois de `CALL*` e `NEWOBJ` (onde a coleta pode rodar), o ponteiro da base é
   recalculado.
 - **Registradores mortos.** Os registradores seguram objetos e contam como raízes para a coleta. No
   `RET` e no desempilhamento por erro, a janela do chamado é **limpa** (os `Value` voltam a vazio),
@@ -79,30 +79,40 @@ Erro de formato aparece na hora, e não como comportamento estranho em runtime.
 
 ## 5. Instruções
 
+A lista abaixo é a implementada (`cvm/bytecode.h`, que é a fonte da verdade). `R[x]` é um
+registrador da janela, `K[x]` uma constante do protótipo, `G[x]` um slot global; `bc` são `b` e
+`c` juntos, inteiro de 32 bits com sinal.
+
 ### 5.1 Carga e movimento
 
 | Instrução               | Efeito |
 |-------------------------|--------|
 | `MOVE a b`              | `R[a] = R[b]` |
-| `LOADK a b`             | `R[a] = K[b]` |
+| `LOADK a bc`            | `R[a] = K[bc]` (índice de 32 bits: uma função pode ter mais de 65535 constantes) |
 | `LOADINT a bc`          | `R[a] = bc` (inteiro de 32 bits) |
 | `LOADBOOL a b`          | `R[a] = (b != 0)` |
+| `LOADVOID a`            | `R[a] =` valor vazio (parte omitida de uma fatia) |
 | `GETGLOBAL a b`         | `R[a] = G[b]` |
 | `SETGLOBAL a b`         | `G[b] = R[a]` (só na avaliação dos `const`) |
 
-### 5.2 Aritmética e comparação (específicas por tipo)
+### 5.2 Aritmética, texto e comparação (específicas por tipo)
 
 O semântico já inseriu as conversões (`int` → `decimal`); cada operação sabe o tipo dos
 operandos. As versões `_I` conferem overflow e divisão por zero, as `_D`, divisão por zero e
-resultado infinito (spec 5.3).
+resultado infinito (spec 5.3); os casos de borda passam pela regra compartilhada
+(`operacoes.cpp`), a mesma do interpretador.
 
 | Instrução                                   | Efeito |
 |---------------------------------------------|--------|
 | `ADD_I a b c`, `SUB_I`, `MUL_I`, `DIV_I`, `MOD_I` | `R[a] = R[b] op R[c]` em `int` |
 | `ADD_D a b c`, `SUB_D`, `MUL_D`, `DIV_D`, `MOD_D` | idem em `decimal` |
+| `ADDK_I a b c`, `SUBK_I`, `MULK_I`, `DIVK_I`, `MODK_I` | `R[a] = R[b] op c`, com `c` inteiro de 16 bits com sinal embutido na instrução (seção 11) |
+| `LTK_I a b c`, `LEK_I`, `GTK_I`, `GEK_I`    | `R[a] = R[b] cmp c`, idem |
 | `NEG_I a b`, `NEG_D a b`                    | `R[a] = -R[b]` |
 | `I2D a b`                                   | `R[a] = decimal(R[b])` |
 | `CONCAT a b c`                              | `R[a] = texto(R[b]) + texto(R[c])` (spec 5.4) |
+| `FMT a b c`                                 | `R[a] =` `R[b]` como texto com o formato de `printf`/`format` (`K[c]` = largura × 1000 + casas + 1) |
+| `SLICE a b`                                 | `R[a] = R[b][R[b+1]:R[b+2]:R[b+3]]`, fatia de string (parte omitida = vazio) |
 | `LT_I a b c`, `LE_I`, `LT_D`, `LE_D`, `LT_S`, `LE_S` | `R[a] = R[b] < R[c]` (ou `<=`); `>` e `>=` trocam os **registradores** na instrução final (`a > b` vira `LT r, rb, ra`) — os operandos continuam sendo avaliados na ordem do fonte |
 | `EQ a b c`, `NE a b c`                      | igualdade da spec 5.3 (valor, estrutural ou identidade) |
 | `NOT a b`                                   | `R[a] = !R[b]` |
@@ -117,39 +127,41 @@ resultado infinito (spec 5.3).
 | `JMP bc`                | `pc += bc` |
 | `JMPIF a bc`            | se `R[a]`, `pc += bc` |
 | `JMPIFNOT a bc`         | se não `R[a]`, `pc += bc` |
+| `JLT_I a b`, `JLE_I a b` | compara-e-salta (seção 11): se `R[a] < R[b]` (ou `<=`), executa o `JMP` seguinte no mesmo despacho; senão o pula |
+| `JLTK_I a b`, `JLEK_I`, `JGTK_I`, `JGEK_I` | idem, comparando `R[a]` com `b` (inteiro de 16 bits com sinal) |
 
 ### 5.4 Laço `for`
 
 | Instrução               | Efeito |
 |-------------------------|--------|
-| `FORPREP a b c`         | `R[a] =` cópia dos elementos de `R[b]` (lista: os elementos; dict: os pares em ordem de chave; string: os caracteres), `R[a+1] = 0`, `R[a+2] = c` (o slot do iterador) |
-| `FORNEXT a bc`          | se `R[a+1] < tamanho`: `R[slot] = R[a][R[a+1]]` (com `slot = R[a+2]`), `R[a+1] += 1`; senão `pc += bc` (sai do laço) |
+| `FORPREP a b c`         | `R[a] =` cópia dos elementos de `R[b]` (lista: os elementos; dict: os pares em ordem de chave) — numa string, a própria string, percorrida um caractere por vez (é imutável, a cópia não é observável) —, `R[a+1] = 0`, `R[a+2] = c` (o slot do iterador) |
+| `FORNEXT a bc`          | se há próximo: `R[slot] =` o elemento (`slot = R[a+2]`) e avança `R[a+1]`; senão `pc += bc` (sai do laço) |
 | `FORNEXT_D a bc`        | idem, convertendo o elemento para `decimal` (`for (decimal x in list<int>)`) |
+| `RANGEPREP a b`         | `for` sobre `range(...)` embutido, sem criar a lista: `R[a]` atual, `R[a+1]` fim, `R[a+2]` passo (`ValueError` se 0), `R[a+3] = b` (slot) |
+| `FORRANGE a bc`, `FORRANGE_D` | próximo inteiro (ou `decimal`) em `R[slot]`, ou `pc += bc` |
 
-O laço usa três registradores consecutivos, como o `FORLOOP` do Lua: `R[a]` a cópia, `R[a+1]` o
-índice e `R[a+2]` o número do slot do iterador. (O slot é decidido pelo semântico, B2, então não
-pode ser forçado a ser `a+2`; guardar o número dele mantém o `FORNEXT` numa instrução só.)
-A cópia no `FORPREP` é a da spec 5.5 (alterar a coleção no corpo não muda as voltas).
+O laço usa registradores consecutivos, como o `FORLOOP` do Lua. (O slot do iterador é decidido
+pelo semântico, B2, então não pode ser forçado a ser `a+2`; guardar o número dele mantém o
+`FORNEXT` numa instrução só.) A cópia no `FORPREP` é a da spec 5.5 (alterar a coleção no corpo
+não muda as voltas); a regra é a mesma do interpretador (`forElements`, `operacoes.cpp`).
 
 ### 5.5 Funções e objetos
 
 | Instrução                  | Efeito |
 |----------------------------|--------|
-| `CALL a b c`               | chama o protótipo `b` com `c` argumentos em `R[a]...`; resultado em `R[a]` |
-| `CALLMETHOD a b c`         | idem para método: `R[a]` é o `self`, argumentos em `R[a+1]...` |
-| `CALLIFACE a b c`          | chamada pela interface `b`, método `c`: escolhe o protótipo pela classe de `R[a]` (tabela de interface); argumentos em `R[a+1]...`, na quantidade da assinatura do método na interface |
+| `CALL a b c`               | chama o protótipo `b` com `c` argumentos em `R[a]...`; resultado em `R[a]`. Num método, `R[a]` é o `self` e os argumentos vêm depois |
+| `CALLIFACE a b c`          | chamada pela interface `b`, método `c`: escolhe o protótipo pela classe de `R[a]` (tabela de interface); argumentos em `R[a+1]...` |
 | `CALLNATIVE a b c`         | nativa `b` com `c` argumentos em `R[a]...`; resultado em `R[a]` |
 | `TYPEOF a b c`             | `R[a] =` tipo real de `R[b]`, sendo `K[c]` o tipo estático (spec 3.9) |
 | `RET a` / `RETVOID`        | retorna `R[a]` / retorna sem valor |
 | `NEWOBJ a b`               | `R[a] =` novo objeto da classe `b` (campos ainda vazios) |
-| `INITOBJ a b`              | roda o inicializador de campos da classe `b` com `self = R[a]` |
-| `NEWSTRUCT a b c`          | `R[a] =` struct `b` com os campos `R[a+1]...R[a+c]` |
-| `GETFIELD a b c`, `SETFIELD a b c` | campo `c` do objeto ou struct: `R[a] = R[b].c` / `R[a].c = R[b]` |
+| `NEWSTRUCT a b c`          | `R[a] =` struct `b` com os campos `R[a]...R[a+c-1]` |
+| `GETFIELD a b c`, `SETFIELD a b c` | campo do objeto ou struct: `R[a] = R[b].campo[c]` / `R[a].campo[b] = R[c]` |
 | `GETFIRST a b`, `GETSECOND a b` | campos de um `pair` |
-| `ERRFIELD a b c`           | `kind`, `message`, `line` ou `column` de um erro |
 
-**`new Classe(args)`** vira, nesta ordem (a do interpretador): argumentos em `R[a+1]...`,
-`NEWOBJ a`, `INITOBJ a`, `CALLMETHOD a <construtor> n`. Os campos de um struct com valores
+**`new Classe(args)`** vira, nesta ordem (a do interpretador): argumentos em registradores,
+`NEWOBJ`, `CALL` do protótipo oculto de inicialização dos campos (se a classe tiver valores
+iniciais) e `CALL` do construtor com o objeto como `self`. Os campos de um struct com valores
 padrão (`new S()`) são calculados no próprio chamador, antes do `NEWSTRUCT`.
 
 ### 5.6 Coleções
@@ -158,20 +170,20 @@ padrão (`new S()`) são calculados no próprio chamador, antes do `NEWSTRUCT`.
 |-----------------------------------------------|--------|
 | `NEWLIST a b c`                               | `R[a] =` lista com `R[b]...R[b+c-1]` |
 | `NEWDICT a b c`                               | `R[a] =` dict com `c` pares (chave, valor) a partir de `R[b]` |
+| `APPEND a b c`, `DICTADD a b c`               | acrescentam `c` elementos (ou pares) a partir de `R[b]` à lista (ou dict) `R[a]`: um literal com mais de 256 elementos é montado em blocos, reaproveitando os registradores |
 | `NEWPAIR a b c`                               | `R[a] = {R[b], R[c]}` |
-| `GETINDEX_L a b c`, `SETINDEX_L a b c`        | índice de lista (`IndexError`) |
-| `GETINDEX_D a b c`, `SETINDEX_D a b c`        | chave de dict (`KeyError`; o `SET` só atualiza) |
-| `LIST_ADD`, `LIST_REMOVE`, `LIST_SIZE`, `LIST_HAS` | métodos de `list` (spec 5.7) |
-| `DICT_ADD`, `DICT_REMOVE`, `DICT_SIZE`, `DICT_HAS`, `DICT_KEYS`, `DICT_VALUES` | métodos de `dict` |
-| `STR_SIZE a b`                                | `R[a] =` caracteres de `R[b]` |
+| `GETINDEX a b c`                              | `R[a] = R[b][R[c]]`: lista (`IndexError`), dict (`KeyError`), string (o caractere) |
+| `INDEXPLACE a b c`, `SETINDEX a b c`          | atribuição a um lugar indexado (`m[i][j] = v`): `INDEXPLACE` desce o caminho, `SETINDEX` grava (no dict, só atualiza chave existente) |
+| `CALLBUILTIN a b c`                           | método embutido `b` de `R[a]` (`size`, `add`, `remove`, `has`, `keys`, `values`) com `c` argumentos depois dele (spec 5.7) |
 
 ### 5.7 `op<...>` e exceções
 
 | Instrução               | Efeito |
 |-------------------------|--------|
-| `CAST a b c`            | conversão inserida pelo semântico de/para `op` (`K[c]` = tipo de destino; só `int` → `decimal` acontece de fato) |
+| `CAST a b c`            | conversão inserida pelo semântico de/para `op` (`K[c]` = tipo de destino, `K[c+1]` = de origem; só `int` → `decimal` acontece de fato) |
 | `KEEPLOCK a b`          | atribuição a um `op` de tipo travado desconhecido: se `R[a]` guarda `decimal` e `R[b]` é `int`, converte; depois `R[a] = R[b]` |
 | `NEWERROR a b c`        | `R[a] =` erro do tipo `K[b]` com a mensagem `R[c]` |
+| `ERRFIELD a b c`        | `R[a] =` `kind`, `message`, `line` ou `column` (`c` = 0 a 3) do erro `R[b]` |
 | `THROW a`               | lança o erro `R[a]` (relançar preserva posição e trace) |
 
 ## 6. Exceções e `finally`

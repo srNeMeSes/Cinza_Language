@@ -110,7 +110,7 @@ Value VM::dispatch(std::size_t entrada) {
             switch (in.op) {
                 // ── carga e movimento ────────────────────────────────────
                 case Op::MOVE:      R[in.a] = R[in.b]; break;
-                case Op::LOADK:     R[in.a] = K[in.b]; break;
+                case Op::LOADK:     R[in.a] = K[static_cast<std::uint32_t>(in.bc())]; break;
                 case Op::LOADINT:   R[in.a] = Value(static_cast<std::int64_t>(in.bc())); break;
                 case Op::LOADBOOL:  R[in.a] = Value(in.b != 0); break;
                 case Op::LOADVOID:  R[in.a] = Value(); break;
@@ -320,7 +320,18 @@ Value VM::dispatch(std::size_t entrada) {
                     R[in.a] = std::move(d);
                     break;
                 }
-                case Op::NEWPAIR:    R[in.a] = makePair(R[in.b], R[in.c]); break;
+                case Op::APPEND: {
+                    auto& elems = R[in.a].asList()->elements;
+                    elems.insert(elems.end(), R + in.b, R + in.b + in.c);
+                    break;
+                }
+                case Op::DICTADD: {
+                    auto& entries = R[in.a].asDict()->entries;
+                    for (std::uint16_t i = 0; i < in.c; ++i)
+                        entries[R[in.b + 2 * i]] = R[in.b + 2 * i + 1];
+                    break;
+                }
+                case Op::NEWPAIR:   R[in.a] = makePair(R[in.b], R[in.c]); break;
                 case Op::GETINDEX:   R[in.a] = indexGet(R[in.b], R[in.c]); break;
                 case Op::INDEXPLACE: R[in.a] = *indexPlace(R[in.b], R[in.c]); break;
                 case Op::SETINDEX:   *indexPlace(R[in.a], R[in.b]) = R[in.c]; break;

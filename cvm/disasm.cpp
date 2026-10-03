@@ -48,8 +48,8 @@ std::string disassemble(const Image& img) {
             auto alvo = [&] { return "-> " + pos4(static_cast<std::size_t>(
                                                 static_cast<std::int64_t>(i) + 1 + in.bc())); };
             switch (in.op) {
-                case Op::LOADK:     ops = ra + ", k" + std::to_string(in.b);
-                                    nota = constante(p.consts[in.b]); break;
+                case Op::LOADK:     ops = ra + ", k" + std::to_string(in.bc());
+                                    nota = constante(p.consts[static_cast<std::size_t>(in.bc())]); break;
                 case Op::LOADINT:   ops = ra + ", " + std::to_string(in.bc()); break;
                 case Op::LOADBOOL:  ops = ra + (in.b ? ", true" : ", false"); break;
                 case Op::LOADVOID: case Op::RET:
@@ -90,7 +90,7 @@ std::string disassemble(const Image& img) {
                     ops  = ra + ", " + (img.protos[in.b].hidden() ? std::string("<inicialização>") : img.protos[in.b].name) +
                            ", " + std::to_string(in.c);
                     break;
-                case Op::NEWLIST: case Op::NEWDICT:
+                case Op::NEWLIST: case Op::NEWDICT: case Op::APPEND: case Op::DICTADD:
                     ops = ra + ", " + rb + ", " + std::to_string(in.c);
                     break;
                 case Op::NEWOBJ:

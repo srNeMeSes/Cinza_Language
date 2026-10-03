@@ -23,7 +23,7 @@ namespace cinza::cvm {
 #define CVM_OPCODES(X)                                                          \
     /* carga e movimento */                                                     \
     X(MOVE)       /* R[a] = R[b]                                     */          \
-    X(LOADK)      /* R[a] = K[b]                                     */          \
+    X(LOADK)      /* R[a] = K[bc] (índice de 32 bits)               */          \
     X(LOADINT)    /* R[a] = bc                                       */          \
     X(LOADBOOL)   /* R[a] = (b != 0)                                 */          \
     X(LOADVOID)   /* R[a] = valor vazio                              */          \
@@ -63,6 +63,9 @@ namespace cinza::cvm {
     /* coleções */                                                              \
     X(NEWLIST)    /* R[a] = [R[b] ... R[b+c-1]]                      */          \
     X(NEWDICT)    /* R[a] = c pares (R[b], R[b+1]), (R[b+2], ...)    */          \
+    /* literal grande, em blocos: acrescenta ao que NEWLIST/NEWDICT criou */      \
+    X(APPEND)     /* R[a] (lista) += R[b] ... R[b+c-1]               */          \
+    X(DICTADD)    /* R[a] (dict) += c pares a partir de R[b]          */          \
     X(NEWPAIR)    /* R[a] = {R[b], R[c]}                             */          \
     X(GETINDEX)   /* R[a] = R[b][R[c]]          (leitura)            */          \
     X(INDEXPLACE) /* R[a] = R[b][R[c]]          (caminho até o lugar) */         \

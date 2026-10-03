@@ -117,17 +117,27 @@ private:
         }
         return emitBc(Op::JMPIFNOT, c, 0, tok);
     }
-    std::uint16_t constant(Value v, const Token& tok) {
-        if (p->consts.size() >= std::numeric_limits<std::uint16_t>::max())
+    // Índice de constante: 32 bits no LOADK (campo bc); as instruções que levam
+    // o índice num campo de 16 bits usam constant16
+    std::uint32_t constant(Value v, const Token& tok) {
+        if (p->consts.size() >= static_cast<std::size_t>(std::numeric_limits<std::int32_t>::max()))
             throw Unsupported("constantes demais numa função para a CVM", tok);
         p->consts.push_back(std::move(v));
-        return static_cast<std::uint16_t>(p->consts.size() - 1);
+        return static_cast<std::uint32_t>(p->consts.size() - 1);
+    }
+    std::uint16_t constant16(Value v, const Token& tok) {
+        return u16(constant(std::move(v), tok), tok, "constantes");
+    }
+    void loadK(std::uint16_t dst, Value v, const Token& tok) {
+        emitBc(Op::LOADK, dst, static_cast<std::int32_t>(constant(std::move(v), tok)), tok);
     }
     std::uint16_t nativeIndex(const NativeFn* fn) {
         auto [it, novo] = native_of.try_emplace(fn, img.natives.size());
         if (novo) img.natives.push_back(fn);
         return static_cast<std::uint16_t>(it->second);
     }
+    // Elementos por bloco de uma lista/dict literal (o resto vai por APPEND/DICTADD)
+    static constexpr std::size_t BLOCO_LITERAL = 256;
     static std::uint16_t u16(std::size_t v, const Token& tok, const char* oque) {
         if (v > std::numeric_limits<std::uint16_t>::max())
             throw Unsupported(std::string(oque) + " além do limite da CVM (65535)", tok);
@@ -197,11 +207,11 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
                     *i <= std::numeric_limits<std::int32_t>::max())
                     emitBc(Op::LOADINT, dst, static_cast<std::int32_t>(*i), e->token);
                 else
-                    emit(Op::LOADK, dst, constant(Value(*i), e->token), 0, e->token);
+                    loadK(dst, Value(*i), e->token);
             } else if (auto* d = std::get_if<double>(&lit->value)) {
-                emit(Op::LOADK, dst, constant(Value(*d), e->token), 0, e->token);
+                loadK(dst, Value(*d), e->token);
             } else if (auto* s = std::get_if<std::string>(&lit->value)) {
-                emit(Op::LOADK, dst, constant(Value(*s), e->token), 0, e->token);
+                loadK(dst, Value(*s), e->token);
             } else {
                 emit(Op::LOADBOOL, dst, std::get<bool>(lit->value) ? 1 : 0, 0, e->token);
             }
@@ -226,7 +236,7 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
                     if (dst != 0) emit(Op::MOVE, dst, 0, 0, e->token);
                     break;
                 case Resolution::Kind::Type:   // Pessoa, Cor... usado como valor (type(x) == Pessoa)
-                    emit(Op::LOADK, dst, constant(Value(id->type_value), e->token), 0, e->token);
+                    loadK(dst, Value(id->type_value), e->token);
                     break;
                 case Resolution::Kind::None:
                     throw Unsupported("identificador sem resolução (erro interno)", e->token);
@@ -240,7 +250,7 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
                 // conversão de/para op (como o evalCast): K[c] é o tipo de destino;
                 // o tipo de origem vai numa segunda constante logo depois
                 const std::uint16_t r = exprReg(c->operand.get());
-                const std::uint16_t k = constant(Value(c->resolved_type), e->token);
+                const std::uint16_t k = constant16(Value(c->resolved_type), e->token);
                 constant(Value(c->operand->resolved_type), e->token);
                 emit(Op::CAST, dst, r, k, e->token);
             } else if (c->resolved_type->is(TK::Decimal) && c->operand->resolved_type->is(TK::Int)) {
@@ -274,19 +284,51 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
 
         case NodeKind::ListLiteral: {
             auto* l = static_cast<const ListLiteralExpr*>(e);
-            const std::uint16_t base = top;
-            for (const auto& el : l->elements) expr(el.get(), alloc(e->token));
-            emit(Op::NEWLIST, dst, base, u16(l->elements.size(), e->token, "elementos"), e->token);
+            const std::size_t n = l->elements.size();
+            if (n <= BLOCO_LITERAL) {
+                const std::uint16_t base = top;
+                for (const auto& el : l->elements) expr(el.get(), alloc(e->token));
+                emit(Op::NEWLIST, dst, base, static_cast<std::uint16_t>(n), e->token);
+                break;
+            }
+            // literal grande: em blocos (NEWLIST com o primeiro, APPEND com os
+            // demais), reaproveitando os registradores; montado num temporário
+            // próprio, porque um elemento pode ler a variável de destino
+            const std::uint16_t t = alloc(e->token);
+            for (std::size_t i = 0; i < n; i += BLOCO_LITERAL) {
+                const std::uint16_t base = top;
+                const std::size_t k = std::min(BLOCO_LITERAL, n - i);
+                for (std::size_t j = i; j < i + k; ++j) expr(l->elements[j].get(), alloc(e->token));
+                emit(i == 0 ? Op::NEWLIST : Op::APPEND, t, base, static_cast<std::uint16_t>(k), e->token);
+                top = base;
+            }
+            if (dst != t) emit(Op::MOVE, dst, t, 0, e->token);
             break;
         }
         case NodeKind::DictLiteral: {
             auto* d = static_cast<const DictLiteralExpr*>(e);
-            const std::uint16_t base = top;
-            for (const auto& [k, v] : d->pairs) {   // chave e valor, par a par
-                expr(k.get(), alloc(e->token));
-                expr(v.get(), alloc(e->token));
+            const std::size_t n = d->pairs.size();
+            auto bloco = [&](std::size_t i, std::size_t k) {   // chave e valor, par a par
+                for (std::size_t j = i; j < i + k; ++j) {
+                    expr(d->pairs[j].first.get(), alloc(e->token));
+                    expr(d->pairs[j].second.get(), alloc(e->token));
+                }
+            };
+            if (n <= BLOCO_LITERAL) {
+                const std::uint16_t base = top;
+                bloco(0, n);
+                emit(Op::NEWDICT, dst, base, static_cast<std::uint16_t>(n), e->token);
+                break;
             }
-            emit(Op::NEWDICT, dst, base, u16(d->pairs.size(), e->token, "entradas"), e->token);
+            const std::uint16_t t = alloc(e->token);   // em blocos, como a lista
+            for (std::size_t i = 0; i < n; i += BLOCO_LITERAL) {
+                const std::uint16_t base = top;
+                const std::size_t k = std::min(BLOCO_LITERAL, n - i);
+                bloco(i, k);
+                emit(i == 0 ? Op::NEWDICT : Op::DICTADD, t, base, static_cast<std::uint16_t>(k), e->token);
+                top = base;
+            }
+            if (dst != t) emit(Op::MOVE, dst, t, 0, e->token);
             break;
         }
         case NodeKind::PairLiteral: {
@@ -321,9 +363,7 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
             auto* m = static_cast<const MemberAccessExpr*>(e);
             TypeRef t = m->object->resolved_type;
             if (m->enum_decl) {   // Cor.Verde: uma constante
-                emit(Op::LOADK, dst,
-                     constant(Value(EnumValue{m->enum_decl, static_cast<std::uint32_t>(m->field_index)}),
-                              e->token), 0, e->token);
+                loadK(dst, Value(EnumValue{m->enum_decl, static_cast<std::uint32_t>(m->field_index)}), e->token);
                 break;
             }
             if (t->is(TK::Error)) {   // e.kind, e.message, e.line, e.column
@@ -362,8 +402,7 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
             newExpr(static_cast<const NewExpr*>(e), dst);
             break;
         case NodeKind::TypeLiteral:   // int, list<int>... escrito como valor
-            emit(Op::LOADK, dst,
-                 constant(Value(static_cast<const TypeLiteralExpr*>(e)->value), e->token), 0, e->token);
+            loadK(dst, Value(static_cast<const TypeLiteralExpr*>(e)->value), e->token);
             break;
         default:
             throw Unsupported("expressão desconhecida (erro interno)", e->token);
@@ -487,7 +526,7 @@ void Compiler::call(const CallExpr* e, std::uint16_t dst) {
     const Token& tok = e->token;
     if (e->type_of) {   // type(x): o tipo real, com o tipo estático em K[c]
         const std::uint16_t r = exprReg(e->arguments[0].get());
-        emit(Op::TYPEOF, dst, r, constant(Value(e->type_of), tok), tok);
+        emit(Op::TYPEOF, dst, r, constant16(Value(e->type_of), tok), tok);
         return;
     }
 
@@ -496,16 +535,16 @@ void Compiler::call(const CallExpr* e, std::uint16_t dst) {
     if (e->interpolated) {
         const std::uint16_t t = alloc(tok);
         std::uint16_t u = NO_REG;
-        if (e->interp.empty()) emit(Op::LOADK, t, constant(Value(std::string()), tok), 0, tok);
+        if (e->interp.empty()) loadK(t, Value(std::string()), tok);
         for (std::size_t i = 0; i < e->interp.size(); ++i) {
             const auto& parte = e->interp[i];
             const std::uint16_t r = i == 0 ? t : (u == NO_REG ? (u = alloc(tok)) : u);
             if (!parte.expr) {
-                emit(Op::LOADK, r, constant(Value(parte.text), tok), 0, tok);
+                loadK(r, Value(parte.text), tok);
             } else {
                 expr(parte.expr.get(), r);
                 const std::int64_t formato = std::int64_t{parte.width} * 1000 + parte.precision + 1;
-                emit(Op::FMT, r, r, constant(Value(formato), tok), tok);
+                emit(Op::FMT, r, r, constant16(Value(formato), tok), tok);
             }
             if (i > 0) emit(Op::CONCAT, t, t, r, tok);
         }
@@ -517,7 +556,7 @@ void Compiler::call(const CallExpr* e, std::uint16_t dst) {
     const bool nativa = e->native != nullptr;
     if (!nativa && !e->target) {   // Tipo("mensagem"): cria um erro, na posição da chamada
         const std::uint16_t msg = e->arguments.empty() ? NO_REG : exprReg(e->arguments[0].get());
-        emit(Op::NEWERROR, dst, constant(Value(e->function_name), tok), msg, tok);
+        emit(Op::NEWERROR, dst, constant16(Value(e->function_name), tok), msg, tok);
         return;
     }
     // argumentos em registradores consecutivos a partir de `base` (convenção do Lua)
