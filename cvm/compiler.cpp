@@ -93,6 +93,29 @@ private:
     // salto em `at` passa a ir para `target` (relativo à instrução seguinte)
     void patch(std::size_t at, std::size_t target) {
         p->code[at].setBc(static_cast<std::int32_t>(target) - static_cast<std::int32_t>(at + 1));
+        rotulo = target;
+    }
+    std::size_t rotulo = SIZE_MAX;   // último alvo de salto: não fundir instruções através dele
+
+    // Salto tomado quando a condição, já no temporário c, é falsa. Se ela acabou
+    // de sair de uma comparação int, a comparação vira compara-e-salta: um
+    // despacho em vez de dois, sem o bool intermediário (desenho seção 11).
+    // Não funde se algum salto chega logo depois da comparação (a && x < y).
+    std::size_t jumpIfFalse(std::uint16_t c, const Token& tok) {
+        if (isTemp(c) && here() > 0 && rotulo != here() && p->code.back().a == c) {
+            Instr& u = p->code.back();
+            switch (u.op) {   // salta quando a comparação é falsa
+                case Op::LT_I:  u = Instr{Op::JLE_I,  u.c, u.b, 0}; break;   // !(x < y)  ≡ y <= x
+                case Op::LE_I:  u = Instr{Op::JLT_I,  u.c, u.b, 0}; break;   // !(x <= y) ≡ y < x
+                case Op::LTK_I: u = Instr{Op::JGEK_I, u.b, u.c, 0}; break;
+                case Op::LEK_I: u = Instr{Op::JGTK_I, u.b, u.c, 0}; break;
+                case Op::GTK_I: u = Instr{Op::JLEK_I, u.b, u.c, 0}; break;
+                case Op::GEK_I: u = Instr{Op::JLTK_I, u.b, u.c, 0}; break;
+                default: return emitBc(Op::JMPIFNOT, c, 0, tok);
+            }
+            return emitBc(Op::JMP, 0, 0, tok);
+        }
+        return emitBc(Op::JMPIFNOT, c, 0, tok);
     }
     std::uint16_t constant(Value v, const Token& tok) {
         if (p->consts.size() >= std::numeric_limits<std::uint16_t>::max())
@@ -587,7 +610,7 @@ void Compiler::stmt(const Stmt* s) {
         case NodeKind::If: {
             auto* i = static_cast<const IfStmt*>(s);
             const std::uint16_t c = exprReg(i->condition.get());
-            const std::size_t para_else = emitBc(Op::JMPIFNOT, c, 0, s->token);
+            const std::size_t para_else = jumpIfFalse(c, s->token);
             top = save;
             stmt(i->then_branch.get());
             if (i->else_branch) {
@@ -611,7 +634,7 @@ void Compiler::stmt(const Stmt* s) {
             std::size_t sai = 0;
             if (!sempre) {
                 const std::uint16_t c = exprReg(w->condition.get());
-                sai = emitBc(Op::JMPIFNOT, c, 0, s->token);
+                sai = jumpIfFalse(c, s->token);
                 top = save;
             }
             lacos.push_back({});

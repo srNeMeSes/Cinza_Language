@@ -231,6 +231,15 @@ Value VM::dispatch(std::size_t entrada) {
                 case Op::JMP:      f->pc += in.bc(); break;
                 case Op::JMPIF:    if (R[in.a].asBool())  f->pc += in.bc(); break;
                 case Op::JMPIFNOT: if (!R[in.a].asBool()) f->pc += in.bc(); break;
+                // compara e salta: se verdadeiro, faz aqui o JMP seguinte; senão o pula
+#define CVM_SALTA_SE(cond) f->pc += (cond) ? 1 + code[f->pc].bc() : 1
+                case Op::JLT_I:  CVM_SALTA_SE(R[in.a].asInt() <  R[in.b].asInt()); break;
+                case Op::JLE_I:  CVM_SALTA_SE(R[in.a].asInt() <= R[in.b].asInt()); break;
+                case Op::JLTK_I: CVM_SALTA_SE(R[in.a].asInt() <  static_cast<std::int16_t>(in.b)); break;
+                case Op::JLEK_I: CVM_SALTA_SE(R[in.a].asInt() <= static_cast<std::int16_t>(in.b)); break;
+                case Op::JGTK_I: CVM_SALTA_SE(R[in.a].asInt() >  static_cast<std::int16_t>(in.b)); break;
+                case Op::JGEK_I: CVM_SALTA_SE(R[in.a].asInt() >= static_cast<std::int16_t>(in.b)); break;
+#undef CVM_SALTA_SE
 
                 // ── for (spec 5.5: os elementos são copiados no início) ──
                 case Op::FORPREP: {

@@ -37,6 +37,9 @@ namespace cinza::cvm {
     /* int com constante embutida (c = inteiro de 16 bits com sinal) */         \
     X(ADDK_I) X(SUBK_I) X(MULK_I) X(DIVK_I) X(MODK_I) /* R[a] = R[b] op c */    \
     X(LTK_I) X(LEK_I) X(GTK_I) X(GEK_I)               /* R[a] = R[b] cmp c */   \
+    /* compara e salta: a instrução seguinte é um JMP, feito no mesmo despacho */ \
+    X(JLT_I) X(JLE_I)                     /* se R[a] cmp R[b]: salta         */  \
+    X(JLTK_I) X(JLEK_I) X(JGTK_I) X(JGEK_I) /* se R[a] cmp b (16 bits): salta */  \
     X(CONCAT)     /* R[a] = texto(R[b]) + texto(R[c])                */          \
     /* comparação */                                                            \
     X(LT_I) X(LE_I) X(LT_D) X(LE_D) X(LT_S) X(LE_S) /* R[a] = R[b] < R[c] */     \

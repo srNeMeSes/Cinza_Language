@@ -64,6 +64,10 @@ std::string disassemble(const Image& img) {
                 case Op::LTK_I: case Op::LEK_I: case Op::GTK_I: case Op::GEK_I:
                     ops = ra + ", " + rb + ", " + std::to_string(static_cast<std::int16_t>(in.c));
                     break;
+                case Op::JLT_I: case Op::JLE_I:   // o alvo está no JMP da linha seguinte
+                    ops = ra + ", " + rb; break;
+                case Op::JLTK_I: case Op::JLEK_I: case Op::JGTK_I: case Op::JGEK_I:
+                    ops = ra + ", " + std::to_string(static_cast<std::int16_t>(in.b)); break;
                 case Op::RANGEPREP: ops = ra; nota = "iterador em r" + std::to_string(in.b); break;
                 case Op::JMPIF: case Op::JMPIFNOT: case Op::FORNEXT: case Op::FORNEXT_D:
                 case Op::FORRANGE: case Op::FORRANGE_D:

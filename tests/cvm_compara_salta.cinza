@@ -1,0 +1,40 @@
+// CVM (otimização: compara-e-salta): if/while com comparação int viram uma instrução só;
+// o resultado é o mesmo — inclusive quando não pode fundir (&&, bool guardado, decimal).
+fn conta(int a, int b) -> string {
+  string r = "";
+  if (a < b) { r += "<"; }
+  if (a <= b) { r += "l"; }
+  if (a > b) { r += ">"; }
+  if (a >= b) { r += "g"; }
+  if (a < 3) { r += "k<"; } else { r += "-"; }
+  if (a <= 3) { r += "kl"; }
+  if (a > -2) { r += "k>"; }
+  if (a >= -2) { r += "kg"; }
+  return r;
+}
+fn main() {
+  print(conta(1, 2), conta(2, 2), conta(3, 2), conta(-2, 9), conta(-3, -3));
+  int i = 0;
+  int passos = 0;
+  while (i < 10) { i += 3; passos += 1; }
+  print(i, passos);
+  while (i >= 0) { i -= 4; }
+  print(i);
+  // um salto do && chega logo depois da comparação: não funde
+  bool sim = true;
+  if (sim && i < 0) { print("e"); }
+  if (!sim || i > 100) { print("nunca"); } else { print("ou"); }
+  // o bool fica guardado: a comparação não pode sumir
+  bool menor = i < 0;
+  if (menor) { print(menor); }
+  // int com decimal: comparação comum
+  decimal d = 0.5;
+  if (i < d) { print("decimal"); }
+}
+// expect: <lk<klk>kg lgk<klk>kg >g-klk>kg <lk<klkg lgk<kl
+// expect: 12 4
+// expect: -4
+// expect: e
+// expect: ou
+// expect: true
+// expect: decimal

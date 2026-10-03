@@ -339,6 +339,7 @@ Só entram com o benchmark mostrando ganho e a suíte verde nos dois modos:
 | `for` sobre `range` embutido sem lista (`RANGEPREP`/`FORRANGE`) | 77 | 473 | — | — |
 | constante imediata (`ADDK_I`…`GEK_I`, 16 bits com sinal) | — | — | ~104 | ~52 |
 | *computed goto* (**descartado**, ver abaixo)       | =        | =         | =         | =       |
+| compara-e-salta (`JLT_I`…`JGEK_I` + o `JMP` seguinte num só despacho, no `if`/`while`) | — | — | 92 | 46 |
 
 O *computed goto* foi implementado, testado e medido lado a lado com o `switch`: nenhum ganho
 mensurável (os processadores atuais já preveem bem o salto indireto do `switch`), e ele traz uma
