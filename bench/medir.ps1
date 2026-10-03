@@ -14,7 +14,7 @@ function Melhor($programa, $opcoes) {
 
 "{0,-16} {1,12} {2,12}   {3}" -f "programa", "interpretador", "cvm", "saida"
 foreach ($p in Get-ChildItem bench\*.cinza | Sort-Object Name) {
-    $interp = Melhor $p.FullName @()
-    $cvm    = Melhor $p.FullName @("--cvm")
+    $interp = Melhor $p.FullName @("--interp")
+    $cvm    = Melhor $p.FullName @()
     "{0,-16} {1,12} {2,12}   {3}" -f $p.Name, $interp[0], $cvm[0], $interp[1]
 }

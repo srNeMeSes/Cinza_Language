@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Runner de testes da linguagem Cinza.
 
-Uso: python tests/run_tests.py [binario] [filtro] [--cvm]
+Uso: python tests/run_tests.py [binario] [filtro] [--interp | --diff]
 
---cvm: executa cada programa na máquina virtual (o interpretador é o padrão).
+Por padrão os programas rodam na CVM (o modo padrão do cinza).
+--interp: executa no interpretador de referência.
 --diff: teste diferencial — executa cada programa no interpretador e na CVM e
         compara código de saída, stdout e stderr byte a byte (desenho da CVM,
         seção 11). Qualquer diferença é defeito da CVM.
@@ -221,9 +222,10 @@ def main():
     modo_diff = "--diff" in sys.argv
     if modo_diff:
         sys.argv.remove("--diff")
-    if "--cvm" in sys.argv:
-        sys.argv.remove("--cvm")
-        OPCOES.append("--cvm")
+    for opcao in ("--cvm", "--interp"):
+        if opcao in sys.argv:
+            sys.argv.remove(opcao)
+            OPCOES.append(opcao)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
 

@@ -1,5 +1,7 @@
 # Cinza — compilador/interpretador em C++20
-Pipeline: Lexer → Parser → SemanticAnalyzer → Executor (tree-walk).
+Pipeline: Lexer → Parser → SemanticAnalyzer → compilador → CVM (máquina virtual, padrão;
+cvm/DESENHO.md). Executor (tree-walk) = referência, opção --interp; `make test` roda nos
+dois modos e o diferencial (saídas idênticas byte a byte).
 Filosofia: disciplinada; sem null, sem herança, sem closures.
 Build: `make`  |  Debug com sanitizers: `make debug`  |  Testes: `make test`
 Plano da v2 e bugs confirmados: REVISAO_V2.md

@@ -195,8 +195,8 @@ void printHelp() {
     std::cout << "Opções:\n";
     std::cout << "  --tokens, -t     Exibe tokens detalhados\n";
     std::cout << "  --ast, -a        Exibe a árvore sintática (AST)\n";
-    std::cout << "  --cvm            Executa na máquina virtual (CVM, em construção)\n";
-    std::cout << "  --bytecode       Mostra o bytecode da CVM e executa nela\n";
+    std::cout << "  --bytecode       Mostra o bytecode da CVM antes de executar\n";
+    std::cout << "  --interp         Executa no interpretador de referência (em vez da CVM)\n";
     std::cout << "  --help, -h       Exibe esta ajuda\n\n";
     std::cout << "Exemplo:\n";
     std::cout << "  cinza --ast exemplo.cinza\n";
@@ -226,10 +226,10 @@ int main(int argc, char* argv[]) {
     std::vector<std::string> program_args;
     bool show_tokens = false;
     bool show_ast = false; // por padrão NÃO mostra AST
-    // CVM (em construção): --cvm executa na máquina virtual; --bytecode mostra o
-    // bytecode gerado e executa na CVM. Enquanto a CVM não estiver completa, o
-    // padrão continua sendo o interpretador.
-    bool use_cvm = false;
+    // A CVM (máquina virtual) é o padrão; --interp usa o interpretador de
+    // referência (tree-walk), que dá exatamente os mesmos resultados e serve
+    // para o teste diferencial. --bytecode mostra o bytecode antes de executar.
+    bool use_cvm = true;
     bool show_bytecode = false;
 
     for (int i = 1; i < argc; i++) {
@@ -246,9 +246,9 @@ int main(int argc, char* argv[]) {
         } else if (arg == "--ast" || arg == "-a") {
             show_ast = true;
         } else if (arg == "--cvm") {
-            use_cvm = true;
+            use_cvm = true;    // já é o padrão (aceito por compatibilidade)
         } else if (arg == "--interp") {
-            use_cvm = false;   // interpretador de referência (hoje já é o padrão)
+            use_cvm = false;   // interpretador de referência
         } else if (arg == "--bytecode") {
             use_cvm = show_bytecode = true;
         } else if (!arg.empty() && arg[0] != '-') {

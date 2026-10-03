@@ -111,6 +111,8 @@ cinza [opções] arquivo.cinza [argumentos para main...]
 | `--tokens`, `-t` | mostra os tokens do arquivo principal |
 | `--ast`, `-a`    | mostra a árvore sintática do arquivo principal |
 | `--help`, `-h`   | mostra a ajuda |
+| `--bytecode`     | mostra o bytecode da máquina virtual antes de executar |
+| `--interp`       | executa no interpretador de referência em vez da máquina virtual (os resultados são os mesmos) |
 
 As opções vêm **antes** do arquivo; tudo o que vem depois dele vai para `main(list<string> args)`,
 mesmo que comece com `-`.

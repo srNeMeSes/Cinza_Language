@@ -77,9 +77,9 @@ $(TARGET_BIN): $(OBJECTS)
 debug: CXXFLAGS = -std=c++20 -O0 -g -Wall -Wextra -fsanitize=address,undefined
 debug: clean $(TARGET_BIN)
 
-# CVM em construção: a mesma suíte executada na máquina virtual
-test-cvm: $(TARGET_BIN)
-	$(PYTHON) tests/run_tests.py $(TARGET_BIN) --cvm
+# A mesma suíte no interpretador de referência (a CVM é o padrão)
+test-interp: $(TARGET_BIN)
+	$(PYTHON) tests/run_tests.py $(TARGET_BIN) --interp
 
 # Teste diferencial: interpretador × CVM, saída comparada byte a byte
 test-diff: $(TARGET_BIN)
@@ -91,6 +91,8 @@ test: $(TARGET_BIN) $(UNIT_BIN) $(UNIT_TYPES) $(UNIT_GC)
 	./$(UNIT_TYPES)
 	./$(UNIT_GC)
 	$(PYTHON) tests/run_tests.py $(TARGET_BIN)
+	$(PYTHON) tests/run_tests.py $(TARGET_BIN) --interp
+	$(PYTHON) tests/run_tests.py $(TARGET_BIN) --diff
 
 # Testes de unidade em C++ (itens sem reprodução em .cinza, ex.: A11)
 $(UNIT_BIN): tests/unit_value.cpp value.h ast.h lexer.h types.h gc_object.h

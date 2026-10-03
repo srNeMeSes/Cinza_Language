@@ -949,7 +949,24 @@ Etapas:
   > ~170 sondas da revisão bruta mais sondas novas de módulos e da biblioteca padrão, todas idênticas. Opção
   > `--interp` já aceita. Testes `cvm_modulo*` (módulos encadeados, erro em método de outro módulo, erro na
   > avaliação de const de módulo).
-- [ ] 9. CVM como padrão, `--interp` para o interpretador; suíte nos dois modos; benchmark final.
+- [x] 9. CVM como padrão, `--interp` para o interpretador; suíte nos dois modos; benchmark final. — feito em 2026-10-02
+  > Nota: `cinza prog.cinza` executa na CVM; `--interp` usa o interpretador de referência; `--cvm` continua
+  > aceito. `make test` = testes de unidade + suíte na CVM + suíte no interpretador + diferencial (397/397/397
+  > idênticos, também sob ASan/UBSan); `make test-interp` e `make test-diff` à parte. Spec 7.4, CLAUDE.md e
+  > README atualizados.
+  >
+  > Benchmark final (`bench/medir.ps1`, melhor de 5, mesma rodada; Python 3.13 na mesma máquina):
+  >
+  > | Programa | Interpretador | CVM | Ganho | Python |
+  > |---|---|---|---|---|
+  > | `fib` (recursão) | 131 ms | 58 ms | 2,3× | 61 ms |
+  > | `laco` (laço com locais) | 368 ms | 115 ms | 3,2× | 276 ms |
+  > | `objetos` (métodos e campos) | 160 ms | 119 ms | 1,3× | 90 ms |
+  > | `ciclos` (criação de objetos) | 852 ms | 723 ms | 1,2× | — |
+  >
+  > Meta (≥2×) atingida em `fib` e `laco`, onde a CVM também passa o Python; não atingida nos programas com
+  > muitos objetos — o custo está no mecanismo da chamada de método e na criação de objetos, alvo das
+  > otimizações da seção 11 do desenho.
 
 ---
 
