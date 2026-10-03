@@ -326,8 +326,10 @@ Termina o programa com código 1 e mostra o erro no formato do capítulo 7, segu
 
 Índices e fatias contam **caracteres** e aceitam negativos, que contam do fim. As fatias **não**
 ajustam limites: com passo positivo, `ini` e `fim` precisam ficar entre `0` e o tamanho, com
-`ini ≤ fim`; com passo negativo, `ini` e `fim` explícitos precisam ser índices válidos, com
-`ini ≥ fim` (omitidos: do último caractere até antes do primeiro). Fora disso, `IndexError`.
+`ini ≤ fim` (o fim pode ser a posição depois do último caractere); com passo negativo, simétrico:
+`ini` precisa ser um índice válido e `fim` pode ir até a posição antes do primeiro caractere
+(`-tamanho - 1`), com `ini ≥ fim` — `s[-1:-7:-1]` inverte uma string de 6. Omitidos: do começo ao
+fim (ou do último ao primeiro). Fora disso, `IndexError`.
 
 Strings são **imutáveis**: `s[i] = ...` é erro de compilação. Índices negativos e fatias valem só
 para `string`; em `list` o índice continua não-negativo e a fatia é `Lists.slice`.

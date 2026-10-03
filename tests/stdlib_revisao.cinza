@@ -1,0 +1,12 @@
+// Revisão da biblioteca: ß e ÿ são minúsculas sem maiúscula no Latin-1 (antes "ÿ" passava por
+// maiúsculo); Math.pow(0, negativo) é divisão por zero (antes dizia "grande demais").
+import Strings as st;
+import Math;
+fn main() {
+  print(st.is_upper("ÿ"), st.is_upper("ß"), st.is_lower("ÿß"), st.is_upper("ABÇ"), st.is_lower("ABÇ"));
+  try { print(Math.pow(0, -1)); } except (ZeroDivisionError e) { print(e.message); }
+  print(Math.pow(0, 0), Math.pow(0, 2));
+}
+// expect: false false true true false
+// expect: 'pow' de 0 com expoente negativo (divisão por zero)
+// expect: 1 0

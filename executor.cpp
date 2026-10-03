@@ -2,6 +2,7 @@
 #include "semantic.h"   // op<...>: TypeChecker valida operações em runtime
 #include "gc.h"         // coleta de ciclos
 #include "operacoes.h"   // aritmética compartilhada com a CVM
+#include "utf8.h"
 #include <cstdlib>
 #include <iostream>
 #include <cmath>
@@ -402,10 +403,7 @@ Flow Executor::executeFor(const ForStmt* stmt) {
         case Value::Kind::STRING: {
             const std::string& s = iterable.asString();
             for (size_t i = 0; i < s.size();) {
-                size_t len = 1;
-                while (i + len < s.size() &&
-                       (static_cast<unsigned char>(s[i + len]) & 0xC0) == 0x80)
-                    ++len;   // bytes de continuação pertencem ao mesmo caractere
+                const size_t len = utf8::bytesDoCaractere(s, i);
                 elements.emplace_back(s.substr(i, len));
                 i += len;
             }

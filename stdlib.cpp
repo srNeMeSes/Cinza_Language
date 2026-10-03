@@ -1,6 +1,7 @@
 #include "natives.h"
 #include "plataforma.h"
 #include "runtime_error.h"
+#include "utf8.h"
 #include <algorithm>
 #include <cctype>
 #include <charconv>
@@ -37,50 +38,9 @@ namespace fs = std::filesystem;
     throw RuntimeError(tipo_e_mensagem);
 }
 
-// ── UTF-8 ──────────────────────────────────────────────────────────────────
-// As strings guardam UTF-8; índices e tamanhos da linguagem contam caracteres
-// (code points), como string.size() (A10).
-
-std::u32string decodifica(const std::string& s) {
-    std::u32string out;
-    out.reserve(s.size());
-    for (size_t i = 0; i < s.size();) {
-        const unsigned char b = static_cast<unsigned char>(s[i]);
-        size_t len = 1;
-        char32_t cp = b;
-        if      (b >= 0xF0) { len = 4; cp = b & 0x07; }
-        else if (b >= 0xE0) { len = 3; cp = b & 0x0F; }
-        else if (b >= 0xC0) { len = 2; cp = b & 0x1F; }
-        for (size_t k = 1; k < len && i + k < s.size(); ++k)
-            cp = (cp << 6) | (static_cast<unsigned char>(s[i + k]) & 0x3F);
-        out.push_back(cp);
-        i += len;
-    }
-    return out;
-}
-
-std::string codifica(const std::u32string& cps) {
-    std::string out;
-    out.reserve(cps.size());
-    for (char32_t cp : cps) {
-        if (cp < 0x80) {
-            out += static_cast<char>(cp);
-        } else if (cp < 0x800) {
-            out += static_cast<char>(0xC0 | (cp >> 6));
-            out += static_cast<char>(0x80 | (cp & 0x3F));
-        } else if (cp < 0x10000) {
-            out += static_cast<char>(0xE0 | (cp >> 12));
-            out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
-            out += static_cast<char>(0x80 | (cp & 0x3F));
-        } else {
-            out += static_cast<char>(0xF0 | (cp >> 18));
-            out += static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
-            out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
-            out += static_cast<char>(0x80 | (cp & 0x3F));
-        }
-    }
-    return out;
-}
+// UTF-8: regras comuns em utf8.h
+using utf8::decodifica;
+using utf8::codifica;
 
 // Maiúsculas/minúsculas: ASCII e Latin-1 (á é ç ã õ ... ↔ Á É Ç Ã Õ ...)
 char32_t paraMaiuscula(char32_t c) {
@@ -95,9 +55,7 @@ char32_t paraMinuscula(char32_t c) {
 }
 
 // Número (int ou decimal) como double
-double numero(const Value& v) {
-    return v.kind() == Value::Kind::INT ? static_cast<double>(v.asInt()) : v.asDecimal();
-}
+double numero(const Value& v) { return v.asNumber(); }
 
 // decimal → int, com OverflowError fora da faixa de int
 Value decimalParaInt(double d, const char* fn) {
@@ -189,10 +147,7 @@ Value strFind(Args a) {
     const std::string& s = a[0].asString();
     const size_t pos = s.find(a[1].asString());
     if (pos == std::string::npos) return Value(std::int64_t{-1});
-    std::int64_t idx = 0;
-    for (size_t i = 0; i < pos; ++i)
-        if ((static_cast<unsigned char>(s[i]) & 0xC0) != 0x80) ++idx;
-    return Value(idx);
+    return Value(utf8::indiceDoByte(s, pos));
 }
 
 Value strStartsWith(Args a) {
@@ -207,42 +162,22 @@ Value strEndsWith(Args a) {
     return Value(s.size() >= p.size() && s.compare(s.size() - p.size(), p.size(), p) == 0);
 }
 
-// Índice em caracteres do byte `pos` (início de um caractere)
-std::int64_t indiceCaractere(const std::string& s, size_t pos) {
-    std::int64_t idx = 0;
-    for (size_t i = 0; i < pos; ++i)
-        if ((static_cast<unsigned char>(s[i]) & 0xC0) != 0x80) ++idx;
-    return idx;
-}
-
-// Byte em que começa o caractere de índice `idx` (idx <= tamanho)
-size_t byteDoCaractere(const std::string& s, std::int64_t idx) {
-    size_t i = 0;
-    for (std::int64_t k = 0; k < idx && i < s.size(); ++k) {
-        ++i;
-        while (i < s.size() && (static_cast<unsigned char>(s[i]) & 0xC0) == 0x80) ++i;
-    }
-    return i;
-}
-
-std::int64_t tamanho(const std::string& s) { return indiceCaractere(s, s.size()); }
-
 Value strFindLast(Args a) {
     const std::string& s = a[0].asString();
     const size_t pos = s.rfind(a[1].asString());
-    return Value(pos == std::string::npos ? std::int64_t{-1} : indiceCaractere(s, pos));
+    return Value(pos == std::string::npos ? std::int64_t{-1} : utf8::indiceDoByte(s, pos));
 }
 
 // find_from(s, trecho, inicio): como find, a partir do caractere `inicio`
 Value strFindFrom(Args a) {
     const std::string& s = a[0].asString();
     const std::int64_t ini = a[2].asInt();
-    const std::int64_t n = tamanho(s);
+    const std::int64_t n = utf8::tamanho(s);
     if (ini < 0 || ini > n)
         falha("IndexError: início " + std::to_string(ini) + " fora dos limites de uma string de tamanho " +
               std::to_string(n));
-    const size_t pos = s.find(a[1].asString(), byteDoCaractere(s, ini));
-    return Value(pos == std::string::npos ? std::int64_t{-1} : indiceCaractere(s, pos));
+    const size_t pos = s.find(a[1].asString(), utf8::byteDoCaractere(s, ini));
+    return Value(pos == std::string::npos ? std::int64_t{-1} : utf8::indiceDoByte(s, pos));
 }
 
 // count: ocorrências sem sobreposição ("aaaa" tem 2 de "aa")
@@ -271,23 +206,23 @@ std::int64_t quantidade(std::int64_t n, const char* fn) {
 }
 Value strLeft(Args a) {
     const std::string& s = a[0].asString();
-    return Value(s.substr(0, byteDoCaractere(s, quantidade(a[1].asInt(), "left"))));
+    return Value(s.substr(0, utf8::byteDoCaractere(s, quantidade(a[1].asInt(), "left"))));
 }
 Value strRight(Args a) {
     const std::string& s = a[0].asString();
-    const std::int64_t n = quantidade(a[1].asInt(), "right"), total = tamanho(s);
-    return Value(n >= total ? s : s.substr(byteDoCaractere(s, total - n)));
+    const std::int64_t n = quantidade(a[1].asInt(), "right"), total = utf8::tamanho(s);
+    return Value(n >= total ? s : s.substr(utf8::byteDoCaractere(s, total - n)));
 }
 
 // slice(s, ini, fim): de ini até fim (exclusive), como Lists.slice
 Value strSlice(Args a) {
     const std::string& s = a[0].asString();
-    const std::int64_t ini = a[1].asInt(), fim = a[2].asInt(), n = tamanho(s);
+    const std::int64_t ini = a[1].asInt(), fim = a[2].asInt(), n = utf8::tamanho(s);
     if (ini < 0 || fim < ini || fim > n)
         falha("IndexError: 'slice(" + std::to_string(ini) + ", " + std::to_string(fim) +
               ")' fora dos limites de uma string de tamanho " + std::to_string(n));
-    const size_t b = byteDoCaractere(s, ini);
-    return Value(s.substr(b, byteDoCaractere(s, fim) - b));
+    const size_t b = utf8::byteDoCaractere(s, ini);
+    return Value(s.substr(b, utf8::byteDoCaractere(s, fim) - b));
 }
 
 Value strChars(Args a) {
@@ -296,9 +231,9 @@ Value strChars(Args a) {
     return makeList(std::move(out));
 }
 
-// lines: como Files.lines — \n ou \r\n; o \n final não gera linha vazia
-Value strLines(Args a) {
-    const std::string& s = a[0].asString();
+// As linhas de um texto: \n ou \r\n; o \n final não gera linha vazia
+// (Strings.lines e Files.lines)
+Value dividirLinhas(const std::string& s) {
     std::vector<Value> linhas;
     size_t ini = 0;
     while (ini < s.size()) {
@@ -311,6 +246,8 @@ Value strLines(Args a) {
     }
     return makeList(std::move(linhas));
 }
+
+Value strLines(Args a) { return dividirLinhas(a[0].asString()); }
 
 const char* const BRANCOS = " \t\n\r\f\v";
 
@@ -419,7 +356,8 @@ bool ehLetra(char32_t c) {
 bool ehDigito(char32_t c) { return c >= U'0' && c <= U'9'; }
 bool ehBranco(char32_t c) { return c < 0x80 && std::strchr(BRANCOS, static_cast<char>(c)) && c != 0; }
 bool ehMaiuscula(char32_t c) { return ehLetra(c) && paraMinuscula(c) != c; }
-bool ehMinuscula(char32_t c) { return ehLetra(c) && paraMaiuscula(c) != c; }
+// ß e ÿ são minúsculas sem maiúscula no Latin-1 (sem elas, "ÿ" passava por maiúsculo)
+bool ehMinuscula(char32_t c) { return ehLetra(c) && (paraMaiuscula(c) != c || c == 0xDF || c == 0xFF); }
 
 // capitalize: primeira letra maiúscula, o resto minúsculo
 Value strCapitalize(Args a) {
@@ -537,21 +475,8 @@ void gravarArquivo(const std::string& c, const std::string& conteudo, std::ios::
 
 Value filesRead(Args a) { return Value(lerArquivo(a[0].asString())); }
 
-// lines: sem o fim de linha (\n ou \r\n); o \n final não gera linha vazia
-Value filesLines(Args a) {
-    const std::string s = lerArquivo(a[0].asString());
-    std::vector<Value> linhas;
-    size_t ini = 0;
-    while (ini < s.size()) {
-        size_t fim = s.find('\n', ini);
-        if (fim == std::string::npos) fim = s.size();
-        size_t corte = fim;
-        if (corte > ini && s[corte - 1] == '\r') --corte;
-        linhas.emplace_back(s.substr(ini, corte - ini));
-        ini = fim + 1;
-    }
-    return makeList(std::move(linhas));
-}
+// lines: as linhas do arquivo, com as regras de dividirLinhas
+Value filesLines(Args a) { return dividirLinhas(lerArquivo(a[0].asString())); }
 
 Value filesWrite(Args a) {
     gravarArquivo(a[0].asString(), a[1].asString(), std::ios::trunc);
@@ -617,10 +542,13 @@ Value filesSize(Args a) {
     return Value(static_cast<std::int64_t>(n));
 }
 
-// Destino de copy/move: existente só com substituir = true, e só se for arquivo
-void confereDestino(const fs::path& d, const std::string& c, bool substituir) {
+// Destino de copy/move: existente só com substituir = true, e só se for arquivo;
+// nunca o próprio arquivo de origem (move apagaria o destino antes de renomear,
+// perdendo o arquivo)
+void confereDestino(const fs::path& o, const fs::path& d, const std::string& c, bool substituir) {
     std::error_code ec;
     if (!fs::exists(d, ec)) return;
+    if (fs::equivalent(o, d, ec)) falhaIO("origem e destino são o mesmo arquivo:", c);
     if (!substituir)                 falhaIO("o destino já existe:", c);
     if (!fs::is_regular_file(d, ec)) falhaIO("o destino é uma pasta, não pode ser substituído:", c);
 }
@@ -628,7 +556,7 @@ void confereDestino(const fs::path& d, const std::string& c, bool substituir) {
 Value filesCopy(Args a) {
     const fs::path o = arquivoExistente(a[0].asString());
     const fs::path d = caminho(a[1].asString());
-    confereDestino(d, a[1].asString(), a[2].asBool());
+    confereDestino(o, d, a[1].asString(), a[2].asBool());
     std::error_code ec;
     fs::copy_file(o, d, fs::copy_options::overwrite_existing, ec);
     if (ec) falhaIO("não foi possível copiar para", a[1].asString());
@@ -641,7 +569,7 @@ Value filesMove(Args a) {
     std::error_code ec;
     if (!fs::exists(o, ec)) falhaIO("não existe:", a[0].asString());
     const fs::path d = caminho(a[1].asString());
-    confereDestino(d, a[1].asString(), a[2].asBool());
+    confereDestino(o, d, a[1].asString(), a[2].asBool());
     if (fs::exists(d, ec)) fs::remove(d, ec);   // arquivo, com substituir = true
     fs::rename(o, d, ec);
     if (ec) falhaIO("não foi possível mover para", a[1].asString());
@@ -734,6 +662,8 @@ Value mathSqrt(Args a) {
 }
 
 Value mathPow(Args a) {
+    if (a[0].asDecimal() == 0 && a[1].asDecimal() < 0)
+        falha("ZeroDivisionError: 'pow' de 0 com expoente negativo (divisão por zero)");
     const double r = std::pow(a[0].asDecimal(), a[1].asDecimal());
     if (std::isnan(r)) falha("ValueError: 'pow' sem resultado real");
     if (std::isinf(r)) falha("OverflowError: resultado de 'pow' grande demais");

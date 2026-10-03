@@ -1,28 +1,15 @@
 #include "operacoes.h"
 #include "natives.h"         // fixedText (Strings.fixed)
 #include "runtime_error.h"
+#include "utf8.h"
 #include "semantic.h"   // TypeChecker::isAssignable
 #include <cmath>
 #include <limits>
 
 namespace cinza {
 
-// Strings guardam UTF-8; índices e tamanhos da linguagem contam caracteres
-static std::int64_t tamanhoTexto(const std::string& s) {
-    std::int64_t n = 0;
-    for (unsigned char c : s) if ((c & 0xC0) != 0x80) ++n;
-    return n;
-}
-
-// Byte em que começa o caractere `idx` (0 <= idx <= tamanho)
-static size_t byteDoCaractere(const std::string& s, std::int64_t idx) {
-    size_t i = 0;
-    for (std::int64_t k = 0; k < idx && i < s.size(); ++k) {
-        ++i;
-        while (i < s.size() && (static_cast<unsigned char>(s[i]) & 0xC0) == 0x80) ++i;
-    }
-    return i;
-}
+using utf8::tamanho;
+using utf8::byteDoCaractere;
 
 Value applyBinaryOp(TokenType op, const Value& left, const Value& right) {
 
@@ -66,17 +53,14 @@ Value applyBinaryOp(TokenType op, const Value& left, const Value& right) {
                 return Value(a / b);
             case TokenType::OP_MODULO:
                 if (b == 0) throw RuntimeError("ZeroDivisionError: módulo por zero");
-                if (a == int_min && b == -1) return overflow("%");
+                if (a == int_min && b == -1) return overflow("%");   // decisão A5 (REVISAO_V2.md)
                 return Value(a % b);
             default:
                 break;  // comparações: tratadas abaixo
         }
     }
 
-    auto toDouble = [](const Value& v) -> double {
-        return (v.kind() == Value::Kind::INT)
-            ? static_cast<double>(v.asInt()) : v.asDecimal();
-    };
+    auto toDouble = [](const Value& v) { return v.asNumber(); };
 
     // Revisão: decimal que estoura vira OverflowError, como int (antes saía
     // inf e depois nan em silêncio)
@@ -158,7 +142,7 @@ Value indexGet(const Value& obj, const Value& idx) {
     }
     if (obj.kind() == Value::Kind::STRING) {
         const std::string& s = obj.asString();
-        const std::int64_t n = tamanhoTexto(s);
+        const std::int64_t n = tamanho(s);
         const std::int64_t i0 = idx.asInt();
         const std::int64_t i = i0 < 0 ? i0 + n : i0;
         if (i < 0 || i >= n)
@@ -171,12 +155,14 @@ Value indexGet(const Value& obj, const Value& idx) {
 }
 
 // s[ini:fim:passo]: índices em caracteres; negativo conta do fim. Com passo
-// positivo exige 0 <= ini <= fim <= tamanho; com passo negativo, ini e fim
-// explícitos precisam ser índices válidos e ini >= fim (omitidos: do último
-// caractere até antes do primeiro). Fora disso, IndexError.
+// positivo exige 0 <= ini <= fim <= tamanho (o fim pode ser a posição depois do
+// último); com passo negativo, simétrico: ini é um índice válido e
+// -1 <= fim <= ini (o fim pode ser a posição antes do primeiro: s[-1:-7:-1] numa
+// string de 6). Omitidos: do começo ao fim (ou do último ao primeiro). Fora
+// disso, IndexError.
 Value sliceGet(const Value& sv, const Value& iv, const Value& fv, const Value& pv) {
     const std::string& s = sv.asString();
-    const std::int64_t n = tamanhoTexto(s);
+    const std::int64_t n = tamanho(s);
     const bool tem_i = iv.kind() != Value::Kind::VOID_VAL, tem_f = fv.kind() != Value::Kind::VOID_VAL;
     const std::int64_t passo = pv.kind() == Value::Kind::VOID_VAL ? 1 : pv.asInt();
     if (passo == 0) throw RuntimeError("ValueError: o passo da fatia não pode ser 0");
@@ -195,7 +181,7 @@ Value sliceGet(const Value& sv, const Value& iv, const Value& fv, const Value& p
     std::vector<size_t> inicio;
     inicio.reserve(s.size() + 1);
     for (size_t i = 0; i < s.size(); ++i)
-        if ((static_cast<unsigned char>(s[i]) & 0xC0) != 0x80) inicio.push_back(i);
+        if (!utf8::continuacao(s[i])) inicio.push_back(i);
     inicio.push_back(s.size());
     auto caractere = [&](std::int64_t k) {
         const size_t b = inicio[static_cast<size_t>(k)];
@@ -208,12 +194,19 @@ Value sliceGet(const Value& sv, const Value& iv, const Value& fv, const Value& p
         if (a < 0 || b > n || a > b) fora();
         if (passo == 1)
             return Value(s.substr(inicio[static_cast<size_t>(a)], inicio[static_cast<size_t>(b)] - inicio[static_cast<size_t>(a)]));
-        for (std::int64_t k = a; k < b; k += passo) out += caractere(k);
+        // passo enorme: somar estouraria o int64 — o estouro já passou do fim
+        for (std::int64_t k = a; k < b;) {
+            out += caractere(k);
+            if (__builtin_add_overflow(k, passo, &k)) break;
+        }
     } else {
         const std::int64_t a = tem_i ? normal(iv.asInt()) : n - 1;
         const std::int64_t b = tem_f ? normal(fv.asInt()) : -1;
-        if ((tem_i && (a < 0 || a >= n)) || (tem_f && (b < 0 || b >= n)) || a < b) fora();
-        for (std::int64_t k = a; k > b; k += passo) out += caractere(k);
+        if ((tem_i && (a < 0 || a >= n)) || (tem_f && (b < -1 || b >= n)) || a < b) fora();
+        for (std::int64_t k = a; k > b;) {
+            out += caractere(k);
+            if (__builtin_add_overflow(k, passo, &k)) break;
+        }
     }
     return Value(std::move(out));
 }
@@ -222,10 +215,10 @@ std::string formatPart(const Value& v, int largura, int casas) {
     std::string t;
     const bool numero = v.kind() == Value::Kind::INT || v.kind() == Value::Kind::DECIMAL;
     if (casas >= 0 && numero)
-        t = fixedText(v.kind() == Value::Kind::INT ? static_cast<double>(v.asInt()) : v.asDecimal(), casas);
+        t = fixedText(v.asNumber(), casas);
     else
         t = v.toString();
-    const std::int64_t n = tamanhoTexto(t);
+    const std::int64_t n = tamanho(t);
     if (n < largura) {
         const std::string brancos(static_cast<size_t>(largura - n), ' ');
         t = numero ? brancos + t : t + brancos;
@@ -342,13 +335,8 @@ Value callBuiltin(Builtin b, Value& obj, std::span<const Value> args) {
             for (const auto& [_, v] : obj.asDict()->entries) vals.push_back(v);
             return makeList(std::move(vals));
         }
-        case Builtin::StrSize: {
-            // A10: conta caracteres (code points UTF-8), não bytes
-            std::int64_t count = 0;
-            for (unsigned char c : obj.asString())
-                if ((c & 0xC0) != 0x80) ++count;
-            return Value(count);
-        }
+        case Builtin::StrSize:   // A10: conta caracteres (code points UTF-8), não bytes
+            return Value(tamanho(obj.asString()));
         case Builtin::COUNT: break;
     }
     throw RuntimeError("Erro interno: método embutido desconhecido");

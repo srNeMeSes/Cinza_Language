@@ -1,5 +1,6 @@
 #include "vm.h"
 #include "../operacoes.h"
+#include "../utf8.h"
 #include "../gc.h"
 #include <cmath>
 #include <cstdlib>
@@ -142,8 +143,8 @@ Value VM::dispatch(std::size_t entrada) {
                 case Op::DIV_I: case Op::MOD_I: {
                     const std::int64_t a = R[in.b].asInt(), b = R[in.c].asInt();
                     const TokenType op = in.op == Op::DIV_I ? TokenType::OP_DIVIDE : TokenType::OP_MODULO;
-                    if (b == 0 || (b == -1 && a == std::numeric_limits<std::int64_t>::min()))
-                        applyBinaryOp(op, R[in.b], R[in.c]);   // lança
+                    // bordas (divisor 0, menor int / -1, x % -1) ficam com a regra compartilhada
+                    if (b == 0 || b == -1) { R[in.a] = applyBinaryOp(op, R[in.b], R[in.c]); break; }
                     R[in.a] = Value(in.op == Op::DIV_I ? a / b : a % b);
                     break;
                 }
@@ -190,9 +191,11 @@ Value VM::dispatch(std::size_t entrada) {
                 case Op::DIVK_I: case Op::MODK_I: {
                     const std::int64_t a = R[in.b].asInt();
                     const std::int64_t k = static_cast<std::int16_t>(in.c);
-                    if (k == 0 || (k == -1 && a == std::numeric_limits<std::int64_t>::min()))
-                        applyBinaryOp(in.op == Op::DIVK_I ? TokenType::OP_DIVIDE : TokenType::OP_MODULO,
-                                      R[in.b], Value(k));   // lança
+                    if (k == 0 || k == -1) {   // bordas: regra compartilhada
+                        R[in.a] = applyBinaryOp(in.op == Op::DIVK_I ? TokenType::OP_DIVIDE : TokenType::OP_MODULO,
+                                                R[in.b], Value(k));
+                        break;
+                    }
                     R[in.a] = Value(in.op == Op::DIVK_I ? a / k : a % k);
                     break;
                 }
@@ -303,10 +306,7 @@ Value VM::dispatch(std::size_t entrada) {
                         const std::string& s = R[in.a].asString();
                         const auto i = static_cast<std::size_t>(R[in.a + 1].asInt());
                         if (i >= s.size()) { f->pc += in.bc(); break; }
-                        std::size_t len = 1;
-                        while (i + len < s.size() &&
-                               (static_cast<unsigned char>(s[i + len]) & 0xC0) == 0x80)
-                            ++len;   // bytes de continuação: mesmo caractere
+                        const std::size_t len = utf8::bytesDoCaractere(s, i);
                         R[R[in.a + 2].asInt()] = Value(s.substr(i, len));
                         R[in.a + 1] = Value(static_cast<std::int64_t>(i + len));
                         break;

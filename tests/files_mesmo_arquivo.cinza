@@ -1,0 +1,19 @@
+// Files.copy/move com origem e destino iguais (mesmo escrito de outro jeito) é IOError e não toca
+// no arquivo — antes, move(a, a, true) apagava o "destino" (o próprio arquivo) antes de renomear.
+import Files;
+fn main() {
+  str d = "tests/_tmp_files_mesmo";
+  if (Files.exists(d)) { Files.delete_tree(d); }
+  Files.make_dir(d);
+  str a = d + "/a.txt";
+  Files.write(a, "dados");
+  try { Files.move(a, a, true); } except (IOError e) { print(e.message); }
+  try { Files.move(a, d + "/./a.txt", true); } except (IOError e) { print(e.message); }
+  try { Files.copy(a, a, true); } except (IOError e) { print(e.message); }
+  print(Files.read(a));
+  Files.delete_tree(d);
+}
+// expect: origem e destino são o mesmo arquivo: 'tests/_tmp_files_mesmo/a.txt'
+// expect: origem e destino são o mesmo arquivo: 'tests/_tmp_files_mesmo/./a.txt'
+// expect: origem e destino são o mesmo arquivo: 'tests/_tmp_files_mesmo/a.txt'
+// expect: dados

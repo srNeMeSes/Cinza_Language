@@ -143,6 +143,10 @@ struct Value {
 
     std::int64_t asInt()     const { return std::get<std::int64_t>(data); }
     double      asDecimal()  const { return std::get<double>(data); }
+    // int ou decimal como double (comparações e contas que misturam os dois)
+    double      asNumber()   const {
+        return kind() == Kind::INT ? static_cast<double>(asInt()) : asDecimal();
+    }
     bool        asBool()     const { return std::get<bool>(data); }
     const std::string& asString() const { return std::get<std::string>(data); }
 
@@ -308,8 +312,8 @@ inline bool Value::operator==(const Value& other) const {
         // Permite comparar INT e DECIMAL
         if ((kind() == Kind::INT || kind() == Kind::DECIMAL) &&
             (other.kind() == Kind::INT || other.kind() == Kind::DECIMAL)) {
-            double a = (kind() == Kind::INT) ? static_cast<double>(asInt()) : asDecimal();
-            double b = (other.kind() == Kind::INT) ? static_cast<double>(other.asInt()) : other.asDecimal();
+            double a = asNumber();
+            double b = other.asNumber();
             return a == b;
         }
         return false;
@@ -360,8 +364,8 @@ inline bool Value::operator<(const Value& other) const {
     if (kind() != other.kind()) {
         if ((kind() == Kind::INT || kind() == Kind::DECIMAL) &&
             (other.kind() == Kind::INT || other.kind() == Kind::DECIMAL)) {
-            double a = (kind() == Kind::INT) ? static_cast<double>(asInt()) : asDecimal();
-            double b = (other.kind() == Kind::INT) ? static_cast<double>(other.asInt()) : other.asDecimal();
+            double a = asNumber();
+            double b = other.asNumber();
             return a < b;
         }
         return static_cast<int>(kind()) < static_cast<int>(other.kind());

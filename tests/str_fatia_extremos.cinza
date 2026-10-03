@@ -1,0 +1,18 @@
+// Fatias com passo ou limites extremos: o passo enorme estourava o int64 ao avançar e derrubava o
+// programa com "Erro interno"; com passo negativo, o fim pode ser a posição antes do primeiro
+// caractere (simétrico ao fim = tamanho do passo positivo): s[-1:-7:-1] numa string de 6.
+fn main() {
+  string s = "abcdef";
+  int mx = 9223372036854775807;
+  int mn = -9223372036854775807 - 1;
+  print(s[1::mx], s[::mx], s[4::mn], s[::mn]);
+  print(s[-1:-7:-1], s[5:-7:-1], s[2:-7:-2], s[::4], s[5::-4], s[0:6:7]);
+  try { print(s[-1:-8:-1]); } except (IndexError e) { print(e.message); }
+  try { print(s[mn:]); } except (IndexError e) { print(e.message); }
+  try { print(s[:mx]); } except (IndexError e) { print(e.message); }
+}
+// expect: b a e f
+// expect: fedcba fedcba ca ae fb a
+// expect: fatia '[-1:-8:-1]' fora dos limites de uma string de tamanho 6
+// expect: fatia '[-9223372036854775808:]' fora dos limites de uma string de tamanho 6
+// expect: fatia '[:9223372036854775807]' fora dos limites de uma string de tamanho 6
