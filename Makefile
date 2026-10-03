@@ -81,6 +81,10 @@ debug: clean $(TARGET_BIN)
 test-cvm: $(TARGET_BIN)
 	$(PYTHON) tests/run_tests.py $(TARGET_BIN) --cvm
 
+# Teste diferencial: interpretador × CVM, saída comparada byte a byte
+test-diff: $(TARGET_BIN)
+	$(PYTHON) tests/run_tests.py $(TARGET_BIN) --diff
+
 # Roda a suíte de testes em tests/
 test: $(TARGET_BIN) $(UNIT_BIN) $(UNIT_TYPES) $(UNIT_GC)
 	./$(UNIT_BIN)

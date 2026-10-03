@@ -4,6 +4,9 @@
 Uso: python tests/run_tests.py [binario] [filtro] [--cvm]
 
 --cvm: executa cada programa na máquina virtual (o interpretador é o padrão).
+--diff: teste diferencial — executa cada programa no interpretador e na CVM e
+        compara código de saída, stdout e stderr byte a byte (desenho da CVM,
+        seção 11). Qualquer diferença é defeito da CVM.
 
 Cada tests/*.cinza declara a saída esperada em comentários:
     // expect: <linha exata do stdout>
@@ -182,7 +185,42 @@ def exemplos_da_spec(filtro):
 OPCOES = []   # opções do interpretador antes do arquivo (ex.: --cvm)
 
 
+def executar(binario, caminho, opcoes):
+    """Executa um programa; devolve (código, stdout, stderr) em bytes."""
+    try:
+        proc = subprocess.run(
+            [str(binario)] + opcoes + [str(caminho.relative_to(RAIZ))] + ler_argumentos(caminho),
+            cwd=RAIZ, capture_output=True, timeout=TIMEOUT_S, env=ler_ambiente(caminho),
+            input=ler_entrada(caminho),
+        )
+        return proc.returncode, proc.stdout, proc.stderr
+    except subprocess.TimeoutExpired:
+        return "tempo esgotado", b"", b""
+
+
+def diferencial(binario, testes):
+    """Compara os dois modos em cada programa. Devolve o número de diferenças."""
+    diferencas = 0
+    for nome, caminho in testes:
+        a = executar(binario, caminho, ["--interp"])
+        b = executar(binario, caminho, ["--cvm"])
+        if a == b:
+            print(f"IGUAL  {nome}")
+            continue
+        diferencas += 1
+        print(f"DIFERENTE  {nome}")
+        for rotulo, x, y in (("código", a[0], b[0]), ("stdout", a[1], b[1]), ("stderr", a[2], b[2])):
+            if x != y:
+                print(f"    {rotulo} interpretador: {x!r}")
+                print(f"    {rotulo} cvm:           {y!r}")
+    print(f"\n{len(testes) - diferencas} iguais, {diferencas} diferentes, {len(testes)} no total")
+    return diferencas
+
+
 def main():
+    modo_diff = "--diff" in sys.argv
+    if modo_diff:
+        sys.argv.remove("--diff")
     if "--cvm" in sys.argv:
         sys.argv.remove("--cvm")
         OPCOES.append("--cvm")
@@ -208,6 +246,9 @@ def main():
     if not testes:
         print(f"Nenhum teste encontrado em {DIR_TESTES} com o filtro '{filtro}'")
         return 2
+
+    if modo_diff:
+        return 1 if diferencial(binario, testes) else 0
 
     falhas = 0
     for nome, caminho in testes:

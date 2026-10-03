@@ -941,7 +941,14 @@ Etapas:
   > a memória e o `laco` piorava ~30%. Teste `cvm_finally` (try aninhados, break/continue/return por dois
   > finally, erro no finally e no except, relançamento com trace). **Suíte inteira na CVM: 394 de 394**, sem
   > divergência. Limpo sob ASan/UBSan.
-- [ ] 8. Módulos, `const` globais, funções nativas e biblioteca padrão.
+- [x] 8. Módulos, `const` globais, funções nativas e biblioteca padrão. — feito em 2026-10-02
+  > Nota: já funcionavam desde as etapas 2 a 7 (const de cada módulo num protótipo oculto, em ordem
+  > topológica; nativas por `CALLNATIVE`, constantes nativas já nos slots). A etapa fechou com a prova:
+  > **teste diferencial** (`run_tests.py --diff` / `make test-diff`) que roda cada programa nos dois modos e
+  > compara código de saída, stdout e stderr byte a byte — 397 de 397 idênticos, também sob ASan/UBSan — e as
+  > ~170 sondas da revisão bruta mais sondas novas de módulos e da biblioteca padrão, todas idênticas. Opção
+  > `--interp` já aceita. Testes `cvm_modulo*` (módulos encadeados, erro em método de outro módulo, erro na
+  > avaliação de const de módulo).
 - [ ] 9. CVM como padrão, `--interp` para o interpretador; suíte nos dois modos; benchmark final.
 
 ---

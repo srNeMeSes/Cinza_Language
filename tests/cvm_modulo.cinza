@@ -1,0 +1,13 @@
+// CVM etapa 8: módulos encadeados com const, struct, enum, interface e classe (iguais nos dois modos).
+import modulos.cvm_base as b;
+import modulos.cvm_usa as usa;
+fn main() {
+  print(b.LIMITE, b.TAXA, usa.DOBRO, b.divide(9, 2), b.nivel(50), b.nivel(1));
+  b.Par p = new b.Par();
+  p.a = 7;
+  b.Caixa c = new b.Caixa(5);
+  list<b.Medida> l = [c, new b.Caixa(1)];
+  print(p, c.valor(), usa.soma_caixas(l), type(c), type(b.Nivel.Alto));
+}
+// expect: 10 2.5 20 4 Nivel.Alto Nivel.Baixo
+// expect: Par{a: 7, b: 10} 25 46 Caixa Nivel

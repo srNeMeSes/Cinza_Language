@@ -1,0 +1,5 @@
+// CVM etapa 8: erro ao avaliar um const de módulo encerra antes da main, sem stack trace.
+import modulos.cvm_const_quebra as q;
+fn main() { print(q.RUIM); }
+// expect-error: tests/modulos/cvm_const_quebra.cinza:3:25: ZeroDivisionError: divisão por zero
+// expect-not: em main

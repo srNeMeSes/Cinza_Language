@@ -247,6 +247,8 @@ int main(int argc, char* argv[]) {
             show_ast = true;
         } else if (arg == "--cvm") {
             use_cvm = true;
+        } else if (arg == "--interp") {
+            use_cvm = false;   // interpretador de referência (hoje já é o padrão)
         } else if (arg == "--bytecode") {
             use_cvm = show_bytecode = true;
         } else if (!arg.empty() && arg[0] != '-') {

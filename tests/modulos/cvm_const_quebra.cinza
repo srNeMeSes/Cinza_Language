@@ -1,0 +1,3 @@
+// Módulo auxiliar: erro de runtime ao avaliar um const.
+pub const int ZERO = 0;
+pub const int RUIM = 10 / ZERO;

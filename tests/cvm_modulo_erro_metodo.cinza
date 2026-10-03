@@ -1,0 +1,11 @@
+// CVM etapa 8: erro lançado num método de classe de outro módulo — trace com os dois arquivos.
+import modulos.cvm_base as b;
+fn main() {
+  b.Caixa c = new b.Caixa(1);
+  try { c.falha(); } except (b.Ruim e) { print(e.kind, e.message, e.line); }
+  c.falha();
+}
+// expect: Ruim da caixa 14
+// expect-error: tests/modulos/cvm_base.cinza:14:24: Ruim: da caixa
+// expect-error:     em Caixa.falha (tests/modulos/cvm_base.cinza:14)
+// expect-error:     em main (tests/cvm_modulo_erro_metodo.cinza:6)

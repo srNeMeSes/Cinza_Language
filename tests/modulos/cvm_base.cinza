@@ -1,0 +1,18 @@
+// Módulo auxiliar dos testes cvm_modulo_* (etapa 8 da CVM).
+pub const int LIMITE = 10;
+const int SECRETO = LIMITE * 2;
+pub const decimal TAXA = LIMITE / 4.0;
+pub error Ruim;
+pub struct Par { int a = 1; int b = LIMITE; }
+pub enum Nivel { Baixo, Alto }
+pub interface Medida { fn valor() -> int; }
+pub class Caixa : Medida {
+  int n = SECRETO;
+  pub {
+    Caixa(int x) { n += x; }
+    fn valor() -> int { return n; }
+    fn falha() { throw Ruim("da caixa"); }
+  }
+}
+pub fn divide(int a, int b) -> int { return a / b; }
+pub fn nivel(int x) -> Nivel { if (x > LIMITE) { return Nivel.Alto; } return Nivel.Baixo; }
