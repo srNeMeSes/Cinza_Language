@@ -28,6 +28,7 @@ private:
     std::vector<Token> tokens;
     size_t current;
     bool has_errors;
+    bool silencioso = false;   // não relata erros (expressão dentro de um texto)
 
     // A8: profundidade de blocos { } em análise; 0 = nível superior.
     // 'fn' e 'class' só são aceitos com block_depth == 0 (métodos são

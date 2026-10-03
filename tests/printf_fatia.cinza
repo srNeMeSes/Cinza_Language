@@ -1,0 +1,12 @@
+// printf/format: o ':' de uma fatia dentro das chaves não é o início do formato — só conta o ':'
+// fora de (), [] e {} internos ({s[::-1]} era lido como formato).
+fn main() {
+  string s = "coração";
+  printf("{s[::-1]} tem {s.size()} letras");
+  printf("[{s[1:3]:5}] [{s[-3:]}] [{s[::2]:6}] [{format(\"{s[0:1]}\")}]");
+  list<string> l = ["ab", "cd"];
+  printf("{l[1][::-1]} {(s[0:2] + \"!\"):4}|");
+}
+// expect: oãçaroc tem 7 letras
+// expect: [or   ] [ção] [crço  ] [c]
+// expect: dc co! |

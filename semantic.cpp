@@ -2847,7 +2847,8 @@ TypeRef SemanticAnalyzer::analyzeInterpolation(CallExpr* expr) {
             throwError("'}' sem '{' no texto de '" + nome + "' (para escrever uma chave, use '}}')", origem);
         if (c != '{') { texto += c; ++i; continue; }
 
-        // a '}' que fecha esta expressão: pula strings e chaves internas ({a, b})
+        // a '}' que fecha esta expressão: pula strings e o que está entre (), []
+        // e {} internos — o ':' do formato é só o de fora deles (s[1:3] é fatia)
         size_t j = i + 1, dois_pontos = std::string::npos;
         for (int prof = 0; j < s.size(); ++j) {
             const char d = s[j];
@@ -2856,7 +2857,8 @@ TypeRef SemanticAnalyzer::analyzeInterpolation(CallExpr* expr) {
                     if (s[j] == '\\') ++j;
                 continue;
             }
-            if (d == '{') ++prof;
+            if (d == '{' || d == '(' || d == '[') ++prof;
+            else if (d == ')' || d == ']') { if (prof > 0) --prof; }
             else if (d == '}') { if (prof == 0) break; --prof; }
             else if (d == ':' && prof == 0) dois_pontos = j;
         }

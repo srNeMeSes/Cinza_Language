@@ -94,6 +94,7 @@ void Parser::error(const std::string& message) {
 
 void Parser::error(const std::string& message, const Token& token) {
     has_errors = true;
+    if (silencioso) return;   // parseEmbedded: quem chamou relata o erro
     // B6: vai para o motor único de diagnósticos (impresso por quem chamou)
     diagnostics().report("SyntaxError", message + " (token: '" + token.lexeme + "')",
                          token.loc());
@@ -268,6 +269,7 @@ ExprPtr Parser::parseEmbedded(const std::string& codigo, const Token& origem, in
         if (t.type == TokenType::UNKNOWN)
             throw ParseError("Caractere inválido '" + t.lexeme + "'", t);
     Parser p(std::move(toks));
+    p.silencioso = true;
     ExprPtr e = p.parseExpression();
     if (!p.isAtEnd())
         throw ParseError("Esperado o fim da expressão (sobrou '" + p.peek().lexeme + "')", p.peek());

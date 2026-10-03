@@ -1,0 +1,8 @@
+// Erro numa expressão dentro do printf é relatado uma vez, pelo semântico (o parser da expressão
+// embutida não relata por conta própria; antes saíam um SyntaxError e o erro semântico, repetidos).
+fn main() {
+  string s = "abc";
+  printf("{s + }");
+}
+// expect-error: Expressão inválida em '{s + }'
+// expect-not: SyntaxError
