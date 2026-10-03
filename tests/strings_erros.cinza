@@ -1,0 +1,44 @@
+// Strings: índices fora dos limites lançam IndexError; argumentos inválidos lançam ValueError.
+import Strings as st;
+fn main() {
+  try { print(st.char_at("abc", 3)); } except (IndexError e) { print(e.message); }
+  try { print(st.char_at("abc", -1)); } except (IndexError e) { print(e.message); }
+  try { print(st.slice("ação", 2, 5)); } except (IndexError e) { print(e.message); }
+  try { print(st.slice("ação", 3, 2)); } except (IndexError e) { print(e.message); }
+  try { print(st.find_from("abc", "a", 4)); } except (IndexError e) { print(e.message); }
+  try { print(st.left("abc", -1)); } except (ValueError e) { print(e.message); }
+  try { print(st.right("abc", -2)); } except (ValueError e) { print(e.message); }
+  try { print(st.count("abc", "")); } except (ValueError e) { print(e.message); }
+  try { print(st.remove("abc", "")); } except (ValueError e) { print(e.message); }
+  try { print(st.replace_first("abc", "", "x")); } except (ValueError e) { print(e.message); }
+  try { print(st.repeat("ab", -1)); } except (ValueError e) { print(e.message); }
+  try { print(st.repeat("ab", 1000000000)); } except (ValueError e) { print(e.message); }
+  try { print(st.pad_left("a", 3, "")); } except (ValueError e) { print(e.message); }
+  try { print(st.center("a", 3, "ab")); } except (ValueError e) { print(e.message); }
+  try { print(st.ord("ab")); } except (ValueError e) { print(e.message); }
+  try { print(st.ord("")); } except (ValueError e) { print(e.message); }
+  try { print(st.chr(55296)); } except (ValueError e) { print(e.message); }
+  try { print(st.chr(-1)); } except (ValueError e) { print(e.message); }
+  try { print(st.fixed(1.5, -1)); } except (ValueError e) { print(e.message); }
+  try { print(st.fixed(1.5, 101)); } except (ValueError e) { print(e.message); }
+}
+// expect: índice 3 fora dos limites de uma string de tamanho 3
+// expect: índice -1 fora dos limites de uma string de tamanho 3
+// expect: 'slice(2, 5)' fora dos limites de uma string de tamanho 4
+// expect: 'slice(3, 2)' fora dos limites de uma string de tamanho 4
+// expect: início 4 fora dos limites de uma string de tamanho 3
+// expect: a quantidade de 'left' não pode ser negativa
+// expect: a quantidade de 'right' não pode ser negativa
+// expect: o trecho de 'count' não pode ser vazio
+// expect: o trecho de 'remove' não pode ser vazio
+// expect: o trecho procurado em 'replace_first' não pode ser vazio
+// expect: a quantidade de 'repeat' não pode ser negativa
+// expect: o resultado de 'repeat' passaria de 1 GiB
+// expect: o preenchimento de 'pad_left' precisa ter exatamente 1 caractere
+// expect: o preenchimento de 'center' precisa ter exatamente 1 caractere
+// expect: 'ord' espera exatamente 1 caractere (recebeu 2)
+// expect: 'ord' espera exatamente 1 caractere (recebeu 0)
+// expect: 55296 não é um código Unicode válido
+// expect: -1 não é um código Unicode válido
+// expect: o número de casas de 'fixed' precisa estar entre 0 e 100
+// expect: o número de casas de 'fixed' precisa estar entre 0 e 100

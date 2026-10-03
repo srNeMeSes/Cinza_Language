@@ -1011,7 +1011,14 @@ interpretador chamam as mesmas nativas).
   > (Miller-Rabin determinístico, exato nos 64 bits); `is_close`. Nenhuma produz infinito nem NaN.
   > `round_to` arredonda a forma decimal mais curta (a do `print`): `round_to(2.675, 2)` = `2.68`.
   > Testes `math_completo`, `math_erros`. 408/408/408, limpo sob ASan/UBSan.
-- [ ] 3. `Strings`
+- [x] 3. `Strings` — feito em 2026-10-03
+  > Nota: de 10 para 44 funções: `ends_with`, `find_last`, `find_from`, `count`; `char_at`, `left`,
+  > `right`, `slice`, `chars`, `lines`, `words`; `trim_start`, `trim_end`, `replace_first`, `remove`;
+  > `repeat`, `reverse`, `pad_left`/`pad_right`/`center` (preenchimento opcional, padrão espaço),
+  > `fixed` (casas fixas: `fixed(2.5, 2)` = `"2.50"`, mesmo arredondamento do `Math.round_to`, agora num
+  > auxiliar comum); `capitalize`, `title`; `is_empty`, `is_digit`, `is_alpha`, `is_alnum`, `is_space`,
+  > `is_upper`, `is_lower`; `ord`, `chr`; `equals_ignore_case`, `compare`. Índices em caracteres.
+  > Testes `strings_completo`, `strings_erros`. 410/410/410, limpo sob ASan/UBSan.
 - [ ] 4. `Convert`
 - [ ] 5. `Random`
 - [ ] 6. `Lists`
@@ -1048,3 +1055,4 @@ interpretador chamam as mesmas nativas).
 | 2026-09-26 | Fase 2.5 | `const` global aceita literais, operadores e outros `const`; sem chamadas, `new` ou literais de coleção. | Avaliável antes da `main` sem efeitos colaterais; `const` ainda não é imutável em profundidade. |
 | 2026-10-03 | G1 | `Files`: apagar o que não existe lança `IOError`; `copy`/`move` recebem `bool substituir` explícito; `delete_dir` só apaga pasta vazia e `delete_tree` apaga tudo; as funções de caminho ficam dentro de `Files`. | Decisão do autor da linguagem: nada falha em silêncio, e o perigo fica explícito na chamada. |
 | 2026-10-03 | G2 | `Math`: sem `inf`, `is_nan` e `is_inf` (a linguagem nunca produz infinito nem NaN); `min`/`max` continuam com 2 argumentos (máximo de lista vai para `Lists.max`); `round_to` só arredonda o valor (exibir `2.50` é formatação de texto, em `Strings`/`Convert`); `factorial` e `is_prime` entram. | Decisão do autor da linguagem. |
+| 2026-10-03 | G3 | `Strings`: casas fixas em `Strings.fixed(x, casas)`; sem `format` com marcadores (a concatenação já aceita primitivos); preenchimento de `pad_left`/`pad_right`/`center` opcional (espaço); sem `swap_case`. | Decisão do autor da linguagem. |

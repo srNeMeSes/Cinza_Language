@@ -43,18 +43,86 @@ os argumentos precisam ser do mesmo tipo (o primeiro fixa o tipo) e o retorno te
 
 ### `Strings`
 
+Strings são imutáveis: toda função devolve um texto novo. **Letras** são as do ASCII e as
+acentuadas do Latin-1 (`á`, `ç`, `õ`, `Ü`...); **espaço em branco** é espaço, tabulação e
+quebras de linha (`\t \n \r \f \v`).
+
+**Buscar**
+
 | Função | Descrição |
 |--------|-----------|
-| `upper(string s) -> string` | maiúsculas (ASCII e letras acentuadas Latin-1: `ação` → `AÇÃO`) |
-| `lower(string s) -> string` | minúsculas (idem) |
-| `trim(string s) -> string` | sem espaços, tabulações e quebras de linha no início e no fim |
-| `split(string s, string sep) -> list<string>` | partes separadas por `sep`; separadores seguidos geram partes vazias; `sep` vazio lança `ValueError` |
-| `join(list<string> partes, string sep) -> string` | as partes unidas por `sep` |
 | `contains(string s, string trecho) -> bool` | `true` se `trecho` aparece em `s` |
-| `replace(string s, string de, string para) -> string` | troca todas as ocorrências; `de` vazio lança `ValueError` |
-| `substr(string s, int inicio, int tamanho) -> string` | `tamanho` caracteres a partir de `inicio`; o trecho precisa caber em `s` (senão `IndexError`) |
+| `starts_with(string s, string prefixo) -> bool`, `ends_with(...)` | `true` se `s` começa / termina com o trecho |
 | `find(string s, string trecho) -> int` | índice da primeira ocorrência, ou `-1` |
-| `starts_with(string s, string prefixo) -> bool` | `true` se `s` começa com `prefixo` |
+| `find_last(string s, string trecho) -> int` | índice da última ocorrência, ou `-1` |
+| `find_from(string s, string trecho, int inicio) -> int` | como `find`, a partir do índice `inicio` (de `0` ao tamanho; senão `IndexError`) |
+| `count(string s, string trecho) -> int` | ocorrências sem sobreposição (`count("aaaa", "aa")` = `2`); trecho vazio lança `ValueError` |
+
+**Partes**
+
+| Função | Descrição |
+|--------|-----------|
+| `char_at(string s, int i) -> string` | o caractere do índice `i` (`IndexError` se inválido) |
+| `substr(string s, int inicio, int tamanho) -> string` | `tamanho` caracteres a partir de `inicio`; o trecho precisa caber em `s` (senão `IndexError`) |
+| `slice(string s, int ini, int fim) -> string` | de `ini` até `fim` (exclusive); exige `0 ≤ ini ≤ fim ≤ tamanho` (senão `IndexError`) |
+| `left(string s, int n) -> string`, `right(...)` | os `n` primeiros / últimos caracteres; `n` maior que o tamanho dá o texto todo; `n` negativo lança `ValueError` |
+| `chars(string s) -> list<string>` | os caracteres, um por elemento |
+| `split(string s, string sep) -> list<string>` | partes separadas por `sep`; separadores seguidos geram partes vazias; `sep` vazio lança `ValueError` |
+| `lines(string s) -> list<string>` | as linhas, como `Files.lines` (`\n` ou `\r\n`; o `\n` final não gera linha vazia) |
+| `words(string s) -> list<string>` | as palavras, separadas por qualquer espaço em branco, sem partes vazias |
+
+**Limpar e trocar**
+
+| Função | Descrição |
+|--------|-----------|
+| `trim(string s) -> string` | sem espaço em branco no início e no fim |
+| `trim_start(string s) -> string`, `trim_end(...)` | só no início / só no fim |
+| `replace(string s, string de, string para) -> string` | troca todas as ocorrências |
+| `replace_first(string s, string de, string para) -> string` | troca só a primeira |
+| `remove(string s, string trecho) -> string` | apaga todas as ocorrências |
+
+O trecho procurado por `replace`, `replace_first` e `remove` não pode ser vazio (`ValueError`).
+
+**Montar**
+
+| Função | Descrição |
+|--------|-----------|
+| `join(list<string> partes, string sep) -> string` | as partes unidas por `sep` |
+| `repeat(string s, int n) -> string` | `s` repetido `n` vezes; `n` negativo, ou resultado acima de 1 GiB, lança `ValueError` |
+| `reverse(string s) -> string` | os caracteres em ordem inversa |
+| `pad_left(string s, int largura[, string p]) -> string` | completa à esquerda com `p` (padrão: espaço) até `largura` caracteres; texto já maior fica como está |
+| `pad_right(string s, int largura[, string p]) -> string` | idem, à direita |
+| `center(string s, int largura[, string p]) -> string` | idem, dos dois lados (a sobra ímpar fica à direita) |
+| `fixed(decimal x, int casas) -> string` | o número com **exatamente** `casas` casas decimais (`fixed(2.5, 2)` → `"2.50"`); arredonda como `Math.round_to`; `casas` de 0 a 100 (senão `ValueError`) |
+
+O preenchimento `p` precisa ter exatamente 1 caractere (senão `ValueError`).
+
+**Maiúsculas e minúsculas**
+
+| Função | Descrição |
+|--------|-----------|
+| `upper(string s) -> string`, `lower(...)` | maiúsculas / minúsculas (`ação` → `AÇÃO`) |
+| `capitalize(string s) -> string` | primeira letra maiúscula, o resto minúsculo (`"ana MARIA"` → `"Ana maria"`) |
+| `title(string s) -> string` | cada palavra com a primeira letra maiúscula e o resto minúsculo (`"ana maria"` → `"Ana Maria"`) |
+
+**Testar** — o texto inteiro; string vazia dá `false` (menos em `is_empty`)
+
+| Função | Descrição |
+|--------|-----------|
+| `is_empty(string s) -> bool` | `true` se não tem caracteres |
+| `is_digit(string s) -> bool` | só dígitos `0`–`9` (`"-1"` não é) |
+| `is_alpha(string s) -> bool`, `is_alnum(...)` | só letras / só letras e dígitos |
+| `is_space(string s) -> bool` | só espaço em branco |
+| `is_upper(string s) -> bool`, `is_lower(...)` | tem letras, todas maiúsculas / minúsculas (`"ABC 1"` é maiúsculo) |
+
+**Caracteres e comparação**
+
+| Função | Descrição |
+|--------|-----------|
+| `ord(string c) -> int` | o código Unicode de um único caractere (`ord("A")` = `65`); outro tamanho lança `ValueError` |
+| `chr(int n) -> string` | o caractere do código Unicode `n`; código inválido lança `ValueError` |
+| `equals_ignore_case(string a, string b) -> bool` | iguais sem diferenciar maiúsculas de minúsculas |
+| `compare(string a, string b) -> int` | `-1`, `0` ou `1`, na ordem de `<` entre strings |
 
 ```cinza
 import Strings as st;
@@ -62,10 +130,14 @@ fn main() {
   print(st.upper("ação"), st.trim("  a b  "), st.split("a,b,,c", ","));
   print(st.join(["x", "y"], "-"), st.replace("banana", "an", "AN"), st.substr("coração", 2, 3));
   print(st.find("coração", "ção"), st.find("abc", "z"), st.contains("abc", "b"), st.starts_with("cinza", "ci"));
+  print(st.char_at("ação", 1), st.words("  ola   mundo "), st.title("ana maria"), st.count("banana", "a"));
+  print("R$ " + st.fixed(2.5, 2), st.pad_left("7", 3, "0"), "[" + st.center("ok", 6) + "]", st.ord("A"), st.chr(231));
 }
 // expect: AÇÃO a b ["a", "b", "", "c"]
 // expect: x-y bANANa raç
 // expect: 4 -1 true true
+// expect: ç ["ola", "mundo"] Ana Maria 3
+// expect: R$ 2.50 007 [  ok  ] 65 ç
 ```
 
 ### `Files`

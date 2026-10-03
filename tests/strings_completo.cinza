@@ -1,0 +1,54 @@
+// Strings: busca, partes, limpeza, montagem, maiúsculas, testes, caracteres, comparação e fixed.
+// Índices e tamanhos contam caracteres (UTF-8), não bytes.
+import Strings as st;
+fn main() {
+  // busca
+  print(st.ends_with("relatório.pdf", ".pdf"), st.ends_with("a", "abc"), st.ends_with("x", ""));
+  print(st.find_last("ação-ação", "ção"), st.find_last("abc", "z"), st.count("banana", "an"), st.count("aaaa", "aa"));
+  print(st.find_from("ação-ação", "ção", 3), st.find_from("abc", "c", 3), st.find_from("abc", "a", 1));
+  // partes
+  print(st.char_at("coração", 3), st.left("coração", 3), st.right("coração", 3), st.left("ab", 10), st.right("ab", 10));
+  print(st.slice("coração", 2, 5), "[" + st.slice("abc", 1, 1) + "]", st.chars("pé!"));
+  print(st.lines("um\r\ndois\n\ntrês\n"), st.lines(""), st.words("  ola   mundo\t novo \n"), st.words("   "));
+  // limpeza
+  print("[" + st.trim_start("  a b  ") + "]", "[" + st.trim_end("  a b  ") + "]");
+  print(st.replace_first("banana", "an", "AN"), st.remove("banana", "an"), st.remove("abc", "z"));
+  // montar
+  print(st.repeat("ab", 3), "[" + st.repeat("x", 0) + "]", st.reverse("ação"));
+  print("[" + st.pad_left("7", 3) + "]", st.pad_left("7", 3, "0"), st.pad_right("ab", 4, "."), st.pad_left("longo", 2));
+  print("[" + st.center("ab", 5) + "]", st.center("é", 4, "*"), st.pad_left("ç", 3, "→"));
+  // maiúsculas
+  print(st.capitalize("ana MARIA"), st.title("ana maria da silva"), st.title("élan  vital"), "[" + st.capitalize("") + "]");
+  // testes (string vazia: false)
+  print(st.is_empty(""), st.is_empty(" "), st.is_digit("0123"), st.is_digit("12a"), st.is_digit(""), st.is_digit("-1"));
+  print(st.is_alpha("Ação"), st.is_alpha("a b"), st.is_alnum("abc123"), st.is_space(" \t\n"), st.is_space(""));
+  print(st.is_upper("ABC 1"), st.is_upper("AbC"), st.is_upper("123"), st.is_lower("ação!"), st.is_lower("Ação"));
+  // caracteres
+  print(st.ord("A"), st.ord("ç"), st.ord("😀"), st.chr(65), st.chr(231), st.chr(128512));
+  // comparação
+  print(st.equals_ignore_case("AÇÃO", "ação"), st.equals_ignore_case("a", "b"));
+  print(st.compare("a", "b"), st.compare("b", "a"), st.compare("x", "x"), st.compare("Z", "a"));
+  // fixed: exatamente as casas pedidas, arredondando como Math.round_to
+  print(st.fixed(2.5, 2), st.fixed(2.675, 2), st.fixed(-2.675, 2), st.fixed(3, 1), st.fixed(9.999, 2), st.fixed(0.5, 0));
+  print(st.fixed(-0.004, 2), st.fixed(-1.5, 0), st.fixed(1234567.891, 2), st.fixed(0.1, 20));
+}
+// expect: true false true
+// expect: 6 -1 2 2
+// expect: 6 -1 -1
+// expect: a cor ção ab ab
+// expect: raç [] ["p", "é", "!"]
+// expect: ["um", "dois", "", "três"] [] ["ola", "mundo", "novo"] []
+// expect: [a b  ] [  a b]
+// expect: bANana ba abc
+// expect: ababab [] oãça
+// expect: [  7] 007 ab.. longo
+// expect: [ ab  ] *é** →→ç
+// expect: Ana maria Ana Maria Da Silva Élan  Vital []
+// expect: true false true false false false
+// expect: true false true true false
+// expect: true false false true false
+// expect: 65 231 128512 A ç 😀
+// expect: true false
+// expect: -1 1 0 -1
+// expect: 2.50 2.68 -2.68 3.0 10.00 1
+// expect: 0.00 -2 1234567.89 0.10000000000000000000

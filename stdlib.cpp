@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <charconv>
 #include <cmath>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <limits>
@@ -191,6 +192,306 @@ Value strStartsWith(Args a) {
     const std::string& s = a[0].asString();
     const std::string& p = a[1].asString();
     return Value(s.compare(0, p.size(), p) == 0);
+}
+
+Value strEndsWith(Args a) {
+    const std::string& s = a[0].asString();
+    const std::string& p = a[1].asString();
+    return Value(s.size() >= p.size() && s.compare(s.size() - p.size(), p.size(), p) == 0);
+}
+
+// Índice em caracteres do byte `pos` (início de um caractere)
+std::int64_t indiceCaractere(const std::string& s, size_t pos) {
+    std::int64_t idx = 0;
+    for (size_t i = 0; i < pos; ++i)
+        if ((static_cast<unsigned char>(s[i]) & 0xC0) != 0x80) ++idx;
+    return idx;
+}
+
+// Byte em que começa o caractere de índice `idx` (idx <= tamanho)
+size_t byteDoCaractere(const std::string& s, std::int64_t idx) {
+    size_t i = 0;
+    for (std::int64_t k = 0; k < idx && i < s.size(); ++k) {
+        ++i;
+        while (i < s.size() && (static_cast<unsigned char>(s[i]) & 0xC0) == 0x80) ++i;
+    }
+    return i;
+}
+
+std::int64_t tamanho(const std::string& s) { return indiceCaractere(s, s.size()); }
+
+Value strFindLast(Args a) {
+    const std::string& s = a[0].asString();
+    const size_t pos = s.rfind(a[1].asString());
+    return Value(pos == std::string::npos ? std::int64_t{-1} : indiceCaractere(s, pos));
+}
+
+// find_from(s, trecho, inicio): como find, a partir do caractere `inicio`
+Value strFindFrom(Args a) {
+    const std::string& s = a[0].asString();
+    const std::int64_t ini = a[2].asInt();
+    const std::int64_t n = tamanho(s);
+    if (ini < 0 || ini > n)
+        falha("IndexError: início " + std::to_string(ini) + " fora dos limites de uma string de tamanho " +
+              std::to_string(n));
+    const size_t pos = s.find(a[1].asString(), byteDoCaractere(s, ini));
+    return Value(pos == std::string::npos ? std::int64_t{-1} : indiceCaractere(s, pos));
+}
+
+// count: ocorrências sem sobreposição ("aaaa" tem 2 de "aa")
+Value strCount(Args a) {
+    const std::string& s = a[0].asString();
+    const std::string& t = a[1].asString();
+    if (t.empty()) falha("ValueError: o trecho de 'count' não pode ser vazio");
+    std::int64_t n = 0;
+    for (size_t pos = s.find(t); pos != std::string::npos; pos = s.find(t, pos + t.size())) ++n;
+    return Value(n);
+}
+
+Value strCharAt(Args a) {
+    const std::u32string s = decodifica(a[0].asString());
+    const std::int64_t i = a[1].asInt();
+    if (i < 0 || i >= static_cast<std::int64_t>(s.size()))
+        falha("IndexError: índice " + std::to_string(i) + " fora dos limites de uma string de tamanho " +
+              std::to_string(s.size()));
+    return Value(codifica(std::u32string(1, s[static_cast<size_t>(i)])));
+}
+
+// left/right: os n primeiros/últimos caracteres; n maior que o tamanho dá o texto todo
+std::int64_t quantidade(std::int64_t n, const char* fn) {
+    if (n < 0) falha(std::string("ValueError: a quantidade de '") + fn + "' não pode ser negativa");
+    return n;
+}
+Value strLeft(Args a) {
+    const std::string& s = a[0].asString();
+    return Value(s.substr(0, byteDoCaractere(s, quantidade(a[1].asInt(), "left"))));
+}
+Value strRight(Args a) {
+    const std::string& s = a[0].asString();
+    const std::int64_t n = quantidade(a[1].asInt(), "right"), total = tamanho(s);
+    return Value(n >= total ? s : s.substr(byteDoCaractere(s, total - n)));
+}
+
+// slice(s, ini, fim): de ini até fim (exclusive), como Lists.slice
+Value strSlice(Args a) {
+    const std::string& s = a[0].asString();
+    const std::int64_t ini = a[1].asInt(), fim = a[2].asInt(), n = tamanho(s);
+    if (ini < 0 || fim < ini || fim > n)
+        falha("IndexError: 'slice(" + std::to_string(ini) + ", " + std::to_string(fim) +
+              ")' fora dos limites de uma string de tamanho " + std::to_string(n));
+    const size_t b = byteDoCaractere(s, ini);
+    return Value(s.substr(b, byteDoCaractere(s, fim) - b));
+}
+
+Value strChars(Args a) {
+    std::vector<Value> out;
+    for (char32_t c : decodifica(a[0].asString())) out.emplace_back(codifica(std::u32string(1, c)));
+    return makeList(std::move(out));
+}
+
+// lines: como Files.lines — \n ou \r\n; o \n final não gera linha vazia
+Value strLines(Args a) {
+    const std::string& s = a[0].asString();
+    std::vector<Value> linhas;
+    size_t ini = 0;
+    while (ini < s.size()) {
+        size_t fim = s.find('\n', ini);
+        if (fim == std::string::npos) fim = s.size();
+        size_t corte = fim;
+        if (corte > ini && s[corte - 1] == '\r') --corte;
+        linhas.emplace_back(s.substr(ini, corte - ini));
+        ini = fim + 1;
+    }
+    return makeList(std::move(linhas));
+}
+
+const char* const BRANCOS = " \t\n\r\f\v";
+
+// words: separa por qualquer sequência de espaços em branco, sem partes vazias
+Value strWords(Args a) {
+    const std::string& s = a[0].asString();
+    std::vector<Value> out;
+    for (size_t ini = s.find_first_not_of(BRANCOS); ini != std::string::npos;) {
+        const size_t fim = s.find_first_of(BRANCOS, ini);
+        out.emplace_back(s.substr(ini, fim == std::string::npos ? std::string::npos : fim - ini));
+        ini = fim == std::string::npos ? fim : s.find_first_not_of(BRANCOS, fim);
+    }
+    return makeList(std::move(out));
+}
+
+Value strTrimStart(Args a) {
+    const std::string& s = a[0].asString();
+    const size_t ini = s.find_first_not_of(BRANCOS);
+    return Value(ini == std::string::npos ? std::string() : s.substr(ini));
+}
+Value strTrimEnd(Args a) {
+    const std::string& s = a[0].asString();
+    const size_t fim = s.find_last_not_of(BRANCOS);
+    return Value(fim == std::string::npos ? std::string() : s.substr(0, fim + 1));
+}
+
+Value strReplaceFirst(Args a) {
+    std::string s = a[0].asString();
+    const std::string& de = a[1].asString();
+    if (de.empty()) falha("ValueError: o trecho procurado em 'replace_first' não pode ser vazio");
+    const size_t pos = s.find(de);
+    if (pos != std::string::npos) s.replace(pos, de.size(), a[2].asString());
+    return Value(std::move(s));
+}
+
+// remove(s, trecho): apaga todas as ocorrências
+Value strRemove(Args a) {
+    const std::string& s = a[0].asString();
+    const std::string& t = a[1].asString();
+    if (t.empty()) falha("ValueError: o trecho de 'remove' não pode ser vazio");
+    std::string out;
+    size_t ini = 0;
+    for (size_t pos; (pos = s.find(t, ini)) != std::string::npos; ini = pos + t.size())
+        out += s.substr(ini, pos - ini);
+    out += s.substr(ini);
+    return Value(std::move(out));
+}
+
+Value strRepeat(Args a) {
+    const std::string& s = a[0].asString();
+    const std::int64_t n = a[1].asInt();
+    if (n < 0) falha("ValueError: a quantidade de 'repeat' não pode ser negativa");
+    std::uint64_t total;
+    if (__builtin_mul_overflow(static_cast<std::uint64_t>(s.size()), static_cast<std::uint64_t>(n), &total) ||
+        total > (std::uint64_t{1} << 30))
+        falha("ValueError: o resultado de 'repeat' passaria de 1 GiB");
+    std::string out;
+    out.reserve(total);
+    for (std::int64_t i = 0; i < n; ++i) out += s;
+    return Value(std::move(out));
+}
+
+Value strReverse(Args a) {
+    std::u32string s = decodifica(a[0].asString());
+    std::reverse(s.begin(), s.end());
+    return Value(codifica(s));
+}
+
+// Preenchimento de pad_left/pad_right/center: opcional (espaço), exatamente 1 caractere
+char32_t preenchimento(Args a, const char* fn) {
+    if (a.size() < 3) return U' ';
+    const std::u32string p = decodifica(a[2].asString());
+    if (p.size() != 1)
+        falha(std::string("ValueError: o preenchimento de '") + fn + "' precisa ter exatamente 1 caractere");
+    return p[0];
+}
+
+// Quantos caracteres faltam para a largura (0 se já tem)
+size_t falta(const std::u32string& s, std::int64_t largura) {
+    return largura > static_cast<std::int64_t>(s.size()) ? static_cast<size_t>(largura) - s.size() : 0;
+}
+
+Value strPadLeft(Args a) {
+    const char32_t p = preenchimento(a, "pad_left");
+    const std::u32string s = decodifica(a[0].asString());
+    return Value(codifica(std::u32string(falta(s, a[1].asInt()), p) + s));
+}
+Value strPadRight(Args a) {
+    const char32_t p = preenchimento(a, "pad_right");
+    const std::u32string s = decodifica(a[0].asString());
+    return Value(codifica(s + std::u32string(falta(s, a[1].asInt()), p)));
+}
+// center: a sobra ímpar fica à direita
+Value strCenter(Args a) {
+    const char32_t p = preenchimento(a, "center");
+    const std::u32string s = decodifica(a[0].asString());
+    const size_t f = falta(s, a[1].asInt());
+    return Value(codifica(std::u32string(f / 2, p) + s + std::u32string(f - f / 2, p)));
+}
+
+// Letras: ASCII e as acentuadas do Latin-1 (as mesmas de upper/lower)
+bool ehLetra(char32_t c) {
+    return (c >= U'a' && c <= U'z') || (c >= U'A' && c <= U'Z') ||
+           (c >= 0xC0 && c <= 0xFF && c != 0xD7 && c != 0xF7);
+}
+bool ehDigito(char32_t c) { return c >= U'0' && c <= U'9'; }
+bool ehBranco(char32_t c) { return c < 0x80 && std::strchr(BRANCOS, static_cast<char>(c)) && c != 0; }
+bool ehMaiuscula(char32_t c) { return ehLetra(c) && paraMinuscula(c) != c; }
+bool ehMinuscula(char32_t c) { return ehLetra(c) && paraMaiuscula(c) != c; }
+
+// capitalize: primeira letra maiúscula, o resto minúsculo
+Value strCapitalize(Args a) {
+    std::u32string s = decodifica(a[0].asString());
+    for (size_t i = 0; i < s.size(); ++i) s[i] = i == 0 ? paraMaiuscula(s[i]) : paraMinuscula(s[i]);
+    return Value(codifica(s));
+}
+
+// title: cada palavra (separada por espaço em branco) com a primeira letra maiúscula
+Value strTitle(Args a) {
+    std::u32string s = decodifica(a[0].asString());
+    bool inicio = true;
+    for (char32_t& c : s) {
+        c = inicio ? paraMaiuscula(c) : paraMinuscula(c);
+        inicio = ehBranco(c);
+    }
+    return Value(codifica(s));
+}
+
+Value strIsEmpty(Args a) { return Value(a[0].asString().empty()); }
+
+// Todos os caracteres passam no teste (string vazia: false)
+template <bool (*teste)(char32_t)>
+Value todos(Args a) {
+    const std::u32string s = decodifica(a[0].asString());
+    return Value(!s.empty() && std::all_of(s.begin(), s.end(), teste));
+}
+bool ehAlnum(char32_t c) { return ehLetra(c) || ehDigito(c); }
+
+// is_upper/is_lower: tem letra e nenhuma do outro caso ("ABC 1" é maiúsculo)
+Value strIsUpper(Args a) {
+    const std::u32string s = decodifica(a[0].asString());
+    return Value(std::any_of(s.begin(), s.end(), ehLetra) && std::none_of(s.begin(), s.end(), ehMinuscula));
+}
+Value strIsLower(Args a) {
+    const std::u32string s = decodifica(a[0].asString());
+    return Value(std::any_of(s.begin(), s.end(), ehLetra) && std::none_of(s.begin(), s.end(), ehMaiuscula));
+}
+
+// ord(c): código Unicode de um único caractere
+Value strOrd(Args a) {
+    const std::u32string s = decodifica(a[0].asString());
+    if (s.size() != 1) falha("ValueError: 'ord' espera exatamente 1 caractere (recebeu " +
+                             std::to_string(s.size()) + ")");
+    return Value(static_cast<std::int64_t>(s[0]));
+}
+
+// chr(n): o caractere do código Unicode n
+Value strChr(Args a) {
+    const std::int64_t n = a[0].asInt();
+    if (n < 0 || n > 0x10FFFF || (n >= 0xD800 && n <= 0xDFFF))
+        falha("ValueError: " + std::to_string(n) + " não é um código Unicode válido");
+    return Value(codifica(std::u32string(1, static_cast<char32_t>(n))));
+}
+
+Value strEqualsIgnoreCase(Args a) {
+    std::u32string x = decodifica(a[0].asString()), y = decodifica(a[1].asString());
+    for (char32_t& c : x) c = paraMinuscula(c);
+    for (char32_t& c : y) c = paraMinuscula(c);
+    return Value(x == y);
+}
+
+// compare: -1, 0 ou 1, na mesma ordem de < entre strings
+Value strCompare(Args a) {
+    const int r = a[0].asString().compare(a[1].asString());
+    return Value(std::int64_t{r < 0 ? -1 : (r > 0 ? 1 : 0)});
+}
+
+// fixed(x, casas): o decimal como texto com exatamente `casas` casas
+// (arredonda como Math.round_to; sem "-0.00")
+std::string arredondaTexto(double x, std::int64_t casas);
+Value strFixed(Args a) {
+    const double x = a[0].asDecimal();
+    const std::int64_t casas = a[1].asInt();
+    if (casas < 0 || casas > 100)
+        falha("ValueError: o número de casas de 'fixed' precisa estar entre 0 e 100");
+    std::string r = arredondaTexto(x, casas);
+    const bool zero = r.find_first_not_of("0.") == std::string::npos;
+    return Value(x < 0 && !zero ? "-" + r : r);
 }
 
 // ============================================================================
@@ -522,28 +823,38 @@ Value mathTrunc(Args a) { return decimalParaInt(std::trunc(a[0].asDecimal()), "t
 // round_to(x, casas): arredonda o número como ele é escrito (a forma decimal
 // mais curta, a mesma do print), não o valor binário — round_to(2.675, 2) é
 // 2.68 (em binário 2.675 é 2.67499999...). Metade se afasta do zero, como round.
-Value mathRoundTo(Args a) {
-    const double x = a[0].asDecimal();
-    const std::int64_t casas = a[1].asInt();
-    if (casas < 0) falha("ValueError: o número de casas de 'round_to' não pode ser negativo");
-    char buf[512];
+// |x| arredondado para `casas` casas, como texto sem sinal e com exatamente
+// `casas` dígitos depois do ponto (nenhum ponto se casas = 0). Usado por
+// round_to e Strings.fixed, que assim arredondam igual.
+std::string arredondaTexto(double x, std::int64_t casas) {
+    char buf[512];   // o maior decimal tem 309 dígitos inteiros
     auto [fim, ec] = std::to_chars(buf, buf + sizeof buf, std::fabs(x), std::chars_format::fixed);
-    if (ec != std::errc()) return Value(x);
+    (void)ec;
     std::string s(buf, fim);
-    const size_t ponto = s.find('.');
-    if (ponto == std::string::npos || static_cast<std::int64_t>(s.size() - ponto - 1) <= casas)
-        return Value(x);   // já tem casas de menos
-    std::string digitos = s.substr(0, ponto) + s.substr(ponto + 1, static_cast<size_t>(casas));
-    const bool sobe = s[ponto + 1 + static_cast<size_t>(casas)] >= '5';
-    if (sobe) {   // soma 1 na última casa mantida, com vai-um
+    size_t ponto = s.find('.');
+    if (ponto == std::string::npos) { ponto = s.size(); s += '.'; }
+    const auto n = static_cast<size_t>(casas);
+    const size_t tem = s.size() - ponto - 1;
+    if (tem < n) s.append(n - tem, '0');
+    std::string digitos = s.substr(0, ponto) + s.substr(ponto + 1, n);
+    if (tem > n && s[ponto + 1 + n] >= '5') {   // soma 1 na última casa mantida, com vai-um
         size_t i = digitos.size();
         while (i > 0 && digitos[i - 1] == '9') digitos[--i] = '0';
         if (i == 0) digitos.insert(digitos.begin(), '1');
         else        ++digitos[i - 1];
     }
-    const size_t int_len = digitos.size() - static_cast<size_t>(casas);
+    const size_t int_len = digitos.size() - n;
     std::string r = digitos.substr(0, int_len);
-    if (casas > 0) r += "." + digitos.substr(int_len);
+    if (n > 0) r += "." + digitos.substr(int_len);
+    return r;
+}
+
+Value mathRoundTo(Args a) {
+    const double x = a[0].asDecimal();
+    const std::int64_t casas = a[1].asInt();
+    if (casas < 0) falha("ValueError: o número de casas de 'round_to' não pode ser negativo");
+    if (casas > 400) return Value(x);   // além disso nenhum decimal tem casas para cortar
+    const std::string r = arredondaTexto(x, casas);
     double v = 0;
     std::from_chars(r.data(), r.data() + r.size(), v);
     if (v == 0) return Value(0.0);   // sem -0
@@ -830,6 +1141,40 @@ std::vector<NativeModule> criaModulos() {
         {"substr",      {S, I, I}, S,           strSubstr},
         {"find",        {S, S},    I,           strFind},
         {"starts_with", {S, S},    B,           strStartsWith},
+        {"ends_with",   {S, S},    B,           strEndsWith},
+        {"find_last",   {S, S},    I,           strFindLast},
+        {"find_from",   {S, S, I}, I,           strFindFrom},
+        {"count",       {S, S},    I,           strCount},
+        {"char_at",     {S, I},    S,           strCharAt},
+        {"left",        {S, I},    S,           strLeft},
+        {"right",       {S, I},    S,           strRight},
+        {"slice",       {S, I, I}, S,           strSlice},
+        {"chars",       {S},       t.list(S),   strChars},
+        {"lines",       {S},       t.list(S),   strLines},
+        {"words",       {S},       t.list(S),   strWords},
+        {"trim_start",  {S},       S,           strTrimStart},
+        {"trim_end",    {S},       S,           strTrimEnd},
+        {"replace_first", {S, S, S}, S,         strReplaceFirst},
+        {"remove",      {S, S},    S,           strRemove},
+        {"repeat",      {S, I},    S,           strRepeat},
+        {"reverse",     {S},       S,           strReverse},
+        {"pad_left",    {S, I, S}, S,           strPadLeft,  2},
+        {"pad_right",   {S, I, S}, S,           strPadRight, 2},
+        {"center",      {S, I, S}, S,           strCenter,   2},
+        {"capitalize",  {S},       S,           strCapitalize},
+        {"title",       {S},       S,           strTitle},
+        {"is_empty",    {S},       B,           strIsEmpty},
+        {"is_digit",    {S},       B,           todos<ehDigito>},
+        {"is_alpha",    {S},       B,           todos<ehLetra>},
+        {"is_alnum",    {S},       B,           todos<ehAlnum>},
+        {"is_space",    {S},       B,           todos<ehBranco>},
+        {"is_upper",    {S},       B,           strIsUpper},
+        {"is_lower",    {S},       B,           strIsLower},
+        {"ord",         {S},       I,           strOrd},
+        {"chr",         {I},       S,           strChr},
+        {"equals_ignore_case", {S, S}, B,       strEqualsIgnoreCase},
+        {"compare",     {S, S},    I,           strCompare},
+        {"fixed",       {D, I},    S,           strFixed},
     }, {}});
 
     m.push_back({"Files", {
