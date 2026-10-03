@@ -340,6 +340,11 @@ Só entram com o benchmark mostrando ganho e a suíte verde nos dois modos:
 | constante imediata (`ADDK_I`…`GEK_I`, 16 bits com sinal) | — | — | ~104 | ~52 |
 | *computed goto* (**descartado**, ver abaixo)       | =        | =         | =         | =       |
 | compara-e-salta (`JLT_I`…`JGEK_I` + o `JMP` seguinte num só despacho, no `if`/`while`) | — | — | 92 | 46 |
+| `for` sobre `string` sem lista (`FORNEXT` corta um caractere UTF-8 por vez) | — | — | — | — |
+
+O `for` sobre `string` não aparece nos quatro programas; num laço de 1 milhão de caracteres caiu de
+~120 para ~63 ms. `Value` sem embrulho nos registradores ficou de fora: nenhuma medição apontou o
+`Value` como gargalo (o que resta em `ciclos` é coleta e criação de objetos, no runtime compartilhado).
 
 O *computed goto* foi implementado, testado e medido lado a lado com o `switch`: nenhum ganho
 mensurável (os processadores atuais já preveem bem o salto indireto do `switch`), e ele traz uma

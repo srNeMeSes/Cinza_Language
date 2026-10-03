@@ -245,6 +245,7 @@ Value VM::dispatch(std::size_t entrada) {
                 case Op::FORPREP: {
                     const Value& col = R[in.b];
                     std::vector<Value> elems;
+                    bool texto = false;
                     switch (col.kind()) {
                         case Value::Kind::LIST:
                             elems = col.asList()->elements;
@@ -254,22 +255,16 @@ Value VM::dispatch(std::size_t entrada) {
                             for (const auto& [k, v] : col.asDict()->entries)
                                 elems.push_back(makePair(k, v));
                             break;
-                        case Value::Kind::STRING: {
-                            const std::string& s = col.asString();
-                            for (std::size_t i = 0; i < s.size();) {
-                                std::size_t len = 1;
-                                while (i + len < s.size() &&
-                                       (static_cast<unsigned char>(s[i + len]) & 0xC0) == 0x80)
-                                    ++len;   // bytes de continuação: mesmo caractere
-                                elems.emplace_back(s.substr(i, len));
-                                i += len;
-                            }
+                        case Value::Kind::STRING:
+                            // string é imutável: a cópia da spec 5.5 não é observável;
+                            // o FORNEXT corta um caractere por vez (desenho seção 11)
+                            texto = true;
                             break;
-                        }
                         default:
                             throw RuntimeError("'for' esperava list, dict ou string como iterável");
                     }
-                    R[in.a]     = makeList(std::move(elems));
+                    if (texto) R[in.a] = col;   // posição em R[a+1] conta bytes
+                    else       R[in.a] = makeList(std::move(elems));
                     R[in.a + 1] = Value(std::int64_t{0});
                     R[in.a + 2] = Value(static_cast<std::int64_t>(in.c));
                     break;
@@ -293,6 +288,18 @@ Value VM::dispatch(std::size_t entrada) {
                     break;
                 }
                 case Op::FORNEXT: case Op::FORNEXT_D: {
+                    if (R[in.a].kind() == Value::Kind::STRING) {   // um caractere UTF-8 por vez
+                        const std::string& s = R[in.a].asString();
+                        const auto i = static_cast<std::size_t>(R[in.a + 1].asInt());
+                        if (i >= s.size()) { f->pc += in.bc(); break; }
+                        std::size_t len = 1;
+                        while (i + len < s.size() &&
+                               (static_cast<unsigned char>(s[i + len]) & 0xC0) == 0x80)
+                            ++len;   // bytes de continuação: mesmo caractere
+                        R[R[in.a + 2].asInt()] = Value(s.substr(i, len));
+                        R[in.a + 1] = Value(static_cast<std::int64_t>(i + len));
+                        break;
+                    }
                     auto& elems = R[in.a].asList()->elements;
                     const std::int64_t i = R[in.a + 1].asInt();
                     if (i >= static_cast<std::int64_t>(elems.size())) { f->pc += in.bc(); break; }

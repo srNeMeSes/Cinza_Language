@@ -967,6 +967,26 @@ Etapas:
   > Meta (≥2×) atingida em `fib` e `laco`, onde a CVM também passa o Python; não atingida nos programas com
   > muitos objetos — o custo está no mecanismo da chamada de método e na criação de objetos, alvo das
   > otimizações da seção 11 do desenho.
+- [x] 10. Otimizações da seção 11 do desenho. — feito em 2026-10-03
+  > Nota: cada uma entrou só com ganho medido e a suíte idêntica nos dois modos (401/401/401, também sob
+  > ASan/UBSan). Acessores do `Value` por referência (a cópia do `shared_ptr` mexia no contador atômico a
+  > cada leitura de campo); `for` sobre `range` embutido sem criar a lista (`RANGEPREP`/`FORRANGE`); `for`
+  > sobre `string` sem a lista (um caractere UTF-8 por vez, ~2× num laço de caracteres); instruções int
+  > com constante embutida (`ADDK_I`…`GEK_I`); compara-e-salta no `if`/`while` (`JLT_I`…`JGEK_I` + o `JMP`
+  > seguinte num só despacho). O *computed goto* foi implementado e medido lado a lado com o `switch`: sem
+  > ganho e com a armadilha de não destruir locais — descartado (registrado no desenho). `Value` sem
+  > embrulho nos registradores ficou de fora: as medições não apontam o `Value` como gargalo. Testes
+  > `cvm_for_range`, `cvm_constante_embutida`, `cvm_compara_salta`, `cvm_for_string`.
+  >
+  > | Programa | Interpretador | CVM antes | CVM agora | Ganho sobre o interpretador | Python |
+  > |---|---|---|---|---|---|
+  > | `fib` | 148 ms | 58 ms | 48 ms | 3,1× | 61 ms |
+  > | `laco` | 386 ms | 115 ms | 94 ms | 4,1× | 276 ms |
+  > | `objetos` | 169 ms | 119 ms | 77 ms | 2,2× | 90 ms |
+  > | `ciclos` | 890 ms | 723 ms | 549 ms | 1,6× | — |
+  >
+  > A CVM agora passa o Python também em `objetos`. Em `ciclos` o custo restante é a coleta de ciclos e a
+  > criação de objetos (runtime compartilhado), não o bytecode.
 
 ---
 

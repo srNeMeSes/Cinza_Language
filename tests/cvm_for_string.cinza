@@ -1,0 +1,28 @@
+// CVM (otimização: for sobre string sem lista): caractere UTF-8 a caractere, como antes —
+// reatribuir a string dentro do laço não muda a iteração (spec 5.5).
+fn main() {
+  string s = "aé€😀b";
+  string r = "";
+  for (string c in s) { r = r + "[" + c + "]"; }
+  print(r);
+  int n = 0;
+  for (string c in "") { n += 1; }
+  print(n);
+  for (string c in s) {
+    s = "zz";
+    if (c == "€") { continue; }
+    if (c == "b") { break; }
+    print(c, c.size());
+  }
+  print(s);
+  string pares = "";
+  for (string x in "ab") { for (string y in "çd") { pares += x + y + ";"; } }
+  print(pares);
+}
+// expect: [a][é][€][😀][b]
+// expect: 0
+// expect: a 1
+// expect: é 1
+// expect: 😀 1
+// expect: zz
+// expect: aç;ad;bç;bd;
