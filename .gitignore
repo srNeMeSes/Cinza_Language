@@ -11,3 +11,6 @@ nul
 
 # Exemplos da especificação extraídos pelo run_tests.py
 tests/spec_exemplos/
+
+# Modelo gravado pelo exemplo da rede neural (refeito por treinar.cinza)
+exemplos/rede_neural/modelo.czr

@@ -1,0 +1,72 @@
+// Exemplo exemplos/rede_neural: o formato .czr guarda decimais bit a bit, o
+// modelo relido prevê exatamente o mesmo que o treinado, a rede aprende uma
+// regra simples e arquivo corrompido é recusado.
+// env: CINZA_PATH=exemplos/rede_neural
+import czr;
+import mlp;
+import dados;
+import Files;
+import Random;
+import Math;
+
+fn main() {
+  string pasta = "tests/_tmp_rede_neural";
+  if (Files.exists(pasta)) { Files.delete_tree(pasta); }
+  Files.make_dir(pasta);
+
+  // decimais extremos fazem a ida e volta exata
+  list<decimal> valores = [0.0, 1.0, -1.0, 0.1, -2.5, 1234567.891, 0.000000001, 3.141592653589793,
+                           179769313486231570000000000000000000000000000.0, 0.30000000000000004];
+  czr.Escritor e = new czr.Escritor();
+  for (decimal v in valores) { e.escreve_decimal(v); }
+  e.escreve_int(34359738367);
+  e.escreve_texto("m² ação");
+  string arq = Files.join(pasta, "valores.czr");
+  e.salva(arq);
+  czr.Leitor l = new czr.Leitor(arq);
+  int iguais = 0;
+  for (decimal v in valores) {
+    if (l.le_decimal() == v) { iguais += 1; }
+  }
+  print(iguais, valores.size(), l.le_int(), l.le_texto(), l.terminou());
+
+  // y = 3·a − 2·b + 5: a rede precisa chegar perto
+  Random.seed(7);
+  list<list<decimal>> x;
+  list<decimal> y;
+  for (int i in range(0, 60)) {
+    decimal a = Random.decimal_range(-2.0, 2.0);
+    decimal b = Random.decimal_range(-2.0, 2.0);
+    x.add([a, b]);
+    y.add(3.0 * a - 2.0 * b + 5.0);
+  }
+  mlp.Modelo m = new mlp.Modelo(["a", "b"], "y", [6]);
+  m.ajustar_padronizacao(x, y);
+  m.treinar(x, y, 60, 10, 0.03, 0);
+  decimal erro = 0.0;
+  for (int i in range(0, y.size())) { erro += Math.abs(m.prever(x[i]) - y[i]); }
+  print(m.arquitetura(), m.epocas_treinadas(), erro / y.size() < 0.25);
+
+  string modelo = Files.join(pasta, "modelo.czr");
+  m.salvar(modelo);
+  mlp.Modelo r = mlp.carregar(modelo);
+  int mesmas = 0;
+  for (list<decimal> amostra in x) {
+    if (r.prever(amostra) == m.prever(amostra)) { mesmas += 1; }
+  }
+  print(mesmas, r.entradas(), r.nome_alvo(), r.epocas_treinadas());
+
+  // um caractere trocado: a soma de verificação acusa
+  string bytes = Files.read(modelo);
+  Files.write(modelo, bytes[0:40] + "X" + bytes[41:]);
+  try {
+    mlp.carregar(modelo);
+  } except (czr.ErroCzr err) {
+    print(err.message);
+  }
+  Files.delete_tree(pasta);
+}
+// expect: 10 10 34359738367 m² ação true
+// expect: 2 → 6 → 1 60 true
+// expect: 60 ["a", "b"] y 60
+// expect: 'tests/_tmp_rede_neural/modelo.czr' não é um modelo .czr válido: soma de verificação não confere (arquivo corrompido)

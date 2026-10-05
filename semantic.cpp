@@ -2842,6 +2842,11 @@ TypeRef SemanticAnalyzer::analyzeInterpolation(CallExpr* expr) {
                    "(\"Olá, {nome}!\")", expr->token);
     const std::string& s = std::get<std::string>(lit->value);
     const Token& origem = lit->token;
+    // os imports deste arquivo: {Math.abs(x)} precisa reconhecer 'Math' como módulo
+    std::set<std::string> apelidos;
+    if (current_module >= 0)
+        for (const auto& [apelido, idx] : modules[static_cast<size_t>(current_module)].imports)
+            apelidos.insert(apelido);
 
     std::string texto;
     auto fechaTexto = [&]() {
@@ -2882,7 +2887,7 @@ TypeRef SemanticAnalyzer::analyzeInterpolation(CallExpr* expr) {
 
         CallExpr::InterpPart parte;
         try {
-            parte.expr = Parser::parseEmbedded(codigo, origem, static_cast<int>(i + 2));
+            parte.expr = Parser::parseEmbedded(codigo, origem, static_cast<int>(i + 2), apelidos);
         } catch (const ParseError& e) {
             throwError("Expressão inválida em '{" + codigo + "}' no texto de '" + nome + "': " + e.what(),
                        e.error_token);

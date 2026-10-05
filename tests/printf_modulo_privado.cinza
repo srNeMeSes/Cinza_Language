@@ -1,0 +1,7 @@
+// dentro do {expr}, um nome sem 'pub' do módulo continua inacessível
+import modulos.geom;
+
+fn main() {
+  printf("{geom.dobro(2)}");
+}
+// expect-error: é privado no módulo 'geom'

@@ -1118,6 +1118,24 @@ Código, testes e biblioteca padrão, com ~210 sondas de borda rodadas nos dois 
   > `-0.0` continua aparecendo como `-0`, e decimais muito grandes ou pequenos continuam em notação
   > científica (`1e+21`) — mantidos por decisão do autor.
 
+## J. Programa real: rede neural (2026-10-04)
+
+`exemplos/rede_neural/` — uma MLP completa em Cinza (CSV → treino com Adam → modelo num formato
+binário próprio, `.czr` → previsão sem retreinar), ~1000 linhas em 6 arquivos, usada como teste da
+linguagem num programa de verdade. Roda igual na CVM e no interpretador.
+
+- [x] 1. 🟠 `{Modulo.funcao(...)}` dentro de `printf`/`format` dava "Variável 'Math' não declarada" —
+  corrigido em 2026-10-04
+  > A expressão de dentro do texto era lida por um parser novo, sem os apelidos dos `import` do
+  > arquivo; a spec (6.1) promete "qualquer expressão". `Parser::parseEmbedded` recebe os apelidos
+  > do módulo atual. Testes `printf_modulo` (nativo, `as`, módulo do usuário) e
+  > `printf_modulo_privado` (nome sem `pub` continua inacessível).
+- [ ] 2. 🟢 Para o autor decidir: não há como gravar bytes de 128 a 255
+  > Strings são UTF-8 e `Files` só lê/grava texto, então um formato binário feito em Cinza fica
+  > restrito a bytes 0–127 (o `.czr` usa 7 bits por byte por isso). Se valer a pena, algo como
+  > `Files.read_bytes(caminho) -> list<int>` e `Files.write_bytes(caminho, list<int>)` resolveria —
+  > é mudança de biblioteca, então fica só registrado.
+
 ---
 
 ## Registro de decisões

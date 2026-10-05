@@ -1,0 +1,121 @@
+// ============================================================================
+// dados — leitura do CSV de treino e utilidades de apresentação
+//
+// A primeira linha traz os cabeçalhos. Todas as colunas são numéricas; a última
+// é o alvo (o que a rede aprende a prever) e as demais são as entradas.
+// Separador ',' (decimais com ponto) ou ';' (decimais com vírgula, como o Excel
+// em português costuma gravar) — detectado pelo cabeçalho.
+// ============================================================================
+
+import Files;
+import Strings as st;
+import Convert as cv;
+import Random;
+import Math;
+import Lists;
+
+pub error ErroCSV;
+
+pub struct Tabela {
+  list<string> entradas;     // nomes das colunas de entrada
+  string alvo = "";          // nome da última coluna
+  list<list<decimal>> x;     // uma linha por amostra
+  list<decimal> y;
+}
+
+// separa uma linha do CSV, tirando espaços e aspas em volta de cada campo
+fn campos(string linha, string sep) -> list<string> {
+  list<string> saida;
+  for (string c in st.split(linha, sep)) {
+    string limpo = st.trim(c);
+    if (limpo.size() >= 2 && st.starts_with(limpo, "\"") && st.ends_with(limpo, "\"")) {
+      limpo = st.trim(limpo[1:-1]);
+    }
+    saida.add(limpo);
+  }
+  return saida;
+}
+
+pub fn ler_csv(string caminho) -> Tabela {
+  list<string> linhas = Files.lines(caminho);
+  if (linhas.size() == 0) { throw ErroCSV(format("'{caminho}' está vazio")); }
+
+  string cabecalho = linhas[0];
+  if (st.starts_with(cabecalho, st.chr(65279))) { cabecalho = cabecalho[1:]; }   // BOM do Excel
+  string sep = ",";
+  if (st.contains(cabecalho, ";")) { sep = ";"; }
+
+  list<string> nomes = campos(cabecalho, sep);
+  int n = nomes.size();
+  if (n < 2) { throw ErroCSV(format("'{caminho}': o cabeçalho precisa de pelo menos 2 colunas")); }
+
+  Tabela t = new Tabela();
+  for (int j in range(0, n - 1)) { t.entradas.add(nomes[j]); }
+  t.alvo = nomes[n - 1];
+
+  for (int i in range(1, linhas.size())) {
+    if (st.is_empty(st.trim(linhas[i]))) { continue; }
+    list<string> cs = campos(linhas[i], sep);
+    if (cs.size() != n) {
+      throw ErroCSV(format("'{caminho}', linha {i + 1}: esperava {n} colunas, encontrou {cs.size()}"));
+    }
+    list<decimal> entrada;
+    for (int j in range(0, n)) {
+      string c = cs[j];
+      if (sep == ";") { c = st.replace(c, ",", "."); }
+      if (!cv.is_decimal(c)) {
+        throw ErroCSV(format("'{caminho}', linha {i + 1}, coluna '{nomes[j]}': '{cs[j]}' não é um número"));
+      }
+      if (j < n - 1) {
+        entrada.add(cv.to_decimal(c));
+      } else {
+        t.y.add(cv.to_decimal(c));
+      }
+    }
+    t.x.add(entrada);
+  }
+  if (t.y.size() == 0) { throw ErroCSV(format("'{caminho}' não tem nenhuma linha de dados")); }
+  return t;
+}
+
+// Separa as amostras em treino e teste, embaralhadas (a semente fixa repete a divisão)
+pub fn dividir(Tabela t, decimal fracao_teste, int semente) -> pair<Tabela, Tabela> {
+  list<int> ordem = range(0, t.y.size());
+  Random.seed(semente);
+  Random.shuffle(ordem);
+  int n_teste = Math.round(t.y.size() * fracao_teste);
+
+  Tabela treino = new Tabela();
+  Tabela teste = new Tabela();
+  treino.entradas = t.entradas;
+  teste.entradas = t.entradas;
+  treino.alvo = t.alvo;
+  teste.alvo = t.alvo;
+  for (int k in range(0, ordem.size())) {
+    int i = ordem[k];
+    if (k < n_teste) {
+      teste.x.add(t.x[i]);
+      teste.y.add(t.y[i]);
+    } else {
+      treino.x.add(t.x[i]);
+      treino.y.add(t.y[i]);
+    }
+  }
+  return {treino, teste};
+}
+
+// 1234567.891 → "R$ 1.234.567,89"
+pub fn reais(decimal v) -> string {
+  string s = st.fixed(Math.abs(v), 2);
+  list<string> partes = st.split(s, ".");
+  string inteiro = partes[0];
+  list<string> grupos;
+  while (inteiro.size() > 3) {
+    grupos.add(st.right(inteiro, 3));
+    inteiro = st.left(inteiro, inteiro.size() - 3);
+  }
+  grupos.add(inteiro);
+  string sinal = "";
+  if (v < 0.0) { sinal = "-"; }
+  return "R$ " + sinal + st.join(Lists.reversed(grupos), ".") + "," + partes[1];
+}

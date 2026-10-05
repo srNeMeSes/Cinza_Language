@@ -1,0 +1,100 @@
+// Usa um modelo .czr já treinado — sem retreinar.
+//
+//   cinza prever.cinza modelo.czr 3 2 120 1     ← os valores das entradas, na ordem
+//   cinza prever.cinza modelo.czr               ← pergunta cada valor
+//   cinza prever.cinza modelo.czr --csv casas.csv   ← prevê cada linha de um CSV
+
+import mlp;
+import dados;
+import czr;
+import Convert as cv;
+import Strings as st;
+import Math;
+
+fn main(list<string> args) {
+  try {
+    executa(args);
+  } except (czr.ErroCzr e) {
+    falha(e.message);
+  } except (mlp.ErroModelo e) {
+    falha(e.message);
+  } except (dados.ErroCSV e) {
+    falha(e.message);
+  } except (IOError e) {
+    falha(e.message);
+  }
+}
+
+fn falha(string msg) {
+  print("erro: " + msg);
+  exit(1);
+}
+
+fn executa(list<string> args) {
+  string arquivo = "modelo.czr";
+  if (args.size() > 0) { arquivo = args[0]; }
+
+  mlp.Modelo modelo = mlp.carregar(arquivo);
+  list<string> nomes = modelo.entradas();
+  printf("modelo '{arquivo}': {modelo.arquitetura()}, treinado por {modelo.epocas_treinadas()} épocas");
+  printf("prevê '{modelo.nome_alvo()}' a partir de {nomes}");
+  print();
+
+  if (args.size() == 3 && args[1] == "--csv") {
+    prever_csv(modelo, args[2]);
+    return;
+  }
+
+  list<decimal> x;
+  if (args.size() > 1) {
+    if (args.size() - 1 != nomes.size()) {
+      string lista = st.join(nomes, ", ");
+      printf("erro: o modelo espera {nomes.size()} valores ({lista}), recebeu {args.size() - 1}");
+      exit(2);
+    }
+    for (int i in range(1, args.size())) { x.add(numero(args[i], nomes[i - 1])); }
+  } else {
+    print("digite as características da casa (vírgula ou ponto nos decimais):");
+    for (string nome in nomes) {
+      bool ok = false;
+      while (!ok) {
+        string s = st.trim(input(nome + ": "));
+        if (cv.is_decimal(st.replace(s, ",", "."))) {
+          x.add(cv.to_decimal(st.replace(s, ",", ".")));
+          ok = true;
+        } else {
+          print("  digite um número");
+        }
+      }
+    }
+    print();
+  }
+  for (int i in range(0, nomes.size())) { printf("  {nomes[i]:14} {x[i]}"); }
+  printf("  {modelo.nome_alvo()} previsto: {dados.reais(modelo.prever(x))}");
+}
+
+fn numero(string s, string nome) -> decimal {
+  string t = st.replace(s, ",", ".");
+  if (!cv.is_decimal(t)) {
+    printf("erro: '{s}' não é um número (para {nome})");
+    exit(2);
+  }
+  return cv.to_decimal(t);
+}
+
+fn prever_csv(mlp.Modelo modelo, string caminho) {
+  dados.Tabela t = dados.ler_csv(caminho);
+  if (t.entradas.size() != modelo.entradas().size()) {
+    printf("erro: o CSV tem {t.entradas.size()} entradas, o modelo espera {modelo.entradas().size()}");
+    exit(2);
+  }
+  decimal soma_abs = 0.0;
+  for (int i in range(0, t.y.size())) {
+    decimal p = modelo.prever(t.x[i]);
+    soma_abs += Math.abs(p - t.y[i]);
+    print(" ", st.pad_right(cv.to_string(t.x[i]), 24), "real", st.pad_left(dados.reais(t.y[i]), 16),
+          "  previsto", st.pad_left(dados.reais(p), 16));
+  }
+  print();
+  printf("erro médio absoluto em {t.y.size()} linhas: {dados.reais(soma_abs / t.y.size())}");
+}

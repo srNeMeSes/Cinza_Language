@@ -1,0 +1,384 @@
+// ============================================================================
+// mlp — perceptron multicamadas para regressão
+//
+//   entradas → [Densa + ReLU] × k → Densa linear → 1 saída
+//
+// Treino por retropropagação, erro quadrático médio e otimizador Adam em
+// mini-lotes. O Modelo junta a rede com a padronização (z-score) das entradas e
+// do alvo e sabe se gravar e se ler de um arquivo .czr (formato em czr.cinza).
+// ============================================================================
+
+import Math;
+import Random;
+import Lists;
+import czr;
+
+pub error ErroModelo;
+
+pub enum Ativacao { ReLU, Linear }
+
+const decimal BETA1 = 0.9;
+const decimal BETA2 = 0.999;
+const decimal EPSILON = 0.00000001;
+const decimal INCLINACAO_RELU = 0.01;   // "leaky": neurônio desligado ainda aprende um pouco
+
+fn ativacao_para_int(Ativacao a) -> int {
+  if (a == Ativacao.ReLU) { return 1; }
+  return 0;
+}
+
+fn int_para_ativacao(int v) -> Ativacao {
+  if (v == 1) { return Ativacao.ReLU; }
+  if (v == 0) { return Ativacao.Linear; }
+  throw ErroModelo(format("ativação desconhecida no arquivo: {v}"));
+}
+
+// ----------------------------------------------------------------------------
+// Camada densa: saida[i] = f(b[i] + Σ w[i][j] · entrada[j])
+// ----------------------------------------------------------------------------
+pub class Camada {
+  int n_ent = 0;
+  int n_sai = 0;
+  Ativacao ativ = Ativacao.Linear;
+  list<list<decimal>> w;
+  list<decimal> b;
+  // gradientes somados ao longo do lote
+  list<list<decimal>> gw;
+  list<decimal> gb;
+  // momentos do Adam (média e média dos quadrados dos gradientes)
+  list<list<decimal>> mw;
+  list<list<decimal>> vw;
+  list<decimal> mb;
+  list<decimal> vb;
+  // guardados no avanço para a retropropagação
+  list<decimal> entrada;
+  list<decimal> saida;
+
+  fn f(decimal z) -> decimal {
+    if (ativ == Ativacao.ReLU && z < 0.0) { return INCLINACAO_RELU * z; }
+    return z;
+  }
+
+  // derivada de f, escrita em função da própria saída
+  fn df(decimal a) -> decimal {
+    if (ativ == Ativacao.ReLU && a < 0.0) { return INCLINACAO_RELU; }
+    return 1.0;
+  }
+
+  pub {
+    Camada(int ent, int sai, Ativacao at) {
+      n_ent = ent;
+      n_sai = sai;
+      ativ = at;
+      // inicialização de He (ReLU) ou de Xavier (linear)
+      decimal desvio = Math.sqrt(1.0 / ent);
+      if (at == Ativacao.ReLU) { desvio = Math.sqrt(2.0 / ent); }
+      for (int i in range(0, sai)) {
+        list<decimal> linha;
+        for (int j in range(0, ent)) { linha.add(Random.gauss(0.0, desvio)); }
+        w.add(linha);
+        gw.add(Lists.repeat(0.0, ent));
+        mw.add(Lists.repeat(0.0, ent));
+        vw.add(Lists.repeat(0.0, ent));
+        b.add(0.0);
+        gb.add(0.0);
+        mb.add(0.0);
+        vb.add(0.0);
+      }
+    }
+
+    fn entradas() -> int { return n_ent; }
+    fn saidas() -> int { return n_sai; }
+    fn ativacao() -> Ativacao { return ativ; }
+
+    fn avancar(list<decimal> x) -> list<decimal> {
+      entrada = x;
+      list<decimal> a;
+      for (int i in range(0, n_sai)) {
+        list<decimal> wi = w[i];
+        decimal z = b[i];
+        for (int j in range(0, n_ent)) { z += wi[j] * x[j]; }
+        a.add(f(z));
+      }
+      saida = a;
+      return a;
+    }
+
+    // recebe dErro/dSaída, acumula os gradientes dos pesos e devolve dErro/dEntrada
+    fn retropropagar(list<decimal> grad_saida) -> list<decimal> {
+      list<decimal> grad_ent = Lists.repeat(0.0, n_ent);
+      for (int i in range(0, n_sai)) {
+        decimal d = grad_saida[i] * df(saida[i]);
+        gb[i] += d;
+        list<decimal> wi = w[i];
+        list<decimal> gwi = gw[i];
+        for (int j in range(0, n_ent)) {
+          gwi[j] += d * entrada[j];
+          grad_ent[j] += d * wi[j];
+        }
+      }
+      return grad_ent;
+    }
+
+    // um passo do Adam com a média dos gradientes do lote; zera os acumuladores
+    fn atualizar(decimal taxa, int passo, int tamanho_lote) {
+      decimal c1 = 1.0 - Math.pow(BETA1, passo);
+      decimal c2 = 1.0 - Math.pow(BETA2, passo);
+      for (int i in range(0, n_sai)) {
+        list<decimal> wi = w[i];
+        list<decimal> gwi = gw[i];
+        list<decimal> mwi = mw[i];
+        list<decimal> vwi = vw[i];
+        for (int j in range(0, n_ent)) {
+          decimal g = gwi[j] / tamanho_lote;
+          mwi[j] = BETA1 * mwi[j] + (1.0 - BETA1) * g;
+          vwi[j] = BETA2 * vwi[j] + (1.0 - BETA2) * g * g;
+          wi[j] -= taxa * (mwi[j] / c1) / (Math.sqrt(vwi[j] / c2) + EPSILON);
+          gwi[j] = 0.0;
+        }
+        decimal g = gb[i] / tamanho_lote;
+        mb[i] = BETA1 * mb[i] + (1.0 - BETA1) * g;
+        vb[i] = BETA2 * vb[i] + (1.0 - BETA2) * g * g;
+        b[i] -= taxa * (mb[i] / c1) / (Math.sqrt(vb[i] / c2) + EPSILON);
+        gb[i] = 0.0;
+      }
+    }
+
+    fn grava_pesos(czr.Escritor e) {
+      for (list<decimal> linha in w) {
+        for (decimal p in linha) { e.escreve_decimal(p); }
+      }
+      for (decimal p in b) { e.escreve_decimal(p); }
+    }
+
+    fn le_pesos(czr.Leitor l) {
+      for (list<decimal> linha in w) {
+        for (int j in range(0, n_ent)) { linha[j] = l.le_decimal(); }
+      }
+      for (int i in range(0, n_sai)) { b[i] = l.le_decimal(); }
+    }
+  }
+}
+
+// ----------------------------------------------------------------------------
+// Rede: a sequência de camadas
+// ----------------------------------------------------------------------------
+pub class Rede {
+  list<Camada> camadas;
+  int passo = 0;   // contador do Adam
+
+  pub {
+    // tamanhos = [entradas, ocultas..., saídas]; ocultas com ReLU, a última linear
+    Rede(list<int> tamanhos) {
+      if (tamanhos.size() < 2) { throw ErroModelo("a rede precisa de pelo menos entrada e saída"); }
+      for (int k in range(0, tamanhos.size() - 1)) {
+        if (tamanhos[k] < 1 || tamanhos[k + 1] < 1) { throw ErroModelo("toda camada precisa de ao menos 1 neurônio"); }
+        Ativacao a = Ativacao.ReLU;
+        if (k == tamanhos.size() - 2) { a = Ativacao.Linear; }
+        camadas.add(new Camada(tamanhos[k], tamanhos[k + 1], a));
+      }
+    }
+
+    fn lista_camadas() -> list<Camada> { return camadas; }
+
+    fn prever(list<decimal> x) -> list<decimal> {
+      list<decimal> a = x;
+      for (Camada c in camadas) { a = c.avancar(a); }
+      return a;
+    }
+
+    // treina um lote (as amostras ordem[ini..fim)) e devolve a soma dos erros quadráticos
+    fn treinar_lote(list<list<decimal>> x, list<decimal> y, list<int> ordem, int ini, int fim, decimal taxa) -> decimal {
+      decimal soma = 0.0;
+      for (int k in range(ini, fim)) {
+        int i = ordem[k];
+        list<decimal> p = prever(x[i]);
+        decimal erro = p[0] - y[i];
+        soma += erro * erro;
+        // erro = ½(p - y)²  →  dErro/dp = p - y
+        list<decimal> grad = [erro];
+        for (int c in range(camadas.size() - 1, -1, -1)) { grad = camadas[c].retropropagar(grad); }
+      }
+      passo += 1;
+      for (Camada c in camadas) { c.atualizar(taxa, passo, fim - ini); }
+      return soma;
+    }
+  }
+}
+
+// ----------------------------------------------------------------------------
+// Modelo: rede + padronização + nomes das colunas; salva e carrega .czr
+// ----------------------------------------------------------------------------
+pub class Modelo {
+  list<string> nomes;
+  string alvo = "";
+  list<int> ocultas;
+  list<decimal> medias;
+  list<decimal> desvios;
+  decimal media_y = 0.0;
+  decimal desvio_y = 1.0;
+  int epocas = 0;
+  Rede rede = new Rede([1, 1]);
+
+  fn padroniza(list<decimal> x) -> list<decimal> {
+    if (x.size() != nomes.size()) {
+      throw ErroModelo(format("o modelo espera {nomes.size()} entradas, recebeu {x.size()}"));
+    }
+    list<decimal> z;
+    for (int j in range(0, x.size())) { z.add((x[j] - medias[j]) / desvios[j]); }
+    return z;
+  }
+
+  pub {
+    Modelo(list<string> nomes_entrada, string nome_alvo, list<int> camadas_ocultas) {
+      nomes = nomes_entrada;
+      alvo = nome_alvo;
+      ocultas = camadas_ocultas;
+      list<int> tamanhos = [nomes.size()];
+      Lists.extend(tamanhos, ocultas);
+      tamanhos.add(1);
+      rede = new Rede(tamanhos);
+      for (string n in nomes) {
+        medias.add(0.0);
+        desvios.add(1.0);
+      }
+    }
+
+    fn entradas() -> list<string> { return nomes; }
+    fn nome_alvo() -> string { return alvo; }
+    fn epocas_treinadas() -> int { return epocas; }
+
+    fn arquitetura() -> string {
+      list<string> partes = [format("{nomes.size()}")];
+      for (int n in ocultas) { partes.add(format("{n}")); }
+      partes.add("1");
+      string s = partes[0];
+      for (int i in range(1, partes.size())) { s = s + " → " + partes[i]; }
+      return s;
+    }
+
+    // calcula média e desvio de cada coluna (só com os dados de treino)
+    fn ajustar_padronizacao(list<list<decimal>> x, list<decimal> y) {
+      int n = y.size();
+      for (int j in range(0, nomes.size())) {
+        decimal s = 0.0;
+        for (list<decimal> linha in x) { s += linha[j]; }
+        decimal m = s / n;
+        decimal q = 0.0;
+        for (list<decimal> linha in x) { q += (linha[j] - m) * (linha[j] - m); }
+        decimal d = Math.sqrt(q / n);
+        if (d == 0.0) { d = 1.0; }   // coluna constante: não divide por zero
+        medias[j] = m;
+        desvios[j] = d;
+      }
+      media_y = Lists.average(y);
+      decimal q = 0.0;
+      for (decimal v in y) { q += (v - media_y) * (v - media_y); }
+      desvio_y = Math.sqrt(q / n);
+      if (desvio_y == 0.0) { desvio_y = 1.0; }
+    }
+
+    // treina por `n_epocas`; a cada `mostrar_cada` épocas escreve o RMSE do treino
+    fn treinar(list<list<decimal>> x, list<decimal> y, int n_epocas, int lote, decimal taxa, int mostrar_cada) {
+      list<list<decimal>> xz;
+      list<decimal> yz;
+      for (list<decimal> linha in x) { xz.add(padroniza(linha)); }
+      for (decimal v in y) { yz.add((v - media_y) / desvio_y); }
+
+      list<int> ordem = range(0, yz.size());
+      for (int ep in range(1, n_epocas + 1)) {
+        Random.shuffle(ordem);
+        decimal soma = 0.0;
+        int ini = 0;
+        while (ini < ordem.size()) {
+          int fim = Math.min(ini + lote, ordem.size());
+          soma += rede.treinar_lote(xz, yz, ordem, ini, fim, taxa);
+          ini = fim;
+        }
+        epocas += 1;
+        if (mostrar_cada > 0 && (ep % mostrar_cada == 0 || ep == 1)) {
+          decimal rmse = Math.sqrt(soma / yz.size()) * desvio_y;
+          printf("  época {epocas:5}   RMSE no treino: {rmse:12.2f}");
+        }
+      }
+    }
+
+    fn prever(list<decimal> x) -> decimal {
+      list<decimal> p = rede.prever(padroniza(x));
+      return p[0] * desvio_y + media_y;
+    }
+
+    fn salvar(string caminho) {
+      czr.Escritor e = new czr.Escritor();
+      // nomes
+      e.escreve_int(nomes.size());
+      for (string n in nomes) { e.escreve_texto(n); }
+      e.escreve_texto(alvo);
+      // arquitetura
+      list<Camada> cs = rede.lista_camadas();
+      e.escreve_int(cs.size());
+      for (Camada c in cs) {
+        e.escreve_int(c.entradas());
+        e.escreve_int(c.saidas());
+        e.escreve_int(ativacao_para_int(c.ativacao()));
+      }
+      e.escreve_int(epocas);
+      // padronização
+      for (int j in range(0, nomes.size())) {
+        e.escreve_decimal(medias[j]);
+        e.escreve_decimal(desvios[j]);
+      }
+      e.escreve_decimal(media_y);
+      e.escreve_decimal(desvio_y);
+      // pesos
+      for (Camada c in cs) { c.grava_pesos(e); }
+      e.salva(caminho);
+    }
+
+    // parte do carregamento que vem depois da arquitetura (ver carregar())
+    fn le_parametros(czr.Leitor l, int n_epocas) {
+      epocas = n_epocas;
+      for (int j in range(0, nomes.size())) {
+        medias[j] = l.le_decimal();
+        desvios[j] = l.le_decimal();
+        if (desvios[j] <= 0.0) { throw ErroModelo("desvio padrão inválido no arquivo"); }
+      }
+      media_y = l.le_decimal();
+      desvio_y = l.le_decimal();
+      for (Camada c in rede.lista_camadas()) { c.le_pesos(l); }
+      if (!l.terminou()) { throw ErroModelo("sobram dados no fim do arquivo"); }
+    }
+  }
+}
+
+// Lê um modelo salvo por Modelo.salvar — nada de retreinar
+pub fn carregar(string caminho) -> Modelo {
+  czr.Leitor l = new czr.Leitor(caminho);
+  int n = l.le_int();
+  if (n < 1 || n > 10000) { throw ErroModelo(format("número de entradas inválido: {n}")); }
+  list<string> nomes;
+  for (int i in range(0, n)) { nomes.add(l.le_texto()); }
+  string alvo = l.le_texto();
+
+  int n_camadas = l.le_int();
+  if (n_camadas < 1 || n_camadas > 1000) { throw ErroModelo(format("número de camadas inválido: {n_camadas}")); }
+  list<int> ocultas;
+  int anterior = n;
+  for (int k in range(0, n_camadas)) {
+    int ent = l.le_int();
+    int sai = l.le_int();
+    Ativacao a = int_para_ativacao(l.le_int());
+    if (ent != anterior) { throw ErroModelo(format("camada {k + 1}: {ent} entradas, mas a anterior tem {anterior} saídas")); }
+    if (sai < 1 || sai > 100000) { throw ErroModelo(format("camada {k + 1}: tamanho inválido {sai}")); }
+    bool ultima = k == n_camadas - 1;
+    if (ultima && (sai != 1 || a != Ativacao.Linear)) { throw ErroModelo("a última camada precisa ser linear com 1 saída"); }
+    if (!ultima && a != Ativacao.ReLU) { throw ErroModelo(format("camada {k + 1}: oculta precisa ser ReLU")); }
+    if (!ultima) { ocultas.add(sai); }
+    anterior = sai;
+  }
+  int n_epocas = l.le_int();
+
+  Modelo m = new Modelo(nomes, alvo, ocultas);
+  m.le_parametros(l, n_epocas);
+  return m;
+}

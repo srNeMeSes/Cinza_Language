@@ -1,0 +1,42 @@
+// Gera um CSV sintético de casas à venda para treinar a rede.
+//
+//   cinza gera_casas.cinza [arquivo.csv] [linhas] [semente]
+//
+// O preço segue uma regra "escondida" (com m² rendendo cada vez menos e piscina
+// valendo mais em casa grande) mais um ruído de ±6%: é o que a rede precisa descobrir.
+
+import Files;
+import Random;
+import Math;
+import Convert as cv;
+
+fn main(list<string> args) {
+  string caminho = "casas.csv";
+  int n = 800;
+  int semente = 2026;
+  if (args.size() > 0) { caminho = args[0]; }
+  if (args.size() > 1) { n = cv.to_int(args[1]); }
+  if (args.size() > 2) { semente = cv.to_int(args[2]); }
+  Random.seed(semente);
+
+  list<string> linhas = ["qtd_quartos,qtd_banheiros,m²,tem_piscina,valor"];
+  for (int i in range(0, n)) {
+    int quartos = Random.int(1, 5);
+    int banheiros = Random.int(1, Math.min(quartos + 1, 4));
+    int m2 = Math.max(30, Math.round(35 + 22 * quartos + 8 * banheiros + Random.gauss(0.0, 15.0)));
+    decimal p_piscina = Math.clamp((m2 - 80) / 250.0, 0.03, 0.6);
+    int piscina = 0;
+    if (Random.chance(p_piscina)) { piscina = 1; }
+
+    decimal valor = 60000.0
+                  + 3200.0 * m2 * (1.0 - m2 / 2000.0)
+                  + 18000.0 * quartos
+                  + 22000.0 * banheiros
+                  + piscina * (40000.0 + 150.0 * m2);
+    valor = valor * Random.gauss(1.0, 0.06);
+    int preco = Math.round(valor / 100.0) * 100;
+    linhas.add(format("{quartos},{banheiros},{m2},{piscina},{preco}"));
+  }
+  Files.write_lines(caminho, linhas);
+  printf("{n} casas gravadas em {caminho}");
+}

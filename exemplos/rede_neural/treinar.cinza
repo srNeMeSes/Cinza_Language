@@ -1,0 +1,117 @@
+// Treina a MLP com um CSV e salva o modelo num arquivo .czr.
+//
+//   cinza treinar.cinza [dados.csv] [modelo.czr] [épocas]
+//
+// 80% das linhas treinam a rede, 20% ficam de fora para medir o erro em casas
+// que ela nunca viu. No fim, o modelo é relido do arquivo e as previsões são
+// conferidas com as da rede em memória.
+
+import dados;
+import mlp;
+import czr;
+import Random;
+import Math;
+import Time;
+import Convert as cv;
+import Files;
+import Strings as st;
+
+const int SEMENTE = 42;
+const int LOTE = 32;
+const decimal TAXA = 0.003;
+
+fn main(list<string> args) {
+  try {
+    executa(args);
+  } except (dados.ErroCSV e) {
+    falha(e.message);
+  } except (czr.ErroCzr e) {
+    falha(e.message);
+  } except (mlp.ErroModelo e) {
+    falha(e.message);
+  } except (IOError e) {
+    falha(e.message);
+  } except (ValueError e) {
+    falha(e.message);
+  }
+}
+
+fn falha(string msg) {
+  print("erro: " + msg);
+  exit(1);
+}
+
+fn executa(list<string> args) {
+  string csv = "casas.csv";
+  string arquivo = "modelo.czr";
+  int epocas = 300;
+  if (args.size() > 0) { csv = args[0]; }
+  if (args.size() > 1) { arquivo = args[1]; }
+  if (args.size() > 2) { epocas = cv.to_int(args[2]); }
+
+  if (epocas < 1) { falha("o número de épocas precisa ser pelo menos 1"); }
+
+  dados.Tabela tudo = dados.ler_csv(csv);
+  if (tudo.y.size() < 10) { falha(format("'{csv}' tem só {tudo.y.size()} linhas de dados; são precisas pelo menos 10")); }
+  pair<dados.Tabela, dados.Tabela> partes = dados.dividir(tudo, 0.2, SEMENTE);
+  dados.Tabela treino = partes.first;
+  dados.Tabela teste = partes.second;
+  printf("{tudo.y.size()} linhas de '{csv}': {treino.y.size()} para treino, {teste.y.size()} para teste");
+  printf("entradas: {tudo.entradas}   alvo: {tudo.alvo}");
+
+  Random.seed(SEMENTE);
+  mlp.Modelo modelo = new mlp.Modelo(tudo.entradas, tudo.alvo, [16, 8]);
+  modelo.ajustar_padronizacao(treino.x, treino.y);
+  printf("rede: {modelo.arquitetura()}  |  {epocas} épocas, lotes de {LOTE}, Adam (taxa {TAXA})");
+  print();
+
+  int t0 = Time.clock();
+  modelo.treinar(treino.x, treino.y, epocas, LOTE, TAXA, Math.max(1, epocas / 10));
+  decimal segundos = (Time.clock() - t0) / 1000.0;
+  printf("treino concluído em {segundos:.1f} s");
+  print();
+
+  avaliar("treino", modelo, treino);
+  avaliar("teste ", modelo, teste);
+  print();
+
+  print("algumas casas do teste:");
+  list<string> titulo;
+  for (string n in tudo.entradas) { titulo.add(st.pad_left(n, 15)); }
+  print(st.join(titulo, ""), st.pad_left("real", 18), st.pad_left("previsto", 18));
+  for (int i in range(0, Math.min(8, teste.y.size()))) {
+    list<string> celulas;
+    for (decimal v in teste.x[i]) { celulas.add(st.pad_left(cv.to_string(v), 15)); }
+    print(st.join(celulas, ""), st.pad_left(dados.reais(teste.y[i]), 18), st.pad_left(dados.reais(modelo.prever(teste.x[i])), 18));
+  }
+  print();
+
+  modelo.salvar(arquivo);
+  printf("modelo salvo em '{arquivo}' ({Files.size(arquivo)} bytes)");
+
+  // confere: o modelo relido do disco precisa prever exatamente o mesmo
+  mlp.Modelo relido = mlp.carregar(arquivo);
+  int iguais = 0;
+  for (list<decimal> x in teste.x) {
+    if (relido.prever(x) == modelo.prever(x)) { iguais += 1; }
+  }
+  printf("relido do arquivo: {iguais} de {teste.x.size()} previsões idênticas às da rede em memória");
+}
+
+fn avaliar(string nome, mlp.Modelo modelo, dados.Tabela t) {
+  decimal soma_abs = 0.0;
+  decimal soma_q = 0.0;
+  decimal soma_q_media = 0.0;
+  decimal media = 0.0;
+  for (decimal v in t.y) { media += v; }
+  media = media / t.y.size();
+  for (int i in range(0, t.y.size())) {
+    decimal erro = modelo.prever(t.x[i]) - t.y[i];
+    soma_abs += Math.abs(erro);
+    soma_q += erro * erro;
+    soma_q_media += (t.y[i] - media) * (t.y[i] - media);
+  }
+  int n = t.y.size();
+  decimal r2 = 1.0 - soma_q / soma_q_media;
+  printf("{nome}: erro médio absoluto {dados.reais(soma_abs / n)}  |  RMSE {dados.reais(Math.sqrt(soma_q / n))}  |  R² {r2:.4f}");
+}

@@ -173,8 +173,10 @@ public:
 
     // Uma expressão sozinha, escrita dentro de um texto ({expr} do printf):
     // os tokens recebem a posição de `origem` deslocada em `coluna` caracteres.
+    // `apelidos` são os módulos importados pelo arquivo (Math.abs(x) dentro do texto).
     // Lança ParseError se o código não for exatamente uma expressão.
-    static ExprPtr parseEmbedded(const std::string& codigo, const Token& origem, int coluna);
+    static ExprPtr parseEmbedded(const std::string& codigo, const Token& origem, int coluna,
+                                 const std::set<std::string>& apelidos);
     
     // Verifica se houve erros
     bool hasErrors() const { return has_errors; }

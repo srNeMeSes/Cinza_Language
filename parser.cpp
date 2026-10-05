@@ -260,7 +260,8 @@ TypePtr Parser::parseTypeInner() {
     // primary          : literals, identifiers, calls, member access
 // ============================================================================
 
-ExprPtr Parser::parseEmbedded(const std::string& codigo, const Token& origem, int coluna) {
+ExprPtr Parser::parseEmbedded(const std::string& codigo, const Token& origem, int coluna,
+                              const std::set<std::string>& apelidos) {
     Lexer lexer(codigo, origem.file_id);
     std::vector<Token> toks = lexer.tokenize();
     for (Token& t : toks) {   // o texto do printf fica numa linha só
@@ -272,6 +273,7 @@ ExprPtr Parser::parseEmbedded(const std::string& codigo, const Token& origem, in
             throw ParseError("Caractere inválido '" + t.lexeme + "'", t);
     Parser p(std::move(toks));
     p.silencioso = true;
+    p.module_aliases = apelidos;
     ExprPtr e = p.parseExpression();
     if (!p.isAtEnd())
         throw ParseError("Esperado o fim da expressão (sobrou '" + p.peek().lexeme + "')", p.peek());

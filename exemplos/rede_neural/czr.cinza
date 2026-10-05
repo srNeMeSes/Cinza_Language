@@ -1,0 +1,214 @@
+// ============================================================================
+// czr — formato binário próprio para guardar modelos (.czr)
+//
+// Cada byte do arquivo vai de 0 a 127 e carrega 7 bits de dados. (As strings
+// da Cinza são UTF-8: um byte de 128 a 255 sozinho não pode ser escrito, mas
+// de 0 a 127 cada caractere é exatamente um byte, inclusive o 0.)
+//
+//   cabeçalho  'C' 'Z' 'R' versão                         4 bytes
+//   int        sem sinal, 35 bits, 7 bits por byte        5 bytes (mais significativo primeiro)
+//   decimal    IEEE 754 de 64 bits, exato:                10 bytes
+//                2 bytes: sinal (bit 12) + expoente com viés 1023 (bits 0-10; 0 = zero)
+//                8 bytes: os 52 bits da mantissa (56 bits, os 4 primeiros são 0)
+//   texto      int com o número de caracteres + 3 bytes (21 bits) por caractere Unicode
+//   rodapé     Adler-32 de todos os bytes anteriores, como int
+//
+// O decimal é decomposto só com contas exatas (multiplicar e dividir por 2), então
+// o número lido é bit a bit o número gravado.
+// ============================================================================
+
+import Files;
+import Strings as st;
+import Math;
+
+pub error ErroCzr;
+
+pub const int VERSAO = 1;
+const int MOD_ADLER = 65521;
+const decimal DOIS_52 = 4503599627370496.0;
+
+pub class Escritor {
+  list<string> bytes;
+  int adler_a = 1;
+  int adler_b = 0;
+
+  pub {
+    Escritor() {
+      escreve_byte(67);   // C
+      escreve_byte(90);   // Z
+      escreve_byte(82);   // R
+      escreve_byte(VERSAO);
+    }
+
+    fn escreve_byte(int v) {
+      if (v < 0 || v > 127) { throw ErroCzr(format("byte fora de 0..127: {v}")); }
+      bytes.add(st.chr(v));
+      adler_a = (adler_a + v) % MOD_ADLER;
+      adler_b = (adler_b + adler_a) % MOD_ADLER;
+    }
+
+    // n grupos de 7 bits, o mais significativo primeiro
+    fn escreve_grupos(int v, int n) {
+      list<int> grupos;
+      int resto = v;
+      for (int i in range(0, n)) {
+        grupos.add(resto % 128);
+        resto = resto / 128;
+      }
+      if (resto != 0) { throw ErroCzr(format("{v} não cabe em {n * 7} bits")); }
+      for (int i in range(n - 1, -1, -1)) { escreve_byte(grupos[i]); }
+    }
+
+    fn escreve_int(int v) {
+      if (v < 0) { throw ErroCzr(format("int negativo não é gravado: {v}")); }
+      escreve_grupos(v, 5);
+    }
+
+    fn escreve_decimal(decimal x) {
+      if (x == 0.0) {
+        escreve_grupos(0, 2);
+        escreve_grupos(0, 8);
+        return;
+      }
+      int sinal = 0;
+      decimal a = x;
+      if (a < 0.0) {
+        sinal = 1;
+        a = -a;
+      }
+      // normaliza para 1 <= a < 2, contando o expoente
+      int e = 0;
+      while (a >= 2.0) {
+        a = a / 2.0;
+        e += 1;
+      }
+      while (a < 1.0) {
+        a = a * 2.0;
+        e -= 1;
+      }
+      if (e < -1022) {
+        // subnormal: pequeno demais para importar num peso; grava zero
+        escreve_grupos(0, 2);
+        escreve_grupos(0, 8);
+        return;
+      }
+      int mantissa = Math.trunc((a - 1.0) * DOIS_52);
+      escreve_grupos(sinal * 4096 + (e + 1023), 2);
+      escreve_grupos(mantissa, 8);
+    }
+
+    fn escreve_texto(string s) {
+      list<string> cs = st.chars(s);
+      escreve_int(cs.size());
+      for (string c in cs) { escreve_grupos(st.ord(c), 3); }
+    }
+
+    // grava o rodapé e o arquivo inteiro de uma vez
+    fn salva(string caminho) {
+      int soma = adler_b * 65536 + adler_a;
+      escreve_int(soma);
+      Files.write(caminho, st.join(bytes, ""));
+    }
+  }
+}
+
+pub class Leitor {
+  list<int> dados;
+  int pos = 0;
+  int fim_dados = 0;
+  string origem = "";
+
+  fn falha(string motivo) {
+    throw ErroCzr(format("'{origem}' não é um modelo .czr válido: {motivo}"));
+  }
+
+  pub {
+    Leitor(string caminho) {
+      origem = caminho;
+      for (string c in st.chars(Files.read(caminho))) {
+        int v = st.ord(c);
+        if (v > 127) { falha("byte fora de 0..127 (arquivo de outro formato?)"); }
+        dados.add(v);
+      }
+      if (dados.size() < 9) { falha("arquivo curto demais"); }
+      if (dados[0] != 67 || dados[1] != 90 || dados[2] != 82) { falha("assinatura 'CZR' ausente"); }
+      if (dados[3] != VERSAO) { falha(format("versão {dados[3]} (esta lê a versão {VERSAO})")); }
+
+      // confere o Adler-32 antes de interpretar qualquer coisa
+      fim_dados = dados.size() - 5;
+      int a = 1;
+      int b = 0;
+      for (int i in range(0, fim_dados)) {
+        a = (a + dados[i]) % MOD_ADLER;
+        b = (b + a) % MOD_ADLER;
+      }
+      pos = fim_dados;
+      int gravada = le_int();
+      if (gravada != b * 65536 + a) { falha("soma de verificação não confere (arquivo corrompido)"); }
+      pos = 4;
+    }
+
+    fn le_byte() -> int {
+      if (pos >= fim_dados) { falha("fim inesperado dos dados"); }
+      int v = dados[pos];
+      pos += 1;
+      return v;
+    }
+
+    fn le_grupos(int n) -> int {
+      int v = 0;
+      for (int i in range(0, n)) { v = v * 128 + le_byte(); }
+      return v;
+    }
+
+    fn le_int() -> int {
+      if (pos + 5 > dados.size()) { falha("fim inesperado dos dados"); }
+      int v = 0;
+      for (int i in range(0, 5)) {
+        v = v * 128 + dados[pos];
+        pos += 1;
+      }
+      return v;
+    }
+
+    fn le_decimal() -> decimal {
+      int cab = le_grupos(2);
+      int mantissa = le_grupos(8);
+      if (cab == 0 && mantissa == 0) { return 0.0; }
+      int sinal = cab / 4096;
+      int e = cab % 4096 - 1023;
+      if (sinal > 1 || e < -1022 || e > 1023 || mantissa >= 4503599627370496) {
+        falha("decimal malformado");
+      }
+      decimal a = 1.0 + mantissa / DOIS_52;
+      while (e > 0) {
+        a = a * 2.0;
+        e -= 1;
+      }
+      while (e < 0) {
+        a = a / 2.0;
+        e += 1;
+      }
+      if (sinal == 1) { return -a; }
+      return a;
+    }
+
+    fn le_texto() -> string {
+      int n = le_int();
+      if (n > fim_dados - pos) { falha("texto maior que o arquivo"); }
+      list<string> cs;
+      for (int i in range(0, n)) {
+        int cp = le_grupos(3);
+        try {
+          cs.add(st.chr(cp));
+        } except (ValueError e) {
+          falha(format("caractere inválido {cp}"));
+        }
+      }
+      return st.join(cs, "");
+    }
+
+    // true se todos os dados foram lidos (só falta o rodapé)
+    fn terminou() -> bool { return pos == fim_dados; }
+  }
+}

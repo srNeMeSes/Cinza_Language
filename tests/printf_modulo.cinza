@@ -1,0 +1,14 @@
+// {expr} do printf/format enxerga os módulos importados pelo arquivo:
+// nativo, com apelido e do usuário (antes: "Variável 'Math' não declarada")
+import Math;
+import Strings as st;
+import modulos.geom;
+
+fn main() {
+  int x = -3;
+  printf("{Math.abs(x)} {st.upper(\"ação\")} {geom.area(4)} {geom.LADO:4}|");
+  string s = format("{Math.sqrt(16.0):.2f} {st.pad_left(\"7\", 3, \"0\")}");
+  print(s);
+}
+// expect: 3 AÇÃO 16    3|
+// expect: 4.00 007
