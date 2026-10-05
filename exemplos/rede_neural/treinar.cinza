@@ -112,6 +112,8 @@ fn avaliar(string nome, mlp.Modelo modelo, dados.Tabela t) {
     soma_q_media += (t.y[i] - media) * (t.y[i] - media);
   }
   int n = t.y.size();
-  decimal r2 = 1.0 - soma_q / soma_q_media;
-  printf("{nome}: erro médio absoluto {dados.reais(soma_abs / n)}  |  RMSE {dados.reais(Math.sqrt(soma_q / n))}  |  R² {r2:.4f}");
+  // R² compara com "sempre prever a média"; com todos os valores iguais, não há o que comparar
+  string r2 = "indefinido (todos os valores iguais)";
+  if (soma_q_media > 0.0) { r2 = st.fixed(1.0 - soma_q / soma_q_media, 4); }
+  printf("{nome}: erro médio absoluto {dados.reais(soma_abs / n)}  |  RMSE {dados.reais(Math.sqrt(soma_q / n))}  |  R² {r2}");
 }

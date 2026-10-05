@@ -40,7 +40,11 @@ fn executa(list<string> args) {
   printf("prevê '{modelo.nome_alvo()}' a partir de {nomes}");
   print();
 
-  if (args.size() == 3 && args[1] == "--csv") {
+  if (args.size() > 1 && args[1] == "--csv") {
+    if (args.size() != 3) {
+      print("erro: use  cinza prever.cinza modelo.czr --csv arquivo.csv");
+      exit(2);
+    }
     prever_csv(modelo, args[2]);
     return;
   }

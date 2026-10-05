@@ -61,8 +61,10 @@ que esse ruído (≈ R$ 30 mil). A rede chega a ele: R² ≈ 0,96 nas casas de t
 
 ## O formato `.czr`
 
-As strings da Cinza são UTF-8, então um programa em Cinza só consegue gravar bytes de 0 a 127 (de 128
-em diante, um caractere vira dois bytes). Por isso **cada byte carrega 7 bits**:
+**Cada byte carrega 7 bits** (vai de 0 a 127), então o arquivo é ASCII puro. O formato nasceu antes de
+`Files.write_bytes` existir, quando um programa em Cinza só gravava texto UTF-8 (de 128 em diante, um
+caractere vira dois bytes); hoje o `Escritor` e o `Leitor` usam `Files.write_bytes`/`read_bytes`, mas o
+formato continua de 7 bits para os `.czr` já gravados seguirem válidos:
 
 | Campo     | Bytes | Conteúdo |
 |-----------|-------|----------|

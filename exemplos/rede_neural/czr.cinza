@@ -1,9 +1,9 @@
 // ============================================================================
 // czr — formato binário próprio para guardar modelos (.czr)
 //
-// Cada byte do arquivo vai de 0 a 127 e carrega 7 bits de dados. (As strings
-// da Cinza são UTF-8: um byte de 128 a 255 sozinho não pode ser escrito, mas
-// de 0 a 127 cada caractere é exatamente um byte, inclusive o 0.)
+// Cada byte do arquivo vai de 0 a 127 e carrega 7 bits de dados: o arquivo é
+// ASCII puro (o formato nasceu antes de Files.write_bytes, quando só dava para
+// gravar texto, e continua assim para os .czr já gravados seguirem válidos).
 //
 //   cabeçalho  'C' 'Z' 'R' versão                         4 bytes
 //   int        sem sinal, 35 bits, 7 bits por byte        5 bytes (mais significativo primeiro)
@@ -28,7 +28,7 @@ const int MOD_ADLER = 65521;
 const decimal DOIS_52 = 4503599627370496.0;
 
 pub class Escritor {
-  list<string> bytes;
+  list<int> bytes;
   int adler_a = 1;
   int adler_b = 0;
 
@@ -42,7 +42,7 @@ pub class Escritor {
 
     fn escreve_byte(int v) {
       if (v < 0 || v > 127) { throw ErroCzr(format("byte fora de 0..127: {v}")); }
-      bytes.add(st.chr(v));
+      bytes.add(v);
       adler_a = (adler_a + v) % MOD_ADLER;
       adler_b = (adler_b + adler_a) % MOD_ADLER;
     }
@@ -107,7 +107,7 @@ pub class Escritor {
     fn salva(string caminho) {
       int soma = adler_b * 65536 + adler_a;
       escreve_int(soma);
-      Files.write(caminho, st.join(bytes, ""));
+      Files.write_bytes(caminho, bytes);
     }
   }
 }
@@ -125,10 +125,9 @@ pub class Leitor {
   pub {
     Leitor(string caminho) {
       origem = caminho;
-      for (string c in st.chars(Files.read(caminho))) {
-        int v = st.ord(c);
+      dados = Files.read_bytes(caminho);
+      for (int v in dados) {
         if (v > 127) { falha("byte fora de 0..127 (arquivo de outro formato?)"); }
-        dados.add(v);
       }
       if (dados.size() < 9) { falha("arquivo curto demais"); }
       if (dados[0] != 67 || dados[1] != 90 || dados[2] != 82) { falha("assinatura 'CZR' ausente"); }
@@ -142,8 +141,8 @@ pub class Leitor {
         a = (a + dados[i]) % MOD_ADLER;
         b = (b + a) % MOD_ADLER;
       }
-      pos = fim_dados;
-      int gravada = le_int();
+      int gravada = 0;   // o rodapé: os 5 últimos bytes
+      for (int i in range(fim_dados, dados.size())) { gravada = gravada * 128 + dados[i]; }
       if (gravada != b * 65536 + a) { falha("soma de verificação não confere (arquivo corrompido)"); }
       pos = 4;
     }
@@ -161,15 +160,8 @@ pub class Leitor {
       return v;
     }
 
-    fn le_int() -> int {
-      if (pos + 5 > dados.size()) { falha("fim inesperado dos dados"); }
-      int v = 0;
-      for (int i in range(0, 5)) {
-        v = v * 128 + dados[pos];
-        pos += 1;
-      }
-      return v;
-    }
+    // como os demais campos, nunca passa do fim dos dados (o rodapé não é dado)
+    fn le_int() -> int { return le_grupos(5); }
 
     fn le_decimal() -> decimal {
       int cab = le_grupos(2);

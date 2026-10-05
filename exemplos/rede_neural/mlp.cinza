@@ -218,7 +218,7 @@ pub class Modelo {
   decimal media_y = 0.0;
   decimal desvio_y = 1.0;
   int epocas = 0;
-  Rede rede = new Rede([1, 1]);
+  Rede rede = new Rede([1, 1]);   // provisória (todo campo precisa de valor): o construtor troca
 
   fn padroniza(list<decimal> x) -> list<decimal> {
     if (x.size() != nomes.size()) {
@@ -280,6 +280,12 @@ pub class Modelo {
 
     // treina por `n_epocas`; a cada `mostrar_cada` épocas escreve o RMSE do treino
     fn treinar(list<list<decimal>> x, list<decimal> y, int n_epocas, int lote, decimal taxa, int mostrar_cada) {
+      // lote 0 deixaria o laço dos lotes parado para sempre
+      if (lote < 1) { throw ErroModelo(format("o tamanho do lote precisa ser pelo menos 1, recebeu {lote}")); }
+      if (n_epocas < 0) { throw ErroModelo(format("número de épocas negativo: {n_epocas}")); }
+      if (x.size() != y.size() || y.size() == 0) {
+        throw ErroModelo(format("são precisas tantas entradas quanto alvos (e ao menos uma): {x.size()} e {y.size()}"));
+      }
       list<list<decimal>> xz;
       list<decimal> yz;
       for (list<decimal> linha in x) { xz.add(padroniza(linha)); }
