@@ -1,0 +1,32 @@
+// Files.read_bytes / write_bytes: o arquivo como bytes de 0 a 255, sem passar por texto UTF-8
+// (antes não havia como gravar bytes de 128 a 255 — item J2). Valor fora da faixa é ValueError.
+import Files;
+fn main() {
+  str d = "tests/_tmp_files_bytes";
+  if (Files.exists(d)) { Files.delete_tree(d); }
+  Files.make_dir(d);
+  str a = Files.join(d, "dados.bin");
+  list<int> b = [0, 1, 127, 128, 200, 255, 10, 13];
+  Files.write_bytes(a, b);
+  list<int> lido = Files.read_bytes(a);
+  print(lido, lido == b, Files.size(a));
+  // texto UTF-8 visto como bytes, e bytes gravados lidos como texto
+  Files.write(a, "aç");
+  print(Files.read_bytes(a));
+  Files.write_bytes(a, [79, 108, 195, 161]);
+  print(Files.read(a));
+  list<int> vazia;
+  Files.write_bytes(a, vazia);
+  print(Files.read_bytes(a), Files.size(a));
+  try { Files.write_bytes(a, [1, 256]); } except (ValueError e) { print(e.message); }
+  try { Files.write_bytes(a, [-1]); } except (ValueError e) { print(e.message); }
+  try { print(Files.read_bytes(Files.join(d, "nada.bin"))); } except (IOError e) { print(e.kind); }
+  Files.delete_tree(d);
+}
+// expect: [0, 1, 127, 128, 200, 255, 10, 13] true 8
+// expect: [97, 195, 167]
+// expect: Olá
+// expect: [] 0
+// expect: 'write_bytes': o byte 256 (posição 1) não está entre 0 e 255
+// expect: 'write_bytes': o byte -1 (posição 0) não está entre 0 e 255
+// expect: IOError

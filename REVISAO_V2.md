@@ -1130,11 +1130,12 @@ linguagem num programa de verdade. Roda igual na CVM e no interpretador.
   > arquivo; a spec (6.1) promete "qualquer expressão". `Parser::parseEmbedded` recebe os apelidos
   > do módulo atual. Testes `printf_modulo` (nativo, `as`, módulo do usuário) e
   > `printf_modulo_privado` (nome sem `pub` continua inacessível).
-- [ ] 2. 🟢 Para o autor decidir: não há como gravar bytes de 128 a 255
-  > Strings são UTF-8 e `Files` só lê/grava texto, então um formato binário feito em Cinza fica
-  > restrito a bytes 0–127 (o `.czr` usa 7 bits por byte por isso). Se valer a pena, algo como
-  > `Files.read_bytes(caminho) -> list<int>` e `Files.write_bytes(caminho, list<int>)` resolveria —
-  > é mudança de biblioteca, então fica só registrado.
+- [x] 2. 🟢 Não havia como gravar bytes de 128 a 255 — feito em 2026-10-04
+  > Strings são UTF-8 e `Files` só lia/gravava texto, então um formato binário feito em Cinza ficava
+  > restrito a bytes 0–127 (o `.czr` usa 7 bits por byte por isso). Implementados, por decisão do autor,
+  > `Files.read_bytes(caminho) -> list<int>` e `Files.write_bytes(caminho, list<int>)` (bytes de 0 a
+  > 255; fora disso, `ValueError`). Spec 6.2; teste `files_bytes`. O exemplo `.czr` continua com 7 bits
+  > (funciona e documenta o contorno; pode passar a 8 bits quando for revisto).
 
 ---
 
@@ -1174,5 +1175,6 @@ linguagem num programa de verdade. Roda igual na CVM e no interpretador.
 | 2026-10-03 | G7 | `Time`: instante é `int` em segundos desde 1970 UTC (sem tipo novo); partes, `make`, `format` e `parse` no horário local, com variantes `_utc`; padrão legível `dd/MM/yyyy HH:mm:ss`; `clock()` separado, em milissegundos, para medir duração. | Decisão do autor da linguagem; estático, comparável e ordenável sem mudar a linguagem. |
 | 2026-10-03 | H1 | Interpolação só em `printf("...")` (pula linha, como `print`) e `format("...")` (devolve o texto), com texto literal; `{expr}` aceita qualquer expressão; formatos `{x:.2f}` e `{x:8}` (sem alinhamento explícito nem zeros à esquerda). | Decisão do autor da linguagem; strings comuns não mudam (nenhum programa quebra) e tudo é conferido na compilação. |
 | 2026-10-03 | H2 | `s[i]` e fatias `s[a:b:p]` só em string, com índices negativos e passo; fatias estritas (`IndexError` fora dos limites, sem ajuste); listas ficam como estão. | Decisão do autor da linguagem. |
+| 2026-10-04 | J2 | `Files.read_bytes(caminho) -> list<int>` e `Files.write_bytes(caminho, list<int>)`, bytes de 0 a 255 (fora disso, `ValueError`). | Decisão do autor da linguagem; formatos binários sem passar por texto UTF-8. |
 | 2026-10-03 | I4 | `menor_int % -1` dá `0` (revê A5); `-0.0` continua `-0` no `print`; decimais extremos continuam em notação científica. | Decisão do autor da linguagem; `x % -1` cabe sempre em `int`. |
 | 2026-10-03 | H3 | `exit([código])`: padrão 0, de 0 a 255; roda os `finally` pendentes e nenhum `except` o captura; encerra o caminho na análise de fluxo. | Decisão do autor da linguagem; 0–255 dá o mesmo resultado em todo sistema. |

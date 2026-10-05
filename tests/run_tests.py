@@ -41,7 +41,10 @@ DIR_TESTES = RAIZ / "tests"
 DIR_SPEC = RAIZ / "spec"
 DIR_EXEMPLOS = DIR_TESTES / "spec_exemplos"   # gerado a cada execução (fora do git)
 RE_BLOCO = re.compile(r"^```cinza[ \t]*\r?\n(.*?)^```", re.M | re.S)
-TIMEOUT_S = 10
+# Folgado para o build com sanitizers (-O0 + ASan deixa o interpretador dezenas
+# de vezes mais lento: o exemplo da rede neural passava dos 10 s); um laço
+# infinito continua sendo pego
+TIMEOUT_S = 30
 
 RE_EXPECT = re.compile(r"//\s*expect:\s?(.*)$")
 RE_EXPECT_ERROR = re.compile(r"//\s*expect-error:\s?(.*)$")

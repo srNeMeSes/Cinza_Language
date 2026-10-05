@@ -230,6 +230,8 @@ algo existente sem pedir ou apagar uma pasta com conteúdo pela função errada 
 | `append(string caminho, string conteudo)` | acrescenta ao fim; cria o arquivo se não existir |
 | `write_lines(string caminho, list<string> linhas)` | grava cada linha seguida de `\n`, substituindo o conteúdo anterior |
 | `append_line(string caminho, string linha)` | acrescenta a linha seguida de `\n`; cria o arquivo se não existir |
+| `read_bytes(string caminho) -> list<int>` | o conteúdo como bytes, cada um de `0` a `255` (sem interpretar como texto) — para formatos binários |
+| `write_bytes(string caminho, list<int> bytes)` | grava os bytes, substituindo o conteúdo anterior; valor fora de `0` a `255` lança `ValueError` |
 
 **Consultar**
 

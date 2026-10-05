@@ -484,6 +484,31 @@ Value filesWrite(Args a) {
     return Value();
 }
 
+// read_bytes / write_bytes: o arquivo como bytes (0 a 255), sem passar por texto
+// UTF-8 — permite formatos binários (J2)
+Value filesReadBytes(Args a) {
+    const std::string s = lerArquivo(a[0].asString());
+    std::vector<Value> bytes;
+    bytes.reserve(s.size());
+    for (unsigned char c : s) bytes.emplace_back(static_cast<std::int64_t>(c));
+    return makeList(std::move(bytes));
+}
+
+Value filesWriteBytes(Args a) {
+    const auto& elems = a[1].asList()->elements;
+    std::string s;
+    s.reserve(elems.size());
+    for (size_t i = 0; i < elems.size(); ++i) {
+        const std::int64_t b = elems[i].asInt();
+        if (b < 0 || b > 255)
+            falha("ValueError: 'write_bytes': o byte " + std::to_string(b) + " (posição " +
+                  std::to_string(i) + ") não está entre 0 e 255");
+        s += static_cast<char>(static_cast<unsigned char>(b));
+    }
+    gravarArquivo(a[0].asString(), s, std::ios::trunc);
+    return Value();
+}
+
 Value filesAppend(Args a) {
     gravarArquivo(a[0].asString(), a[1].asString(), std::ios::app);
     return Value();
@@ -1751,6 +1776,8 @@ std::vector<NativeModule> criaModulos() {
         {"read",        {S},             S,         filesRead},
         {"lines",       {S},             t.list(S), filesLines},
         {"write",       {S, S},          V,         filesWrite},
+        {"read_bytes",  {S},             t.list(I), filesReadBytes},
+        {"write_bytes", {S, t.list(I)},  V,         filesWriteBytes},
         {"append",      {S, S},          V,         filesAppend},
         {"write_lines", {S, t.list(S)},  V,         filesWriteLines},
         {"append_line", {S, S},          V,         filesAppendLine},
