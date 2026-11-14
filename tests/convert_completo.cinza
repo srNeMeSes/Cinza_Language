@@ -6,8 +6,8 @@ fn main() {
   print(cv.is_decimal("2.5"), cv.is_decimal("-3"), cv.is_decimal("1e3"), cv.is_decimal("2,5"), cv.is_decimal(".5"), cv.is_decimal("1e999"));
   print(cv.is_bool("true"), cv.is_bool("false"), cv.is_bool("True"), cv.is_bool("1"));
   print(cv.to_int_or("42", 0), cv.to_int_or("abc", -1), cv.to_int_or("99999999999999999999", 0));
-  f64 d = cv.to_decimal_or("x", 1);
-  print(cv.to_decimal_or("2.5", 0.0), d, type(d), cv.to_bool_or("false", true), cv.to_bool_or("sim", true));
+  f64 d = cv.to_decimal_or("x", 1.ff);
+  print(cv.to_decimal_or("2.5", 0.0ff), d, type(d), cv.to_bool_or("false", true), cv.to_bool_or("sim", true));
   // bases: dígitos minúsculos, sem prefixo; negativo com '-'
   print(cv.to_hex(255), cv.to_binary(10), cv.to_octal(8), cv.to_base(35, 36), cv.to_base(0, 2), cv.to_hex(-255));
   print(cv.to_hex(-9223372036854775807 - 1), cv.to_binary(9223372036854775807).size());

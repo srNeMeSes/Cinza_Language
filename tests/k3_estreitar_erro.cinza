@@ -1,0 +1,6 @@
+// Seção K: o mais largo não vira o mais estreito sem cast (i64 → i32).
+fn main() {
+  i64 g = 5;
+  i32 p = g;
+}
+// expect-error: Tipo incompatível na declaração de 'p': declarado 'i32', mas atribuído 'i64'

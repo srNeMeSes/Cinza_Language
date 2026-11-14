@@ -11,8 +11,8 @@ fn main() {
   print(s);
   for (i64 i in range(5, 5)) { print("nunca"); }
   for (i64 i in range(5, 0)) { print("nunca"); }
-  f64 t = 0.0;
-  for (f64 x in range(1, 4)) { t += x / 2; }
+  f64 t = 0.0ff;
+  for (i64 x in range(1, 4)) { t += cast<f64>(x) / 2.ff; }
   print(t);
   i64 c = 0;
   for (i64 i in range(0, 100)) {

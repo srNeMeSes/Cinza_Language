@@ -27,9 +27,9 @@ fn main() {
   // o bool fica guardado: a comparação não pode sumir
   bool menor = i < 0;
   if (menor) { print(menor); }
-  // i64 com f64: comparação comum
-  f64 d = 0.5;
-  if (i < d) { print("f64"); }
+  // inteiro com f64: só com cast (seção K)
+  f64 d = 0.5ff;
+  if (cast<f64>(i) < d) { print("f64"); }
 }
 // expect: <lk<klk>kg lgk<klk>kg >g-klk>kg <lk<klkg lgk<kl
 // expect: 12 4

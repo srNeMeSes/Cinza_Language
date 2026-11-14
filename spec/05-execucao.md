@@ -82,19 +82,21 @@ fn main() {
 - `/` entre inteiros **trunca em direção a zero** (`-7 / 2` é `-3`); o sinal de `%` segue o
   dividendo (`-7 % 2` é `-1`). Entre decimais, `%` é o resto de ponto flutuante (`7.5 % 2` é
   `1.5`).
-- Divisão ou resto por zero (`i64` ou `f64`) lança `ZeroDivisionError`.
-- Resultado de `i64` fora da faixa (inclusive `-x` e `x / -1` com o menor `i64`) lança
-  `OverflowError`. Resultado de `f64` infinito também lança `OverflowError`. Já `x % -1` é
-  sempre `0`, que cabe na faixa — inclusive com o menor `i64`.
+- Divisão ou resto por zero entre inteiros lança `ZeroDivisionError`.
+- Resultado inteiro fora da faixa do tipo (`i32` ou `i64`; inclusive `-x` e `x / -1` com o
+  menor valor) lança `OverflowError`. Já `x % -1` é sempre `0`, que cabe na faixa.
+- Ponto flutuante segue o IEEE 754 e não lança: `1.ff / 0.ff` é `inf`, `0.ff / 0.ff` é `nan`, e
+  o que passa do maior valor vira `inf`. `%` só existe entre inteiros.
 - `-` unário vale para números; `+` também concatena textos (abaixo).
 
-A divisão entre inteiros acontece antes de qualquer conversão: `f64 x = 7 / 2;` guarda `3`.
+A divisão entre inteiros é inteira: `cast<f64>(7 / 2)` dá `3`; para a divisão real, converta
+antes: `cast<f64>(7) / 2.ff` dá `3.5`.
 
 ```cinza
 fn main() {
-  print(7 / 2, -7 / 2, 7 % 3, -7 % 2, 7.0 / 2, 7.5 % 2);
+  print(7 / 2, -7 / 2, 7 % 3, -7 % 2, 7.0ff / 2.ff, 7.5f / 3.f, cast<f64>(7) / 2.ff);
 }
-// expect: 3 -3 1 -1 3.5 1.5
+// expect: 3 -3 1 -1 3.5 2.5 3.5
 ```
 
 ```cinza
@@ -114,7 +116,7 @@ forma textual da seção 5.4. Coleções e objetos não se concatenam.
 
 ```cinza
 fn main() {
-  print("a" + 1 + 2, 1 + 2 + "a", "x" + true, "v" + 2.5);
+  print("a" + 1 + 2, 1 + 2 + "a", "x" + true, "v" + 2.5ff);
 }
 // expect: a12 3a xtrue v2.5
 ```
@@ -165,7 +167,7 @@ Só sobre `bool`.
 ```cinza
 struct Ponto { i64 x = 0; i64 y = 0; }
 fn main() {
-  print(123456.789, 4.0, 1.0 / 4, [1, 2], ["a"], {{"b", 2}, {"a", 1}}, {1, "x"}, new Ponto(1, 2));
+  print(123456.789ff, 4.0ff, 1.0ff / 4.ff, [1, 2], ["a"], {{"b", 2}, {"a", 1}}, {1, "x"}, new Ponto(1, 2));
 }
 // expect: 123456.789 4 0.25 [1, 2] ["a"] {"a": 1, "b": 2} {1, "x"} Ponto{x: 1, y: 2}
 ```

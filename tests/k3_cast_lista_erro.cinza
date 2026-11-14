@@ -1,0 +1,6 @@
+// Seção K: cast não converte coleções.
+fn main() {
+  list<i32> l = [1];
+  list<i64> g = cast<i64>(l);
+}
+// expect-error: cast<i64> recebeu 'list<i32>': cast converte só números e string

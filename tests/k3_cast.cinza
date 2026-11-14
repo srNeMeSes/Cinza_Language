@@ -1,0 +1,21 @@
+// Seção K: cast<T>(valor) entre i32, i64, f32, f64 e string.
+fn main() {
+  // inteiro ↔ inteiro (com faixa); ponto flutuante → inteiro trunca em direção a zero
+  print(cast<i32>(cast<i64>(5)), cast<i64>(7), cast<i32>(2.9ff), cast<i32>(-2.9ff), cast<i64>(-0.5f));
+  // inteiro → ponto flutuante (IEEE: o mais próximo)
+  print(cast<f64>(7), cast<f32>(16777217), cast<f64>(9007199254740993), cast<f32>(3) / 2.f);
+  // f64 ↔ f32
+  print(cast<f32>(0.1ff), cast<f64>(0.1f), type(cast<f32>(0.1ff)));
+  // texto ↔ número
+  print(cast<i32>("-42"), cast<i64>("+9000000000"), cast<f64>("2.5"), cast<f32>("1e3"), cast<f64>("-inf"));
+  print(cast<string>(42) + "!", cast<string>(0.5f), cast<string>("x"), type(cast<string>(1)));
+  // dentro da família, com o mesmo tipo: não faz nada
+  i64 n = 3;
+  print(cast<i64>(n), cast<f64>(n) / 2.ff);
+}
+// expect: 5 7 2 -2 0
+// expect: 7 16777216 9007199254740992 1.5
+// expect: 0.1 0.10000000149011612 f32
+// expect: -42 9000000000 2.5 1000 -inf
+// expect: 42! 0.5 x string
+// expect: 3 1.5

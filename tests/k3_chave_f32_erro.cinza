@@ -1,0 +1,3 @@
+// Seção K: chave de dict não pode ser de ponto flutuante.
+fn main() { dict<f32, i32> d; }
+// expect-error: Chave de dict não pode ser 'f32'

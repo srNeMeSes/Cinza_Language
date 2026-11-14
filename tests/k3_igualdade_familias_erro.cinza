@@ -1,0 +1,7 @@
+// Seção K: igualdade também não mistura famílias.
+fn main() {
+  i32 n = 2;
+  f64 x = 2.ff;
+  print(n == x);
+}
+// expect-error: Operador '==' entre 'i32' e 'f64'

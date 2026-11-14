@@ -25,7 +25,7 @@ pub error ErroCzr;
 
 pub const i64 VERSAO = 1;
 const i64 MOD_ADLER = 65521;
-const f64 DOIS_52 = 4503599627370496.0;
+const f64 DOIS_52 = 4503599627370496.0ff;
 
 pub class Escritor {
   list<i64> bytes;
@@ -65,25 +65,25 @@ pub class Escritor {
     }
 
     fn escreve_decimal(f64 x) {
-      if (x == 0.0) {
+      if (x == 0.0ff) {
         escreve_grupos(0, 2);
         escreve_grupos(0, 8);
         return;
       }
       i64 sinal = 0;
       f64 a = x;
-      if (a < 0.0) {
+      if (a < 0.0ff) {
         sinal = 1;
         a = -a;
       }
       // normaliza para 1 <= a < 2, contando o expoente
       i64 e = 0;
-      while (a >= 2.0) {
-        a = a / 2.0;
+      while (a >= 2.0ff) {
+        a = a / 2.0ff;
         e += 1;
       }
-      while (a < 1.0) {
-        a = a * 2.0;
+      while (a < 1.0ff) {
+        a = a * 2.0ff;
         e -= 1;
       }
       if (e < -1022) {
@@ -92,7 +92,7 @@ pub class Escritor {
         escreve_grupos(0, 8);
         return;
       }
-      i64 mantissa = Math.trunc((a - 1.0) * DOIS_52);
+      i64 mantissa = Math.trunc((a - 1.0ff) * DOIS_52);
       escreve_grupos(sinal * 4096 + (e + 1023), 2);
       escreve_grupos(mantissa, 8);
     }
@@ -166,19 +166,19 @@ pub class Leitor {
     fn le_decimal() -> f64 {
       i64 cab = le_grupos(2);
       i64 mantissa = le_grupos(8);
-      if (cab == 0 && mantissa == 0) { return 0.0; }
+      if (cab == 0 && mantissa == 0) { return 0.0ff; }
       i64 sinal = cab / 4096;
       i64 e = cab % 4096 - 1023;
       if (sinal > 1 || e < -1022 || e > 1023 || mantissa >= 4503599627370496) {
         falha("f64 malformado");
       }
-      f64 a = 1.0 + mantissa / DOIS_52;
+      f64 a = 1.0ff + cast<f64>(mantissa) / DOIS_52;
       while (e > 0) {
-        a = a * 2.0;
+        a = a * 2.0ff;
         e -= 1;
       }
       while (e < 0) {
-        a = a / 2.0;
+        a = a / 2.0ff;
         e += 1;
       }
       if (sinal == 1) { return -a; }

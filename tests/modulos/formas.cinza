@@ -3,7 +3,7 @@ pub interface Forma {
   fn area() -> f64;
 }
 pub class Quadrado : Forma {
-  f64 lado = 1.0;
+  f64 lado = 1.0ff;
   pub {
     Quadrado(f64 l) { lado = l; }
     fn area() -> f64 { return lado * lado; }

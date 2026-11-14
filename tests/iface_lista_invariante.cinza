@@ -5,18 +5,18 @@ interface Forma {
 }
 
 class Circulo : Forma {
-  f64 r = 1.0;
+  f64 r = 1.0ff;
   pub {
     Circulo(f64 raio) { r = raio; }
-    fn area() -> f64 { return 3.0 * r * r; }
+    fn area() -> f64 { return 3.0ff * r * r; }
     fn nome() -> string { return "círculo"; }
     fn raio() -> f64 { return r; }
   }
 }
 
 class Retangulo : Forma {
-  f64 a = 1.0;
-  f64 b = 1.0;
+  f64 a = 1.0ff;
+  f64 b = 1.0ff;
   pub {
     Retangulo(f64 x, f64 y) { a = x; b = y; }
     fn area() -> f64 { return a * b; }
@@ -24,9 +24,9 @@ class Retangulo : Forma {
   }
 }
 
-fn total(list<Forma> formas) -> f64 { return 0.0; }
+fn total(list<Forma> formas) -> f64 { return 0.0ff; }
 fn main() {
-  list<Circulo> cs = [new Circulo(1.0)];
+  list<Circulo> cs = [new Circulo(1.0ff)];
   print(total(cs));
 }
 // expect-error: Argumento 1 de 'total': esperado 'list<Forma>', mas recebeu 'list<Circulo>'

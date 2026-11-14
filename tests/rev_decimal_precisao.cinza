@@ -3,10 +3,10 @@
 import Math;
 import Convert as cv;
 fn main() {
-  print(123456.789, 1234567.5, 4.0, 4.1, 0.5);
+  print(123456.789ff, 1234567.5ff, 4.0ff, 4.1ff, 0.5ff);
   print(Math.pi);
-  print(1.0 / 4, 2.0 / 3);
-  f64 x = 1.0 / 3;
+  print(1.0ff / 4.ff, 2.0ff / 3.ff);
+  f64 x = 1.0ff / 3.ff;
   print(cv.to_decimal(cv.to_string(x)) == x);
 }
 // expect: 123456.789 1234567.5 4 4.1 0.5

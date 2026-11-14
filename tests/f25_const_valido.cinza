@@ -1,7 +1,7 @@
 // Fase 2.5: const global aceita literais, operadores e outros const já declarados.
 const i64 A = 10;
 const i64 B = A * 2 + 1;
-const f64 T = B / 2;
+const f64 T = cast<f64>(B / 2);
 const string N = "a" + "b";
 const bool F = A > 5 && !false;
 const i64 NEG = -A;

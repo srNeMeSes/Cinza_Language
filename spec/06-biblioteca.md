@@ -21,7 +21,7 @@ Uma expressão `void` não pode ser argumento de nenhuma delas.
 ```cinza
 fn main() {
   print();
-  print(1, 2.5, "a", true, [1, 2]);
+  print(1, 2.5ff, "a", true, [1, 2]);
   print(range(0, 3), range(3, 0, -1), range(5, 0));
 }
 // expect:
@@ -88,7 +88,7 @@ texto sem interpolação.
 fn main() {
   string nome = "Ana";
   i64 idade = 30;
-  f64 preco = 2.5;
+  f64 preco = 2.5ff;
   printf("Olá, {nome}! Você tem {idade} anos; ano que vem, {idade + 1}.");
   printf("R$ {preco:.2f} | [{idade:5}] [{nome:5}] | {{chaves}}");
   string s = format("{nome.size()} letras");
@@ -204,7 +204,7 @@ fn main() {
   print(st.join(["x", "y"], "-"), st.replace("banana", "an", "AN"), st.substr("coração", 2, 3));
   print(st.find("coração", "ção"), st.find("abc", "z"), st.contains("abc", "b"), st.starts_with("cinza", "ci"));
   print(st.char_at("ação", 1), st.words("  ola   mundo "), st.title("ana maria"), st.count("banana", "a"));
-  print("R$ " + st.fixed(2.5, 2), st.pad_left("7", 3, "0"), "[" + st.center("ok", 6) + "]", st.ord("A"), st.chr(231));
+  print("R$ " + st.fixed(2.5ff, 2), st.pad_left("7", 3, "0"), "[" + st.center("ok", 6) + "]", st.ord("A"), st.chr(231));
 }
 // expect: AÇÃO a b ["a", "b", "", "c"]
 // expect: x-y bANANa raç
@@ -359,12 +359,12 @@ binária: `round_to(2.675, 2)` é `2.68`, embora `2.675` não seja exato em bin�
 ```cinza
 import Math;
 fn main() {
-  print(Math.sqrt(16.0), Math.pow(2, 10), Math.abs(-3), Math.abs(-2.5));
-  print(Math.floor(2.7), Math.ceil(2.1), Math.round(2.5), Math.round(-2.5), Math.min(3, 7));
+  print(Math.sqrt(16.0ff), Math.pow(2.ff, 10.ff), Math.abs(-3), Math.abs(-2.5ff));
+  print(Math.floor(2.7ff), Math.ceil(2.1ff), Math.round(2.5ff), Math.round(-2.5ff), Math.min(3, 7));
   print(Math.pi);
-  print(Math.round_to(2.675, 2), Math.trunc(-2.7), Math.hypot(3, 4), Math.log_base(8, 2));
+  print(Math.round_to(2.675ff, 2), Math.trunc(-2.7ff), Math.hypot(3.ff, 4.ff), Math.log_base(8.ff, 2.ff));
   print(Math.gcd(12, 18), Math.lcm(4, 6), Math.factorial(5), Math.is_prime(97), Math.clamp(15, 0, 10));
-  print(0.1 + 0.2 == 0.3, Math.is_close(0.1 + 0.2, 0.3));
+  print(0.1ff + 0.2ff == 0.3ff, Math.is_close(0.1ff + 0.2ff, 0.3ff));
 }
 // expect: 4 1024 3 2.5
 // expect: 2 3 3 -3 3

@@ -6,8 +6,8 @@ fn main() {
   bool dentro = true;
   i64 verdadeiros = 0;
   for (i64 i in range(0, 2000)) {
-    f64 x = Random.decimal_range(-2.5, 3);
-    if (x < -2.5 || x >= 3) { dentro = false; }
+    f64 x = Random.decimal_range(-2.5ff, 3.ff);
+    if (x < -2.5ff || x >= 3.ff) { dentro = false; }
     if (Random.bool()) { verdadeiros += 1; }
   }
   print(dentro, verdadeiros > 800 && verdadeiros < 1200);
@@ -15,8 +15,8 @@ fn main() {
   bool nunca = false;
   bool sempre = true;
   for (i64 i in range(0, 500)) {
-    if (Random.chance(0)) { nunca = true; }
-    if (!Random.chance(1)) { sempre = false; }
+    if (Random.chance(0.ff)) { nunca = true; }
+    if (!Random.chance(1.ff)) { sempre = false; }
   }
   print(nunca, sempre);
   // shuffle: mesmos elementos, no lugar
@@ -30,23 +30,23 @@ fn main() {
   Lists.sort(s);
   print(s, Random.sample([1, 2, 3], 0), Random.sample(["x"], 1));
   // choices: com repetição, k pode passar do tamanho
-  list<i64> c = Random.choices([7], 4);
+  list<i32> c = Random.choices([7], 4);
   print(c, Random.choices([1, 2], 0).size(), Random.choices(empty(), 0));
   // gauss: desvio 0 devolve a média; a média dos sorteios fica perto da média pedida
-  print(Random.gauss(10, 0));
-  f64 soma = 0;
-  for (i64 i in range(0, 4000)) { soma += Random.gauss(100, 15); }
-  f64 media = soma / 4000;
-  print(media > 98 && media < 102);
+  print(Random.gauss(10.ff, 0.ff));
+  f64 soma = 0.ff;
+  for (i64 i in range(0, 4000)) { soma += Random.gauss(100.ff, 15.ff); }
+  f64 media = soma / 4000.ff;
+  print(media > 98.ff && media < 102.ff);
   // mesma semente, mesma sequência
   Random.seed(7);
   list<i64> a = [1, 2, 3, 4, 5];
   Random.shuffle(a);
-  f64 g1 = Random.gauss(0, 1);
+  f64 g1 = Random.gauss(0.ff, 1.ff);
   Random.seed(7);
   list<i64> b = [1, 2, 3, 4, 5];
   Random.shuffle(b);
-  print(a == b, g1 == Random.gauss(0, 1));
+  print(a == b, g1 == Random.gauss(0.ff, 1.ff));
 }
 fn empty() -> list<i64> { list<i64> v; return v; }
 // expect: true true

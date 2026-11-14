@@ -18,7 +18,7 @@ const std::unordered_map<std::string, TokenType> Lexer::keywords = {
     {"false", TokenType::KW_FALSE},
     {"struct", TokenType::KW_STRUCT},  // C3: tipo por valor, só campos
     {"enum",   TokenType::KW_ENUM},    // enum Cor { Vermelho, Verde }
-    {"interface", TokenType::KW_INTERFACE},   // interface Forma { fn area() -> decimal; }
+    {"interface", TokenType::KW_INTERFACE},   // interface Forma { fn area() -> f64; }
     {"class", TokenType::KW_CLASS},   // declaração de classe
     {"pub",   TokenType::KW_PUB},     // bloco público dentro de class
     {"new",   TokenType::KW_NEW},     // instanciação de objeto
@@ -33,13 +33,16 @@ const std::unordered_map<std::string, TokenType> Lexer::keywords = {
     {"error",    TokenType::KW_ERROR},
     {"import",   TokenType::KW_IMPORT},    // C5
     {"as",       TokenType::KW_AS},
+    {"cast",     TokenType::KW_CAST},      // cast<T>(valor): conversão explícita (seção K)
     // C1: and/or/not são sinônimos de &&, || e ! (mesmo token)
     {"and", TokenType::OP_AND},
     {"or",  TokenType::OP_OR},
     {"not", TokenType::OP_NOT},
 
     // Tipos
+    {"i32", TokenType::TYPE_I32},
     {"i64", TokenType::TYPE_I64},
+    {"f32", TokenType::TYPE_F32},
     {"f64", TokenType::TYPE_F64},
     // reservadas só para explicar a troca (seção K): int → i32/i64, decimal → f32/f64
     {"int",     TokenType::TYPE_REMOVED},
@@ -179,38 +182,78 @@ Token Lexer::errorToken(const std::string& message) {
     return Token(TokenType::UNKNOWN, message, line, start_column);
 }
 
-// Reconhece números (int, decimal)
+// Reconhece números (seção K do REVISAO_V2.md):
+//   123      inteiro: i32 se couber, senão i64 (o semântico decide)
+//   1.5f     f32       1.f   f32 (sem dígitos depois do ponto)
+//   1.5ff    f64       1.ff  f64
+// Literal com ponto e sem sufixo (1.5) é erro: a precisão é sempre escrita.
 Token Lexer::number() {
-    bool is_float = false;
-    
+    auto at = [&](size_t k) -> char { return current + k < source.size() ? source[current + k] : '\0'; };
+    auto identChar = [](char c) { return isAsciiAlnum(c) || c == '_' || isNonAscii(c); };
+
     // Consome dígitos antes do ponto
     while (isAsciiDigit(peek())) {
         advance();
     }
-    
-    // Verifica se tem parte decimal
-    if (peek() == '.' && isAsciiDigit(peekNext())) {
-        is_float = true;
-        advance(); // consome o '.'
-        
-        while (isAsciiDigit(peek())) {
-            advance();
-        }
-    }
-    
-    Token token = makeToken(is_float ? TokenType::DECIMAL_LITERAL : TokenType::INTEGER_LITERAL);
-    const char* first = token.lexeme.data();
-    const char* last  = first + token.lexeme.size();
 
-    // A5: from_chars não lança exceção (stoi/stod derrubavam o programa)
-    if (is_float) {
-        double v = 0.0;
-        auto [ptr, ec] = std::from_chars(first, last, v);
-        if (ec != std::errc() || ptr != last)
-            return errorToken("Literal f64 '" + token.lexeme + "' fora do intervalo de f64");
-        token.value.double_value = v;
+    // Ponto seguido de dígito, ou de sufixo f/ff que termina ali (1.f, 1.ff): é
+    // ponto flutuante. Qualquer outra coisa (1.size) deixa o '.' para o parser.
+    const bool sufixo_direto = at(1) == 'f' && (!identChar(at(2)) || (at(2) == 'f' && !identChar(at(3))));
+    if (peek() == '.' && (isAsciiDigit(peekNext()) || sufixo_direto)) {
+        advance();   // '.'
+        while (isAsciiDigit(peek())) advance();
+        const size_t fim_numero = current;
+        int largura = 0;   // 0 = sem sufixo, 32 = f, 64 = ff
+        if (peek() == 'f') {
+            if (at(1) == 'f' && !identChar(at(2)))      { advance(); advance(); largura = 64; }
+            else if (!identChar(at(1)))                 { advance(); largura = 32; }
+        }
+        if (largura == 0) {
+            // consome o resto do "sufixo" (1.5x, 1.5fff) para o erro mostrar tudo
+            while (identChar(peek())) advance();
+            const std::string texto = source.substr(start, current - start);
+            const std::string numero = source.substr(start, fim_numero - start);
+            if (texto == numero)
+                return errorToken("Literal '" + texto + "' sem a precisão: escreva " + numero +
+                                  "f (f32) ou " + numero + "ff (f64)");
+            return errorToken("Literal '" + texto + "' inválido: o sufixo de ponto flutuante é f (f32) "
+                              "ou ff (f64), como em " + numero + "f e " + numero + "ff");
+        }
+        Token token = makeToken(largura == 32 ? TokenType::F32_LITERAL : TokenType::F64_LITERAL);
+        const char* first = source.data() + start;
+        const char* last  = source.data() + fim_numero;
+        // A5: from_chars não lança exceção. f32 é lido direto como float: ler
+        // como double e depois arredondar para float erraria em casos de borda
+        if (largura == 32) {
+            float v = 0.0f;
+            auto [ptr, ec] = std::from_chars(first, last, v);
+            if (ec != std::errc() || ptr != last)
+                return errorToken("Literal f32 '" + token.lexeme + "' fora da faixa de f32 "
+                                  "(o maior valor finito é cerca de 3.4e38)");
+            token.value.double_value = v;   // exato: todo float cabe num double
+        } else {
+            double v = 0.0;
+            auto [ptr, ec] = std::from_chars(first, last, v);
+            if (ec != std::errc() || ptr != last)
+                return errorToken("Literal f64 '" + token.lexeme + "' fora da faixa de f64 "
+                                  "(o maior valor finito é cerca de 1.8e308)");
+            token.value.double_value = v;
+        }
         return token;
     }
+
+    // 1f, 10ff: o sufixo só vale depois do ponto
+    if (peek() == 'f' && (!identChar(at(1)) || (at(1) == 'f' && !identChar(at(2))))) {
+        const std::string numero = source.substr(start, current - start);
+        while (identChar(peek())) advance();
+        return errorToken("Literal '" + source.substr(start, current - start) + "' inválido: o sufixo de "
+                          "ponto flutuante vem depois do ponto: " + numero + ".f (f32) ou " + numero +
+                          ".ff (f64)");
+    }
+
+    Token token = makeToken(TokenType::INTEGER_LITERAL);
+    const char* first = token.lexeme.data();
+    const char* last  = first + token.lexeme.size();
 
     // Inteiro: lido sem sinal, porque o '-' é um token separado
     constexpr std::uint64_t max_int = std::numeric_limits<std::int64_t>::max();

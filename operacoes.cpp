@@ -3,7 +3,9 @@
 #include "runtime_error.h"
 #include "utf8.h"
 #include "semantic.h"   // TypeChecker::isAssignable
+#include <charconv>
 #include <cmath>
+#include <cstdlib>
 #include <limits>
 
 namespace cinza {
@@ -11,9 +13,82 @@ namespace cinza {
 using utf8::tamanho;
 using utf8::byteDoCaractere;
 
-Value applyBinaryOp(TokenType op, const Value& left, const Value& right) {
+// ── Regras numéricas (seção K do REVISAO_V2.md) ──────────────────────────
+// Duas famílias que não se misturam: inteiros (i32, i64) e ponto flutuante
+// (f32, f64). Dentro da família, o operando mais estreito é promovido ANTES da
+// conta e o resultado tem o tipo mais largo; i32 op i32 fica em i32. Famílias
+// diferentes não chegam aqui: o semântico as rejeita.
 
-    // v2.00 #3: concatenação string + qualquer primitivo
+static constexpr std::int64_t MIN_I32 = std::numeric_limits<std::int32_t>::min();
+static constexpr std::int64_t MAX_I32 = std::numeric_limits<std::int32_t>::max();
+
+static std::string faixa(bool i64) {
+    return i64 ? "i64 (-9223372036854775808 a 9223372036854775807)"
+               : "i32 (-2147483648 a 2147483647)";
+}
+
+[[noreturn]] static void estouro(std::int64_t a, const char* simbolo, std::int64_t b, bool i64) {
+    throw RuntimeError("OverflowError: " + std::to_string(a) + " " + simbolo + " " +
+                       std::to_string(b) + " excede a faixa de " + faixa(i64));
+}
+
+// Conta inteira. Em i32 a conta é feita em 64 bits (nada estoura no meio: o
+// produto de dois i32 cabe em i64) e o resultado precisa caber em 32 bits —
+// assim nem INT32_MIN / -1 é comportamento indefinido do C++.
+static Value contaInteira(TokenType op, std::int64_t a, std::int64_t b, bool i64) {
+    std::int64_t r = 0;
+    switch (op) {
+        case TokenType::OP_PLUS:     if (__builtin_add_overflow(a, b, &r)) estouro(a, "+", b, i64); break;
+        case TokenType::OP_MINUS:    if (__builtin_sub_overflow(a, b, &r)) estouro(a, "-", b, i64); break;
+        case TokenType::OP_MULTIPLY: if (__builtin_mul_overflow(a, b, &r)) estouro(a, "*", b, i64); break;
+        case TokenType::OP_DIVIDE:
+            if (b == 0) throw RuntimeError("ZeroDivisionError: divisão por zero");
+            if (b == -1 && a == std::numeric_limits<std::int64_t>::min()) estouro(a, "/", b, true);
+            r = a / b;   // trunca em direção a zero
+            break;
+        case TokenType::OP_MODULO:
+            if (b == 0) throw RuntimeError("ZeroDivisionError: módulo por zero");
+            // x % -1 é sempre 0, que cabe (decisão de 2026-10-03); em C++, menor % -1 é indefinido
+            r = (b == -1) ? 0 : a % b;   // o sinal segue o dividendo
+            break;
+        default: throw RuntimeError("Erro interno: operador inteiro desconhecido");
+    }
+    if (i64) return Value(r);
+    if (r < MIN_I32 || r > MAX_I32) {
+        const char* simbolo = op == TokenType::OP_PLUS ? "+" : op == TokenType::OP_MINUS ? "-" :
+                              op == TokenType::OP_MULTIPLY ? "*" : op == TokenType::OP_DIVIDE ? "/" : "%";
+        estouro(a, simbolo, b, false);
+    }
+    return Value::i32(static_cast<std::int32_t>(r));
+}
+
+// Conta de ponto flutuante: IEEE 754 sem exceção (inf, -inf, NaN e -0 são
+// valores). f32 é calculado em float, sem passar por double.
+static Value contaFlutuante(TokenType op, const Value& left, const Value& right, bool f64) {
+    if (f64) {
+        const double a = left.asFloat(), b = right.asFloat();
+        switch (op) {
+            case TokenType::OP_PLUS:     return Value(a + b);
+            case TokenType::OP_MINUS:    return Value(a - b);
+            case TokenType::OP_MULTIPLY: return Value(a * b);
+            case TokenType::OP_DIVIDE:   return Value(a / b);
+            default: break;
+        }
+    } else {
+        const float a = left.asF32(), b = right.asF32();
+        switch (op) {
+            case TokenType::OP_PLUS:     return Value::f32(a + b);
+            case TokenType::OP_MINUS:    return Value::f32(a - b);
+            case TokenType::OP_MULTIPLY: return Value::f32(a * b);
+            case TokenType::OP_DIVIDE:   return Value::f32(a / b);
+            default: break;
+        }
+    }
+    throw RuntimeError("Erro interno: '%' entre ponto flutuante (o semântico só aceita inteiros)");
+}
+
+Value applyBinaryOp(TokenType op, const Value& left, const Value& right) {
+    // concatenação: string + string, ou string com qualquer primitivo
     if (op == TokenType::OP_PLUS) {
         if (left.kind() == Value::Kind::STRING && right.kind() == Value::Kind::STRING)
             return Value(left.asString() + right.asString());
@@ -23,99 +98,204 @@ Value applyBinaryOp(TokenType op, const Value& left, const Value& right) {
             return Value(left.toString() + right.asString());
     }
 
-    // A5: int op int usa aritmética nativa de 64 bits com checagem de
-    // overflow, sem passar por double (que perdia precisão e gerava UB)
-    if (left.kind() == Value::Kind::INT && right.kind() == Value::Kind::INT) {
-        const std::int64_t a = left.asInt();
-        const std::int64_t b = right.asInt();
-        std::int64_t r = 0;
-
-        auto overflow = [&](const char* simbolo) -> Value {
-            throw RuntimeError("OverflowError: " + std::to_string(a) + " " + simbolo + " " +
-                              std::to_string(b) + " excede a faixa de i64 "
-                              "(-9223372036854775808 a 9223372036854775807)");
-        };
-        constexpr std::int64_t int_min = std::numeric_limits<std::int64_t>::min();
-
-        switch (op) {
-            case TokenType::OP_PLUS:
-                if (__builtin_add_overflow(a, b, &r)) return overflow("+");
-                return Value(r);
-            case TokenType::OP_MINUS:
-                if (__builtin_sub_overflow(a, b, &r)) return overflow("-");
-                return Value(r);
-            case TokenType::OP_MULTIPLY:
-                if (__builtin_mul_overflow(a, b, &r)) return overflow("*");
-                return Value(r);
-            case TokenType::OP_DIVIDE:
-                if (b == 0) throw RuntimeError("ZeroDivisionError: divisão por zero");
-                if (a == int_min && b == -1) return overflow("/");
-                return Value(a / b);
-            case TokenType::OP_MODULO:
-                if (b == 0) throw RuntimeError("ZeroDivisionError: módulo por zero");
-                // x % -1 é sempre 0, que cabe em int (decisão de 2026-10-03; antes,
-                // menor_int % -1 lançava OverflowError). Em C++ essa conta é indefinida.
-                if (b == -1) return Value(std::int64_t{0});
-                return Value(a % b);
-            default:
-                break;  // comparações: tratadas abaixo
-        }
-    }
-
-    auto toDouble = [](const Value& v) { return v.asNumber(); };
-
-    // Revisão: decimal que estoura vira OverflowError, como int (antes saía
-    // inf e depois nan em silêncio)
-    auto finito = [&](double r, const char* simbolo) -> Value {
-        if (!std::isfinite(r))
-            throw RuntimeError(std::string("OverflowError: ") + left.toString() + " " + simbolo +
-                              " " + right.toString() + " excede a faixa de f64");
-        return Value(r);
-    };
-
+    const bool inteiros    = left.isInteger() && right.isInteger();
+    const bool flutuantes  = left.isFloat() && right.isFloat();
     switch (op) {
-        case TokenType::OP_PLUS:
-            return finito(toDouble(left) + toDouble(right), "+");
+        case TokenType::OP_PLUS: case TokenType::OP_MINUS: case TokenType::OP_MULTIPLY:
+        case TokenType::OP_DIVIDE: case TokenType::OP_MODULO:
+            if (inteiros)
+                return contaInteira(op, left.asInt(), right.asInt(),
+                                    left.kind() == Value::Kind::I64 || right.kind() == Value::Kind::I64);
+            if (flutuantes)
+                return contaFlutuante(op, left, right,
+                                      left.kind() == Value::Kind::F64 || right.kind() == Value::Kind::F64);
+            throw RuntimeError("Erro interno: operação aritmética entre '" + left.toString() + "' e '" +
+                               right.toString() + "' (o semântico deveria ter recusado)");
 
-        case TokenType::OP_MINUS:
-            return finito(toDouble(left) - toDouble(right), "-");
-
-        case TokenType::OP_MULTIPLY:
-            return finito(toDouble(left) * toDouble(right), "*");
-
-        case TokenType::OP_DIVIDE: {
-            double d = toDouble(right);
-            if (d == 0.0) throw RuntimeError("ZeroDivisionError: divisão por zero");
-            return finito(toDouble(left) / d, "/");
-        }
-
-        case TokenType::OP_MODULO:
-            // A10: divisor 0 ou 0.0 (antes 0.0 gerava NaN em silêncio)
-            if (toDouble(right) == 0.0)
-                throw RuntimeError("ZeroDivisionError: módulo por zero");
-            return Value(std::fmod(toDouble(left), toDouble(right)));
-
-        case TokenType::OP_LESS:          return Value(left <  right);
-        case TokenType::OP_LESS_EQUAL:    return Value(left <= right);
-        case TokenType::OP_GREATER:       return Value(left >  right);
-        case TokenType::OP_GREATER_EQUAL: return Value(left >= right);
-        case TokenType::OP_EQUAL:         return Value(left == right);
-        case TokenType::OP_NOT_EQUAL:     return Value(left != right);
+        // comparações: na mesma família, pelo valor (f32 → f64 é exato; NaN
+        // compara falso, como no IEEE); strings, pela ordem dos bytes
+        case TokenType::OP_LESS:
+            if (inteiros)   return Value(left.asInt()   <  right.asInt());
+            if (flutuantes) return Value(left.asFloat() <  right.asFloat());
+            return Value(left <  right);
+        case TokenType::OP_LESS_EQUAL:
+            if (inteiros)   return Value(left.asInt()   <= right.asInt());
+            if (flutuantes) return Value(left.asFloat() <= right.asFloat());
+            return Value(left <= right);
+        case TokenType::OP_GREATER:
+            if (inteiros)   return Value(left.asInt()   >  right.asInt());
+            if (flutuantes) return Value(left.asFloat() >  right.asFloat());
+            return Value(left >  right);
+        case TokenType::OP_GREATER_EQUAL:
+            if (inteiros)   return Value(left.asInt()   >= right.asInt());
+            if (flutuantes) return Value(left.asFloat() >= right.asFloat());
+            return Value(left >= right);
+        case TokenType::OP_EQUAL:     return Value(left == right);
+        case TokenType::OP_NOT_EQUAL: return Value(left != right);
 
         default: throw RuntimeError("Operador binário desconhecido");
     }
 }
 
-Value negateOp(const Value& v) {
-    if (v.kind() == Value::Kind::INT) {
-        // A5: -INT_MIN não cabe em 64 bits
-        if (v.asInt() == std::numeric_limits<std::int64_t>::min())
-            throw RuntimeError("OverflowError: -(" + std::to_string(v.asInt()) +
-                               ") excede a faixa de i64 "
-                               "(-9223372036854775808 a 9223372036854775807)");
-        return Value(-v.asInt());
+// ── cast<T> e promoções ──────────────────────────────────────────────────
+
+// Texto estrito → inteiro de 64 bits: [+|-] dígitos, sem espaços
+static bool lerInteiro(const std::string& s, std::int64_t& v, bool& fora) {
+    fora = false;
+    size_t i = 0;
+    const bool menos = !s.empty() && s[0] == '-';
+    if (!s.empty() && (s[0] == '+' || s[0] == '-')) i = 1;
+    if (i == s.size()) return false;
+    for (size_t k = i; k < s.size(); ++k)
+        if (s[k] < '0' || s[k] > '9') return false;
+    // from_chars aceita '-' mas não '+'
+    const char* ini = s.data() + (menos ? 0 : i);
+    auto [ptr, ec] = std::from_chars(ini, s.data() + s.size(), v);
+    if (ec == std::errc::result_out_of_range) { fora = true; return false; }
+    return ec == std::errc() && ptr == s.data() + s.size();
+}
+
+// Texto estrito → ponto flutuante na precisão pedida (f32 lido direto como
+// float: decimal → double → float arredondaria duas vezes)
+static bool lerFlutuante(const std::string& s, bool f32, double& v, bool& fora) {
+    fora = false;
+    if (s == "inf" || s == "+inf") { v = std::numeric_limits<double>::infinity();  return true; }
+    if (s == "-inf")               { v = -std::numeric_limits<double>::infinity(); return true; }
+    if (s == "nan")                { v = std::numeric_limits<double>::quiet_NaN(); return true; }
+    size_t i = 0;
+    auto digitos = [&]() { const size_t a = i; while (i < s.size() && s[i] >= '0' && s[i] <= '9') ++i; return i > a; };
+    if (i < s.size() && (s[i] == '+' || s[i] == '-')) ++i;
+    bool ok = digitos();
+    if (ok && i < s.size() && s[i] == '.') { ++i; ok = digitos(); }
+    if (ok && i < s.size() && (s[i] == 'e' || s[i] == 'E')) {
+        ++i;
+        if (i < s.size() && (s[i] == '+' || s[i] == '-')) ++i;
+        ok = digitos();
     }
-    return Value(-v.asDecimal());
+    if (!ok || i != s.size()) return false;
+    const char* ini = s.data() + (s[0] == '+' ? 1 : 0);
+    std::errc ec;
+    if (f32) {
+        float f = 0;
+        ec = std::from_chars(ini, s.data() + s.size(), f).ec;
+        v = f;
+    } else {
+        ec = std::from_chars(ini, s.data() + s.size(), v).ec;
+    }
+    if (ec == std::errc::result_out_of_range) {
+        // grande demais é erro; pequeno demais (abaixo do menor subnormal) vira 0
+        const double r = std::strtod(std::string(ini, s.data() + s.size()).c_str(), nullptr);
+        if (std::isinf(r) || (f32 && std::fabs(r) > std::numeric_limits<float>::max())) {
+            fora = true;
+            return false;
+        }
+        v = (s[0] == '-') ? -0.0 : 0.0;
+    }
+    return true;
+}
+
+// double → float pelo IEEE: arredonda para o mais próximo, e só vira infinito a
+// partir de FLT_MAX + meia unidade (2^103). Em C++, converter um double fora da
+// faixa do float é comportamento indefinido, então a borda é tratada aqui.
+static float paraF32(double d) {
+    static const double limite = static_cast<double>(std::numeric_limits<float>::max()) + std::ldexp(1.0, 103);
+    if (d != d)        return std::numeric_limits<float>::quiet_NaN();
+    if (d >= limite)   return std::numeric_limits<float>::infinity();
+    if (d <= -limite)  return -std::numeric_limits<float>::infinity();
+    return static_cast<float>(d);
+}
+
+Value literalValue(const std::variant<std::int64_t, double, std::string, bool>& v, TypeRef t) {
+    using K = TypeInfo::Kind;
+    if (auto* i = std::get_if<std::int64_t>(&v))
+        return (t && t->is(K::I32)) ? Value::i32(static_cast<std::int32_t>(*i)) : Value(*i);
+    if (auto* d = std::get_if<double>(&v))
+        return (t && t->is(K::F32)) ? Value::f32(static_cast<float>(*d)) : Value(*d);
+    if (auto* str = std::get_if<std::string>(&v)) return Value(*str);
+    return Value(std::get<bool>(v));
+}
+
+Value convertValue(const Value& v, TypeRef to) {
+    using K = TypeInfo::Kind;
+    const std::string alvo = to->str();
+    auto naoCabe = [&]() {
+        throw RuntimeError("OverflowError: cast<" + alvo + ">(" +
+                           (v.kind() == Value::Kind::STRING ? "\"" + v.asString() + "\"" : v.toString()) +
+                           "): o valor não cabe em " + alvo);
+    };
+
+    if (to->is(K::I32) || to->is(K::I64)) {
+        const bool i64 = to->is(K::I64);
+        std::int64_t r = 0;
+        if (v.isInteger()) {
+            r = v.asInt();
+        } else if (v.isFloat()) {
+            const double d = v.asFloat();
+            if (d != d) throw RuntimeError("ValueError: cast<" + alvo + ">(nan): NaN não tem valor inteiro");
+            if (std::isinf(d))
+                throw RuntimeError("ValueError: cast<" + alvo + ">(" + v.toString() + "): infinito não tem "
+                                   "valor inteiro");
+            const double t = std::trunc(d);   // em direção a zero
+            // 2^63 é o primeiro double fora de i64: conferir antes de converter (UB)
+            if (t < -9223372036854775808.0 || t >= 9223372036854775808.0) naoCabe();
+            r = static_cast<std::int64_t>(t);
+        } else if (v.kind() == Value::Kind::STRING) {
+            bool fora = false;
+            if (!lerInteiro(v.asString(), r, fora)) {
+                if (fora) naoCabe();
+                throw RuntimeError("ValueError: cast<" + alvo + ">(\"" + v.asString() + "\"): não é um "
+                                   "número inteiro (só sinal e dígitos)");
+            }
+        } else {
+            throw RuntimeError("Erro interno: cast<" + alvo + "> de um valor que não é número nem texto");
+        }
+        if (i64) return Value(r);
+        if (r < MIN_I32 || r > MAX_I32) naoCabe();
+        return Value::i32(static_cast<std::int32_t>(r));
+    }
+
+    if (to->is(K::F32) || to->is(K::F64)) {
+        const bool f32 = to->is(K::F32);
+        if (v.isInteger())   // direto do inteiro: sem arredondar duas vezes
+            return f32 ? Value::f32(static_cast<float>(v.asInt())) : Value(static_cast<double>(v.asInt()));
+        double d = 0;
+        if (v.isFloat()) {
+            d = v.asFloat();
+        } else if (v.kind() == Value::Kind::STRING) {
+            bool fora = false;
+            if (!lerFlutuante(v.asString(), f32, d, fora)) {
+                if (fora) naoCabe();
+                throw RuntimeError("ValueError: cast<" + alvo + ">(\"" + v.asString() + "\"): não é um "
+                                   "número (ex.: 2.5, -3, 1e10, inf, nan)");
+            }
+        } else {
+            throw RuntimeError("Erro interno: cast<" + alvo + "> de um valor que não é número nem texto");
+        }
+        return f32 ? Value::f32(paraF32(d)) : Value(d);
+    }
+
+    if (to->is(K::String))
+        return v.kind() == Value::Kind::STRING ? v : Value(v.toString());
+
+    throw RuntimeError("Erro interno: cast<" + alvo + "> não existe");
+}
+
+Value negateOp(const Value& v) {
+    switch (v.kind()) {
+        case Value::Kind::I64:
+            // -menor não cabe
+            if (v.asInt() == std::numeric_limits<std::int64_t>::min())
+                throw RuntimeError("OverflowError: -(" + std::to_string(v.asInt()) +
+                                   ") excede a faixa de " + faixa(true));
+            return Value(-v.asInt());
+        case Value::Kind::I32:
+            if (v.asInt() == MIN_I32)
+                throw RuntimeError("OverflowError: -(" + std::to_string(v.asInt()) +
+                                   ") excede a faixa de " + faixa(false));
+            return Value::i32(-v.asI32());
+        case Value::Kind::F32: return Value::f32(-v.asF32());
+        default:               return Value(-v.asFloat());
+    }
 }
 
 // ============================================================================
@@ -125,7 +305,7 @@ Value negateOp(const Value& v) {
 Value indexGet(const Value& obj, const Value& idx) {
     if (obj.kind() == Value::Kind::LIST) {
         const auto& elems = obj.asList()->elements;
-        if (idx.kind() != Value::Kind::INT)
+        if (!idx.isInteger())
             throw RuntimeError("Indice de lista deve ser inteiro");
         std::int64_t i  = idx.asInt();
         std::int64_t sz = static_cast<std::int64_t>(elems.size());
@@ -240,9 +420,9 @@ Value sliceGet(const Value& sv, const Value& iv, const Value& fv, const Value& p
 
 std::string formatPart(const Value& v, int largura, int casas) {
     std::string t;
-    const bool numero = v.kind() == Value::Kind::INT || v.kind() == Value::Kind::DECIMAL;
+    const bool numero = v.isNumber();
     if (casas >= 0 && numero)
-        t = fixedText(v.asNumber(), casas);
+        t = fixedText(v.asNumber(), casas, v.kind() == Value::Kind::F32);
     else
         t = v.toString();
     const std::int64_t n = tamanho(t);

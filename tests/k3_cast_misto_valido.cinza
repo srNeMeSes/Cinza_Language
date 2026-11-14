@@ -1,0 +1,6 @@
+// Seção K: cast<f32>(2) + 3.f é válido (o cast vem antes da conta).
+fn main() {
+  i32 n = 2;
+  print(cast<f32>(n) + 3.f, type(cast<f32>(n) + 3.f), cast<f32>(2) + 3.f);
+}
+// expect: 5 f32 5

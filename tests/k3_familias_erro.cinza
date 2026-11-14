@@ -1,0 +1,7 @@
+// Seção K: inteiro e ponto flutuante não se misturam sem cast.
+fn main() {
+  i32 n = 2;
+  f64 x = 1.5ff;
+  print(n + x);
+}
+// expect-error: Operador '+' entre 'i32' e 'f64': inteiro e ponto flutuante não se misturam. Converta um dos lados com cast<T>(valor), ex.: cast<f64>(n)

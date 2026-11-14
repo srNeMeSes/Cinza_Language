@@ -10,7 +10,9 @@ namespace cinza {
 // r: i64, string, f64, bool, list<T>, dict<K,V>, pair<F,S> ...
 std::string Type::toString() const { 
     switch (kind) {
+        case Kind::I32: return "i32";
         case Kind::I64: return "i64";
+        case Kind::F32: return "f32";
         case Kind::F64: return "f64";
         case Kind::STRING: return "string";
         case Kind::BOOL: return "bool";
@@ -45,7 +47,7 @@ std::string Type::toString() const {
 }
 
 bool Type::isNumeric() const {
-    return kind == Kind::I64 || kind == Kind::F64;
+    return kind == Kind::I32 || kind == Kind::I64 || kind == Kind::F32 || kind == Kind::F64;
 }
 
 bool Type::isComparable() const {

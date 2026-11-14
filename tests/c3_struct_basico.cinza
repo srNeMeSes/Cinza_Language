@@ -2,11 +2,11 @@
 struct NameObject {
     string name = "<nome>";
     i64 value = 0;
-    f64 values_d = 0.0;
+    f64 values_d = 0.0ff;
     str others = "<others>";
 }
 fn main() {
-    NameObject obj = new NameObject("Niel", 23, 1.65, "Analista de dados");
+    NameObject obj = new NameObject("Niel", 23, 1.65ff, "Analista de dados");
     obj.name = "Evan";
     print(obj.name);
     print(obj);

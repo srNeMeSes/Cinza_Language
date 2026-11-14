@@ -10,7 +10,7 @@ fn main() {
   for (i64 i in range(0, 200)) {
     i64 x = R.int(-3, 3);
     f64 y = R.decimal();
-    if (x < -3 or x > 3 or y < 0.0 or y >= 1.0) { ok = false; }
+    if (x < -3 or x > 3 or y < 0.0ff or y >= 1.0ff) { ok = false; }
   }
   print(ok, R.int(5, 5));
   list<string> cores = ["azul", "verde"];

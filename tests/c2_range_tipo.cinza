@@ -1,5 +1,5 @@
 // C2: range só aceita i64.
 fn main() {
-  for (i64 i in range(0, 2.5)) { print(i); }
+  for (i64 i in range(0, 2.5ff)) { print(i); }
 }
 // expect-error: Argumento 2 de 'range': esperado 'i64'

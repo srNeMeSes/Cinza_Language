@@ -1,0 +1,14 @@
+// Seção K: inteiro é i32 se couber (senão i64); 1.5f é f32, 1.5ff é f64; 1.f e 1.ff valem.
+fn main() {
+  print(type(1), type(2147483647), type(2147483648), type(-2147483648), type(-2147483649));
+  print(type(1.5f), type(1.5ff), type(1.f), type(1.ff), 1.f, 1.ff, 2.50f, 2.50ff);
+  var a = 7;
+  var b = 0.1f;
+  var c = 0.1ff;
+  print(type(a), type(b), type(c), b, c);
+  print(-9223372036854775808, type(-9223372036854775808));
+}
+// expect: i32 i32 i64 i32 i64
+// expect: f32 f64 f32 f64 1 1 2.5 2.5
+// expect: i32 f32 f64 0.1 0.1
+// expect: -9223372036854775808 i64

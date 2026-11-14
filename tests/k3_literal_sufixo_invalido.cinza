@@ -1,0 +1,3 @@
+// Seção K: só existem os sufixos f e ff.
+fn main() { f64 x = 2.5fff; }
+// expect-error: Literal '2.5fff' inválido: o sufixo de ponto flutuante é f (f32) ou ff (f64)

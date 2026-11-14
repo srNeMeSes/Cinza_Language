@@ -1,0 +1,4 @@
+// Seção K: f64 não vira f32 sem cast.
+fn metade(f32 x) -> f32 { return x / 2.f; }
+fn main() { print(metade(1.5ff)); }
+// expect-error: esperado 'f32', mas recebeu 'f64'

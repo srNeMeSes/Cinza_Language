@@ -3,4 +3,4 @@ struct Pessoa { string nome = ""; i64 idade = 0; }
 fn main() {
     Pessoa p = new Pessoa(30, "Ana");
 }
-// expect-error: (campo 'nome'): esperado 'string', mas recebeu 'i64'
+// expect-error: (campo 'nome'): esperado 'string', mas recebeu 'i32'

@@ -1,0 +1,3 @@
+// Seção K: o sufixo de ponto flutuante vem depois do ponto (1.f, não 1f).
+fn main() { f32 x = 1f; }
+// expect-error: o sufixo de ponto flutuante vem depois do ponto: 1.f (f32) ou 1.ff (f64)

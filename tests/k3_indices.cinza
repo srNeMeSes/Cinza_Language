@@ -1,0 +1,22 @@
+// Seção K: índices e fatias aceitam qualquer inteiro (i32 ou i64); dict aceita chave i32.
+fn main() {
+  list<string> l = ["a", "b", "c"];
+  i32 i = 1;
+  i64 j = 2;
+  print(l[i], l[j], l[0], "xyz"[i], "xyz"[-1], "abcdef"[i:j], "abcdef"[cast<i64>(1):4:2]);
+  l[i] = "B";
+  print(l, l.has(i), l.has(j));
+  l.remove(j);
+  print(l);
+  dict<i32, string> d = {{1, "um"}, {2, "dois"}};
+  d.add({3, "três"});
+  d[1] = "UM";
+  print(d[i], d.has(2), d);
+  dict<i64, string> g = {{1, "um"}};
+  print(g[j - 1]);
+}
+// expect: b c a y z b bd
+// expect: ["a", "B", "c"] true true
+// expect: ["a", "B"]
+// expect: UM true {1: "UM", 2: "dois", 3: "três"}
+// expect: um

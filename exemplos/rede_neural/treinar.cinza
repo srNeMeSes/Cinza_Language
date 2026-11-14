@@ -18,7 +18,7 @@ import Strings as st;
 
 const i64 SEMENTE = 42;
 const i64 LOTE = 32;
-const f64 TAXA = 0.003;
+const f64 TAXA = 0.003ff;
 
 fn main(list<string> args) {
   try {
@@ -53,7 +53,7 @@ fn executa(list<string> args) {
 
   dados.Tabela tudo = dados.ler_csv(csv);
   if (tudo.y.size() < 10) { falha(format("'{csv}' tem só {tudo.y.size()} linhas de dados; são precisas pelo menos 10")); }
-  pair<dados.Tabela, dados.Tabela> partes = dados.dividir(tudo, 0.2, SEMENTE);
+  pair<dados.Tabela, dados.Tabela> partes = dados.dividir(tudo, 0.2ff, SEMENTE);
   dados.Tabela treino = partes.first;
   dados.Tabela teste = partes.second;
   printf("{tudo.y.size()} linhas de '{csv}': {treino.y.size()} para treino, {teste.y.size()} para teste");
@@ -67,7 +67,7 @@ fn executa(list<string> args) {
 
   i64 t0 = Time.clock();
   modelo.treinar(treino.x, treino.y, epocas, LOTE, TAXA, Math.max(1, epocas / 10));
-  f64 segundos = (Time.clock() - t0) / 1000.0;
+  f64 segundos = cast<f64>(Time.clock() - t0) / 1000.0ff;
   printf("treino concluído em {segundos:.1f} s");
   print();
 
@@ -99,12 +99,12 @@ fn executa(list<string> args) {
 }
 
 fn avaliar(string nome, mlp.Modelo modelo, dados.Tabela t) {
-  f64 soma_abs = 0.0;
-  f64 soma_q = 0.0;
-  f64 soma_q_media = 0.0;
-  f64 media = 0.0;
+  f64 soma_abs = 0.0ff;
+  f64 soma_q = 0.0ff;
+  f64 soma_q_media = 0.0ff;
+  f64 media = 0.0ff;
   for (f64 v in t.y) { media += v; }
-  media = media / t.y.size();
+  media = media / cast<f64>(t.y.size());
   for (i64 i in range(0, t.y.size())) {
     f64 erro = modelo.prever(t.x[i]) - t.y[i];
     soma_abs += Math.abs(erro);
@@ -114,6 +114,6 @@ fn avaliar(string nome, mlp.Modelo modelo, dados.Tabela t) {
   i64 n = t.y.size();
   // R² compara com "sempre prever a média"; com todos os valores iguais, não há o que comparar
   string r2 = "indefinido (todos os valores iguais)";
-  if (soma_q_media > 0.0) { r2 = st.fixed(1.0 - soma_q / soma_q_media, 4); }
-  printf("{nome}: erro médio absoluto {dados.reais(soma_abs / n)}  |  RMSE {dados.reais(Math.sqrt(soma_q / n))}  |  R² {r2}");
+  if (soma_q_media > 0.0ff) { r2 = st.fixed(1.0ff - soma_q / soma_q_media, 4); }
+  printf("{nome}: erro médio absoluto {dados.reais(soma_abs / cast<f64>(n))}  |  RMSE {dados.reais(Math.sqrt(soma_q / cast<f64>(n)))}  |  R² {r2}");
 }

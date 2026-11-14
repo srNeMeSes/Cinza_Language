@@ -26,9 +26,17 @@ int main() {
 
     // Cada construtor produz o kind esperado
     CHECK(Value().kind() == K::VOID_VAL);
-    CHECK(Value(3).kind() == K::INT);
-    CHECK(Value(std::int64_t{3}).kind() == K::INT);
-    CHECK(Value(2.5).kind() == K::DECIMAL);
+    CHECK(Value(3).kind() == K::I64);
+    CHECK(Value(std::int64_t{3}).kind() == K::I64);
+    CHECK(Value(2.5).kind() == K::F64);
+    // K3: i32 e f32 só pelas fábricas (Value(int) continua i64)
+    CHECK(Value::i32(7).kind() == K::I32 && Value::i32(7).asInt() == 7);
+    CHECK(Value::f32(0.5f).kind() == K::F32 && Value::f32(0.5f).asFloat() == 0.5);
+    // mesma família, larguras diferentes: iguais pelo valor; famílias diferentes, nunca
+    CHECK(Value::i32(3) == Value(std::int64_t{3}));
+    CHECK(Value::f32(0.5f) == Value(0.5));
+    CHECK(!(Value::i32(3) == Value(3.0)));
+    CHECK(Value::f32(0.1f).toString() == "0.1" && Value(0.1).toString() == "0.1");
     CHECK(Value(true).kind() == K::BOOL);
     CHECK(Value(std::string("y")).kind() == K::STRING);
     CHECK(makeList().kind() == K::LIST);

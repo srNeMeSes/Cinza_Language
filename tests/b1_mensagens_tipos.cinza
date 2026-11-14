@@ -2,4 +2,4 @@
 fn main() {
   list<dict<string, list<f64>>> x = [1];
 }
-// expect-error: declarado 'list<dict<string, list<f64>>>', mas atribuído 'list<i64>'
+// expect-error: declarado 'list<dict<string, list<f64>>>', mas atribuído 'list<i32>'

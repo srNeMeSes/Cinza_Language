@@ -1,6 +1,6 @@
-// O formato de casas decimais só vale para i64 e f64.
+// O formato de casas decimais só vale para números.
 fn main() {
   string n = "Ana";
   printf("{n:.2f}");
 }
-// expect-error: só vale para i64 e f64
+// expect-error: só vale para números

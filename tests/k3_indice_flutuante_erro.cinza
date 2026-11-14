@@ -1,0 +1,6 @@
+// Seção K: índice só aceita inteiros.
+fn main() {
+  list<i32> l = [1, 2];
+  print(l[1.f]);
+}
+// expect-error: Índice de lista deve ser inteiro (i32 ou i64), mas recebeu 'f32'

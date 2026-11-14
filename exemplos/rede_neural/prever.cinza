@@ -92,7 +92,7 @@ fn prever_csv(mlp.Modelo modelo, string caminho) {
     printf("erro: o CSV tem {t.entradas.size()} entradas, o modelo espera {modelo.entradas().size()}");
     exit(2);
   }
-  f64 soma_abs = 0.0;
+  f64 soma_abs = 0.0ff;
   for (i64 i in range(0, t.y.size())) {
     f64 p = modelo.prever(t.x[i]);
     soma_abs += Math.abs(p - t.y[i]);
@@ -100,5 +100,5 @@ fn prever_csv(mlp.Modelo modelo, string caminho) {
           "  previsto", st.pad_left(dados.reais(p), 16));
   }
   print();
-  printf("erro médio absoluto em {t.y.size()} linhas: {dados.reais(soma_abs / t.y.size())}");
+  printf("erro médio absoluto em {t.y.size()} linhas: {dados.reais(soma_abs / cast<f64>(t.y.size()))}");
 }

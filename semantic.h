@@ -163,12 +163,15 @@ public:
     // Retorna true se `value` pode ser atribuído a `declared`.
     // Regras de atribuição da Cinza:
     //   - mesmo tipo → sempre compatível
-    //   - int → decimal   (promoção numérica)
-    //   - A3: list/dict/pair são invariantes (list<int> NÃO cabe em list<decimal>)
+    //   - i32 → i64 e f32 → f64 (alargar dentro da família; seção K)
+    //   - A3: list/dict/pair são invariantes (list<i32> NÃO cabe em list<i64>)
     static bool isAssignable(TypeRef declared, TypeRef value);
 
-    // v2.00 #19: int+int → int; qualquer decimal envolvido → decimal
-    static TypeRef promoteNumeric(TypeRef left, TypeRef right);
+    // Seção K: tipo comum de dois números da mesma família (o mais largo);
+    // nullptr se as famílias forem diferentes (inteiro com ponto flutuante)
+    static TypeRef numericResult(TypeRef left, TypeRef right);
+    // Promoção implícita: i32 → i64 e f32 → f64
+    static bool widens(TypeRef to, TypeRef from);
 };
 
 // ============================================================================
@@ -304,7 +307,9 @@ private:
     // A3: `expected` é o tipo exigido pelo contexto (nullptr se não houver); os
     // literais de list/dict/pair o usam para assumir o tipo esperado.
     TypeRef analyzeExpr         (Expr* expr, TypeRef expected = nullptr);
-    TypeRef analyzeLiteral      (LiteralExpr* expr);
+    TypeRef analyzeLiteral      (LiteralExpr* expr, TypeRef expected = nullptr);
+    TypeRef analyzeCast         (CastExpr* expr);
+    TypeRef intLiteralAsFloat   (Expr* e, TypeRef float_type);
     TypeRef analyzeIdentifier   (IdentifierExpr* expr);
     TypeRef analyzeBinary       (BinaryExpr* expr);
     TypeRef analyzeUnary        (UnaryExpr* expr);

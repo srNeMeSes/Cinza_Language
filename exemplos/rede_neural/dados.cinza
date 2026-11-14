@@ -83,7 +83,7 @@ pub fn dividir(Tabela t, f64 fracao_teste, i64 semente) -> pair<Tabela, Tabela> 
   list<i64> ordem = range(0, t.y.size());
   Random.seed(semente);
   Random.shuffle(ordem);
-  i64 n_teste = Math.round(t.y.size() * fracao_teste);
+  i64 n_teste = Math.round(cast<f64>(t.y.size()) * fracao_teste);
 
   Tabela treino = new Tabela();
   Tabela teste = new Tabela();
@@ -116,6 +116,6 @@ pub fn reais(f64 v) -> string {
   }
   grupos.add(inteiro);
   string sinal = "";
-  if (v < 0.0 && s != "0.00") { sinal = "-"; }   // sem "R$ -0,00"
+  if (v < 0.0ff && s != "0.00") { sinal = "-"; }   // sem "R$ -0,00"
   return "R$ " + sinal + st.join(Lists.reversed(grupos), ".") + "," + partes[1];
 }

@@ -30,7 +30,7 @@ struct TypeInfo;
 using TypeRef = const TypeInfo*;
 
 struct TypeInfo {
-    enum class Kind { I64, F64, String, Bool, Void, Var, List, Dict, Pair, Class, Struct, Error,
+    enum class Kind { I64, F64, I32, F32, String, Bool, Void, Var, List, Dict, Pair, Class, Struct, Error,
                       TypeVar /* C6: só em assinaturas nativas */,
                       Type    /* valor devolvido por type() e escrito como int, list<int>, Pessoa */,
                       Enum    /* enum Cor { ... }: só nomes, sem int por trás */,
@@ -44,7 +44,10 @@ struct TypeInfo {
     const std::string& str() const { return text; }
 
     bool is(Kind k)       const { return kind == k; }
-    bool isNumeric()      const { return kind == Kind::I64 || kind == Kind::F64; }
+    // Seção K: duas famílias numéricas que não se misturam
+    bool isInteger()      const { return kind == Kind::I32 || kind == Kind::I64; }
+    bool isFloat()        const { return kind == Kind::F32 || kind == Kind::F64; }
+    bool isNumeric()      const { return isInteger() || isFloat(); }
     bool isPrimitive()    const { return isNumeric() || kind == Kind::String || kind == Kind::Bool; }
     bool isGeneric()      const { return kind == Kind::List || kind == Kind::Dict || kind == Kind::Pair; }
 
@@ -69,7 +72,9 @@ public:
     }
 
     TypeRef i64Type()     { return intern(Kind::I64,     {}, ""); }
-    TypeRef f64Type() { return intern(Kind::F64, {}, ""); }
+    TypeRef f64Type()     { return intern(Kind::F64,     {}, ""); }
+    TypeRef i32Type()     { return intern(Kind::I32,     {}, ""); }
+    TypeRef f32Type()     { return intern(Kind::F32,     {}, ""); }
     TypeRef stringType()  { return intern(Kind::String,  {}, ""); }
     TypeRef boolType()    { return intern(Kind::Bool,    {}, ""); }
     TypeRef voidType()    { return intern(Kind::Void,    {}, ""); }
@@ -144,6 +149,8 @@ private:
         switch (t.kind) {
             case Kind::I64:     return "i64";
             case Kind::F64:     return "f64";
+            case Kind::I32:     return "i32";
+            case Kind::F32:     return "f32";
             case Kind::String:  return "string";
             case Kind::Bool:    return "bool";
             case Kind::Void:    return "void";

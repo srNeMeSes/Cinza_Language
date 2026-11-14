@@ -20,6 +20,26 @@ const char* opName(Op op) {
     return i < static_cast<std::size_t>(Op::COUNT) ? nomes[i] : "?";
 }
 
+ConvAlvo convAlvo(TypeRef t) {
+    using K = TypeInfo::Kind;
+    if (t->is(K::I32)) return ConvAlvo::I32;
+    if (t->is(K::I64)) return ConvAlvo::I64;
+    if (t->is(K::F32)) return ConvAlvo::F32;
+    if (t->is(K::F64)) return ConvAlvo::F64;
+    return ConvAlvo::String;
+}
+
+TypeRef convTipo(std::uint16_t c) {
+    auto& t = TypeContext::instance();
+    switch (static_cast<ConvAlvo>(c)) {
+        case ConvAlvo::I32: return t.i32Type();
+        case ConvAlvo::I64: return t.i64Type();
+        case ConvAlvo::F32: return t.f32Type();
+        case ConvAlvo::F64: return t.f64Type();
+        default:            return t.stringType();
+    }
+}
+
 static std::string pos4(std::size_t n) {
     char buf[16];
     std::snprintf(buf, sizeof buf, "%04zu", n);
@@ -50,17 +70,20 @@ std::string disassemble(const Image& img) {
             switch (in.op) {
                 case Op::LOADK:     ops = ra + ", k" + std::to_string(in.bc());
                                     nota = constante(p.consts[static_cast<std::size_t>(in.bc())]); break;
-                case Op::LOADINT:   ops = ra + ", " + std::to_string(in.bc()); break;
+                case Op::LOADINT: case Op::LOADI32:
+                                    ops = ra + ", " + std::to_string(in.bc()); break;
+                case Op::CONV:      ops = ra + ", " + rb; nota = "cast<" + convTipo(in.c)->str() + ">"; break;
                 case Op::LOADBOOL:  ops = ra + (in.b ? ", true" : ", false"); break;
                 case Op::LOADVOID: case Op::RET:
                                     ops = ra; break;
                 case Op::RETVOID:   break;
                 case Op::GETGLOBAL: case Op::SETGLOBAL:
                                     ops = ra + ", g" + std::to_string(in.b); break;
-                case Op::MOVE: case Op::NEG_I: case Op::NEG_D: case Op::I2D: case Op::NOT:
+                case Op::MOVE: case Op::NEG_I64: case Op::NEG_I32: case Op::NEG_F64: case Op::NEG_F32: case Op::NOT:
                                     ops = ra + ", " + rb; break;
                 case Op::JMP:       ops = alvo(); break;
-                case Op::ADDK_I: case Op::SUBK_I: case Op::MULK_I: case Op::DIVK_I: case Op::MODK_I:
+                case Op::ADDK_I64: case Op::SUBK_I64: case Op::MULK_I64: case Op::DIVK_I64: case Op::MODK_I64:
+                case Op::ADDK_I32: case Op::SUBK_I32: case Op::MULK_I32: case Op::DIVK_I32: case Op::MODK_I32:
                 case Op::LTK_I: case Op::LEK_I: case Op::GTK_I: case Op::GEK_I:
                     ops = ra + ", " + rb + ", " + std::to_string(static_cast<std::int16_t>(in.c));
                     break;
@@ -81,8 +104,8 @@ std::string disassemble(const Image& img) {
                                     std::to_string(in.b + 1) + ":r" + std::to_string(in.b + 2) + ":r" +
                                     std::to_string(in.b + 3) + "]"; break;
                 case Op::RANGEPREP: ops = ra; nota = "iterador em r" + std::to_string(in.b); break;
-                case Op::JMPIF: case Op::JMPIFNOT: case Op::FORNEXT: case Op::FORNEXT_D:
-                case Op::FORRANGE: case Op::FORRANGE_D:
+                case Op::JMPIF: case Op::JMPIFNOT: case Op::FORNEXT: case Op::FORNEXT_W:
+                case Op::FORRANGE:
                                     ops = ra + ", " + alvo(); break;
                 case Op::FORPREP:   ops = ra + ", " + rb;
                                     nota = "iterador em r" + std::to_string(in.c); break;

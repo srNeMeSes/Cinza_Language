@@ -14,8 +14,9 @@ namespace cinza {
 // Enumeração de todos os tipos de tokens da linguagem Cinza
 enum class TokenType {
     // Literais
-    INTEGER_LITERAL,
-    DECIMAL_LITERAL,
+    INTEGER_LITERAL,   // i32 se couber, senão i64
+    F32_LITERAL,       // 1.5f
+    F64_LITERAL,       // 1.5ff
     STRING_LITERAL,
     
     // Identificadores
@@ -48,9 +49,12 @@ enum class TokenType {
     KW_IMPORT,         // import   (C5)
     KW_AS,             // as
     KW_SELF,           // self — o objeto atual dentro de métodos (A10/B5)
+    KW_CAST,           // cast<T>(valor)
 
     // Tipos
+    TYPE_I32,          // inteiro de 32 bits
     TYPE_I64,          // inteiro de 64 bits
+    TYPE_F32,          // ponto flutuante de 32 bits
     TYPE_F64,          // ponto flutuante de 64 bits
     TYPE_REMOVED,      // 'int' e 'decimal': tipos substituídos (o parser explica)
     TYPE_STRING,
@@ -166,7 +170,7 @@ private:
     Token makeToken(TokenType type, const std::string& lexeme);
     Token errorToken(const std::string& message);
     
-    Token number();         // Reconhece números (int, decimal)
+    Token number();         // Reconhece números (inteiro, f32, f64)
     Token string();         // Reconhece strings
     Token identifier();     // Reconhece identificadores e palavras-chave
     

@@ -1,0 +1,3 @@
+// Seção K: cast não converte bool (use uma comparação ou um if).
+fn main() { print(cast<i32>(true)); }
+// expect-error: cast<i32>(bool) não existe: bool não é número. Use um if ou uma comparação

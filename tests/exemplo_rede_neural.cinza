@@ -15,8 +15,8 @@ fn main() {
   Files.make_dir(pasta);
 
   // decimais extremos fazem a ida e volta exata
-  list<f64> valores = [0.0, 1.0, -1.0, 0.1, -2.5, 1234567.891, 0.000000001, 3.141592653589793,
-                           179769313486231570000000000000000000000000000.0, 0.30000000000000004];
+  list<f64> valores = [0.0ff, 1.0ff, -1.0ff, 0.1ff, -2.5ff, 1234567.891ff, 0.000000001ff, 3.141592653589793ff,
+                           179769313486231570000000000000000000000000000.0ff, 0.30000000000000004ff];
   czr.Escritor e = new czr.Escritor();
   for (f64 v in valores) { e.escreve_decimal(v); }
   e.escreve_int(34359738367);
@@ -35,17 +35,17 @@ fn main() {
   list<list<f64>> x;
   list<f64> y;
   for (i64 i in range(0, 60)) {
-    f64 a = Random.decimal_range(-2.0, 2.0);
-    f64 b = Random.decimal_range(-2.0, 2.0);
+    f64 a = Random.decimal_range(-2.0ff, 2.0ff);
+    f64 b = Random.decimal_range(-2.0ff, 2.0ff);
     x.add([a, b]);
-    y.add(3.0 * a - 2.0 * b + 5.0);
+    y.add(3.0ff * a - 2.0ff * b + 5.0ff);
   }
   mlp.Modelo m = new mlp.Modelo(["a", "b"], "y", [6]);
   m.ajustar_padronizacao(x, y);
-  m.treinar(x, y, 60, 10, 0.03, 0);
-  f64 erro = 0.0;
+  m.treinar(x, y, 60, 10, 0.03ff, 0);
+  f64 erro = 0.0ff;
   for (i64 i in range(0, y.size())) { erro += Math.abs(m.prever(x[i]) - y[i]); }
-  print(m.arquitetura(), m.epocas_treinadas(), erro / y.size() < 0.25);
+  print(m.arquitetura(), m.epocas_treinadas(), erro / cast<f64>(y.size()) < 0.25ff);
 
   string modelo = Files.join(pasta, "modelo.czr");
   m.salvar(modelo);

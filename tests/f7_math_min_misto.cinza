@@ -1,4 +1,4 @@
 // Fase 7: min/max exigem os dois argumentos do mesmo tipo (o primeiro fixa o tipo).
 import Math;
-fn main() { print(Math.min(1, 2.5)); }
-// expect-error: Argumento 2 de 'Math.min': esperado 'i64', mas recebeu 'f64'
+fn main() { print(Math.min(1, 2.5ff)); }
+// expect-error: Argumento 2 de 'Math.min': esperado 'i32', mas recebeu 'f64'

@@ -1,14 +1,14 @@
 // interface: pub interface de um módulo, cumprida por classes daqui e de lá.
 import modulos.formas as fm;
 class Triangulo : fm.Forma {
-  f64 base = 2.0;
-  f64 altura = 3.0;
+  f64 base = 2.0ff;
+  f64 altura = 3.0ff;
   pub {
-    fn area() -> f64 { return base * altura / 2; }
+    fn area() -> f64 { return base * altura / 2.ff; }
   }
 }
 fn main() {
-  list<fm.Forma> l = [new fm.Quadrado(2.0), new Triangulo()];
+  list<fm.Forma> l = [new fm.Quadrado(2.0ff), new Triangulo()];
   for (fm.Forma f in l) { print(f.area()); }
 }
 // expect: 4

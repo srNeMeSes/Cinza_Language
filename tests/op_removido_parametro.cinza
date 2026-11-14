@@ -1,4 +1,4 @@
 // op<...> removido: também em parâmetro, retorno e dentro de coleção.
-fn media(list<op<f64, i64>> valores) -> f64 { return 0.0; }
+fn media(list<op<f64, i64>> valores) -> f64 { return 0.0ff; }
 fn main() { }
 // expect-error: O tipo 'op<...>' foi removido da linguagem

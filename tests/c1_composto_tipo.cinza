@@ -1,6 +1,7 @@
 // C1: o resultado de a op b precisa caber no tipo de a.
 fn main() {
-  i64 x = 1;
-  x += 1.5;
+  i32 x = 1;
+  i64 y = 2;
+  x += y;
 }
-// expect-error: produz 'f64', que não cabe no tipo 'i64'
+// expect-error: produz 'i64', que não cabe no tipo 'i32'

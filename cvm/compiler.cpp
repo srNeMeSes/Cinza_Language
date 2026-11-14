@@ -196,13 +196,16 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
         case NodeKind::Literal: {
             auto* lit = static_cast<const LiteralExpr*>(e);
             if (auto* i = std::get_if<std::int64_t>(&lit->value)) {
-                if (*i >= std::numeric_limits<std::int32_t>::min() &&
-                    *i <= std::numeric_limits<std::int32_t>::max())
+                const bool cabe32 = *i >= std::numeric_limits<std::int32_t>::min() &&
+                                    *i <= std::numeric_limits<std::int32_t>::max();
+                if (e->resolved_type->is(TK::I32))
+                    emitBc(Op::LOADI32, dst, static_cast<std::int32_t>(*i), e->token);
+                else if (cabe32)
                     emitBc(Op::LOADINT, dst, static_cast<std::int32_t>(*i), e->token);
                 else
                     loadK(dst, Value(*i), e->token);
-            } else if (auto* d = std::get_if<double>(&lit->value)) {
-                loadK(dst, Value(*d), e->token);
+            } else if (std::holds_alternative<double>(lit->value)) {
+                loadK(dst, literalValue(lit->value, e->resolved_type), e->token);   // f32 ou f64
             } else if (auto* s = std::get_if<std::string>(&lit->value)) {
                 loadK(dst, Value(*s), e->token);
             } else {
@@ -239,11 +242,11 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
 
         case NodeKind::Cast: {
             auto* c = static_cast<const CastExpr*>(e);
-            if (c->resolved_type->is(TK::F64) && c->operand->resolved_type->is(TK::I64)) {
-                const std::uint16_t r = exprReg(c->operand.get());
-                emit(Op::I2D, dst, r, 0, e->token);
-            } else {
+            if (c->resolved_type == c->operand->resolved_type) {   // cast<i64>(n) com n i64
                 expr(c->operand.get(), dst);
+            } else {
+                const std::uint16_t r = exprReg(c->operand.get());
+                emit(Op::CONV, dst, r, static_cast<std::uint16_t>(convAlvo(c->resolved_type)), e->token);
             }
             break;
         }
@@ -254,7 +257,9 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
             if (u->op == TokenType::OP_NOT)
                 emit(Op::NOT, dst, r, 0, e->token);
             else
-                emit(u->operand->resolved_type->is(TK::I64) ? Op::NEG_I : Op::NEG_D, dst, r, 0, e->token);
+                emit(u->operand->resolved_type->is(TK::I64) ? Op::NEG_I64 :
+                     u->operand->resolved_type->is(TK::I32) ? Op::NEG_I32 :
+                     u->operand->resolved_type->is(TK::F32) ? Op::NEG_F32 : Op::NEG_F64, dst, r, 0, e->token);
             break;
         }
 
@@ -418,9 +423,9 @@ void Compiler::binary(const BinaryExpr* e, std::uint16_t dst) {
     arith(e->op, lt, l, rt, r, dst, tok);
 }
 
-// Literal int que cabe em 16 bits com sinal (constante embutida na instrução)
+// Literal inteiro que cabe em 16 bits com sinal (constante embutida na instrução)
 static bool intPequeno(const Expr* e, std::int16_t& k) {
-    if (e->node_kind != NodeKind::Literal || !e->resolved_type || !e->resolved_type->is(TK::I64))
+    if (e->node_kind != NodeKind::Literal || !e->resolved_type || !e->resolved_type->isInteger())
         return false;
     auto* v = std::get_if<std::int64_t>(&static_cast<const LiteralExpr*>(e)->value);
     if (!v || *v < std::numeric_limits<std::int16_t>::min() || *v > std::numeric_limits<std::int16_t>::max())
@@ -432,14 +437,16 @@ static bool intPequeno(const Expr* e, std::int16_t& k) {
 bool Compiler::arithK(TokenType op, TypeRef lt, std::uint16_t l, const Expr* direita,
                       std::uint16_t dst, const Token& tok) {
     std::int16_t k;
-    if (!lt->is(TK::I64) || !intPequeno(direita, k)) return false;
+    // o semântico já deu aos dois lados o mesmo tipo (seção K)
+    if (!lt->isInteger() || !intPequeno(direita, k)) return false;
+    const bool i32 = lt->is(TK::I32);
     Op o;
     switch (op) {
-        case TokenType::OP_PLUS:          o = Op::ADDK_I; break;
-        case TokenType::OP_MINUS:         o = Op::SUBK_I; break;
-        case TokenType::OP_MULTIPLY:      o = Op::MULK_I; break;
-        case TokenType::OP_DIVIDE:        o = Op::DIVK_I; break;
-        case TokenType::OP_MODULO:        o = Op::MODK_I; break;
+        case TokenType::OP_PLUS:          o = i32 ? Op::ADDK_I32 : Op::ADDK_I64; break;
+        case TokenType::OP_MINUS:         o = i32 ? Op::SUBK_I32 : Op::SUBK_I64; break;
+        case TokenType::OP_MULTIPLY:      o = i32 ? Op::MULK_I32 : Op::MULK_I64; break;
+        case TokenType::OP_DIVIDE:        o = i32 ? Op::DIVK_I32 : Op::DIVK_I64; break;
+        case TokenType::OP_MODULO:        o = i32 ? Op::MODK_I32 : Op::MODK_I64; break;
         case TokenType::OP_LESS:          o = Op::LTK_I;  break;
         case TokenType::OP_LESS_EQUAL:    o = Op::LEK_I;  break;
         case TokenType::OP_GREATER:       o = Op::GTK_I;  break;
@@ -461,28 +468,28 @@ void Compiler::arith(TokenType op, TypeRef lt, std::uint16_t l, TypeRef rt, std:
         return;
     }
 
-    const bool strings = lt->is(TK::String) && rt->is(TK::String);
-    const bool inteiros = lt->is(TK::I64) && rt->is(TK::I64);
-    // int misturado com decimal: converte o lado int (sem efeito colateral,
-    // depois de os dois operandos já estarem avaliados)
-    std::uint16_t a = l, b = r;
-    if (!inteiros && !strings) {
-        if (lt->is(TK::I64)) { a = alloc(tok); emit(Op::I2D, a, l, 0, tok); }
-        if (rt->is(TK::I64)) { b = alloc(tok); emit(Op::I2D, b, r, 0, tok); }
-    }
-
+    // seção K: o semântico já deu aos dois lados numéricos o mesmo tipo, então
+    // a instrução sai do tipo da esquerda
+    (void)rt;
+    const bool strings = lt->is(TK::String);
+    const bool inteiros = lt->isInteger();
+    const std::uint16_t a = l, b = r;
+    // aritmética: uma instrução por tipo (i64, i32, f64, f32)
+    auto conta = [&](Op i64, Op i32, Op f64, Op f32) {
+        return lt->is(TK::I64) ? i64 : lt->is(TK::I32) ? i32 : lt->is(TK::F64) ? f64 : f32;
+    };
     auto pick = [&](Op i, Op d, Op s) { return inteiros ? i : (strings ? s : d); };
     switch (op) {
-        case TokenType::OP_PLUS:     emit(inteiros ? Op::ADD_I : Op::ADD_D, dst, a, b, tok); break;
-        case TokenType::OP_MINUS:    emit(inteiros ? Op::SUB_I : Op::SUB_D, dst, a, b, tok); break;
-        case TokenType::OP_MULTIPLY: emit(inteiros ? Op::MUL_I : Op::MUL_D, dst, a, b, tok); break;
-        case TokenType::OP_DIVIDE:   emit(inteiros ? Op::DIV_I : Op::DIV_D, dst, a, b, tok); break;
-        case TokenType::OP_MODULO:   emit(inteiros ? Op::MOD_I : Op::MOD_D, dst, a, b, tok); break;
+        case TokenType::OP_PLUS:     emit(conta(Op::ADD_I64, Op::ADD_I32, Op::ADD_F64, Op::ADD_F32), dst, a, b, tok); break;
+        case TokenType::OP_MINUS:    emit(conta(Op::SUB_I64, Op::SUB_I32, Op::SUB_F64, Op::SUB_F32), dst, a, b, tok); break;
+        case TokenType::OP_MULTIPLY: emit(conta(Op::MUL_I64, Op::MUL_I32, Op::MUL_F64, Op::MUL_F32), dst, a, b, tok); break;
+        case TokenType::OP_DIVIDE:   emit(conta(Op::DIV_I64, Op::DIV_I32, Op::DIV_F64, Op::DIV_F32), dst, a, b, tok); break;
+        case TokenType::OP_MODULO:   emit(lt->is(TK::I32) ? Op::MOD_I32 : Op::MOD_I64, dst, a, b, tok); break;
         // > e >= trocam só os registradores; a avaliação já aconteceu na ordem do fonte
-        case TokenType::OP_LESS:          emit(pick(Op::LT_I, Op::LT_D, Op::LT_S), dst, a, b, tok); break;
-        case TokenType::OP_LESS_EQUAL:    emit(pick(Op::LE_I, Op::LE_D, Op::LE_S), dst, a, b, tok); break;
-        case TokenType::OP_GREATER:       emit(pick(Op::LT_I, Op::LT_D, Op::LT_S), dst, b, a, tok); break;
-        case TokenType::OP_GREATER_EQUAL: emit(pick(Op::LE_I, Op::LE_D, Op::LE_S), dst, b, a, tok); break;
+        case TokenType::OP_LESS:          emit(pick(Op::LT_I, Op::LT_F, Op::LT_S), dst, a, b, tok); break;
+        case TokenType::OP_LESS_EQUAL:    emit(pick(Op::LE_I, Op::LE_F, Op::LE_S), dst, a, b, tok); break;
+        case TokenType::OP_GREATER:       emit(pick(Op::LT_I, Op::LT_F, Op::LT_S), dst, b, a, tok); break;
+        case TokenType::OP_GREATER_EQUAL: emit(pick(Op::LE_I, Op::LE_F, Op::LE_S), dst, b, a, tok); break;
         default:
             throw Unsupported("operador desconhecido (erro interno)", tok);
     }
@@ -538,10 +545,10 @@ void Compiler::call(const CallExpr* e, std::uint16_t dst) {
 
     if (nativa) {
         emit(Op::CALLNATIVE, base, nativeIndex(e->native), n, tok);
-        // nativa genérica pode devolver int onde o tipo é decimal (Lists.sum de
-        // list<decimal> vazia): I2D converte só se vier int
-        if (e->resolved_type && e->resolved_type->is(TK::F64))
-            emit(Op::I2D, base, base, 0, tok);
+        // nativa genérica (retorno "número"): o resultado na largura do tipo
+        // estático (Lists.sum de list<f32> vazia devolve 0 inteiro)
+        if (e->native->ret->is(TK::TypeVar) && e->resolved_type && e->resolved_type->isNumeric())
+            emit(Op::CONV, base, base, static_cast<std::uint16_t>(convAlvo(e->resolved_type)), tok);
     } else {
         emit(Op::CALL, base, u16(proto_of.at(e->target), tok, "funções"), n, tok);
     }
@@ -705,8 +712,7 @@ void Compiler::stmt(const Stmt* s) {
                 else emitBc(Op::LOADINT, static_cast<std::uint16_t>(a + 2), 1, s->token);
                 // o erro de passo 0 sai na posição da chamada, como na nativa
                 emit(Op::RANGEPREP, a, slotReg(f->iter_slot), 0, rc->token);
-                const bool para_decimal = f->type_iterator->kind == Type::Kind::F64;
-                const std::size_t prox = emitBc(para_decimal ? Op::FORRANGE_D : Op::FORRANGE, a, 0, s->token);
+                const std::size_t prox = emitBc(Op::FORRANGE, a, 0, s->token);
                 lacos.push_back({});
                 stmt(f->body.get());
                 const std::size_t volta = emitBc(Op::JMP, 0, 0, s->token);
@@ -724,9 +730,8 @@ void Compiler::stmt(const Stmt* s) {
             const std::uint16_t col = exprReg(f->iterable.get());
             emit(Op::FORPREP, a, col, slotReg(f->iter_slot), s->token);
             top = static_cast<std::uint16_t>(a + 3);
-            // for (decimal x in list<int>): converte cada elemento
-            const bool para_decimal = f->type_iterator->kind == Type::Kind::F64;
-            const std::size_t prox = emitBc(para_decimal ? Op::FORNEXT_D : Op::FORNEXT, a, 0, s->token);
+            // for (i64 x in list<i32>): alarga cada elemento
+            const std::size_t prox = emitBc(f->widen_to ? Op::FORNEXT_W : Op::FORNEXT, a, 0, s->token);
             lacos.push_back({});
             stmt(f->body.get());
             const std::size_t volta = emitBc(Op::JMP, 0, 0, s->token);

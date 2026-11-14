@@ -45,7 +45,7 @@ struct ErrorValue;
 // Todos os tipos da linguagem mapeiam para um Kind aqui.
 //
 // Semântica de cópia:
-//   - INT, DECIMAL, STRING, BOOL, PAIR → value semantics (cópia por valor)
+//   - I32, I64, F32, F64, STRING, BOOL, PAIR → value semantics (cópia por valor)
 //   - STRUCT (C3)                      → value semantics: copiar clona os campos
 //                                        (cópia rasa, ver Value(const Value&))
 //   - LIST, DICT, INSTANCE             → reference semantics (shared_ptr)
@@ -57,8 +57,8 @@ struct ErrorValue;
 
 struct Value {
     enum class Kind {
-        INT,
-        DECIMAL,
+        I64,         // inteiro de 64 bits (int64_t)
+        F64,         // ponto flutuante de 64 bits (double, IEEE 754)
         STRING,
         BOOL,
         LIST,
@@ -69,6 +69,8 @@ struct Value {
         ERROR,       // C4: erro capturado em except / criado com Tipo("msg")
         TYPE,        // valor de type() e literal de tipo (int, list<int>, Pessoa)
         ENUM,        // valor de enum (Cor.Verde): a declaração e o índice do valor
+        I32,         // inteiro de 32 bits (int32_t) — no fim, para não mudar a ordem dos demais
+        F32,         // ponto flutuante de 32 bits (float, IEEE 754)
         // VOID_VAL: valor técnico interno do runtime.
         // Usos legítimos: retorno de funções void, ausência de valor em
         // caminhos internos do executor (ex.: função sem return explícito).
@@ -80,8 +82,8 @@ struct Value {
 
     std::variant<
         std::monostate,                         // VOID_VAL
-        std::int64_t,                           // INT (A5: 64 bits)
-        double,                                 // DECIMAL
+        std::int64_t,                           // I64
+        double,                                 // F64
         std::string,                            // STRING
         bool,                                   // BOOL
         std::shared_ptr<CinzaList>,             // LIST
@@ -91,7 +93,9 @@ struct Value {
         std::shared_ptr<StructValue>,           // STRUCT (C3)
         std::shared_ptr<ErrorValue>,            // ERROR (C4)
         const TypeInfo*,                        // TYPE
-        EnumValue                               // ENUM
+        EnumValue,                              // ENUM
+        std::int32_t,                           // I32
+        float                                   // F32
     > data;
 
     // ── Construtores convenientes ─────────────────────────────────────────
@@ -99,6 +103,7 @@ struct Value {
     Value() : data(std::monostate{}) {}
 
     explicit Value(std::int64_t v)       : data(v)              {}
+    // int do C++ (literais do próprio runtime: Value(0)) é i64; i32 só por Value::i32
     explicit Value(int v)                : Value(static_cast<std::int64_t>(v))       {}
     explicit Value(double v)             : data(v)              {}
     explicit Value(const std::string& v) : data(v)              {}
@@ -127,10 +132,14 @@ struct Value {
     Value(Value&&) noexcept            = default;
     Value& operator=(Value&&) noexcept = default;
 
+    // Os tipos de 32 bits têm fábrica com nome: o construtor Value(int) é i64
+    static Value i32(std::int32_t v) { Value r; r.data = v; return r; }
+    static Value f32(float v)        { Value r; r.data = v; return r; }
+
     // ── Kind ──────────────────────────────────────────────────────────────
     // A11: derivado de data.index(), então nunca diverge do valor guardado.
-    // Índices do variant: 0 = monostate (VOID_VAL); 1..10 = INT..ERROR,
-    // na mesma ordem do enum Kind.
+    // Índices do variant: 0 = monostate (VOID_VAL); os demais na mesma ordem
+    // do enum Kind.
     Kind kind() const noexcept {
         const auto i = data.index();
         return i == 0 ? Kind::VOID_VAL : static_cast<Kind>(i - 1);
@@ -141,12 +150,25 @@ struct Value {
     // referência — devolver por cópia mexia no contador de referências (atômico)
     // a cada leitura de campo ou elemento.
 
-    std::int64_t asInt()     const { return std::get<std::int64_t>(data); }
-    double      asDecimal()  const { return std::get<double>(data); }
-    // int ou decimal como double (comparações e contas que misturam os dois)
-    double      asNumber()   const {
-        return kind() == Kind::INT ? static_cast<double>(asInt()) : asDecimal();
+    // Inteiro de qualquer largura como int64 (i32 → i64 é exato): a promoção
+    // dentro da família não precisa de conversão para ser lida
+    std::int64_t asInt() const {
+        if (auto* p = std::get_if<std::int32_t>(&data)) return *p;
+        return std::get<std::int64_t>(data);
     }
+    // Ponto flutuante de qualquer largura como double (f32 → f64 é exato)
+    double asFloat() const {
+        if (auto* p = std::get_if<float>(&data)) return *p;
+        return std::get<double>(data);
+    }
+    std::int32_t asI32() const { return std::get<std::int32_t>(data); }
+    float        asF32() const { return std::get<float>(data); }
+
+    bool isInteger() const { const Kind k = kind(); return k == Kind::I64 || k == Kind::I32; }
+    bool isFloat()   const { const Kind k = kind(); return k == Kind::F64 || k == Kind::F32; }
+    bool isNumber()  const { return isInteger() || isFloat(); }
+    // Número de qualquer tipo como double (ordenação, Math): só para leitura
+    double asNumber() const { return isInteger() ? static_cast<double>(asInt()) : asFloat(); }
     bool        asBool()     const { return std::get<bool>(data); }
     const std::string& asString() const { return std::get<std::string>(data); }
 
@@ -165,8 +187,8 @@ struct Value {
 
     // ── Operadores de comparação (necessários para dict key e ==) ─────────
     //
-    // Ordem total: VOID < BOOL < INT < DECIMAL < STRING < LIST < DICT < PAIR < INSTANCE
-    // (dentro do mesmo Kind, compara pelo valor)
+    // Ordem total pelo Kind; dentro da mesma família numérica (i32/i64 ou
+    // f32/f64), pelo valor, como se fosse o mesmo tipo
 
     bool operator==(const Value& other) const;
     bool operator< (const Value& other) const;
@@ -182,8 +204,8 @@ namespace detail {
 using ValueData = decltype(Value::data);
 template <std::size_t I> using Alt = std::variant_alternative_t<I, ValueData>;
 static_assert(std::variant_size_v<ValueData> == static_cast<std::size_t>(Value::Kind::VOID_VAL) + 1);
-static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::INT)      + 1>, std::int64_t>);
-static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::DECIMAL)  + 1>, double>);
+static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::I64)      + 1>, std::int64_t>);
+static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::F64)      + 1>, double>);
 static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::STRING)   + 1>, std::string>);
 static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::BOOL)     + 1>, bool>);
 static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::LIST)     + 1>, std::shared_ptr<CinzaList>>);
@@ -194,6 +216,8 @@ static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::STRUCT)  
 static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::ERROR)    + 1>, std::shared_ptr<ErrorValue>>);
 static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::TYPE)     + 1>, const TypeInfo*>);
 static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::ENUM)     + 1>, EnumValue>);
+static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::I32)      + 1>, std::int32_t>);
+static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::F32)      + 1>, float>);
 } // namespace detail
 
 // ============================================================================
@@ -309,20 +333,16 @@ inline Value& Value::operator=(const Value& other) {
 
 inline bool Value::operator==(const Value& other) const {
     if (kind() != other.kind()) {
-        // Permite comparar INT e DECIMAL
-        if ((kind() == Kind::INT || kind() == Kind::DECIMAL) &&
-            (other.kind() == Kind::INT || other.kind() == Kind::DECIMAL)) {
-            double a = asNumber();
-            double b = other.asNumber();
-            return a == b;
-        }
+        // mesma família numérica, larguras diferentes: compara o valor
+        if (isInteger() && other.isInteger()) return asInt() == other.asInt();
+        if (isFloat() && other.isFloat())     return asFloat() == other.asFloat();
         return false;
     }
 
     switch (kind()) {
         case Kind::VOID_VAL:  return true;
-        case Kind::INT:       return asInt()     == other.asInt();
-        case Kind::DECIMAL:   return asDecimal() == other.asDecimal();
+        case Kind::I64: case Kind::I32: return asInt()   == other.asInt();
+        case Kind::F64: case Kind::F32: return asFloat() == other.asFloat();   // IEEE: NaN != NaN
         case Kind::STRING:    return asString()  == other.asString();
         case Kind::BOOL:      return asBool()    == other.asBool();
         case Kind::LIST: {
@@ -360,20 +380,16 @@ inline bool Value::operator==(const Value& other) const {
 }
 
 inline bool Value::operator<(const Value& other) const {
-    // Tipos diferentes: ordem por Kind (int e decimal: comparação numérica)
+    // Tipos diferentes: ordem por Kind (mesma família numérica: pelo valor)
     if (kind() != other.kind()) {
-        if ((kind() == Kind::INT || kind() == Kind::DECIMAL) &&
-            (other.kind() == Kind::INT || other.kind() == Kind::DECIMAL)) {
-            double a = asNumber();
-            double b = other.asNumber();
-            return a < b;
-        }
+        if (isInteger() && other.isInteger()) return asInt() < other.asInt();
+        if (isFloat() && other.isFloat())     return asFloat() < other.asFloat();
         return static_cast<int>(kind()) < static_cast<int>(other.kind());
     }
 
     switch (kind()) {
-        case Kind::INT:     return asInt()     < other.asInt();
-        case Kind::DECIMAL: return asDecimal() < other.asDecimal();
+        case Kind::I64: case Kind::I32: return asInt()   < other.asInt();
+        case Kind::F64: case Kind::F32: return asFloat() < other.asFloat();
         case Kind::STRING:  return asString()  < other.asString();
         case Kind::BOOL:    return static_cast<int>(asBool()) < static_cast<int>(other.asBool());
         case Kind::ENUM: {   // chave de dict: ordem da declaração (e por enum)
@@ -390,13 +406,17 @@ inline std::string Value::toString() const {
 
     switch (kind()) {
         case Kind::VOID_VAL:  return "void";
-        case Kind::INT:       return std::to_string(asInt());
-        case Kind::DECIMAL: {
-            // Revisão: a menor forma que volta ao mesmo número (antes o ostream
-            // cortava em 6 dígitos: 123456.789 saía 123457). Valor inteiro sai
-            // sem ".0" (4.0 → 4), como já era.
+        case Kind::I64: case Kind::I32: return std::to_string(asInt());
+        case Kind::F64: case Kind::F32: {
+            // A menor forma que volta ao mesmo número, na precisão do próprio
+            // tipo (0.1f sai 0.1, não 0.10000000149011612). Valor inteiro sai
+            // sem ".0" (4.0 → 4). IEEE: inf, -inf e nan.
+            const double d = asFloat();
+            if (d != d) return "nan";
             char buf[64];
-            auto [fim, ec] = std::to_chars(buf, buf + sizeof buf, asDecimal());
+            auto [fim, ec] = kind() == Kind::F32
+                ? std::to_chars(buf, buf + sizeof buf, asF32())
+                : std::to_chars(buf, buf + sizeof buf, d);
             return ec == std::errc() ? std::string(buf, fim) : std::string("?");
         }
         case Kind::STRING:  return asString();
@@ -447,7 +467,7 @@ inline std::string Value::toString() const {
             // C4: "ValueError: mensagem"
             return displayName(asError()->kind) + ": " + asError()->message;
         case Kind::TYPE:
-            return stripModulePrefixes(asType()->str());   // "int", "list<int>", "Ponto"
+            return stripModulePrefixes(asType()->str());   // "i64", "list<i32>", "Ponto"
         case Kind::ENUM:   // "Cor.Verde"
             return displayName(asEnum().decl->name) + "." + asEnum().decl->members[asEnum().index];
         case Kind::STRUCT: {

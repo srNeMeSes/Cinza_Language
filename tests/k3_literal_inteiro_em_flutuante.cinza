@@ -1,0 +1,3 @@
+// Seção K: literal inteiro onde se espera ponto flutuante: o erro mostra a correção.
+fn main() { f64 x = 2; }
+// expect-error: O literal 2 é inteiro, mas aqui se espera 'f64': inteiro e ponto flutuante não se misturam. Escreva 2.ff

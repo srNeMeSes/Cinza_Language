@@ -1,44 +1,44 @@
 // A2: cada ponto de coerção i64 -> f64 materializa a conversão (5 / 2 deve dar 2.5).
 class Conta {
-  f64 saldo = 5;
-  f64 extra = 0.0;
+  f64 saldo = 5.ff;
+  f64 extra = 0.0ff;
   pub {
     Conta(f64 inicial) { extra = inicial; }
-    fn metade() -> f64 { return saldo / 2; }
-    fn extraMetade() -> f64 { return extra / 2; }
+    fn metade() -> f64 { return saldo / 2.ff; }
+    fn extraMetade() -> f64 { return extra / 2.ff; }
     fn depositar(f64 v) { saldo = v; }
-    fn viaInterno() -> f64 { depositar(5); return saldo / 2; }
+    fn viaInterno() -> f64 { depositar(5.ff); return saldo / 2.ff; }
   }
 }
-fn metade(f64 x) -> f64 { return x / 2; }
-fn cinco() -> f64 { return 5; }
+fn metade(f64 x) -> f64 { return x / 2.ff; }
+fn cinco() -> f64 { return 5.ff; }
 fn main() {
-  f64 d = 5;
-  print(d / 2);
-  f64 a = 0.0;
-  a = 5;
-  print(a / 2);
-  print(metade(5));
-  print(cinco() / 2);
-  Conta c = new Conta(5);
+  f64 d = 5.ff;
+  print(d / 2.ff);
+  f64 a = 0.0ff;
+  a = 5.ff;
+  print(a / 2.ff);
+  print(metade(5.ff));
+  print(cinco() / 2.ff);
+  Conta c = new Conta(5.ff);
   print(c.metade());
   print(c.extraMetade());
-  c.depositar(5);
+  c.depositar(5.ff);
   print(c.metade());
   print(c.viaInterno());
-  list<f64> l = [5, 1];
-  print(l[0] / 2);
-  l[1] = 5;
-  print(l[1] / 2);
-  l.add(5);
-  print(l[2] / 2);
-  list<f64> mista = [5, 0.5];
-  print(mista[0] / 2);
-  dict<string, f64> m = {{"a", 5}};
-  print(m["a"] / 2);
-  m["a"] = 5;
-  print(m["a"] / 2);
-  for (f64 x in [5]) { print(x / 2); }
+  list<f64> l = [5.ff, 1.ff];
+  print(l[0] / 2.ff);
+  l[1] = 5.ff;
+  print(l[1] / 2.ff);
+  l.add(5.ff);
+  print(l[2] / 2.ff);
+  list<f64> mista = [5.ff, 0.5ff];
+  print(mista[0] / 2.ff);
+  dict<string, f64> m = {{"a", 5.ff}};
+  print(m["a"] / 2.ff);
+  m["a"] = 5.ff;
+  print(m["a"] / 2.ff);
+  for (f64 x in [5.f]) { print(x / 2.ff); }   // f32 → f64 em cada elemento
 }
 // expect: 2.5
 // expect: 2.5

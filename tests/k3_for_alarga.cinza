@@ -1,0 +1,12 @@
+// Seção K: for (i64 x in list<i32>) alarga cada elemento ao entrar no iterador.
+fn main() {
+  list<i32> l = [1, 2147483647];
+  for (i64 x in l) { print(x + 1, type(x)); }
+  for (f64 y in [0.5f]) { print(y, type(y)); }
+  for (var z in l) { print(type(z)); }
+}
+// expect: 2 i64
+// expect: 2147483648 i64
+// expect: 0.5 f64
+// expect: i32
+// expect: i32

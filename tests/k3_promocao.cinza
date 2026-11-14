@@ -1,0 +1,21 @@
+// Seção K: na mesma família o mais estreito é promovido antes da conta; o
+// resultado tem o tipo mais largo; i32 op i32 fica em i32.
+fn main() {
+  i32 a = 2000000000;
+  i64 b = 2000000000;
+  print(a + b, type(a + b), type(a * 1), type(b * 2));
+  f32 x = 0.1f;
+  f64 y = 0.1ff;
+  print(x + y, type(x + y), x + x, type(x * x));
+  i64 c = a;          // i32 → i64
+  f64 z = x;          // f32 → f64 (exato)
+  print(c, z, a < b, x == y, x == 0.1f, cast<f64>(x) == z);
+  list<i64> l = [1, 2, a];
+  print(l, type(l));
+  print(type([1, 2]), type([1.f, 2.ff]), type([1, 3000000000]));
+}
+// expect: 4000000000 i64 i32 i64
+// expect: 0.20000000149011612 f64 0.2 f32
+// expect: 2000000000 0.10000000149011612 false false true true
+// expect: [1, 2, 2000000000] list<i64>
+// expect: list<i32> list<f64> list<i64>

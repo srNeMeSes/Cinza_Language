@@ -1,9 +1,9 @@
-// type() funciona com qualquer valor e compara com nomes de tipo.
+﻿// type() funciona com qualquer valor e compara com nomes de tipo.
 struct Ponto { i64 x = 0; }
 class Caixa { i64 v = 0; }
 error Falhou;
 fn main() {
-  print(type(5) == i64, type(2.5) == f64, type("a") == str, type(true) == bool);
+  print(type(5) == i32, type(2.5ff) == f64, type("a") == str, type(true) == bool);
   list<i64> l = [1];
   dict<string, i64> d = {{"a", 1}};
   print(type(l) == list<i64>, type(l) == list<string>, type(d) == dict<string, i64>);
@@ -15,6 +15,6 @@ fn main() {
 // expect: true true true true
 // expect: true false true
 // expect: true true false
-// expect: list<i64> dict<string, i64> pair<i64, string> Ponto
+// expect: list<i64> dict<string, i64> pair<i32, string> Ponto
 // expect: true Falhou
 // expect: type

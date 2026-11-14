@@ -4,7 +4,7 @@ interface Forma {
   fn nome() -> string;
 }
 class Ponto : Forma {
-  pub { fn area() -> f64 { return 0.0; } }
+  pub { fn area() -> f64 { return 0.0ff; } }
 }
 fn main() { }
 // expect-error: A classe 'Ponto' declara ': Forma', mas não tem o método nome() -> string.

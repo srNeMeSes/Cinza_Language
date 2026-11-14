@@ -1,0 +1,6 @@
+// Seção K: % só existe entre inteiros.
+fn main() {
+  f32 x = 5.f;
+  print(x % 2.f);
+}
+// expect-error: Operador '%' só existe entre inteiros (i32, i64), mas recebeu 'f32' e 'f32'

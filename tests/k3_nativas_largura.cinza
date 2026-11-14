@@ -1,0 +1,26 @@
+// Seção K: nativas genéricas ("número") devolvem o tipo dos argumentos; a
+// variável de tipo alarga na família (Math.max(i32, i64) dá i64).
+import Math;
+import Lists;
+fn main() {
+  i32 a = -3;
+  i64 b = 10;
+  print(Math.abs(a), type(Math.abs(a)), Math.abs(-2.5f), type(Math.abs(-2.5f)));
+  print(Math.max(a, b), type(Math.max(a, b)), type(Math.max(b, a)), type(Math.min(1, 2)));
+  print(Math.clamp(a, 0, 5), type(Math.clamp(a, 0, 5)), type(Math.clamp(1.f, 0.ff, 2.f)));
+  list<i32> li = [1, 2, 3];
+  list<f32> lf;
+  list<f64> ld;
+  print(Lists.sum(li), type(Lists.sum(li)), Lists.sum(lf), type(Lists.sum(lf)), type(Lists.sum(ld)));
+  print(Lists.product(li), Lists.product(lf), type(Lists.product(lf)), Lists.max(li), type(Lists.min(li)));
+  try { print(Math.abs(-2147483648)); } except (OverflowError e) { print(e.message); }
+  list<i32> grandes = [2147483647, 1];
+  try { print(Lists.sum(grandes)); } except (OverflowError e) { print(e.message); }
+}
+// expect: 3 i32 2.5 f32
+// expect: 10 i64 i64 i32
+// expect: 0 i32 f64
+// expect: 6 i32 0 f32 f64
+// expect: 6 1 f32 3 i32
+// expect: 'abs' do menor i32 não cabe em i32
+// expect: a soma de 'sum' não cabe em i32

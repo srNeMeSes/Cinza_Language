@@ -2,6 +2,7 @@
 #include "parser.h"          // printf/format: as expressões dentro do texto
 #include "runtime_error.h"   // C4: builtinErrorKinds
 #include <sstream>
+#include <limits>
 #include <algorithm>
 #include <functional>
 #include <set>
@@ -16,11 +17,30 @@ using TK = TypeInfo::Kind;
 // é comparação de ponteiros e os parâmetros são lidos direto de `params`.
 // ============================================================================
 
-// v2.00 #19: Promoção numérica centralizada — única fonte de verdade
-// int+int→int  |  int+decimal→decimal  |  decimal+int→decimal  |  decimal+decimal→decimal
-TypeRef TypeChecker::promoteNumeric(TypeRef l, TypeRef r) {
+// Seção K: regra numérica central — única fonte de verdade.
+// Duas famílias: inteiros (i32, i64) e ponto flutuante (f32, f64). Na mesma
+// família o resultado é o tipo mais largo (o mais estreito é promovido antes
+// da conta); famílias diferentes não se misturam (nullptr): cast<T> explícito.
+TypeRef TypeChecker::numericResult(TypeRef l, TypeRef r) {
     auto& types = TypeContext::instance();
-    return (l->is(TK::F64) || r->is(TK::F64)) ? types.f64Type() : types.i64Type();
+    if (l->isInteger() && r->isInteger())
+        return (l->is(TK::I64) || r->is(TK::I64)) ? types.i64Type() : types.i32Type();
+    if (l->isFloat() && r->isFloat())
+        return (l->is(TK::F64) || r->is(TK::F64)) ? types.f64Type() : types.f32Type();
+    return nullptr;
+}
+
+// Promoção implícita permitida: só alargar dentro da família (i32 → i64, f32 → f64)
+bool TypeChecker::widens(TypeRef to, TypeRef from) {
+    return (to->is(TK::I64) && from->is(TK::I32)) || (to->is(TK::F64) && from->is(TK::F32));
+}
+
+// Mensagem de operação entre famílias diferentes (i32 + f64)
+static std::string familiasMessage(const std::string& op_text, TypeRef l, TypeRef r) {
+    TypeRef f = l->isFloat() ? l : r;
+    return "Operador '" + op_text + "' entre '" + l->str() + "' e '" + r->str() + "': inteiro e "
+           "ponto flutuante não se misturam. Converta um dos lados com cast<T>(valor), ex.: cast<" +
+           f->str() + ">(n)";
 }
 
 // Tipo escrito na AST → TypeRef único
@@ -34,8 +54,10 @@ TypeRef TypeChecker::fromAst(const Type* type) {
     };
 
     switch (type->kind) {
+        case Type::Kind::I32:     return types.i32Type();
         case Type::Kind::I64:     return types.i64Type();
-        case Type::Kind::F64: return types.f64Type();
+        case Type::Kind::F32:     return types.f32Type();
+        case Type::Kind::F64:     return types.f64Type();
         case Type::Kind::STRING:  return types.stringType();
         case Type::Kind::BOOL:    return types.boolType();
         case Type::Kind::VOID:    return types.voidType();
@@ -63,9 +85,9 @@ static bool sameGenericType(TypeRef declared, TypeRef value) {
 // Checa se `value` é atribuível a `declared`.
 // Regras de coerção da Cinza v2:
 //   - tipos iguais → sempre OK
-//   - "var" declarado → aceita qualquer PRIMITIVO (int/decimal/string/bool)
-//   - int → decimal (promoção numérica)
-//   - A3: list/dict/pair são invariantes (list<int> NÃO cabe em list<decimal>);
+//   - "var" declarado → aceita qualquer PRIMITIVO (números, string, bool)
+//   - i32 → i64 e f32 → f64 (alargar na família; seção K)
+//   - A3: list/dict/pair são invariantes (list<i32> NÃO cabe em list<i64>);
 //     literais se adaptam ao tipo esperado em analyzeExpr(expr, expected)
 bool TypeChecker::isAssignable(TypeRef declared, TypeRef value) {
     if (declared == value) return true;
@@ -78,8 +100,8 @@ bool TypeChecker::isAssignable(TypeRef declared, TypeRef value) {
     if (declared->is(TK::Var)) return value->isPrimitive();
     if (value->is(TK::Var))    return true;   // valor var primitivo ainda não resolvido
 
-    // Promoção numérica: int pode ser atribuído a decimal (v2.00 #19)
-    if (declared->is(TK::F64) && value->is(TK::I64)) return true;
+    // Seção K: só alargar dentro da família
+    if (widens(declared, value)) return true;
 
     // C4: Error é a raiz de todos os tipos de erro
     if (declared->is(TK::Error) && declared->name == "Error" && value->is(TK::Error)) return true;
@@ -100,7 +122,10 @@ TypeRef TypeChecker::checkBinaryOp(TypeRef left, TokenType op, TypeRef right,
 
         // ── Operadores aritméticos ───────────────────────────────────────
         case TokenType::OP_PLUS:
-            if (left->isNumeric() && right->isNumeric())               return promoteNumeric(left, right);
+            if (left->isNumeric() && right->isNumeric()) {
+                if (TypeRef t = numericResult(left, right)) return t;
+                throw SemanticError(familiasMessage(op_text, left, right), tok);
+            }
             if (left->is(TK::String) && right->is(TK::String))         return types.stringType();
             // v2.00 #3: concatenação string + primitivo
             if (left->is(TK::String) && right->isPrimitive())          return types.stringType();
@@ -112,7 +137,16 @@ TypeRef TypeChecker::checkBinaryOp(TypeRef left, TokenType op, TypeRef right,
         case TokenType::OP_MULTIPLY:
         case TokenType::OP_DIVIDE:
         case TokenType::OP_MODULO:
-            if (left->isNumeric() && right->isNumeric()) return promoteNumeric(left, right);
+            if (left->isNumeric() && right->isNumeric()) {
+                TypeRef t = numericResult(left, right);
+                if (!t) throw SemanticError(familiasMessage(op_text, left, right), tok);
+                // resto só existe entre inteiros (seção K)
+                if (op == TokenType::OP_MODULO && !t->isInteger())
+                    throw SemanticError(
+                        "Operador '" + op_text + "' só existe entre inteiros (i32, i64), mas recebeu '" +
+                        l + "' e '" + r + "'", tok);
+                return t;
+            }
             throw SemanticError(
                 "Operador '" + op_text +
                 "' requer tipos numéricos, mas recebeu '" + l + "' e '" + r + "'", tok);
@@ -122,7 +156,10 @@ TypeRef TypeChecker::checkBinaryOp(TypeRef left, TokenType op, TypeRef right,
         case TokenType::OP_LESS_EQUAL:
         case TokenType::OP_GREATER:
         case TokenType::OP_GREATER_EQUAL:
-            if (left->isNumeric() && right->isNumeric())       return types.boolType();
+            if (left->isNumeric() && right->isNumeric()) {
+                if (numericResult(left, right)) return types.boolType();
+                throw SemanticError(familiasMessage(tokenTypeToOperatorString(op), left, right), tok);
+            }
             if (left->is(TK::String) && right->is(TK::String)) return types.boolType();
             throw SemanticError(
                 "Comparação '" + tokenTypeToOperatorString(op) +
@@ -132,7 +169,10 @@ TypeRef TypeChecker::checkBinaryOp(TypeRef left, TokenType op, TypeRef right,
         case TokenType::OP_EQUAL:
         case TokenType::OP_NOT_EQUAL:
             if (left == right)                           return types.boolType();
-            if (left->isNumeric() && right->isNumeric()) return types.boolType();
+            if (left->isNumeric() && right->isNumeric()) {
+                if (numericResult(left, right)) return types.boolType();
+                throw SemanticError(familiasMessage(tokenTypeToOperatorString(op), left, right), tok);
+            }
             throw SemanticError(
                 "Comparação '" + tokenTypeToOperatorString(op) +
                 "' não é suportada entre '" + l + "' e '" + r + "'", tok);
@@ -942,7 +982,7 @@ static bool containsVoid(const Type* type) {
 static TypeRef invalidDictKey(TypeRef type) {
     if (type->is(TK::Dict)) {
         TypeRef k = type->key();
-        if (!k->is(TK::I64) && !k->is(TK::String) && !k->is(TK::Bool) && !k->is(TK::Enum) &&
+        if (!k->isInteger() && !k->is(TK::String) && !k->is(TK::Bool) && !k->is(TK::Enum) &&
             !k->is(TK::Var))   // var em tipo composto tem erro próprio
             return k;
     }
@@ -952,10 +992,10 @@ static TypeRef invalidDictKey(TypeRef type) {
 }
 
 static std::string dictKeyMessage(TypeRef key_type) {
-    if (key_type->is(TK::F64))
-        return "Chave de dict não pode ser 'f64': comparação exata de ponto "
-               "flutuante não é confiável. Use i64, string ou bool.";
-    return "Chave de dict deve ser i64, string, bool ou enum, mas recebeu '" + key_type->str() + "'. "
+    if (key_type->isFloat())
+        return "Chave de dict não pode ser '" + key_type->str() + "': comparação exata de ponto "
+               "flutuante não é confiável. Use i32, i64, string ou bool.";
+    return "Chave de dict deve ser i32, i64, string, bool ou enum, mas recebeu '" + key_type->str() + "'. "
            "Tipos compostos como list<>, pair<> e classes não podem ser chaves.";
 }
 
@@ -1042,7 +1082,7 @@ void SemanticAnalyzer::analyzeVarDecl(VarDeclStmt* stmt) {
             if (!init_type->isPrimitive()) {
                 throwError(
                     "Inferência 'var' só é permitida para tipos primitivos "
-                    "(i64, f64, string, bool), mas recebeu '" + init_type->str() + "'. "
+                    "(números, string, bool), mas recebeu '" + init_type->str() + "'. "
                     "Declare o tipo explicitamente.",
                     stmt->token);
             }
@@ -1238,6 +1278,8 @@ void SemanticAnalyzer::analyzeAssign(AssignStmt* stmt) {
     // (int x = 1; x += 1.5; é erro: int + decimal dá decimal)
     if (stmt->op != TokenType::OP_ASSIGN) {
         TypeRef val_type = analyzeExpr(stmt->value.get());
+        if (target_type->isFloat() && val_type->isInteger())
+            val_type = intLiteralAsFloat(stmt->value.get(), target_type);
         Token op_tok  = stmt->token;
         op_tok.lexeme = tokenTypeToOperatorString(stmt->op);
         TypeRef result = TypeChecker::checkBinaryOp(target_type, compoundBaseOp(stmt->op),
@@ -1249,6 +1291,7 @@ void SemanticAnalyzer::analyzeAssign(AssignStmt* stmt) {
                 target_type->str() + "' do alvo",
                 stmt->token);
         }
+        if (result->isNumeric()) coerceInPlace(stmt->value, result);   // mesmo tipo do alvo
         return;
     }
 
@@ -1369,6 +1412,8 @@ void SemanticAnalyzer::analyzeFor(ForStmt* stmt) {
             "' é incompatível com o elemento da lista '" + elem_type->str() + "'",
             stmt->token);
     }
+    // for (i64 x in list<i32>): cada elemento é alargado ao entrar no iterador
+    stmt->widen_to = TypeChecker::widens(declared_iter, elem_type) ? declared_iter : nullptr;
 
     // Escopo próprio do for: o iterador só existe dentro do corpo
     symbol_table.pushScope();
@@ -1786,7 +1831,7 @@ TypeRef SemanticAnalyzer::analyzeExpr(Expr* expr, TypeRef expected) {
 
     // B3: switch no NodeKind em vez de cadeia de dynamic_cast
     switch (expr->node_kind) {
-        case NodeKind::Literal:      return analyzeLiteral     (static_cast<LiteralExpr*>(expr));
+        case NodeKind::Literal:      return analyzeLiteral     (static_cast<LiteralExpr*>(expr), expected);
         case NodeKind::Identifier:   return analyzeIdentifier  (static_cast<IdentifierExpr*>(expr));
         case NodeKind::Binary:       return analyzeBinary      (static_cast<BinaryExpr*>(expr));
         case NodeKind::Unary:        return analyzeUnary       (static_cast<UnaryExpr*>(expr));
@@ -1805,9 +1850,10 @@ TypeRef SemanticAnalyzer::analyzeExpr(Expr* expr, TypeRef expected) {
             return e->resolved_type = types.typeType();
         }
         case NodeKind::Cast: {
-            // Defensivo: CastExpr só é inserido depois da análise (A2) e, sem a
-            // reanálise por chamada (removida em A7), não deveria voltar aqui.
             auto* e = static_cast<CastExpr*>(expr);
+            if (e->explicit_cast) return analyzeCast(e);
+            // Defensivo: a promoção é inserida depois da análise (A2) e, sem a
+            // reanálise por chamada (removida em A7), não deveria voltar aqui.
             analyzeExpr(e->operand.get());
             return e->resolved_type;
         }
@@ -1822,11 +1868,23 @@ TypeRef SemanticAnalyzer::analyzeExpr(Expr* expr, TypeRef expected) {
 // ============================================================================
 
 // Literal:  42, 3.14, "hello", true/false
-TypeRef SemanticAnalyzer::analyzeLiteral(LiteralExpr* expr) {
+// Seção K: inteiro é i32 se couber, senão i64; 1.5f é f32 e 1.5ff é f64
+TypeRef SemanticAnalyzer::analyzeLiteral(LiteralExpr* expr, TypeRef expected) {
     TypeRef type = nullptr;
 
-    if      (std::holds_alternative<std::int64_t>(expr->value)) type = types.i64Type();
-    else if (std::holds_alternative<double>      (expr->value)) type = types.f64Type();
+    if (auto* i = std::get_if<std::int64_t>(&expr->value)) {
+        const std::int64_t v = *i;
+        const bool cabe32 = v >= std::numeric_limits<std::int32_t>::min() &&
+                            v <= std::numeric_limits<std::int32_t>::max();
+        type = cabe32 ? types.i32Type() : types.i64Type();
+        expr->resolved_type = type;
+        if (expected && expected->isFloat()) intLiteralAsFloat(expr, expected);   // lança
+        if (!cabe32 && expected && expected->is(TK::I32))
+            throwError("O literal " + std::to_string(v) + " não cabe em i32 (-2147483648 a "
+                       "2147483647): use i64", expr->token);
+    }
+    else if (std::holds_alternative<double>      (expr->value)) type = expr->f32 ? types.f32Type()
+                                                                                 : types.f64Type();
     else if (std::holds_alternative<std::string> (expr->value)) type = types.stringType();
     else if (std::holds_alternative<bool>        (expr->value)) type = types.boolType();
     else throwError("Literal com tipo desconhecido", expr->token);
@@ -1868,12 +1926,57 @@ TypeRef SemanticAnalyzer::analyzeIdentifier(IdentifierExpr* expr) {
 }
 
 // Operação binária:  left OP right
+// Seção K: na mesma família, os dois lados são promovidos ao tipo comum ANTES
+// da operação (i32 + i64: o i32 vira i64), então o executor e a CVM sempre
+// recebem operandos do mesmo tipo
 TypeRef SemanticAnalyzer::analyzeBinary(BinaryExpr* expr) {
     TypeRef left_type  = analyzeExpr(expr->left.get());
     TypeRef right_type = analyzeExpr(expr->right.get());
 
-    return expr->resolved_type =
-        TypeChecker::checkBinaryOp(left_type, expr->op, right_type, expr->token);
+    // x * 2 com x de ponto flutuante: o erro aponta o literal e a correção
+    if (left_type->isFloat() && right_type->isInteger())
+        right_type = intLiteralAsFloat(expr->right.get(), left_type);
+    else if (right_type->isFloat() && left_type->isInteger())
+        left_type = intLiteralAsFloat(expr->left.get(), right_type);
+
+    expr->resolved_type = TypeChecker::checkBinaryOp(left_type, expr->op, right_type, expr->token);
+    if (left_type->isNumeric() && right_type->isNumeric()) {
+        TypeRef comum = TypeChecker::numericResult(left_type, right_type);
+        coerceInPlace(expr->left,  comum);
+        coerceInPlace(expr->right, comum);
+    }
+    return expr->resolved_type;
+}
+
+// Literal inteiro onde se espera ponto flutuante (f64 x = 2; x * 2): erro com
+// a correção (2.ff). Devolve o tipo da expressão (só volta se não for literal).
+TypeRef SemanticAnalyzer::intLiteralAsFloat(Expr* e, TypeRef float_type) {
+    if (e->node_kind != NodeKind::Literal) return e->resolved_type;
+    auto* lit = static_cast<LiteralExpr*>(e);
+    auto* i = std::get_if<std::int64_t>(&lit->value);
+    if (!i) return e->resolved_type;
+    const std::string sufixo = float_type->is(TK::F32) ? ".f" : ".ff";
+    throwError("O literal " + std::to_string(*i) + " é inteiro, mas aqui se espera '" + float_type->str() +
+               "': inteiro e ponto flutuante não se misturam. Escreva " + std::to_string(*i) + sufixo +
+               " (ou converta com cast<" + float_type->str() + ">(...))", lit->token);
+}
+
+// cast<T>(valor): T é i32, i64, f32, f64 ou string; o valor, número ou string
+// (bool não converte: use uma comparação ou um if)
+TypeRef SemanticAnalyzer::analyzeCast(CastExpr* expr) {
+    TypeRef alvo = typeOf(expr->written.get());
+    if (!alvo->isNumeric() && !alvo->is(TK::String))
+        throwError("cast<" + alvo->str() + "> não existe: cast converte só para i32, i64, f32, f64 ou "
+                   "string", expr->token);
+    TypeRef origem = analyzeExpr(expr->operand.get());
+    if (!origem->isNumeric() && !origem->is(TK::String)) {
+        if (origem->is(TK::Bool))
+            throwError("cast<" + alvo->str() + ">(bool) não existe: bool não é número. Use um if ou "
+                       "uma comparação", expr->token);
+        throwError("cast<" + alvo->str() + "> recebeu '" + origem->str() + "': cast converte só números "
+                   "e string", expr->token);
+    }
+    return expr->resolved_type = alvo;
 }
 
 // Operação unária:  OP operand
@@ -2027,14 +2130,15 @@ static bool unify(TypeRef param, TypeRef arg, std::map<std::string, TypeRef>& bi
         auto it = binds.find(param->name);
         if (it == binds.end()) {
             // Fase 7: variáveis com restrição
-            if (param->name == "número" && !arg->is(TK::I64) && !arg->is(TK::F64))
+            if (param->name == "número" && !arg->isNumeric())
                 return false;
-            if (param->name == "comparável" && !arg->is(TK::I64) && !arg->is(TK::F64) &&
-                !arg->is(TK::String))
+            if (param->name == "comparável" && !arg->isNumeric() && !arg->is(TK::String))
                 return false;
             binds[param->name] = arg;
             return true;
         }
+        // Math.max(a_i32, b_i64): a variável alarga na família (fica i64)
+        if (TypeChecker::widens(arg, it->second)) { it->second = arg; return true; }
         return TypeChecker::isAssignable(it->second, arg);
     }
     if (param->isGeneric() && arg->kind == param->kind &&
@@ -2094,6 +2198,10 @@ TypeRef SemanticAnalyzer::analyzeNativeCall(CallExpr* expr, const NativeFn& fn) 
                        "': esperado '" + mostrado->str() + "', mas recebeu '" + at->str() + "'",
                        expr->token);
         }
+    }
+    // depois de todos: uma variável de tipo pode ter alargado num argumento posterior
+    for (size_t i = 0; i < n; ++i) {
+        TypeRef param = (fn.variadic && i >= max_n - 1) ? fn.params.back() : fn.params[i];
         if (TypeRef concreto = substitute(param, binds))
             coerceInPlace(expr->arguments[i], concreto);
     }
@@ -2165,8 +2273,8 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
             if (expr->arguments.size() != 1)
                 throwError("'list.has(idx)' requer exatamente 1 argumento", expr->token);
             TypeRef idx_type = analyzeExpr(expr->arguments[0].get());
-            if (!idx_type->is(TK::I64))
-                throwError("'list.has(idx)' requer índice 'i64', recebeu '" + idx_type->str() + "'",
+            if (!idx_type->isInteger())
+                throwError("'list.has(idx)' requer índice inteiro (i32 ou i64), recebeu '" + idx_type->str() + "'",
                            expr->token);
             return expr->resolved_type = types.boolType();
         }
@@ -2191,8 +2299,8 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
             if (expr->arguments.size() != 1)
                 throwError("'list.remove(idx)' requer exatamente 1 argumento", expr->token);
             TypeRef idx_type = analyzeExpr(expr->arguments[0].get());
-            if (!idx_type->is(TK::I64))
-                throwError("'list.remove(idx)' requer índice 'i64', recebeu '" + idx_type->str() + "'",
+            if (!idx_type->isInteger())
+                throwError("'list.remove(idx)' requer índice inteiro (i32 ou i64), recebeu '" + idx_type->str() + "'",
                            expr->token);
             return expr->resolved_type = types.voidType();
         }
@@ -2428,8 +2536,8 @@ TypeRef SemanticAnalyzer::analyzeIndexAccess(IndexAccessExpr* expr) {
     TypeRef idx_type = analyzeExpr(expr->index.get());
 
     if (obj_type->is(TK::List)) {
-        if (!idx_type->is(TK::I64)) {
-            throwError("Índice de lista deve ser 'i64', mas recebeu '" + idx_type->str() + "'",
+        if (!idx_type->isInteger()) {
+            throwError("Índice de lista deve ser inteiro (i32 ou i64), mas recebeu '" + idx_type->str() + "'",
                        expr->token);
         }
         // Índice negativo literal é erro semântico
@@ -2451,8 +2559,8 @@ TypeRef SemanticAnalyzer::analyzeIndexAccess(IndexAccessExpr* expr) {
 
     // s[i]: o caractere (string); índice negativo conta do fim
     if (obj_type->is(TK::String)) {
-        if (!idx_type->is(TK::I64))
-            throwError("Índice de string deve ser 'i64', mas recebeu '" + idx_type->str() + "'",
+        if (!idx_type->isInteger())
+            throwError("Índice de string deve ser inteiro (i32 ou i64), mas recebeu '" + idx_type->str() + "'",
                        expr->token);
         return expr->resolved_type = types.stringType();
     }
@@ -2556,8 +2664,8 @@ TypeRef SemanticAnalyzer::analyzeInterpolation(CallExpr* expr) {
         TypeRef t = analyzeExpr(parte.expr.get());
         if (t->is(TK::Void))
             throwError("'{" + codigo + "}' não tem valor (a expressão é 'void')", parte.expr->token);
-        if (parte.precision >= 0 && !t->is(TK::I64) && !t->is(TK::F64))
-            throwError("O formato de casas decimais só vale para i64 e f64, mas '" + codigo + "' é '" +
+        if (parte.precision >= 0 && !t->isNumeric())
+            throwError("O formato de casas decimais só vale para números, mas '" + codigo + "' é '" +
                        t->str() + "'", parte.expr->token);
         fechaTexto();
         expr->interp.push_back(std::move(parte));
@@ -2586,8 +2694,8 @@ TypeRef SemanticAnalyzer::analyzeSlice(SliceExpr* expr) {
     for (const auto& [nome, e] : partes) {
         if (!e) continue;
         TypeRef t = analyzeExpr(e);
-        if (!t->is(TK::I64))
-            throwError(std::string("O ") + nome + " da fatia deve ser 'i64', mas recebeu '" + t->str() + "'",
+        if (!t->isInteger())
+            throwError(std::string("O ") + nome + " da fatia deve ser inteiro (i32 ou i64), mas recebeu '" + t->str() + "'",
                        expr->token);
     }
     return expr->resolved_type = types.stringType();
@@ -2698,8 +2806,8 @@ TypeRef SemanticAnalyzer::analyzeListLiteral(ListLiteralExpr* expr, TypeRef expe
         TypeRef t = elem_types[i];
 
         // Promoção numérica
-        if (unified->isNumeric() && t->isNumeric()) {
-            unified = TypeChecker::promoteNumeric(unified, t);
+        if (TypeRef comum = TypeChecker::numericResult(unified, t)) {
+            unified = comum;
         }
         // Mesmo tipo, ou parâmetro ainda não resolvido de um lado (ex.: [[1], []])
         else if (TypeChecker::isAssignable(unified, t)) {
@@ -2757,7 +2865,7 @@ TypeRef SemanticAnalyzer::analyzeDictLiteral(DictLiteralExpr* expr, TypeRef expe
         TypeRef vt = analyzeExpr(expr->pairs[i].second.get(), V);
 
         // v2.00 #13 / A10: chaves só int, string, bool ou enum
-        if (!kt->is(TK::I64) && !kt->is(TK::String) && !kt->is(TK::Bool) && !kt->is(TK::Enum)) {
+        if (!kt->isInteger() && !kt->is(TK::String) && !kt->is(TK::Bool) && !kt->is(TK::Enum)) {
             throwError("Chave " + std::to_string(i + 1) + " do literal: " + dictKeyMessage(kt),
                        expr->token);
         }
@@ -2811,16 +2919,16 @@ TypeRef SemanticAnalyzer::analyzeDictLiteral(DictLiteralExpr* expr, TypeRef expe
         TypeRef vt = val_types[i];
 
         // v2.00 #20: unificação do tipo da chave
-        if (key_type->isNumeric() && kt->isNumeric()) {
-            key_type = TypeChecker::promoteNumeric(key_type, kt);
+        if (TypeRef comum = TypeChecker::numericResult(key_type, kt)) {
+            key_type = comum;
         } else if (key_type != kt && !TypeChecker::isAssignable(key_type, kt)) {
             throwError("Chave " + std::to_string(i + 1) + " do dict tem tipo '" + kt->str() +
                        "', mas esperava-se '" + key_type->str() + "'", expr->token);
         }
 
         // v2.00 #20: unificação do tipo do valor
-        if (val_type->isNumeric() && vt->isNumeric()) {
-            val_type = TypeChecker::promoteNumeric(val_type, vt);
+        if (TypeRef comum = TypeChecker::numericResult(val_type, vt)) {
+            val_type = comum;
         } else if (val_type != vt && !TypeChecker::isAssignable(val_type, vt)) {
             throwError("Valor " + std::to_string(i + 1) + " do dict tem tipo '" + vt->str() +
                        "', mas esperava-se '" + val_type->str() + "'", expr->token);
@@ -2860,16 +2968,17 @@ TypeRef SemanticAnalyzer::analyzePairLiteral(PairLiteralExpr* expr, TypeRef expe
 // ============================================================================
 // COERÇÃO IMPLÍCITA (A2)
 //
-// isAssignable() só diz que int cabe em decimal; sem materializar a
-// conversão o valor chega ao executor como INT (ex.: `decimal d = 5;
-// d / 2` virava divisão inteira). Aqui a conversão vira um nó CastExpr.
+// isAssignable() só diz que i32 cabe em i64 (e f32 em f64); sem materializar
+// a promoção o valor chegaria ao executor com a largura menor. Literal muda
+// só o tipo (o valor é exato); o resto ganha um nó CastExpr.
 // ============================================================================
 
 void SemanticAnalyzer::coerceInPlace(ExprPtr& slot, TypeRef target) {
     if (!slot || !target || slot->resolved_type == target) return;
 
-    if (target->is(TK::F64) && slot->resolved_type->is(TK::I64)) {
-        slot = std::make_unique<CastExpr>(std::move(slot), target);
+    if (slot->resolved_type && TypeChecker::widens(target, slot->resolved_type)) {
+        if (slot->node_kind == NodeKind::Literal) slot->resolved_type = target;
+        else slot = std::make_unique<CastExpr>(std::move(slot), target);
         return;
     }
 

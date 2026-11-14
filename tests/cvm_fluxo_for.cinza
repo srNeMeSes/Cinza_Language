@@ -10,8 +10,8 @@ fn main() {
   string invertido = "";
   for (string c in "ação") { invertido = c + invertido; }
   print(invertido);
-  f64 total = 0.0;
-  for (f64 x in range(1, 4)) { total += x / 2; }
+  f64 total = 0.0ff;
+  for (i64 x in range(1, 4)) { total += cast<f64>(x) / 2.ff; }
   print(total);
   i64 pares = 0;
   for (i64 a in range(0, 4)) {

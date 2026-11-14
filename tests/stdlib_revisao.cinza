@@ -4,8 +4,8 @@ import Strings as st;
 import Math;
 fn main() {
   print(st.is_upper("ÿ"), st.is_upper("ß"), st.is_lower("ÿß"), st.is_upper("ABÇ"), st.is_lower("ABÇ"));
-  try { print(Math.pow(0, -1)); } except (ZeroDivisionError e) { print(e.message); }
-  print(Math.pow(0, 0), Math.pow(0, 2));
+  try { print(Math.pow(0.ff, -1.ff)); } except (ZeroDivisionError e) { print(e.message); }
+  print(Math.pow(0.ff, 0.ff), Math.pow(0.ff, 2.ff));
 }
 // expect: false false true true false
 // expect: 'pow' de 0 com expoente negativo (divisão por zero)

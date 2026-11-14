@@ -37,7 +37,7 @@ fn main() {
   var x = 1;
   x = "a";
 }
-// expect-error: esperado 'i64', mas recebeu 'string'
+// expect-error: esperado 'i32', mas recebeu 'string'
 ```
 
 `var` só pode aparecer em declarações de variável local e no iterador do `for`; não vale em
@@ -70,54 +70,57 @@ Um valor do tipo `V` pode ser usado onde se espera o tipo `T` (atribuição, ini
 argumento, retorno, elemento de coleção) quando:
 
 1. `V` e `T` são o mesmo tipo; ou
-2. `V` é `i64` e `T` é `f64` — o valor é convertido; ou
+2. `V` é `i32` e `T` é `i64`, ou `V` é `f32` e `T` é `f64` — o valor é alargado (seção 3.2); ou
 3. `T` é `Error` e `V` é qualquer tipo de erro (`Error` é a raiz dos erros); ou
 4. `T` é uma interface e `V` é uma classe que declara cumpri-la (seção 3.7).
 
-Nenhuma outra conversão é implícita: `f64` não vira `i64`, número não vira `string`, `bool`
-não vira número.
+Nenhuma outra conversão é implícita: inteiro não vira ponto flutuante (nem o contrário), o
+mais largo não vira o mais estreito, número não vira `string`, `bool` não vira número. Para
+essas, `cast<T>(valor)` (seção 3.2).
 
 ```cinza
-fn metade(f64 x) -> f64 { return x / 2; }
+fn metade(f64 x) -> f64 { return x / 2.ff; }
 fn main() {
-  f64 d = 3;
-  print(d, metade(5));
+  i64 n = 3;
+  f64 d = 0.5f;
+  print(n, d, metade(5.ff), metade(cast<f64>(n)));
 }
-// expect: 3 2.5
+// expect: 3 0.5 2.5 1.5
 ```
 
 ### Invariância das coleções
 
-`list`, `dict` e `pair` são **invariantes**: `list<i64>` não é `list<f64>`, mesmo que `i64`
-caiba em `f64`. (Se fosse, uma função poderia pôr um `f64` numa lista que o chamador
-acredita ser de `i64`.)
+`list`, `dict` e `pair` são **invariantes**: `list<i32>` não é `list<i64>`, mesmo que `i32`
+caiba em `i64`. (Se fosse, uma função poderia pôr um `i64` numa lista que o chamador
+acredita ser de `i32`.)
 
-**Literais se adaptam ao tipo esperado**: `[1, 2]` onde se espera `list<f64>` vira uma
-`list<f64>` com os elementos convertidos. Uma variável `list<i64>` não se adapta.
+**Literais se adaptam ao tipo esperado**: `[1, 2]` onde se espera `list<i64>` vira uma
+`list<i64>` com os elementos alargados. Uma variável `list<i32>` não se adapta.
 
 ```cinza
 fn soma(list<f64> l) -> f64 {
-  f64 s = 0.0;
+  f64 s = 0.0ff;
   for (f64 x in l) { s += x; }
   return s;
 }
 fn main() {
-  print(soma([1, 2.5]));
+  print(soma([1.f, 2.5ff]));
 }
 // expect: 3.5
 ```
 
 ```cinza
-fn soma(list<f64> l) -> f64 { return 0.0; }
+fn soma(list<i64> l) -> i64 { return 0; }
 fn main() {
-  list<i64> inteiros = [1, 2];
+  list<i32> inteiros = [1, 2];
   print(soma(inteiros));
 }
-// expect-error: esperado 'list<f64>', mas recebeu 'list<i64>'
+// expect-error: esperado 'list<i64>', mas recebeu 'list<i32>'
 ```
 
-Sem tipo esperado, um literal de lista toma o tipo comum dos elementos: `[1, 2.5]` é
-`list<f64>`; elementos de tipos incompatíveis são erro.
+Sem tipo esperado, um literal de lista toma o tipo comum dos elementos, o mais largo da
+família: `[1, 2]` é `list<i32>`, `[1.f, 2.5ff]` é `list<f64>`; elementos de famílias diferentes
+(`[1, 2.5ff]`) ou de tipos incompatíveis são erro.
 
 ## 3.6 Valor inicial obrigatório
 
@@ -149,27 +152,27 @@ cumpri-la (`class Circulo : Forma`) pode ser usada onde se espera a interface.
 ```cinza
 interface Forma { fn area() -> f64; }
 class Quadrado : Forma {
-  f64 lado = 1.0;
+  f64 lado = 1.0ff;
   pub {
     Quadrado(f64 l) { lado = l; }
     fn area() -> f64 { return lado * lado; }
   }
 }
 class Retangulo : Forma {
-  f64 a = 1.0;
-  f64 b = 1.0;
+  f64 a = 1.0ff;
+  f64 b = 1.0ff;
   pub {
     Retangulo(f64 x, f64 y) { a = x; b = y; }
     fn area() -> f64 { return a * b; }
   }
 }
 fn total(list<Forma> formas) -> f64 {
-  f64 s = 0.0;
+  f64 s = 0.0ff;
   for (Forma f in formas) { s += f.area(); }
   return s;
 }
 fn main() {
-  list<Forma> formas = [new Quadrado(2.0), new Retangulo(1.5, 2.0)];
+  list<Forma> formas = [new Quadrado(2.0ff), new Retangulo(1.5ff, 2.0ff)];
   print(total(formas), type(formas[0]));
 }
 // expect: 7 Quadrado
@@ -186,7 +189,7 @@ de variável do tipo `type`.
 struct Ponto { i64 x = 0; }
 fn main() {
   list<i64> l = [1];
-  print(type(5) == i64, type(l) == list<i64>, type(new Ponto()) == Ponto, type(l));
+  print(type(5) == i32, type(l) == list<i64>, type(new Ponto()) == Ponto, type(l));
 }
 // expect: true true true list<i64>
 ```

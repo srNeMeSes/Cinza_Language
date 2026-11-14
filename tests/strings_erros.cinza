@@ -19,8 +19,8 @@ fn main() {
   try { print(st.ord("")); } except (ValueError e) { print(e.message); }
   try { print(st.chr(55296)); } except (ValueError e) { print(e.message); }
   try { print(st.chr(-1)); } except (ValueError e) { print(e.message); }
-  try { print(st.fixed(1.5, -1)); } except (ValueError e) { print(e.message); }
-  try { print(st.fixed(1.5, 101)); } except (ValueError e) { print(e.message); }
+  try { print(st.fixed(1.5ff, -1)); } except (ValueError e) { print(e.message); }
+  try { print(st.fixed(1.5ff, 101)); } except (ValueError e) { print(e.message); }
 }
 // expect: índice 3 fora dos limites de uma string de tamanho 3
 // expect: índice -1 fora dos limites de uma string de tamanho 3

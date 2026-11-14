@@ -13,16 +13,16 @@ fn dobro(i64 n) -> i64 { return n * 2; }
 fn main() {
   string nome = "Ana";
   i64 idade = 30;
-  f64 preco = 2.5;
+  f64 preco = 2.5ff;
   printf("Olá, {nome}! Você tem {idade} anos.");
-  printf("{idade + 1} {dobro(idade)} {nome.size()} {idade > 18} {preco * 2}");
+  printf("{idade + 1} {dobro(idade)} {nome.size()} {idade > 18} {preco * 2.ff}");
   // qualquer tipo, na forma do print
   list<i64> l = [1, 2];
   dict<string, i64> d = {{"a", 1}};
   Pessoa p = new Pessoa("Bia");
   printf("{l} {d} {l[0]} {d[\"a\"]} {p.get_nome()} {new Ponto(1, 2)} {Cor.Azul} {type(preco)}");
   // formatos
-  printf("R$ {preco:.2f} | {idade:.1f} | {2.675:.2f} | {-0.004:.2f} | {7:.0f}");
+  printf("R$ {preco:.2f} | {idade:.1f} | {2.675ff:.2f} | {-0.004ff:.2f} | {7:.0f}");
   printf("[{idade:5}] [{nome:5}] [{preco:8.3f}] [{nome:2}] [{\"ção\":5}]");
   // chaves literais e texto sem expressões
   printf("{{x}} = {idade}; vazio: {{}}");

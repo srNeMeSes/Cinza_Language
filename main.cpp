@@ -40,7 +40,8 @@ std::string tokenTypeToString(TokenType type) {
     switch (type) {
         case TokenType::INTEGER_LITERAL: return "INTEGER_LITERAL";
         case TokenType::STRING_LITERAL: return "STRING_LITERAL";
-        case TokenType::DECIMAL_LITERAL: return "DECIMAL_LITERAL";
+        case TokenType::F32_LITERAL: return "F32_LITERAL";
+        case TokenType::F64_LITERAL: return "F64_LITERAL";
         case TokenType::IDENTIFIER: return "IDENTIFIER";
         
         case TokenType::KW_FN: return "KW_FN";
@@ -61,7 +62,9 @@ std::string tokenTypeToString(TokenType type) {
         case TokenType::KW_CONST: return "KW_CONST";
         case TokenType::KW_SELF:  return "KW_SELF";
         
+        case TokenType::TYPE_I32: return "TYPE_I32";
         case TokenType::TYPE_I64: return "TYPE_I64";
+        case TokenType::TYPE_F32: return "TYPE_F32";
         case TokenType::TYPE_F64: return "TYPE_F64";
         case TokenType::TYPE_STRING: return "TYPE_STRING";
         case TokenType::TYPE_BOOL: return "TYPE_BOOL";
@@ -102,6 +105,7 @@ std::string tokenTypeToString(TokenType type) {
         case TokenType::KW_ERROR:           return "KW_ERROR";
         case TokenType::KW_IMPORT:          return "KW_IMPORT";
         case TokenType::KW_AS:              return "KW_AS";
+        case TokenType::KW_CAST:            return "KW_CAST";
         
         case TokenType::LPAREN: return "LPAREN";
         case TokenType::RPAREN: return "RPAREN";
@@ -166,7 +170,8 @@ void printTokens(const std::vector<Token>& tokens, bool verbose = false) {
             case TokenType::INTEGER_LITERAL:
                 std::cout << token.value.int_value;
                 break;
-            case TokenType::DECIMAL_LITERAL:
+            case TokenType::F32_LITERAL:
+            case TokenType::F64_LITERAL:
                 std::cout << token.value.double_value;
                 break;
             case TokenType::KW_TRUE:

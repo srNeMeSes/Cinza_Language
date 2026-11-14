@@ -1,6 +1,6 @@
 // As partes da fatia precisam ser i64.
 fn main() {
   string s = "abc";
-  print(s[0:1.5]);
+  print(s[0:1.5ff]);
 }
-// expect-error: O fim da fatia deve ser 'i64'
+// expect-error: O fim da fatia deve ser inteiro (i32 ou i64)

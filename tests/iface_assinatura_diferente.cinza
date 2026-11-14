@@ -1,7 +1,7 @@
 // interface: o método precisa ter exatamente a assinatura da interface.
 interface Forma { fn escala(f64 fator) -> f64; }
 class Ponto : Forma {
-  pub { fn escala(i64 fator) -> f64 { return 0.0; } }
+  pub { fn escala(i64 fator) -> f64 { return 0.0ff; } }
 }
 fn main() { }
 // expect-error: O método escala(i64) -> f64 da classe 'Ponto' não tem a assinatura exigida por 'Forma': escala(f64) -> f64.

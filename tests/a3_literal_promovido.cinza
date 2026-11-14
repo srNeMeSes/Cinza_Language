@@ -1,39 +1,39 @@
 // A3: literais assumem o tipo esperado pelo contexto (cada linha dá 0.5 só se o 1 virou f64).
-fn primeiro(list<f64> l) -> f64 { return l[0] / 2; }
-fn lista() -> list<f64> { return [1]; }
+fn primeiro(list<f64> l) -> f64 { return l[0] / 2.ff; }
+fn lista() -> list<f64> { return [1.ff]; }
 class Caixa {
-  list<f64> itens = [1];
+  list<f64> itens = [1.ff];
   pub {
-    fn primeiro() -> f64 { return itens[0] / 2; }
+    fn primeiro() -> f64 { return itens[0] / 2.ff; }
     fn trocar(list<f64> l) { itens = l; }
   }
 }
 fn main() {
-  list<f64> l = [1, 2];
-  print(l[0] / 2);
-  list<list<f64>> m = [[1], [2.5]];
-  print(m[0][0] / 2);
-  dict<string, f64> d = {{"a", 1}};
-  print(d["a"] / 2);
-  dict<string, list<f64>> dl = {{"a", [1]}};
-  print(dl["a"][0] / 2);
-  pair<string, f64> p = {"a", 1};
-  print(p.second / 2);
+  list<f64> l = [1.ff, 2.ff];
+  print(l[0] / 2.ff);
+  list<list<f64>> m = [[1.ff], [2.5ff]];
+  print(m[0][0] / 2.ff);
+  dict<string, f64> d = {{"a", 1.ff}};
+  print(d["a"] / 2.ff);
+  dict<string, list<f64>> dl = {{"a", [1.ff]}};
+  print(dl["a"][0] / 2.ff);
+  pair<string, f64> p = {"a", 1.ff};
+  print(p.second / 2.ff);
   dict<string, f64> e;
-  e.add({"b", 1});
-  print(e["b"] / 2);
-  print(primeiro([1]));
-  print(lista()[0] / 2);
+  e.add({"b", 1.ff});
+  print(e["b"] / 2.ff);
+  print(primeiro([1.ff]));
+  print(lista()[0] / 2.ff);
   Caixa c = new Caixa();
   print(c.primeiro());
-  c.trocar([1]);
+  c.trocar([1.ff]);
   print(c.primeiro());
-  l = [1];
-  print(l[0] / 2);
-  m[0] = [1];
-  print(m[0][0] / 2);
-  list<pair<string, f64>> ps = [{"x", 1}];
-  print(ps[0].second / 2);
+  l = [1.ff];
+  print(l[0] / 2.ff);
+  m[0] = [1.ff];
+  print(m[0][0] / 2.ff);
+  list<pair<string, f64>> ps = [{"x", 1.ff}];
+  print(ps[0].second / 2.ff);
 }
 // expect: 0.5
 // expect: 0.5

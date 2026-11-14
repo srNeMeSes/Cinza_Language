@@ -395,12 +395,10 @@ Flow Executor::executeFor(const ForStmt* stmt) {
         throwRuntimeError(err.message, stmt->token);
     }
 
-    // A2: for (decimal x in list<int>) — o iterador recebe o valor convertido
-    const bool to_decimal = stmt->type_iterator->kind == Type::Kind::F64;
-
+    // seção K: for (i64 x in list<i32>) — o iterador recebe o valor alargado
     for (const Value& elem : elements) {
-        if (to_decimal && elem.kind() == Value::Kind::INT)
-            locals[stmt->iter_slot] = Value(static_cast<double>(elem.asInt()));
+        if (stmt->widen_to)
+            locals[stmt->iter_slot] = convertValue(elem, stmt->widen_to);
         else
             locals[stmt->iter_slot] = elem;
         Flow flow = executeStmt(stmt->body.get());
@@ -469,13 +467,9 @@ Value Executor::callNative(const NativeFn& fn, const CallExpr* expr) {
     for (const auto& arg : expr->arguments)
         args.push_back(evalExpr(arg.get()));
     try {
-        Value r = fn.impl(std::span<const Value>(args));
-        // Fase 7: nativa genérica que devolve int onde o tipo é decimal
-        // (Lists.sum de uma list<decimal> vazia)
-        if (r.kind() == Value::Kind::INT && expr->resolved_type &&
-            expr->resolved_type->is(TypeInfo::Kind::F64))
-            r = Value(static_cast<double>(r.asInt()));
-        return r;
+        // nativa genérica: o resultado na largura do tipo estático (Lists.sum de
+        // uma list<f32> vazia devolve 0 inteiro)
+        return nativeResult(fn.impl(std::span<const Value>(args)), expr->resolved_type);
     } catch (RuntimeError& err) {
         if (err.line == 0)
             raise(RuntimeError(err.kind, err.message, expr->token.line, expr->token.column,
@@ -539,11 +533,7 @@ Value Executor::evalExpr(const Expr* expr) {
 // ============================================================================
 
 Value Executor::evalLiteral(const LiteralExpr* expr) {
-    if (std::holds_alternative<std::int64_t>(expr->value)) return Value(std::get<std::int64_t>(expr->value));
-    if (std::holds_alternative<double>     (expr->value)) return Value(std::get<double>(expr->value));
-    if (std::holds_alternative<std::string>(expr->value)) return Value(std::get<std::string>(expr->value));
-    if (std::holds_alternative<bool>       (expr->value)) return Value(std::get<bool>(expr->value));
-    return Value();
+    return literalValue(expr->value, expr->resolved_type);   // regra comum com a CVM
 }
 
 Value Executor::evalIdentifier(const IdentifierExpr* expr) {
@@ -888,12 +878,16 @@ Value Executor::evalPairLiteral(const PairLiteralExpr* expr) {
     return makePair(evalExpr(expr->first.get()), evalExpr(expr->second.get()));
 }
 
-// A2: conversão implícita inserida pelo semântico (hoje só int → decimal)
+// cast<T>(valor) e as promoções do semântico (i32 → i64, f32 → f64); a regra
+// mora em convertValue (operacoes.cpp), comum com a CVM
 Value Executor::evalCast(const CastExpr* expr) {
     Value v = evalExpr(expr->operand.get());
-    if (expr->resolved_type->is(TypeInfo::Kind::F64) && v.kind() == Value::Kind::INT)
-        return Value(static_cast<double>(v.asInt()));
-    return v;
+    try {
+        return convertValue(v, expr->resolved_type);
+    } catch (RuntimeError& err) {
+        raise(RuntimeError(err.kind, err.message, expr->token.line, expr->token.column,
+                           expr->token.file_id));
+    }
 }
 
 // ============================================================================

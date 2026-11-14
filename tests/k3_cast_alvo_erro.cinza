@@ -1,0 +1,3 @@
+// Seção K: cast só converte para i32, i64, f32, f64 ou string.
+fn main() { print(cast<bool>(1)); }
+// expect-error: cast<bool> não existe: cast converte só para i32, i64, f32, f64 ou string

@@ -1,18 +1,18 @@
 // Math: fora do domínio lança ValueError; resultado grande demais lança OverflowError (nunca infinito).
 import Math;
 fn main() {
-  try { print(Math.asin(2)); } except (ValueError e) { print(e.message); }
-  try { print(Math.acos(-1.5)); } except (ValueError e) { print(e.message); }
-  try { print(Math.log10(0)); } except (ValueError e) { print(e.message); }
-  try { print(Math.log2(-1)); } except (ValueError e) { print(e.message); }
-  try { print(Math.log_base(8, 1)); } except (ValueError e) { print(e.message); }
-  try { print(Math.log_base(-8, 2)); } except (ValueError e) { print(e.message); }
-  try { print(Math.exp(1000)); } except (OverflowError e) { print(e.message); }
-  try { print(Math.sinh(1000)); } except (OverflowError e) { print(e.message); }
-  f64 enorme = Math.pow(10, 308) * 1.5;
+  try { print(Math.asin(2.ff)); } except (ValueError e) { print(e.message); }
+  try { print(Math.acos(-1.5ff)); } except (ValueError e) { print(e.message); }
+  try { print(Math.log10(0.ff)); } except (ValueError e) { print(e.message); }
+  try { print(Math.log2(-1.ff)); } except (ValueError e) { print(e.message); }
+  try { print(Math.log_base(8.ff, 1.ff)); } except (ValueError e) { print(e.message); }
+  try { print(Math.log_base(-8.ff, 2.ff)); } except (ValueError e) { print(e.message); }
+  try { print(Math.exp(1000.ff)); } except (OverflowError e) { print(e.message); }
+  try { print(Math.sinh(1000.ff)); } except (OverflowError e) { print(e.message); }
+  f64 enorme = Math.pow(10.ff, 308.ff) * 1.5ff;
   try { print(Math.hypot(enorme, enorme)); } except (OverflowError e) { print(e.kind); }
-  try { print(Math.trunc(Math.pow(10, 30))); } except (OverflowError e) { print(e.message); }
-  try { print(Math.round_to(1.5, -1)); } except (ValueError e) { print(e.message); }
+  try { print(Math.trunc(Math.pow(10.ff, 30.ff))); } except (OverflowError e) { print(e.message); }
+  try { print(Math.round_to(1.5ff, -1)); } except (ValueError e) { print(e.message); }
   try { print(Math.factorial(-1)); } except (ValueError e) { print(e.message); }
   try { print(Math.factorial(21)); } except (OverflowError e) { print(e.message); }
   try { print(Math.gcd(-9223372036854775807 - 1, 0)); } except (OverflowError e) { print(e.message); }

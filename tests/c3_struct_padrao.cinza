@@ -2,15 +2,15 @@
 const i64 BASE = 10;
 struct Config {
     i64 limite = BASE * 2;
-    f64 taxa = 1;
+    f64 taxa = 1.ff;
     list<string> tags;
     dict<string, i64> pesos;
 }
 fn main() {
     Config c = new Config();
     print(c);
-    Config d = new Config(5, 2, ["a"], {{"x", 1}});
-    print(d.taxa / 4, d.tags.size(), d.pesos["x"]);
+    Config d = new Config(5, 2.ff, ["a"], {{"x", 1}});
+    print(d.taxa / 4.ff, d.tags.size(), d.pesos["x"]);
 }
 // expect: Config{limite: 20, taxa: 1, tags: [], pesos: {}}
 // expect: 0.5 1 1

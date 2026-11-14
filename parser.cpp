@@ -123,7 +123,9 @@ void Parser::synchronize() {
             case TokenType::KW_WHILE:
             case TokenType::KW_FOR:
             case TokenType::KW_RETURN:
+            case TokenType::TYPE_I32:
             case TokenType::TYPE_I64:
+            case TokenType::TYPE_F32:
             case TokenType::TYPE_REMOVED:
             case TokenType::TYPE_F64:
             case TokenType::TYPE_STRING:
@@ -175,10 +177,14 @@ TypePtr Parser::parseTypeInner() {
               previous());
         return std::make_unique<Type>(inteiro ? Type::Kind::I64 : Type::Kind::F64);
     }
-    if (match(TokenType::TYPE_I64)) {
+    if (match(TokenType::TYPE_I32)) {
+        kind = Type::Kind::I32;
+    } else if (match(TokenType::TYPE_I64)) {
         kind = Type::Kind::I64;
+    } else if (match(TokenType::TYPE_F32)) {
+        kind = Type::Kind::F32;
     } else if (match(TokenType::TYPE_F64)) {
-        kind = Type::Kind::F64;  // Sinônimo de double
+        kind = Type::Kind::F64;
     } else if (match(TokenType::TYPE_STRING)) {
         kind = Type::Kind::STRING;
     } else if (match(TokenType::TYPE_BOOL)) {
@@ -460,9 +466,21 @@ ExprPtr Parser::parsePrimaryExpr() {
     }
     
     
+    // cast<T>(valor): conversão explícita entre i32, i64, f32, f64 e string
+    if (match(TokenType::KW_CAST)) {
+        Token cast_tok = previous();
+        consume(TokenType::OP_LESS, "Esperado '<' após 'cast': escreva cast<T>(valor), ex.: cast<f64>(n)");
+        TypePtr alvo = parseType();
+        consume(TokenType::OP_GREATER, "Esperado '>' após o tipo de 'cast'");
+        consume(TokenType::LPAREN, "Esperado '(' após cast<T>: escreva cast<T>(valor)");
+        ExprPtr valor = parseExpression();
+        consume(TokenType::RPAREN, "Esperado ')' após o valor de 'cast'");
+        return std::make_unique<CastExpr>(cast_tok, std::move(alvo), std::move(valor));
+    }
+
     // Tipo usado como valor, para comparar com type(x):
     //   type(n) == int    type(l) == list<int>
-    if (check(TokenType::TYPE_I64) || check(TokenType::TYPE_REMOVED)  || check(TokenType::TYPE_F64) ||
+    if (check(TokenType::TYPE_I32) || check(TokenType::TYPE_I64) || check(TokenType::TYPE_F32) || check(TokenType::TYPE_REMOVED)  || check(TokenType::TYPE_F64) ||
         check(TokenType::TYPE_STRING) || check(TokenType::TYPE_BOOL) ||
         check(TokenType::TYPE_LIST) || check(TokenType::TYPE_DICT) ||
         check(TokenType::TYPE_PAIR) || check(TokenType::TYPE_OP)) {
@@ -492,9 +510,11 @@ ExprPtr Parser::parsePrimaryExpr() {
         }
         return std::make_unique<LiteralExpr>(tok, tok.value.int_value);
     }
-    if (match(TokenType::DECIMAL_LITERAL)) {
+    if (match({TokenType::F32_LITERAL, TokenType::F64_LITERAL})) {
         Token tok = previous();
-        return std::make_unique<LiteralExpr>(tok, tok.value.double_value);
+        auto lit = std::make_unique<LiteralExpr>(tok, tok.value.double_value);
+        lit->f32 = tok.type == TokenType::F32_LITERAL;
+        return lit;
     }
     
     // Literais de string
@@ -828,7 +848,7 @@ StmtPtr Parser::parseStatement() {
         }
 
         // Declaração de variável (começa com tipo primitivo ou composto)
-        if (check(TokenType::TYPE_I64) || check(TokenType::TYPE_REMOVED) || check(TokenType::TYPE_F64) ||
+        if (check(TokenType::TYPE_I32) || check(TokenType::TYPE_I64) || check(TokenType::TYPE_F32) || check(TokenType::TYPE_REMOVED) || check(TokenType::TYPE_F64) ||
             check(TokenType::TYPE_STRING) || check(TokenType::TYPE_BOOL) ||
             check(TokenType::TYPE_LIST) || check(TokenType::TYPE_DICT) ||
             check(TokenType::TYPE_PAIR) || check(TokenType::TYPE_OP) ||
@@ -1040,7 +1060,7 @@ StmtPtr Parser::parseForStatement() {
     TypePtr type;
     
     // Verifica se começa com um tipo (primitivo, composto ou customizado)
-    if (check(TokenType::TYPE_I64) || check(TokenType::TYPE_REMOVED) || check(TokenType::TYPE_F64) ||
+    if (check(TokenType::TYPE_I32) || check(TokenType::TYPE_I64) || check(TokenType::TYPE_F32) || check(TokenType::TYPE_REMOVED) || check(TokenType::TYPE_F64) ||
         check(TokenType::TYPE_STRING) || check(TokenType::TYPE_BOOL) ||
         check(TokenType::TYPE_LIST) || check(TokenType::TYPE_DICT) ||
         check(TokenType::TYPE_PAIR) || check(TokenType::TYPE_OP) ||
@@ -1336,7 +1356,7 @@ StmtPtr Parser::parseClassDeclaration() {
 // Início de um campo: tipo primitivo/composto, ou tipo customizado
 // (IDENTIFIER seguido de IDENTIFIER). Usado por class e struct (C3).
 bool Parser::checkFieldStart() const {
-    return check(TokenType::TYPE_I64) || check(TokenType::TYPE_REMOVED)    || check(TokenType::TYPE_F64) ||
+    return check(TokenType::TYPE_I32) || check(TokenType::TYPE_I64) || check(TokenType::TYPE_F32) || check(TokenType::TYPE_REMOVED)    || check(TokenType::TYPE_F64) ||
            check(TokenType::TYPE_STRING) || check(TokenType::TYPE_BOOL)    ||
            check(TokenType::TYPE_LIST)   || check(TokenType::TYPE_DICT)    ||
            check(TokenType::TYPE_PAIR)   || check(TokenType::TYPE_VAR)     ||

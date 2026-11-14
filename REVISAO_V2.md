@@ -1191,9 +1191,36 @@ comuns ao interpretador e à CVM):
   > `Random.int`/`Random.decimal` e `Convert.to_int`/`to_decimal` ficam para a etapa 5. Testes novos
   > `tipo_int_removido`, `tipo_decimal_removido`. 431/431/431, limpo sob ASan/UBSan (uma falha passageira
   > de `files_pastas` sob ASan, por trava do Windows na pasta temporária, não se repetiu em 4 execuções).
-- [ ] 3. `i32`/`f32`, literais com sufixo, famílias e promoção, IEEE nos flutuantes, `%` só inteiro
-  (semântico, `operacoes.cpp`, interpretador e CVM).
-- [ ] 4. `cast<T>(expr)`.
+- [x] 3. `i32`/`f32`, literais com sufixo, famílias e promoção, IEEE nos flutuantes, `%` só inteiro
+  (semântico, `operacoes.cpp`, interpretador e CVM). — feito em 2026-11-14, junto com a etapa 4
+- [x] 4. `cast<T>(expr)`. — feito em 2026-11-14 (com a 3: sem `cast` os testes não migram)
+  > Nota: **tipos** — `TK::I32`/`F32` com `isInteger()`/`isFloat()`; a regra central é
+  > `TypeChecker::numericResult` (mesma família → o mais largo; famílias diferentes → erro com a
+  > sugestão do `cast`) e `TypeChecker::widens` (só `i32` → `i64` e `f32` → `f64`), usadas por
+  > `isAssignable`, `checkBinaryOp`, a unificação de literais e as variáveis de tipo das nativas
+  > (`Math.max(i32, i64)` alarga para `i64`). `analyzeBinary` promove os dois lados ao tipo comum
+  > **antes** da conta (literal muda só o tipo; o resto ganha um `CastExpr`), então o runtime sempre
+  > recebe operandos do mesmo tipo; o mesmo na atribuição composta e no `for (i64 x in list<i32>)`
+  > (`ForStmt::widen_to`). **Literais** — o lexer exige o sufixo (`1.5f`, `1.5ff`, `1.f`, `1.ff`;
+  > `1.5`, `1f` e `1.5fff` têm erro próprio) e lê `f32` direto como `float`; inteiro é `i32` se couber.
+  > Literal inteiro onde se espera ponto flutuante tem erro que mostra a correção ("Escreva 2.ff").
+  > **cast** — palavra reservada; `cast<T>(valor)` com `T` em `i32`/`i64`/`f32`/`f64`/`string` e valor
+  > número ou string (`bool` e coleções têm erro próprio). A regra mora em `convertValue`
+  > (`operacoes.cpp`), comum ao interpretador, à CVM (`CONV`) e às promoções: trunca em direção a zero,
+  > confere a faixa antes de converter (sem comportamento indefinido do C++), `f64` → `f32` pelo IEEE
+  > com a borda do infinito tratada à parte, texto no formato estrito (`inf`/`nan` para flutuante).
+  > **Runtime** — `Value` ganha `I32`/`F32`; `applyBinaryOp` conta inteiros em 64 bits e confere a
+  > faixa de 32 quando é `i32`; ponto flutuante é IEEE puro (f32 em `float`): a conta de `f64` que
+  > estoura **deixa de lançar** `OverflowError` (revê a revisão I) e dá `inf`, como `Lists.sum`/`product`.
+  > `literalValue` e `nativeResult` (nativa genérica devolve na largura do tipo estático) ficam em
+  > `operacoes`. **CVM** — instruções por tipo `ADD_I64`…`DIV_F32` (sem `MOD` de flutuante),
+  > `ADDK_I64`/`ADDK_I32`…, `NEG_*`, `LOADI32`, `CONV` (no lugar de `I2D`), `LT_F`/`LE_F`, `FORNEXT_W`
+  > (alarga o elemento); sai `FORRANGE_D`. Índices, fatias e chaves de dict aceitam `i32` e `i64`.
+  > A biblioteca continua com as assinaturas de 64 bits (etapa 5). **Testes** — literais migrados por
+  > script (sufixo `ff` em 59 arquivos; 149 literais inteiros em contexto de ponto flutuante, pelas
+  > posições que um modo temporário do compilador registrou, já removido); o resto à mão, com `cast`
+  > (testes, módulos de teste, exemplo da rede neural, blocos da spec 3.5, 5.3, 5.4 e 6.x, e as frases
+  > de regra mudadas junto). 29 testes novos `k3_*`. 460/460/460.
 - [ ] 5. Biblioteca padrão com os tipos novos (`Math` IEEE, `Convert` enxuto, tamanhos `i32`).
 - [ ] 6. Spec, desenho da CVM e o mapeamento para LLVM.
 
@@ -1238,3 +1265,4 @@ comuns ao interpretador e à CVM):
 | 2026-10-04 | J2 | `Files.read_bytes(caminho) -> list<int>` e `Files.write_bytes(caminho, list<int>)`, bytes de 0 a 255 (fora disso, `ValueError`). | Decisão do autor da linguagem; formatos binários sem passar por texto UTF-8. |
 | 2026-10-03 | I4 | `menor_int % -1` dá `0` (revê A5); `-0.0` continua `-0` no `print`; decimais extremos continuam em notação científica. | Decisão do autor da linguagem; `x % -1` cabe sempre em `int`. |
 | 2026-10-03 | H3 | `exit([código])`: padrão 0, de 0 a 255; roda os `finally` pendentes e nenhum `except` o captura; encerra o caminho na análise de fluxo. | Decisão do autor da linguagem; 0–255 dá o mesmo resultado em todo sistema. |
+| 2026-11-14 | K | Quatro tipos numéricos em duas famílias (`i32`/`i64`, `f32`/`f64`) no lugar de `int`/`decimal`, sem apelidos; promoção só dentro da família; entre famílias, `cast<T>(valor)`; literal com ponto exige sufixo (`f`/`ff`); `%` só entre inteiros; ponto flutuante IEEE em tudo (revê A5, G2 e a revisão I); tamanhos e posições `i32`; `op<...>` removido (revê D). | Especificação do autor: "simplicidade na utilização, rigor na implementação e previsibilidade no comportamento". |

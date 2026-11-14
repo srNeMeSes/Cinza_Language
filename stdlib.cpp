@@ -430,7 +430,7 @@ Value strCompare(Args a) {
 // fixed(x, casas): o decimal como texto com exatamente `casas` casas
 // (arredonda como Math.round_to; sem "-0.00")
 Value strFixed(Args a) {
-    const double x = a[0].asDecimal();
+    const double x = a[0].asFloat();
     const std::int64_t casas = a[1].asInt();
     if (casas < 0 || casas > 100)
         falha("ValueError: o número de casas de 'fixed' precisa estar entre 0 e 100");
@@ -682,44 +682,54 @@ Value filesAbsolute(Args a) {
 // ============================================================================
 
 Value mathSqrt(Args a) {
-    const double x = a[0].asDecimal();
+    const double x = a[0].asFloat();
     if (x < 0) falha("ValueError: 'sqrt' de número negativo");
     return Value(std::sqrt(x));
 }
 
 Value mathPow(Args a) {
-    if (a[0].asDecimal() == 0 && a[1].asDecimal() < 0)
+    if (a[0].asFloat() == 0 && a[1].asFloat() < 0)
         falha("ZeroDivisionError: 'pow' de 0 com expoente negativo (divisão por zero)");
-    const double r = std::pow(a[0].asDecimal(), a[1].asDecimal());
+    const double r = std::pow(a[0].asFloat(), a[1].asFloat());
     if (std::isnan(r)) falha("ValueError: 'pow' sem resultado real");
     if (std::isinf(r)) falha("OverflowError: resultado de 'pow' grande demais");
     return Value(r);
 }
 
+// abs: o resultado tem o tipo do argumento (seção K)
 Value mathAbs(Args a) {
-    if (a[0].kind() == Value::Kind::INT) {
-        const std::int64_t v = a[0].asInt();
-        if (v == std::numeric_limits<std::int64_t>::min())
-            falha("OverflowError: 'abs' do menor i64 não cabe em i64");
-        return Value(v < 0 ? -v : v);
+    switch (a[0].kind()) {
+        case Value::Kind::I64: {
+            const std::int64_t v = a[0].asInt();
+            if (v == std::numeric_limits<std::int64_t>::min())
+                falha("OverflowError: 'abs' do menor i64 não cabe em i64");
+            return Value(v < 0 ? -v : v);
+        }
+        case Value::Kind::I32: {
+            const std::int32_t v = a[0].asI32();
+            if (v == std::numeric_limits<std::int32_t>::min())
+                falha("OverflowError: 'abs' do menor i32 não cabe em i32");
+            return Value::i32(v < 0 ? -v : v);
+        }
+        case Value::Kind::F32: return Value::f32(std::fabs(a[0].asF32()));
+        default:               return Value(std::fabs(a[0].asFloat()));
     }
-    return Value(std::fabs(a[0].asDecimal()));
 }
 
-Value mathFloor(Args a) { return decimalParaInt(std::floor(a[0].asDecimal()), "floor"); }
-Value mathCeil (Args a) { return decimalParaInt(std::ceil (a[0].asDecimal()), "ceil"); }
+Value mathFloor(Args a) { return decimalParaInt(std::floor(a[0].asFloat()), "floor"); }
+Value mathCeil (Args a) { return decimalParaInt(std::ceil (a[0].asFloat()), "ceil"); }
 // round: metade se afasta do zero (2.5 → 3, -2.5 → -3)
-Value mathRound(Args a) { return decimalParaInt(std::round(a[0].asDecimal()), "round"); }
+Value mathRound(Args a) { return decimalParaInt(std::round(a[0].asFloat()), "round"); }
 
 Value mathMin(Args a) { return numero(a[1]) < numero(a[0]) ? a[1] : a[0]; }
 Value mathMax(Args a) { return numero(a[1]) > numero(a[0]) ? a[1] : a[0]; }
 
-Value mathSin(Args a) { return Value(std::sin(a[0].asDecimal())); }
-Value mathCos(Args a) { return Value(std::cos(a[0].asDecimal())); }
+Value mathSin(Args a) { return Value(std::sin(a[0].asFloat())); }
+Value mathCos(Args a) { return Value(std::cos(a[0].asFloat())); }
 
 // log(x): logaritmo natural
 Value mathLog(Args a) {
-    const double x = a[0].asDecimal();
+    const double x = a[0].asFloat();
     if (x <= 0) falha("ValueError: 'log' só é definido para números positivos");
     return Value(std::log(x));
 }
@@ -731,54 +741,54 @@ Value decimalFinito(double r, const char* fn) {
     return Value(r);
 }
 
-Value mathTan(Args a)  { return decimalFinito(std::tan(a[0].asDecimal()), "tan"); }
-Value mathAtan(Args a) { return Value(std::atan(a[0].asDecimal())); }
-Value mathAtan2(Args a) { return Value(std::atan2(a[0].asDecimal(), a[1].asDecimal())); }
+Value mathTan(Args a)  { return decimalFinito(std::tan(a[0].asFloat()), "tan"); }
+Value mathAtan(Args a) { return Value(std::atan(a[0].asFloat())); }
+Value mathAtan2(Args a) { return Value(std::atan2(a[0].asFloat(), a[1].asFloat())); }
 
 // asin/acos: só de -1 a 1
 Value mathAsin(Args a) {
-    const double x = a[0].asDecimal();
+    const double x = a[0].asFloat();
     if (x < -1 || x > 1) falha("ValueError: 'asin' só é definido de -1 a 1");
     return Value(std::asin(x));
 }
 Value mathAcos(Args a) {
-    const double x = a[0].asDecimal();
+    const double x = a[0].asFloat();
     if (x < -1 || x > 1) falha("ValueError: 'acos' só é definido de -1 a 1");
     return Value(std::acos(x));
 }
 
 constexpr double PI = 3.14159265358979323846;
-Value mathDegrees(Args a) { return decimalFinito(a[0].asDecimal() * (180.0 / PI), "degrees"); }
-Value mathRadians(Args a) { return Value(a[0].asDecimal() * (PI / 180.0)); }
+Value mathDegrees(Args a) { return decimalFinito(a[0].asFloat() * (180.0 / PI), "degrees"); }
+Value mathRadians(Args a) { return Value(a[0].asFloat() * (PI / 180.0)); }
 
-Value mathSinh(Args a) { return decimalFinito(std::sinh(a[0].asDecimal()), "sinh"); }
-Value mathCosh(Args a) { return decimalFinito(std::cosh(a[0].asDecimal()), "cosh"); }
-Value mathTanh(Args a) { return Value(std::tanh(a[0].asDecimal())); }
+Value mathSinh(Args a) { return decimalFinito(std::sinh(a[0].asFloat()), "sinh"); }
+Value mathCosh(Args a) { return decimalFinito(std::cosh(a[0].asFloat()), "cosh"); }
+Value mathTanh(Args a) { return Value(std::tanh(a[0].asFloat())); }
 
-Value mathCbrt(Args a)  { return Value(std::cbrt(a[0].asDecimal())); }
-Value mathExp(Args a)   { return decimalFinito(std::exp(a[0].asDecimal()), "exp"); }
-Value mathHypot(Args a) { return decimalFinito(std::hypot(a[0].asDecimal(), a[1].asDecimal()), "hypot"); }
+Value mathCbrt(Args a)  { return Value(std::cbrt(a[0].asFloat())); }
+Value mathExp(Args a)   { return decimalFinito(std::exp(a[0].asFloat()), "exp"); }
+Value mathHypot(Args a) { return decimalFinito(std::hypot(a[0].asFloat(), a[1].asFloat()), "hypot"); }
 
 Value mathLog10(Args a) {
-    const double x = a[0].asDecimal();
+    const double x = a[0].asFloat();
     if (x <= 0) falha("ValueError: 'log10' só é definido para números positivos");
     return Value(std::log10(x));
 }
 Value mathLog2(Args a) {
-    const double x = a[0].asDecimal();
+    const double x = a[0].asFloat();
     if (x <= 0) falha("ValueError: 'log2' só é definido para números positivos");
     return Value(std::log2(x));
 }
 // log_base(x, base): logaritmo de x na base dada
 Value mathLogBase(Args a) {
-    const double x = a[0].asDecimal(), base = a[1].asDecimal();
+    const double x = a[0].asFloat(), base = a[1].asFloat();
     if (x <= 0) falha("ValueError: 'log_base' só é definido para números positivos");
     if (base <= 0 || base == 1) falha("ValueError: a base de 'log_base' precisa ser positiva e diferente de 1");
     return Value(std::log(x) / std::log(base));
 }
 
 // trunc: corta as casas, em direção ao zero
-Value mathTrunc(Args a) { return decimalParaInt(std::trunc(a[0].asDecimal()), "trunc"); }
+Value mathTrunc(Args a) { return decimalParaInt(std::trunc(a[0].asFloat()), "trunc"); }
 
 // round_to(x, casas): arredonda o número como ele é escrito (a forma decimal
 // mais curta, a mesma do print), não o valor binário — round_to(2.675, 2) é
@@ -786,9 +796,12 @@ Value mathTrunc(Args a) { return decimalParaInt(std::trunc(a[0].asDecimal()), "t
 // |x| arredondado para `casas` casas, como texto sem sinal e com exatamente
 // `casas` dígitos depois do ponto (nenhum ponto se casas = 0). Usado por
 // round_to e Strings.fixed, que assim arredondam igual.
-std::string arredondaTexto(double x, std::int64_t casas) {
+std::string arredondaTexto(double x, std::int64_t casas, bool f32 = false) {
     char buf[512];   // o maior decimal tem 309 dígitos inteiros
-    auto [fim, ec] = std::to_chars(buf, buf + sizeof buf, std::fabs(x), std::chars_format::fixed);
+    // f32: a forma decimal mais curta do próprio float, não a do double que o guarda
+    auto [fim, ec] = f32
+        ? std::to_chars(buf, buf + sizeof buf, std::fabs(static_cast<float>(x)), std::chars_format::fixed)
+        : std::to_chars(buf, buf + sizeof buf, std::fabs(x), std::chars_format::fixed);
     (void)ec;
     std::string s(buf, fim);
     size_t ponto = s.find('.');
@@ -810,7 +823,7 @@ std::string arredondaTexto(double x, std::int64_t casas) {
 }
 
 Value mathRoundTo(Args a) {
-    const double x = a[0].asDecimal();
+    const double x = a[0].asFloat();
     const std::int64_t casas = a[1].asInt();
     if (casas < 0) falha("ValueError: o número de casas de 'round_to' não pode ser negativo");
     if (casas > 400) return Value(x);   // além disso nenhum decimal tem casas para cortar
@@ -916,7 +929,7 @@ Value mathIsPrime(Args a) {
 // is_close(a, b): iguais a menos de erro de arredondamento — diferença
 // relativa até 1e-9, ou absoluta até 1e-12 (perto de zero)
 Value mathIsClose(Args a) {
-    const double x = a[0].asDecimal(), y = a[1].asDecimal();
+    const double x = a[0].asFloat(), y = a[1].asFloat();
     const double dif = std::fabs(x - y);
     return Value(dif <= 1e-9 * std::max(std::fabs(x), std::fabs(y)) || dif <= 1e-12);
 }
@@ -961,7 +974,7 @@ Value randChoice(Args a) {
 
 // decimal_range(a, b): de a (inclusive) até b (exclusive)
 Value randDecimalRange(Args a) {
-    const double lo = a[0].asDecimal(), hi = a[1].asDecimal();
+    const double lo = a[0].asFloat(), hi = a[1].asFloat();
     if (!(lo < hi))
         falha("ValueError: em 'decimal_range' o início precisa ser menor que o fim");
     if (!std::isfinite(hi - lo)) falha("ValueError: intervalo de 'decimal_range' grande demais");
@@ -974,7 +987,7 @@ Value randBool(Args) { return Value(std::uniform_int_distribution<int>(0, 1)(ger
 
 // chance(p): true com probabilidade p; chance(0) nunca, chance(1) sempre
 Value randChance(Args a) {
-    const double p = a[0].asDecimal();
+    const double p = a[0].asFloat();
     if (p < 0 || p > 1) falha("ValueError: a probabilidade de 'chance' precisa estar entre 0 e 1");
     return Value(std::uniform_real_distribution<double>(0.0, 1.0)(gerador()) < p);
 }
@@ -1025,7 +1038,7 @@ Value randChoices(Args a) {
 
 // gauss(media, desvio): distribuição normal; desvio 0 devolve a média
 Value randGauss(Args a) {
-    const double media = a[0].asDecimal(), desvio = a[1].asDecimal();
+    const double media = a[0].asFloat(), desvio = a[1].asFloat();
     if (desvio < 0) falha("ValueError: o desvio de 'gauss' não pode ser negativo");
     if (desvio == 0) return Value(media);
     return decimalFinito(std::normal_distribution<double>(media, desvio)(gerador()), "gauss");
@@ -1234,22 +1247,40 @@ Value listSlice(Args a) {
     return makeList(std::vector<Value>(elems.begin() + ini, elems.begin() + fim));
 }
 
-// sum(l): soma de int (com OverflowError) ou de decimal; lista vazia → 0
-// (o executor ajusta para 0.0 quando o tipo do resultado é decimal)
-Value listSum(Args a) {
+// Soma/produto de lista com o tipo dos elementos (seção K): ponto flutuante
+// segue o IEEE (pode dar inf/nan; f32 conta em float); i32 conta em 64 bits e
+// o total precisa caber em i32. Lista vazia → o
+// neutro como inteiro de 64 bits, que a chamada ajusta ao tipo estático
+// (nativeResult, operacoes.h)
+static Value foldNumeros(Args a, bool soma, const char* nome) {
     const auto& elems = a[0].asList()->elements;
-    if (!elems.empty() && elems[0].kind() == Value::Kind::DECIMAL) {
-        double total = 0;
-        for (const auto& v : elems) total += v.asDecimal();
-        if (!std::isfinite(total)) falha("OverflowError: a soma de 'sum' excede a faixa de f64");
+    const std::string oque = soma ? "a soma de '" : "o produto de '";
+    if (!elems.empty() && elems[0].isFloat()) {
+        if (elems[0].kind() == Value::Kind::F32) {
+            float total = soma ? 0.0f : 1.0f;
+            for (const auto& v : elems) total = soma ? total + v.asF32() : total * v.asF32();
+            return Value::f32(total);
+        }
+        double total = soma ? 0.0 : 1.0;
+        for (const auto& v : elems) total = soma ? total + v.asFloat() : total * v.asFloat();
         return Value(total);
     }
-    std::int64_t total = 0;
+    const bool i32 = !elems.empty() && elems[0].kind() == Value::Kind::I32;
+    std::int64_t total = soma ? 0 : 1;
     for (const auto& v : elems)
-        if (__builtin_add_overflow(total, v.asInt(), &total))
-            falha("OverflowError: a soma de 'sum' não cabe em i64");
+        if (soma ? __builtin_add_overflow(total, v.asInt(), &total)
+                 : __builtin_mul_overflow(total, v.asInt(), &total))
+            falha("OverflowError: " + oque + nome + "' não cabe em " + (i32 ? "i32" : "i64"));
+    if (i32) {
+        if (total < std::numeric_limits<std::int32_t>::min() || total > std::numeric_limits<std::int32_t>::max())
+            falha("OverflowError: " + oque + nome + "' não cabe em i32");
+        return Value::i32(static_cast<std::int32_t>(total));
+    }
     return Value(total);
 }
+
+// sum(l): soma; lista vazia → 0
+Value listSum(Args a) { return foldNumeros(a, true, "sum"); }
 
 Value listSortDesc(Args a) {
     auto& elems = a[0].asList()->elements;
@@ -1315,20 +1346,7 @@ Value listAverage(Args a) {
 }
 
 // product: lista vazia dá 1; estouro lança OverflowError
-Value listProduct(Args a) {
-    const auto& elems = a[0].asList()->elements;
-    if (!elems.empty() && elems[0].kind() == Value::Kind::DECIMAL) {
-        double total = 1;
-        for (const auto& v : elems) total *= v.asDecimal();
-        if (!std::isfinite(total)) falha("OverflowError: o produto de 'product' excede a faixa de f64");
-        return Value(total);
-    }
-    std::int64_t total = 1;
-    for (const auto& v : elems)
-        if (__builtin_mul_overflow(total, v.asInt(), &total))
-            falha("OverflowError: o produto de 'product' não cabe em i64");
-    return Value(total);
-}
+Value listProduct(Args a) { return foldNumeros(a, false, "product"); }
 
 Value listCount(Args a) {
     const auto& elems = a[0].asList()->elements;
@@ -1421,7 +1439,7 @@ Value listConcat(Args a) {
 // Tipos em que operator< é uma ordem total (os demais são comparados com ==)
 bool ordenavel(const Value& v) {
     switch (v.kind()) {
-        case Value::Kind::INT: case Value::Kind::DECIMAL: case Value::Kind::STRING:
+        case Value::Kind::I64: case Value::Kind::F64: case Value::Kind::STRING:
         case Value::Kind::BOOL: case Value::Kind::ENUM:
             return true;
         default:
@@ -1951,8 +1969,10 @@ std::vector<NativeModule> criaModulos() {
 } // namespace
 
 // sem "-0.00": um resultado que arredonda para zero não leva sinal
-std::string fixedText(double x, std::int64_t casas) {
-    std::string r = arredondaTexto(x, casas);
+std::string fixedText(double x, std::int64_t casas, bool f32) {
+    if (x != x) return "nan";                      // IEEE: não há casas a fixar
+    if (std::isinf(x)) return x < 0 ? "-inf" : "inf";
+    std::string r = arredondaTexto(x, casas, f32);
     const bool zero = r.find_first_not_of("0.") == std::string::npos;
     return x < 0 && !zero ? "-" + r : r;
 }

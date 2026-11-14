@@ -1,7 +1,7 @@
 // interface: classe que não declarou a interface não é aceita onde ela é pedida.
 interface Forma { fn area() -> f64; }
 class Ponto {
-  pub { fn area() -> f64 { return 0.0; } }
+  pub { fn area() -> f64 { return 0.0ff; } }
 }
 fn usa(Forma f) { }
 fn main() { usa(new Ponto()); }

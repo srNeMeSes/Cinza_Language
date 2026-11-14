@@ -1,4 +1,5 @@
 #include "vm.h"
+#include <cstdint>
 #include "../operacoes.h"
 #include "../utf8.h"
 #include "../gc.h"
@@ -112,91 +113,112 @@ Value VM::dispatch(std::size_t entrada) {
                 case Op::MOVE:      R[in.a] = R[in.b]; break;
                 case Op::LOADK:     R[in.a] = K[static_cast<std::uint32_t>(in.bc())]; break;
                 case Op::LOADINT:   R[in.a] = Value(static_cast<std::int64_t>(in.bc())); break;
+                case Op::LOADI32:   R[in.a] = Value::i32(in.bc()); break;
                 case Op::LOADBOOL:  R[in.a] = Value(in.b != 0); break;
                 case Op::LOADVOID:  R[in.a] = Value(); break;
                 case Op::GETGLOBAL: R[in.a] = globals[in.b]; break;
                 case Op::SETGLOBAL: globals[in.b] = R[in.a]; break;
 
-                // ── aritmética de int (overflow e divisão por zero: a regra
+                // ── aritmética inteira (overflow e divisão por zero: a regra
                 //    compartilhada lança o erro com a mesma mensagem) ───────
-                case Op::ADD_I: {
-                    std::int64_t r;
-                    if (__builtin_add_overflow(R[in.b].asInt(), R[in.c].asInt(), &r))
-                        applyBinaryOp(TokenType::OP_PLUS, R[in.b], R[in.c]);
-                    R[in.a] = Value(r);
-                    break;
+#define CVM_CONTA_I64(OPC, BUILTIN, TOK)                                          \
+                case Op::OPC: {                                                   \
+                    std::int64_t r;                                               \
+                    if (BUILTIN(R[in.b].asInt(), R[in.c].asInt(), &r))            \
+                        applyBinaryOp(TOK, R[in.b], R[in.c]);                     \
+                    R[in.a] = Value(r);                                           \
+                    break;                                                        \
                 }
-                case Op::SUB_I: {
-                    std::int64_t r;
-                    if (__builtin_sub_overflow(R[in.b].asInt(), R[in.c].asInt(), &r))
-                        applyBinaryOp(TokenType::OP_MINUS, R[in.b], R[in.c]);
-                    R[in.a] = Value(r);
-                    break;
+                CVM_CONTA_I64(ADD_I64, __builtin_add_overflow, TokenType::OP_PLUS)
+                CVM_CONTA_I64(SUB_I64, __builtin_sub_overflow, TokenType::OP_MINUS)
+                CVM_CONTA_I64(MUL_I64, __builtin_mul_overflow, TokenType::OP_MULTIPLY)
+#undef CVM_CONTA_I64
+                // i32: a conta em 64 bits não estoura; o resultado precisa caber em 32
+#define CVM_CONTA_I32(OPC, EXPR, TOK)                                             \
+                case Op::OPC: {                                                   \
+                    const std::int64_t x = R[in.b].asI32(), y = R[in.c].asI32();  \
+                    const std::int64_t r = EXPR;                                  \
+                    if (r < INT32_MIN || r > INT32_MAX)                           \
+                        applyBinaryOp(TOK, R[in.b], R[in.c]);                     \
+                    R[in.a] = Value::i32(static_cast<std::int32_t>(r));           \
+                    break;                                                        \
                 }
-                case Op::MUL_I: {
-                    std::int64_t r;
-                    if (__builtin_mul_overflow(R[in.b].asInt(), R[in.c].asInt(), &r))
-                        applyBinaryOp(TokenType::OP_MULTIPLY, R[in.b], R[in.c]);
-                    R[in.a] = Value(r);
-                    break;
-                }
-                case Op::DIV_I: case Op::MOD_I: {
+                CVM_CONTA_I32(ADD_I32, x + y, TokenType::OP_PLUS)
+                CVM_CONTA_I32(SUB_I32, x - y, TokenType::OP_MINUS)
+                CVM_CONTA_I32(MUL_I32, x * y, TokenType::OP_MULTIPLY)
+#undef CVM_CONTA_I32
+                case Op::DIV_I64: case Op::MOD_I64: case Op::DIV_I32: case Op::MOD_I32: {
                     const std::int64_t a = R[in.b].asInt(), b = R[in.c].asInt();
-                    const TokenType op = in.op == Op::DIV_I ? TokenType::OP_DIVIDE : TokenType::OP_MODULO;
-                    // bordas (divisor 0, menor int / -1, x % -1) ficam com a regra compartilhada
-                    if (b == 0 || b == -1) { R[in.a] = applyBinaryOp(op, R[in.b], R[in.c]); break; }
-                    R[in.a] = Value(in.op == Op::DIV_I ? a / b : a % b);
+                    const bool div = in.op == Op::DIV_I64 || in.op == Op::DIV_I32;
+                    // bordas (divisor 0, menor / -1, x % -1) ficam com a regra compartilhada
+                    if (b == 0 || b == -1) {
+                        R[in.a] = applyBinaryOp(div ? TokenType::OP_DIVIDE : TokenType::OP_MODULO, R[in.b], R[in.c]);
+                        break;
+                    }
+                    const std::int64_t r = div ? a / b : a % b;
+                    if (in.op == Op::DIV_I32 || in.op == Op::MOD_I32) R[in.a] = Value::i32(static_cast<std::int32_t>(r));
+                    else                                              R[in.a] = Value(r);
                     break;
                 }
 
-                // ── aritmética de decimal ────────────────────────────────
-                case Op::ADD_D: case Op::SUB_D: case Op::MUL_D: case Op::DIV_D: {
-                    const double a = R[in.b].asDecimal(), b = R[in.c].asDecimal();
-                    double r;
-                    TokenType op;
-                    switch (in.op) {
-                        case Op::ADD_D: r = a + b; op = TokenType::OP_PLUS;     break;
-                        case Op::SUB_D: r = a - b; op = TokenType::OP_MINUS;    break;
-                        case Op::MUL_D: r = a * b; op = TokenType::OP_MULTIPLY; break;
-                        default:        r = b == 0.0 ? 0.0 : a / b; op = TokenType::OP_DIVIDE; break;
-                    }
-                    if ((in.op == Op::DIV_D && b == 0.0) || !std::isfinite(r))
-                        applyBinaryOp(op, R[in.b], R[in.c]);   // lança
-                    R[in.a] = Value(r);
+                // ── ponto flutuante: IEEE 754, sem exceção (inf, nan, -0) ──
+                case Op::ADD_F64: R[in.a] = Value(R[in.b].asFloat() + R[in.c].asFloat()); break;
+                case Op::SUB_F64: R[in.a] = Value(R[in.b].asFloat() - R[in.c].asFloat()); break;
+                case Op::MUL_F64: R[in.a] = Value(R[in.b].asFloat() * R[in.c].asFloat()); break;
+                case Op::DIV_F64: R[in.a] = Value(R[in.b].asFloat() / R[in.c].asFloat()); break;
+                case Op::ADD_F32: R[in.a] = Value::f32(R[in.b].asF32() + R[in.c].asF32()); break;
+                case Op::SUB_F32: R[in.a] = Value::f32(R[in.b].asF32() - R[in.c].asF32()); break;
+                case Op::MUL_F32: R[in.a] = Value::f32(R[in.b].asF32() * R[in.c].asF32()); break;
+                case Op::DIV_F32: R[in.a] = Value::f32(R[in.b].asF32() / R[in.c].asF32()); break;
+                case Op::NEG_I64: case Op::NEG_I32:
+                    R[in.a] = negateOp(R[in.b]);   // o menor valor não tem negativo: a regra lança
+                    break;
+                case Op::NEG_F64: R[in.a] = Value(-R[in.b].asFloat()); break;
+                case Op::NEG_F32: R[in.a] = Value::f32(-R[in.b].asF32()); break;
+                case Op::CONV: {   // cast<T> e promoções: a regra comum (operacoes.cpp)
+                    Value r = convertValue(R[in.b], convTipo(in.c));
+                    R[in.a] = std::move(r);
                     break;
                 }
-                case Op::MOD_D:
-                    R[in.a] = applyBinaryOp(TokenType::OP_MODULO, R[in.b], R[in.c]);
-                    break;
-                case Op::NEG_I:
-                    R[in.a] = negateOp(R[in.b]);
-                    break;
-                case Op::NEG_D:
-                    R[in.a] = Value(-R[in.b].asDecimal());
-                    break;
-                // ── int com constante embutida (erro: a regra compartilhada lança) ──
-                case Op::ADDK_I: case Op::SUBK_I: case Op::MULK_I: {
+
+                // ── inteiro com constante embutida (erro: a regra compartilhada lança) ──
+                case Op::ADDK_I64: case Op::SUBK_I64: case Op::MULK_I64: {
                     const std::int64_t a = R[in.b].asInt();
                     const std::int64_t k = static_cast<std::int16_t>(in.c);
                     std::int64_t r;
                     bool estouro;
                     TokenType op;
-                    if (in.op == Op::ADDK_I)      { estouro = __builtin_add_overflow(a, k, &r); op = TokenType::OP_PLUS; }
-                    else if (in.op == Op::SUBK_I) { estouro = __builtin_sub_overflow(a, k, &r); op = TokenType::OP_MINUS; }
-                    else                          { estouro = __builtin_mul_overflow(a, k, &r); op = TokenType::OP_MULTIPLY; }
+                    if (in.op == Op::ADDK_I64)      { estouro = __builtin_add_overflow(a, k, &r); op = TokenType::OP_PLUS; }
+                    else if (in.op == Op::SUBK_I64) { estouro = __builtin_sub_overflow(a, k, &r); op = TokenType::OP_MINUS; }
+                    else                            { estouro = __builtin_mul_overflow(a, k, &r); op = TokenType::OP_MULTIPLY; }
                     if (estouro) applyBinaryOp(op, R[in.b], Value(k));
                     R[in.a] = Value(r);
                     break;
                 }
-                case Op::DIVK_I: case Op::MODK_I: {
+                case Op::ADDK_I32: case Op::SUBK_I32: case Op::MULK_I32: {
+                    const std::int64_t a = R[in.b].asI32();
+                    const std::int64_t k = static_cast<std::int16_t>(in.c);
+                    const std::int64_t r = in.op == Op::ADDK_I32 ? a + k : in.op == Op::SUBK_I32 ? a - k : a * k;
+                    if (r < INT32_MIN || r > INT32_MAX)
+                        applyBinaryOp(in.op == Op::ADDK_I32 ? TokenType::OP_PLUS :
+                                      in.op == Op::SUBK_I32 ? TokenType::OP_MINUS : TokenType::OP_MULTIPLY,
+                                      R[in.b], Value::i32(static_cast<std::int32_t>(k)));
+                    R[in.a] = Value::i32(static_cast<std::int32_t>(r));
+                    break;
+                }
+                case Op::DIVK_I64: case Op::MODK_I64: case Op::DIVK_I32: case Op::MODK_I32: {
                     const std::int64_t a = R[in.b].asInt();
                     const std::int64_t k = static_cast<std::int16_t>(in.c);
+                    const bool i32 = in.op == Op::DIVK_I32 || in.op == Op::MODK_I32;
+                    const bool div = in.op == Op::DIVK_I64 || in.op == Op::DIVK_I32;
                     if (k == 0 || k == -1) {   // bordas: regra compartilhada
-                        R[in.a] = applyBinaryOp(in.op == Op::DIVK_I ? TokenType::OP_DIVIDE : TokenType::OP_MODULO,
-                                                R[in.b], Value(k));
+                        R[in.a] = applyBinaryOp(div ? TokenType::OP_DIVIDE : TokenType::OP_MODULO, R[in.b],
+                                                i32 ? Value::i32(static_cast<std::int32_t>(k)) : Value(k));
                         break;
                     }
-                    R[in.a] = Value(in.op == Op::DIVK_I ? a / k : a % k);
+                    const std::int64_t r = div ? a / k : a % k;
+                    if (i32) R[in.a] = Value::i32(static_cast<std::int32_t>(r));
+                    else     R[in.a] = Value(r);
                     break;
                 }
                 case Op::LTK_I: R[in.a] = Value(R[in.b].asInt() <  static_cast<std::int16_t>(in.c)); break;
@@ -204,12 +226,6 @@ Value VM::dispatch(std::size_t entrada) {
                 case Op::GTK_I: R[in.a] = Value(R[in.b].asInt() >  static_cast<std::int16_t>(in.c)); break;
                 case Op::GEK_I: R[in.a] = Value(R[in.b].asInt() >= static_cast<std::int16_t>(in.c)); break;
 
-                case Op::I2D:
-                    if (R[in.b].kind() == Value::Kind::INT)
-                        R[in.a] = Value(static_cast<double>(R[in.b].asInt()));
-                    else if (in.a != in.b)
-                        R[in.a] = R[in.b];
-                    break;
                 case Op::CONCAT: {
                     const Value& x = R[in.b];
                     const Value& y = R[in.c];
@@ -234,8 +250,8 @@ Value VM::dispatch(std::size_t entrada) {
                 // ── comparação ───────────────────────────────────────────
                 case Op::LT_I: R[in.a] = Value(R[in.b].asInt() <  R[in.c].asInt()); break;
                 case Op::LE_I: R[in.a] = Value(R[in.b].asInt() <= R[in.c].asInt()); break;
-                case Op::LT_D: R[in.a] = Value(R[in.b].asDecimal() <  R[in.c].asDecimal()); break;
-                case Op::LE_D: R[in.a] = Value(R[in.b].asDecimal() <= R[in.c].asDecimal()); break;
+                case Op::LT_F: R[in.a] = Value(R[in.b].asFloat() <  R[in.c].asFloat()); break;
+                case Op::LE_F: R[in.a] = Value(R[in.b].asFloat() <= R[in.c].asFloat()); break;
                 case Op::LT_S: R[in.a] = Value(R[in.b].asString() <  R[in.c].asString()); break;
                 case Op::LE_S: R[in.a] = Value(R[in.b].asString() <= R[in.c].asString()); break;
                 case Op::EQ:   R[in.a] = Value(R[in.b] == R[in.c]); break;
@@ -273,20 +289,19 @@ Value VM::dispatch(std::size_t entrada) {
                         throw RuntimeError("ValueError: o passo de 'range' não pode ser 0");
                     R[in.a + 3] = Value(static_cast<std::int64_t>(in.b));
                     break;
-                case Op::FORRANGE: case Op::FORRANGE_D: {
+                case Op::FORRANGE: {
                     const std::int64_t i = R[in.a].asInt(), fim = R[in.a + 1].asInt(),
                                        passo = R[in.a + 2].asInt();
                     if (passo > 0 ? i >= fim : i <= fim) { f->pc += in.bc(); break; }
                     Value& destino = R[R[in.a + 3].asInt()];
-                    if (in.op == Op::FORRANGE_D) destino = Value(static_cast<double>(i));
-                    else                         destino = Value(i);
+                    destino = Value(i);
                     std::int64_t prox;
                     // chegou ao limite de int: este foi o último (como a nativa range)
                     if (__builtin_add_overflow(i, passo, &prox)) R[in.a] = R[in.a + 1];
                     else                                         R[in.a] = Value(prox);
                     break;
                 }
-                case Op::FORNEXT: case Op::FORNEXT_D: {
+                case Op::FORNEXT: case Op::FORNEXT_W: {
                     if (R[in.a].kind() == Value::Kind::STRING) {   // um caractere UTF-8 por vez
                         const std::string& s = R[in.a].asString();
                         const auto i = static_cast<std::size_t>(R[in.a + 1].asInt());
@@ -301,8 +316,10 @@ Value VM::dispatch(std::size_t entrada) {
                     if (i >= static_cast<std::int64_t>(elems.size())) { f->pc += in.bc(); break; }
                     Value& destino = R[R[in.a + 2].asInt()];
                     const Value& e = elems[static_cast<std::size_t>(i)];
-                    if (in.op == Op::FORNEXT_D && e.kind() == Value::Kind::INT)
-                        destino = Value(static_cast<double>(e.asInt()));
+                    if (in.op == Op::FORNEXT_W && e.kind() == Value::Kind::I32)
+                        destino = Value(e.asInt());
+                    else if (in.op == Op::FORNEXT_W && e.kind() == Value::Kind::F32)
+                        destino = Value(e.asFloat());
                     else
                         destino = e;
                     R[in.a + 1] = Value(i + 1);

@@ -1,7 +1,7 @@
 // Módulo auxiliar dos testes cvm_modulo_* (etapa 8 da CVM).
 pub const i64 LIMITE = 10;
 const i64 SECRETO = LIMITE * 2;
-pub const f64 TAXA = LIMITE / 4.0;
+pub const f64 TAXA = cast<f64>(LIMITE) / 4.0ff;
 pub error Ruim;
 pub struct Par { i64 a = 1; i64 b = LIMITE; }
 pub enum Nivel { Baixo, Alto }

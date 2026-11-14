@@ -8,9 +8,9 @@ fn main() {
   x -= 10;
   x *= -4;
   print(x);
-  f64 d = 1.5;
-  d += 1;
-  print(d, d * 2, d > 2);
+  f64 d = 1.5ff;
+  d += 1.ff;
+  print(d, d * 2.ff, d > 2.ff);
   i64 grande = 9223372036854775807;
   try { grande += 1; } except (OverflowError e) { print(e.message); }
   i64 menor = -9223372036854775807 - 1;

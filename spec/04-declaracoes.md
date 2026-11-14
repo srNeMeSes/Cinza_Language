@@ -50,7 +50,7 @@ programa antes da `main`.
 
 ```
 const i64 LIMITE = 100;
-const f64 TAXA = LIMITE * 0.5;
+const f64 TAXA = LIMITE * 0.5ff;
 ```
 
 O valor inicial de um `const` global precisa ser uma **expressão constante**: literais, valores

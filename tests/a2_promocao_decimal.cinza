@@ -1,6 +1,6 @@
 // A2: promoção i64 -> f64 não materializada. Falha até a Fase 2.
 fn main() {
-  f64 d = 5;
-  print(d / 2);
+  f64 d = 5.ff;
+  print(d / 2.ff);
 }
 // expect: 2.5

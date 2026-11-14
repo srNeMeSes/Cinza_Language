@@ -3,4 +3,4 @@ import Strings;
 fn main() {
   print(Strings.join([1, 2], ","));
 }
-// expect-error: Argumento 1 de 'Strings.join': esperado 'list<string>', mas recebeu 'list<i64>'
+// expect-error: Argumento 1 de 'Strings.join': esperado 'list<string>', mas recebeu 'list<i32>'

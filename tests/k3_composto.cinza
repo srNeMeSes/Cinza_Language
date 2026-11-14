@@ -1,0 +1,16 @@
+// Seção K: a op= b promove b ao tipo de a (mesma família); a CVM usa a instrução do tipo.
+fn main() {
+  i64 g = 1;
+  i32 p = 5;
+  g += p;
+  g *= 3;
+  f64 d = 1.5ff;
+  d += 0.5f;
+  f32 f = 1.f;
+  f /= 4.f;
+  i32 c = 7;
+  c %= 4;
+  c -= 10;
+  print(g, type(g), d, f, type(f), c, type(c));
+}
+// expect: 18 i64 2 0.25 f32 -7 i32

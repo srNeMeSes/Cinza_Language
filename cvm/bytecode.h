@@ -24,27 +24,31 @@ namespace cinza::cvm {
     /* carga e movimento */                                                     \
     X(MOVE)       /* R[a] = R[b]                                     */          \
     X(LOADK)      /* R[a] = K[bc] (índice de 32 bits)               */          \
-    X(LOADINT)    /* R[a] = bc                                       */          \
+    X(LOADINT)    /* R[a] = bc (i64)                                 */          \
+    X(LOADI32)    /* R[a] = bc (i32)                                 */          \
     X(LOADBOOL)   /* R[a] = (b != 0)                                 */          \
     X(LOADVOID)   /* R[a] = valor vazio                              */          \
     X(GETGLOBAL)  /* R[a] = G[b]                                     */          \
     X(SETGLOBAL)  /* G[b] = R[a]                                     */          \
-    /* aritmética específica por tipo */                                        \
-    X(ADD_I) X(SUB_I) X(MUL_I) X(DIV_I) X(MOD_I)  /* R[a] = R[b] op R[c] */      \
-    X(ADD_D) X(SUB_D) X(MUL_D) X(DIV_D) X(MOD_D)                                \
-    X(NEG_I) X(NEG_D)                             /* R[a] = -R[b]        */      \
-    X(I2D)        /* R[a] = decimal(R[b])                            */          \
-    /* int com constante embutida (c = inteiro de 16 bits com sinal) */         \
-    X(ADDK_I) X(SUBK_I) X(MULK_I) X(DIVK_I) X(MODK_I) /* R[a] = R[b] op c */    \
-    X(LTK_I) X(LEK_I) X(GTK_I) X(GEK_I)               /* R[a] = R[b] cmp c */   \
+    /* aritmética por tipo (seção K: os dois operandos já têm o tipo da conta) */ \
+    X(ADD_I64) X(SUB_I64) X(MUL_I64) X(DIV_I64) X(MOD_I64) /* R[a] = R[b] op R[c] */ \
+    X(ADD_I32) X(SUB_I32) X(MUL_I32) X(DIV_I32) X(MOD_I32)                      \
+    X(ADD_F64) X(SUB_F64) X(MUL_F64) X(DIV_F64)            /* IEEE 754 */       \
+    X(ADD_F32) X(SUB_F32) X(MUL_F32) X(DIV_F32)                                 \
+    X(NEG_I64) X(NEG_I32) X(NEG_F64) X(NEG_F32)            /* R[a] = -R[b] */   \
+    X(CONV)       /* R[a] = cast<T>(R[b]), T pelo código c (ConvAlvo) */        \
+    /* inteiro com constante embutida (c = inteiro de 16 bits com sinal) */     \
+    X(ADDK_I64) X(SUBK_I64) X(MULK_I64) X(DIVK_I64) X(MODK_I64) /* R[a] = R[b] op c */ \
+    X(ADDK_I32) X(SUBK_I32) X(MULK_I32) X(DIVK_I32) X(MODK_I32)                 \
+    X(LTK_I) X(LEK_I) X(GTK_I) X(GEK_I)  /* R[a] = R[b] cmp c (i32 ou i64) */  \
     /* compara e salta: a instrução seguinte é um JMP, feito no mesmo despacho */ \
-    X(JLT_I) X(JLE_I)                     /* se R[a] cmp R[b]: salta         */  \
+    X(JLT_I) X(JLE_I)                     /* se R[a] cmp R[b]: salta (inteiros) */ \
     X(JLTK_I) X(JLEK_I) X(JGTK_I) X(JGEK_I) /* se R[a] cmp b (16 bits): salta */  \
     X(CONCAT)     /* R[a] = texto(R[b]) + texto(R[c])                */          \
     X(FMT)        /* R[a] = {R[b]:formato K[c]} (largura*1000 + casas+1) */      \
     X(SLICE)      /* R[a] = R[b][R[b+1]:R[b+2]:R[b+3]] (void = omitido)  */      \
     /* comparação */                                                            \
-    X(LT_I) X(LE_I) X(LT_D) X(LE_D) X(LT_S) X(LE_S) /* R[a] = R[b] < R[c] */     \
+    X(LT_I) X(LE_I) X(LT_F) X(LE_F) X(LT_S) X(LE_S) /* R[a] = R[b] < R[c] */     \
     X(EQ) X(NE)   /* igualdade da spec 5.3                           */          \
     X(NOT)        /* R[a] = !R[b]                                    */          \
     /* saltos */                                                                \
@@ -54,12 +58,11 @@ namespace cinza::cvm {
     /* for: R[a] cópia dos elementos, R[a+1] índice, R[a+2] slot do iterador */ \
     X(FORPREP)    /* R[a] = cópia de R[b]; R[a+1] = 0; R[a+2] = c    */          \
     X(FORNEXT)    /* próximo elemento em R[slot], ou pc += bc        */          \
-    X(FORNEXT_D)  /* idem, convertendo int em decimal                */          \
+    X(FORNEXT_W)  /* idem, alargando o elemento (i32 → i64, f32 → f64) */        \
     /* for sobre range(a, b[, p]) sem criar a lista (otimização, seção 11): */  \
     /* R[a] atual, R[a+1] fim, R[a+2] passo, R[a+3] slot do iterador */         \
     X(RANGEPREP)  /* confere o passo (ValueError se 0); R[a+3] = b   */          \
     X(FORRANGE)   /* próximo inteiro em R[slot], ou pc += bc         */          \
-    X(FORRANGE_D) /* idem, como decimal                              */          \
     /* coleções */                                                              \
     X(NEWLIST)    /* R[a] = [R[b] ... R[b+c-1]]                      */          \
     X(NEWDICT)    /* R[a] = c pares (R[b], R[b+1]), (R[b+2], ...)    */          \
@@ -99,6 +102,11 @@ enum class Op : std::uint16_t {
 };
 
 const char* opName(Op op);
+
+// Alvo do CONV (operando c): o tipo de cast<T> e das promoções do semântico
+enum class ConvAlvo : std::uint16_t { I32, I64, F32, F64, String };
+ConvAlvo convAlvo(TypeRef t);       // t é i32, i64, f32, f64 ou string
+TypeRef  convTipo(std::uint16_t c);
 
 struct Instr {
     Op            op;

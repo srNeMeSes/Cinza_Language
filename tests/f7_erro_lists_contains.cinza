@@ -3,4 +3,4 @@ import Lists;
 fn main() {
   print(Lists.contains([1, 2], "x"));
 }
-// expect-error: Argumento 2 de 'Lists.contains': esperado 'i64', mas recebeu 'string'
+// expect-error: Argumento 2 de 'Lists.contains': esperado 'i32', mas recebeu 'string'

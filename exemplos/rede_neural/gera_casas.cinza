@@ -23,18 +23,18 @@ fn main(list<string> args) {
   for (i64 i in range(0, n)) {
     i64 quartos = Random.int(1, 5);
     i64 banheiros = Random.int(1, Math.min(quartos + 1, 4));
-    i64 m2 = Math.max(30, Math.round(35 + 22 * quartos + 8 * banheiros + Random.gauss(0.0, 15.0)));
-    f64 p_piscina = Math.clamp((m2 - 80) / 250.0, 0.03, 0.6);
+    i64 m2 = Math.max(30, Math.round(cast<f64>(35 + 22 * quartos + 8 * banheiros) + Random.gauss(0.0ff, 15.0ff)));
+    f64 p_piscina = Math.clamp(cast<f64>(m2 - 80) / 250.0ff, 0.03ff, 0.6ff);
     i64 piscina = 0;
     if (Random.chance(p_piscina)) { piscina = 1; }
 
-    f64 valor = 60000.0
-                  + 3200.0 * m2 * (1.0 - m2 / 2000.0)
-                  + 18000.0 * quartos
-                  + 22000.0 * banheiros
-                  + piscina * (40000.0 + 150.0 * m2);
-    valor = valor * Random.gauss(1.0, 0.06);
-    i64 preco = Math.round(valor / 100.0) * 100;
+    f64 valor = 60000.0ff
+                  + 3200.0ff * cast<f64>(m2) * (1.0ff - cast<f64>(m2) / 2000.0ff)
+                  + 18000.0ff * cast<f64>(quartos)
+                  + 22000.0ff * cast<f64>(banheiros)
+                  + cast<f64>(piscina) * (40000.0ff + 150.0ff * cast<f64>(m2));
+    valor = valor * Random.gauss(1.0ff, 0.06ff);
+    i64 preco = Math.round(valor / 100.0ff) * 100;
     linhas.add(format("{quartos},{banheiros},{m2},{piscina},{preco}"));
   }
   Files.write_lines(caminho, linhas);

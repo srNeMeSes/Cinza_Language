@@ -1,0 +1,3 @@
+// Seção K: literal com ponto sem sufixo é erro: a precisão é sempre escrita.
+fn main() { f64 x = 1.5; }
+// expect-error: Literal '1.5' sem a precisão: escreva 1.5f (f32) ou 1.5ff (f64)

@@ -17,10 +17,10 @@ pub error ErroModelo;
 
 pub enum Ativacao { ReLU, Linear }
 
-const f64 BETA1 = 0.9;
-const f64 BETA2 = 0.999;
-const f64 EPSILON = 0.00000001;
-const f64 INCLINACAO_RELU = 0.01;   // "leaky": neurônio desligado ainda aprende um pouco
+const f64 BETA1 = 0.9ff;
+const f64 BETA2 = 0.999ff;
+const f64 EPSILON = 0.00000001ff;
+const f64 INCLINACAO_RELU = 0.01ff;   // "leaky": neurônio desligado ainda aprende um pouco
 
 fn ativacao_para_int(Ativacao a) -> i64 {
   if (a == Ativacao.ReLU) { return 1; }
@@ -55,14 +55,14 @@ pub class Camada {
   list<f64> saida;
 
   fn f(f64 z) -> f64 {
-    if (ativ == Ativacao.ReLU && z < 0.0) { return INCLINACAO_RELU * z; }
+    if (ativ == Ativacao.ReLU && z < 0.0ff) { return INCLINACAO_RELU * z; }
     return z;
   }
 
   // derivada de f, escrita em função da própria saída
   fn df(f64 a) -> f64 {
-    if (ativ == Ativacao.ReLU && a < 0.0) { return INCLINACAO_RELU; }
-    return 1.0;
+    if (ativ == Ativacao.ReLU && a < 0.0ff) { return INCLINACAO_RELU; }
+    return 1.0ff;
   }
 
   pub {
@@ -71,19 +71,19 @@ pub class Camada {
       n_sai = sai;
       ativ = at;
       // inicialização de He (ReLU) ou de Xavier (linear)
-      f64 desvio = Math.sqrt(1.0 / ent);
-      if (at == Ativacao.ReLU) { desvio = Math.sqrt(2.0 / ent); }
+      f64 desvio = Math.sqrt(1.0ff / cast<f64>(ent));
+      if (at == Ativacao.ReLU) { desvio = Math.sqrt(2.0ff / cast<f64>(ent)); }
       for (i64 i in range(0, sai)) {
         list<f64> linha;
-        for (i64 j in range(0, ent)) { linha.add(Random.gauss(0.0, desvio)); }
+        for (i64 j in range(0, ent)) { linha.add(Random.gauss(0.0ff, desvio)); }
         w.add(linha);
-        gw.add(Lists.repeat(0.0, ent));
-        mw.add(Lists.repeat(0.0, ent));
-        vw.add(Lists.repeat(0.0, ent));
-        b.add(0.0);
-        gb.add(0.0);
-        mb.add(0.0);
-        vb.add(0.0);
+        gw.add(Lists.repeat(0.0ff, ent));
+        mw.add(Lists.repeat(0.0ff, ent));
+        vw.add(Lists.repeat(0.0ff, ent));
+        b.add(0.0ff);
+        gb.add(0.0ff);
+        mb.add(0.0ff);
+        vb.add(0.0ff);
       }
     }
 
@@ -106,7 +106,7 @@ pub class Camada {
 
     // recebe dErro/dSaída, acumula os gradientes dos pesos e devolve dErro/dEntrada
     fn retropropagar(list<f64> grad_saida) -> list<f64> {
-      list<f64> grad_ent = Lists.repeat(0.0, n_ent);
+      list<f64> grad_ent = Lists.repeat(0.0ff, n_ent);
       for (i64 i in range(0, n_sai)) {
         f64 d = grad_saida[i] * df(saida[i]);
         gb[i] += d;
@@ -122,25 +122,25 @@ pub class Camada {
 
     // um passo do Adam com a média dos gradientes do lote; zera os acumuladores
     fn atualizar(f64 taxa, i64 passo, i64 tamanho_lote) {
-      f64 c1 = 1.0 - Math.pow(BETA1, passo);
-      f64 c2 = 1.0 - Math.pow(BETA2, passo);
+      f64 c1 = 1.0ff - Math.pow(BETA1, cast<f64>(passo));
+      f64 c2 = 1.0ff - Math.pow(BETA2, cast<f64>(passo));
       for (i64 i in range(0, n_sai)) {
         list<f64> wi = w[i];
         list<f64> gwi = gw[i];
         list<f64> mwi = mw[i];
         list<f64> vwi = vw[i];
         for (i64 j in range(0, n_ent)) {
-          f64 g = gwi[j] / tamanho_lote;
-          mwi[j] = BETA1 * mwi[j] + (1.0 - BETA1) * g;
-          vwi[j] = BETA2 * vwi[j] + (1.0 - BETA2) * g * g;
+          f64 g = gwi[j] / cast<f64>(tamanho_lote);
+          mwi[j] = BETA1 * mwi[j] + (1.0ff - BETA1) * g;
+          vwi[j] = BETA2 * vwi[j] + (1.0ff - BETA2) * g * g;
           wi[j] -= taxa * (mwi[j] / c1) / (Math.sqrt(vwi[j] / c2) + EPSILON);
-          gwi[j] = 0.0;
+          gwi[j] = 0.0ff;
         }
-        f64 g = gb[i] / tamanho_lote;
-        mb[i] = BETA1 * mb[i] + (1.0 - BETA1) * g;
-        vb[i] = BETA2 * vb[i] + (1.0 - BETA2) * g * g;
+        f64 g = gb[i] / cast<f64>(tamanho_lote);
+        mb[i] = BETA1 * mb[i] + (1.0ff - BETA1) * g;
+        vb[i] = BETA2 * vb[i] + (1.0ff - BETA2) * g * g;
         b[i] -= taxa * (mb[i] / c1) / (Math.sqrt(vb[i] / c2) + EPSILON);
-        gb[i] = 0.0;
+        gb[i] = 0.0ff;
       }
     }
 
@@ -189,7 +189,7 @@ pub class Rede {
 
     // treina um lote (as amostras ordem[ini..fim)) e devolve a soma dos erros quadráticos
     fn treinar_lote(list<list<f64>> x, list<f64> y, list<i64> ordem, i64 ini, i64 fim, f64 taxa) -> f64 {
-      f64 soma = 0.0;
+      f64 soma = 0.0ff;
       for (i64 k in range(ini, fim)) {
         i64 i = ordem[k];
         list<f64> p = prever(x[i]);
@@ -215,8 +215,8 @@ pub class Modelo {
   list<i64> ocultas;
   list<f64> medias;
   list<f64> desvios;
-  f64 media_y = 0.0;
-  f64 desvio_y = 1.0;
+  f64 media_y = 0.0ff;
+  f64 desvio_y = 1.0ff;
   i64 epocas = 0;
   Rede rede = new Rede([1, 1]);   // provisória (todo campo precisa de valor): o construtor troca
 
@@ -239,8 +239,8 @@ pub class Modelo {
       tamanhos.add(1);
       rede = new Rede(tamanhos);
       for (string n in nomes) {
-        medias.add(0.0);
-        desvios.add(1.0);
+        medias.add(0.0ff);
+        desvios.add(1.0ff);
       }
     }
 
@@ -261,21 +261,21 @@ pub class Modelo {
     fn ajustar_padronizacao(list<list<f64>> x, list<f64> y) {
       i64 n = y.size();
       for (i64 j in range(0, nomes.size())) {
-        f64 s = 0.0;
+        f64 s = 0.0ff;
         for (list<f64> linha in x) { s += linha[j]; }
-        f64 m = s / n;
-        f64 q = 0.0;
+        f64 m = s / cast<f64>(n);
+        f64 q = 0.0ff;
         for (list<f64> linha in x) { q += (linha[j] - m) * (linha[j] - m); }
-        f64 d = Math.sqrt(q / n);
-        if (d == 0.0) { d = 1.0; }   // coluna constante: não divide por zero
+        f64 d = Math.sqrt(q / cast<f64>(n));
+        if (d == 0.0ff) { d = 1.0ff; }   // coluna constante: não divide por zero
         medias[j] = m;
         desvios[j] = d;
       }
       media_y = Lists.average(y);
-      f64 q = 0.0;
+      f64 q = 0.0ff;
       for (f64 v in y) { q += (v - media_y) * (v - media_y); }
-      desvio_y = Math.sqrt(q / n);
-      if (desvio_y == 0.0) { desvio_y = 1.0; }
+      desvio_y = Math.sqrt(q / cast<f64>(n));
+      if (desvio_y == 0.0ff) { desvio_y = 1.0ff; }
     }
 
     // treina por `n_epocas`; a cada `mostrar_cada` épocas escreve o RMSE do treino
@@ -294,7 +294,7 @@ pub class Modelo {
       list<i64> ordem = range(0, yz.size());
       for (i64 ep in range(1, n_epocas + 1)) {
         Random.shuffle(ordem);
-        f64 soma = 0.0;
+        f64 soma = 0.0ff;
         i64 ini = 0;
         while (ini < ordem.size()) {
           i64 fim = Math.min(ini + lote, ordem.size());
@@ -303,7 +303,7 @@ pub class Modelo {
         }
         epocas += 1;
         if (mostrar_cada > 0 && (ep % mostrar_cada == 0 || ep == 1)) {
-          f64 rmse = Math.sqrt(soma / yz.size()) * desvio_y;
+          f64 rmse = Math.sqrt(soma / cast<f64>(yz.size())) * desvio_y;
           printf("  época {epocas:5}   RMSE no treino: {rmse:12.2f}");
         }
       }
@@ -347,7 +347,7 @@ pub class Modelo {
       for (i64 j in range(0, nomes.size())) {
         medias[j] = l.le_decimal();
         desvios[j] = l.le_decimal();
-        if (desvios[j] <= 0.0) { throw ErroModelo("desvio padrão inválido no arquivo"); }
+        if (desvios[j] <= 0.0ff) { throw ErroModelo("desvio padrão inválido no arquivo"); }
       }
       media_y = l.le_decimal();
       desvio_y = l.le_decimal();

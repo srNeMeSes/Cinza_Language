@@ -1,6 +1,7 @@
-// A10: % com divisor f64 0.0 gera ZeroDivisionError (antes dava NaN em silêncio).
+// Seção K: % só existe entre inteiros; com ponto flutuante é erro de compilação
+// (antes, A10: divisor 0.0 dava ZeroDivisionError).
 fn main() {
-  f64 z = 0.0;
-  print(5.5 % z);
+  f64 z = 0.0ff;
+  print(5.5ff % z);
 }
-// expect-error: ZeroDivisionError
+// expect-error: Operador '%' só existe entre inteiros (i32, i64), mas recebeu 'f64' e 'f64'

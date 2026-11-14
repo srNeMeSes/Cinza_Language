@@ -2,9 +2,9 @@
 fn main() {
   i64 i = 5;
   print(i / 2);
-  f64 d = 5 / 2;
+  f64 d = cast<f64>(5 / 2);
   print(d);
-  print(d / 4);
+  print(d / 4.ff);
 }
 // expect: 2
 // expect: 2

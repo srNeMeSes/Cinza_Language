@@ -1,0 +1,6 @@
+// Seção K: x * 2 com x f32: o literal aponta a correção (2.f).
+fn main() {
+  f32 x = 1.5f;
+  print(x * 2);
+}
+// expect-error: O literal 2 é inteiro, mas aqui se espera 'f32'

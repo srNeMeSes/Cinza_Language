@@ -29,8 +29,8 @@ fn main() {
   print(st.equals_ignore_case("AÇÃO", "ação"), st.equals_ignore_case("a", "b"));
   print(st.compare("a", "b"), st.compare("b", "a"), st.compare("x", "x"), st.compare("Z", "a"));
   // fixed: exatamente as casas pedidas, arredondando como Math.round_to
-  print(st.fixed(2.5, 2), st.fixed(2.675, 2), st.fixed(-2.675, 2), st.fixed(3, 1), st.fixed(9.999, 2), st.fixed(0.5, 0));
-  print(st.fixed(-0.004, 2), st.fixed(-1.5, 0), st.fixed(1234567.891, 2), st.fixed(0.1, 20));
+  print(st.fixed(2.5ff, 2), st.fixed(2.675ff, 2), st.fixed(-2.675ff, 2), st.fixed(3.ff, 1), st.fixed(9.999ff, 2), st.fixed(0.5ff, 0));
+  print(st.fixed(-0.004ff, 2), st.fixed(-1.5ff, 0), st.fixed(1234567.891ff, 2), st.fixed(0.1ff, 20));
 }
 // expect: true false true
 // expect: 6 -1 2 2

@@ -34,7 +34,9 @@ using TypePtr = std::unique_ptr<Type>;
 class Type {
 public:
     enum class Kind {
+        I32,       // inteiro de 32 bits
         I64,       // inteiro de 64 bits
+        F32,       // ponto flutuante de 32 bits (IEEE 754)
         F64,       // ponto flutuante de 64 bits (IEEE 754)
         STRING,    // "amigo de cu é rola"
         BOOL,      // true / false
@@ -95,11 +97,13 @@ protected:
     Expr(NodeKind k, const Token& tok) : node_kind(k), token(tok) {}
 };
 
-// Literais (int, decimal, str, bool)
+// Literais (inteiro, ponto flutuante, str, bool)
+// Seção K: o tipo numérico do literal fica em resolved_type (i32/i64, f32/f64);
+// `value` guarda o valor exato (o de um f32 já arredondado para float).
 class LiteralExpr : public Expr {
 public:
-    // Variante dos tipos literais suportados pela linguagem
-    std::variant<std::int64_t, double, std::string, bool> value;   // A5: int de 64 bits
+    std::variant<std::int64_t, double, std::string, bool> value;
+    bool f32 = false;   // escrito com o sufixo f (1.5f); ff ou inteiro: false
     
     LiteralExpr(const Token& tok, std::int64_t val)     : Expr(NodeKind::Literal, tok), value(val) {}
     LiteralExpr(const Token& tok, double val)           : Expr(NodeKind::Literal, tok), value(val) {}
@@ -321,10 +325,9 @@ public:
     std::string toString(int indent = 0) const override;
 };
 
-// Conversão implícita inserida pelo SemanticAnalyzer (A2), nunca pelo parser.
-// O tipo alvo fica em resolved_type; hoje só existe int → decimal.
+
 // Tipo escrito como valor, para comparar com type(x):
-//   type(n) == int     type(l) == list<int>
+//   type(n) == i64     type(l) == list<i64>
 // (nomes de class/struct/erro chegam como IdentifierExpr com res.kind == Type)
 class TypeLiteralExpr : public Expr {
 public:
@@ -337,12 +340,20 @@ public:
     std::string toString(int indent = 0) const override;
 };
 
+// Conversão numérica (seção K). Duas origens:
+//   - cast<T>(valor) escrito no código (explicit_cast; `written` é o T, que o
+//     semântico resolve em resolved_type)
+//   - promoção inserida pelo semântico (i32 → i64, f32 → f64), já com o alvo
 class CastExpr : public Expr {
 public:
     ExprPtr operand;
+    TypePtr written;              // só no cast<T>(...) escrito
+    bool    explicit_cast = false;
 
     CastExpr(ExprPtr op, TypeRef target)
         : Expr(NodeKind::Cast, op->token), operand(std::move(op)) { resolved_type = target; }
+    CastExpr(const Token& tok, TypePtr t, ExprPtr op)
+        : Expr(NodeKind::Cast, tok), operand(std::move(op)), written(std::move(t)), explicit_cast(true) {}
 
     // sobrescreve  a toString
     std::string toString(int indent = 0) const override;
@@ -466,6 +477,7 @@ public:
     ExprPtr iterable;
     StmtPtr body;
     std::uint32_t iter_slot = 0;   // B2: slot local do iterador
+    TypeRef       widen_to = nullptr;   // seção K: for (i64 x in list<i32>) alarga cada elemento
     
     ForStmt(const Token& tok, TypePtr type, const std::string& iter, ExprPtr iter_expr, StmtPtr body_stmt)
         : Stmt(NodeKind::For, tok), type_iterator(std::move(type)),  iterator_name(iter), iterable(std::move(iter_expr)), 
