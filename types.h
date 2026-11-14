@@ -32,13 +32,12 @@ using TypeRef = const TypeInfo*;
 struct TypeInfo {
     enum class Kind { Int, Decimal, String, Bool, Void, Var, List, Dict, Pair, Class, Struct, Error,
                       TypeVar /* C6: só em assinaturas nativas */,
-                      Op      /* op<T1, T2, ...>: aceita um valor de qualquer tipo listado */,
                       Type    /* valor devolvido por type() e escrito como int, list<int>, Pessoa */,
                       Enum    /* enum Cor { ... }: só nomes, sem int por trás */,
                       Interface /* interface Forma { ... }: aceita objeto de classe que a cumpre */ };
 
     Kind                 kind;
-    std::vector<TypeRef> params;   // List: {T}; Dict: {K, V}; Pair: {A, B}; Op: os membros
+    std::vector<TypeRef> params;   // List: {T}; Dict: {K, V}; Pair: {A, B}
     std::string          name;     // Class/Struct/Error/Enum: nome do tipo (vazio nos demais)
     std::string          text;     // forma canônica: "int", "dict<string, int>", "Pessoa"
 
@@ -56,10 +55,6 @@ struct TypeInfo {
     TypeRef first() const { return params[0]; }   // pair<A, B>
     TypeRef second()const { return params[1]; }   // pair<A, B>
 
-    // op<...>: `t` é um dos tipos listados
-    bool hasMember(TypeRef t) const {
-        return std::find(params.begin(), params.end(), t) != params.end();
-    }
 };
 
 // Fábrica única de tipos. Todo TypeRef vem daqui, então dois tipos iguais
@@ -89,14 +84,6 @@ public:
     TypeRef errorType(const std::string& n) { return intern(Kind::Error, {}, n); }
     // C6: variável de tipo de assinatura nativa ("T"); "any" aceita qualquer tipo
     TypeRef typeVar(const std::string& n)   { return intern(Kind::TypeVar, {}, n); }
-    // op<...>: a ordem não importa, então os membros ficam em ordem canônica
-    // (pelo texto) e op<int, string> é o mesmo TypeRef que op<string, int>
-    TypeRef op(std::vector<TypeRef> membros) {
-        std::sort(membros.begin(), membros.end(),
-                  [](TypeRef a, TypeRef b) { return a->text < b->text; });
-        membros.erase(std::unique(membros.begin(), membros.end()), membros.end());
-        return intern(Kind::Op, std::move(membros), "");
-    }
     // tipo dos valores de type() e dos literais de tipo
     TypeRef typeType() { return intern(Kind::Type, {}, ""); }
     TypeRef enumType(const std::string& n) { return intern(Kind::Enum, {}, n); }
@@ -168,12 +155,6 @@ private:
             case Kind::Struct:  return t.name;
             case Kind::Error:   return t.name;
             case Kind::TypeVar: return t.name;
-            case Kind::Op: {
-                std::string s = "op<";
-                for (size_t i = 0; i < t.params.size(); ++i)
-                    s += (i ? ", " : "") + t.params[i]->text;
-                return s + ">";
-            }
             case Kind::Type:    return "type";
             case Kind::Enum:    return t.name;
             case Kind::Interface: return t.name;

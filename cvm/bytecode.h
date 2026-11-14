@@ -78,13 +78,9 @@ namespace cinza::cvm {
     X(NEWSTRUCT)  /* R[a] = struct b com os campos R[a] ... R[a+c-1] */          \
     X(GETFIELD)   /* R[a] = R[b].campo[c]                            */          \
     X(SETFIELD)   /* R[a].campo[b] = R[c]                            */          \
-    /* interfaces, op<...> e type() */                                          \
+    /* interfaces e type() */                                                   \
     X(CALLIFACE)  /* método c da interface b pela classe de R[a]     */          \
     X(TYPEOF)     /* R[a] = tipo real de R[b] (K[c]: tipo estático)  */          \
-    X(CAST)       /* R[a] = conversão de R[b] para K[c] (op<...>)    */          \
-    X(KEEPLOCK)   /* R[a] = R[b] mantendo o tipo travado de R[a]     */          \
-    /* operações genéricas: operandos op<...> de tipo travado desconhecido */  \
-    X(ADD) X(SUB) X(MUL) X(DIV) X(MOD) X(LT) X(LE) X(NEG)                       \
     /* exceções */                                                              \
     X(NEWERROR)   /* R[a] = erro de tipo K[b] com mensagem R[c] (c = sem: "") */ \
     X(ERRFIELD)   /* R[a] = kind/message/line/column (c = 0..3) de R[b] */       \

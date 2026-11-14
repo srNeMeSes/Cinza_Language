@@ -42,7 +42,6 @@ public:
         LIST,      // list<T>
         DICT,      // dict<K, V> 
         PAIR,      // par genérico pair<F, S>
-        OP,        // op<T1, T2, ...>
         VAR,       // tipo inferido
         CUSTOM     // tipos customizados (class / struct)
     };
@@ -189,7 +188,7 @@ public:
     // implicit_method) resolvida pelo semântico; o executor não procura o nome
     const FunctionDecl* target = nullptr;
     bool implicit_method = false;
-    // op<...>: type(x) embutido; guarda o tipo estático do argumento
+    // type(x) embutido; guarda o tipo estático do argumento
     TypeRef type_of = nullptr;
     // printf/format embutidos: o texto literal dividido pelo semântico em
     // trechos fixos e expressões {expr[:formato]}; no printf, native = print
@@ -324,7 +323,7 @@ public:
 
 // Conversão implícita inserida pelo SemanticAnalyzer (A2), nunca pelo parser.
 // O tipo alvo fica em resolved_type; hoje só existe int → decimal.
-// op<...>: tipo escrito como valor, para comparar com type(x):
+// Tipo escrito como valor, para comparar com type(x):
 //   type(n) == int     type(l) == list<int>
 // (nomes de class/struct/erro chegam como IdentifierExpr com res.kind == Type)
 class TypeLiteralExpr : public Expr {
@@ -399,11 +398,6 @@ public:
     ExprPtr   target;
     TokenType op;
     ExprPtr   value;
-    // op<...>: o alvo tem tipo travado que o compilador não conhece (parâmetro,
-    // campo...): o valor novo mantém o tipo travado (int vira decimal se o
-    // alvo guarda decimal). O semântico já garantiu que o valor serve para
-    // todos os tipos do op.
-    bool      keep_lock   = false;
 
     AssignStmt(const Token& tok, ExprPtr t, TokenType o, ExprPtr v)
         : Stmt(NodeKind::Assign, tok), target(std::move(t)), op(o), value(std::move(v)) {}

@@ -1,4 +1,0 @@
-// interface: op<...> não aceita interface (ela já aceita várias classes).
-interface Forma { fn area() -> decimal; }
-fn main() { op<Forma, int> x = 1; }
-// expect-error: 'op' não aceita interface

@@ -167,17 +167,6 @@ public:
     //   - A3: list/dict/pair são invariantes (list<int> NÃO cabe em list<decimal>)
     static bool isAssignable(TypeRef declared, TypeRef value);
 
-    // op<...>: o tipo trava na inicialização. Um tipo com op (op<A, B>,
-    // list<op<A, B>>...) representa o conjunto de tipos concretos que ele pode
-    // ter travado; expand() os lista (list<op<int, decimal>> → list<int>,
-    // list<decimal>). isAssignable acima vale para "travar" (cada tipo possível
-    // do valor cabe em algum do destino); reassignable, para trocar o valor de
-    // quem já travou num tipo que o compilador não sabe (o valor novo precisa
-    // caber em todos).
-    static bool                 containsOp(TypeRef t);
-    static std::vector<TypeRef> expand(TypeRef t);
-    static bool                 reassignable(TypeRef declared, TypeRef value);
-
     // v2.00 #19: int+int → int; qualquer decimal envolvido → decimal
     static TypeRef promoteNumeric(TypeRef left, TypeRef right);
 };
@@ -266,15 +255,6 @@ private:
     const Symbol* findSymbol(const std::string& name) const;
     // Tipo escrito na AST → TypeRef, qualificando nomes de módulo (tx.Pessoa)
     TypeRef       typeOf(Type* type);
-    // op<...>: regras da declaração (quantidade, repetição, op dentro de op...)
-    void          checkOpType(const Type* type);
-    bool          registering = false;   // durante o pré-registro nem todo tipo é conhecido
-    // op<...>: estreita o objeto de um método/campo/índice/for para o único
-    // tipo do op que aceita a operação (senão, erro pedindo uma variável)
-    // op<...>: literal de coleção travado num dos tipos concretos do destino
-    TypeRef       lockCollectionLiteral(Expr* expr, TypeRef natural, TypeRef target);
-    // op<...>: `if (type(x) == T)` — o símbolo x estreitado para T, ou nulo
-    const Symbol* narrowingOf(const Expr* cond, TypeRef& narrowed);
     // Nome de variável/parâmetro não pode repetir um apelido de import
     void          checkNotAlias(const std::string& name, const Token& tok) const;
 

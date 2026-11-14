@@ -110,12 +110,9 @@ std::string disassemble(const Image& img) {
                     ops = ra + ", " + displayName(i->name) + "." + i->methods[in.c].name;
                     break;
                 }
-                case Op::TYPEOF: case Op::CAST:
+                case Op::TYPEOF:
                     ops  = ra + ", " + rb + ", k" + std::to_string(in.c);
                     nota = p.consts[in.c].toString();
-                    break;
-                case Op::KEEPLOCK: case Op::NEG:
-                    ops = ra + ", " + rb;
                     break;
                 case Op::NEWERROR:
                     ops = ra + ", " + displayName(p.consts[in.b].asString()) + ", " +

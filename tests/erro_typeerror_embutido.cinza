@@ -1,4 +1,4 @@
-// TypeError continua como erro embutido (o op não o lança mais: tudo é checado na compilação).
+// TypeError é um erro embutido: pode ser lançado e capturado pelo programa.
 fn main() {
   try {
     throw TypeError("tipo errado");

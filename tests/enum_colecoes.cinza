@@ -1,4 +1,4 @@
-// enum: em listas, como chave de dict, em struct, const e op<...>.
+// enum: em listas, como chave de dict, em struct e const.
 enum Cor { Vermelho, Verde, Azul }
 struct Pixel { Cor cor = Cor.Azul; int brilho = 0; }
 const Cor PADRAO = Cor.Verde;
@@ -9,7 +9,7 @@ fn main() {
   print(l, contagem[Cor.Verde], contagem.size());
   print(contagem);
   print(new Pixel(), PADRAO);
-  op<Cor, int> v = Cor.Azul;
+  Cor v = Cor.Azul;
   print(v, type(v));
 }
 // expect: [Cor.Azul, Cor.Vermelho] 2 3

@@ -11,7 +11,7 @@ para aprender a linguagem, o livro (a ser reescrito) é o caminho.
 
 1. [Léxico](01-lexico.md) — caracteres, comentários, identificadores, palavras-chave, literais
 2. [Gramática](02-gramatica.md) — a sintaxe completa em EBNF
-3. [Tipos](03-tipos.md) — os tipos, as regras de atribuição, `op<...>`, interfaces, `const`
+3. [Tipos](03-tipos.md) — os tipos, as regras de atribuição, interfaces, `const`
 4. [Declarações](04-declaracoes.md) — programa, `main`, funções, classes, struct, enum,
    interface, erros, módulos
 5. [Execução](05-execucao.md) — valores, operadores, ordem de avaliação, instruções, exceções
@@ -21,8 +21,7 @@ para aprender a linguagem, o livro (a ser reescrito) é o caminho.
 ## Filosofia
 
 A Cinza é **disciplinada**: tipagem estática, sem `null`, sem herança e sem closures. Tudo o
-que pode ser conferido antes de executar é conferido na compilação — inclusive o tipo de um
-valor `op<...>`, que trava na inicialização e nunca muda. Os erros que restam para a execução
+que pode ser conferido antes de executar é conferido na compilação. Os erros que restam para a execução
 (índice fora da lista, divisão por zero, overflow...) são erros da linguagem, capturáveis com
 `try`/`except`.
 

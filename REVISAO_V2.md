@@ -1139,6 +1139,56 @@ linguagem num programa de verdade. Roda igual na CVM e no interpretador.
 
 ---
 
+## K. Reestruturação do sistema numérico (2026-11-14)
+
+Especificação do autor: quatro tipos numéricos em duas famílias que não se misturam — inteiros
+`i32`/`i64` e ponto flutuante `f32`/`f64` — no lugar de `int`/`decimal`. Dentro da família a
+promoção para o mais largo é automática; entre famílias só com `cast<T>(expr)`. Sai o `op<...>`.
+
+**Regras** (as centrais ficam num lugar só: `TypeChecker` no semântico e `operacoes.cpp` no runtime,
+comuns ao interpretador e à CVM):
+
+- Literais: `1` é `i32` (ou `i64` se não couber em `i32`); `1.f`/`1.5f` é `f32`; `1.ff`/`1.5ff` é
+  `f64`; literal com ponto **sem sufixo é erro**. Sem notação científica (continua como estava).
+- Operadores: `i32 op i64` → `i64`; `f32 op f64` → `f64`; mesma largura fica na largura; o operando
+  mais estreito é promovido **antes** da conta. Inteiro com flutuante é erro de compilação. `%` só
+  entre inteiros. Comparações seguem a mesma regra.
+- Atribuição, argumento e retorno: só o mesmo tipo ou a promoção dentro da família (`i32` → `i64`,
+  `f32` → `f64`). O caminho inverso e a troca de família exigem `cast`.
+- Inteiros: overflow, divisão por zero e `menor / -1` lançam erro (em 32 e em 64 bits); `x % -1` é 0.
+- Flutuantes: IEEE 754 em tudo — `inf`, `-inf`, `NaN` e `-0` são valores, inclusive na `Math`
+  (`sqrt(-1.ff)` é `NaN`); entram `Math.inf`, `Math.nan`, `Math.is_nan`, `Math.is_inf`.
+- `cast<T>(expr)`: entre `i32`, `i64`, `f32`, `f64` e `string` (não `bool`). Fora da faixa →
+  `OverflowError`; `NaN`/infinito para inteiro e texto inválido → `ValueError`; flutuante → inteiro
+  trunca em direção a zero; `f64` → `f32` segue o IEEE (pode dar infinito).
+- Tamanhos e posições (`size()`, `find`, `index_of`, `count`...) são `i32`; grandezas que pedem 64 bits
+  (`Files.size`, `Time.*`) são `i64`. Índice aceita qualquer inteiro, nunca flutuante.
+- `Convert` fica só com o que o `cast` não faz: `is_i32`/`is_i64`/`is_f32`/`is_f64`/`is_bool`,
+  `to_bool`, os `to_*_or` e as bases. Saem `to_int`, `to_decimal`, `to_string`.
+- `type(x)` continua (classe real atrás de uma interface), sem estreitamento.
+- Backend: a CVM continua sendo o runtime; o mapeamento para LLVM fica documentado.
+
+**Etapas** (cada uma com a suíte verde nos dois modos e um commit):
+
+- [x] 1. Remover `op<...>` (tipo, estreitamento com `type()`, instruções `CAST`/`KEEPLOCK`/genéricas). — feito em 2026-11-14
+  > Nota: saíram o tipo `Op` (`types.h`, `ast.h`), as regras de "todos os tipos" e o travamento
+  > (`TypeChecker::containsOp`/`expand`/`reassignable`, `checkOpType`, `lockCollectionLiteral`,
+  > `narrowingOf`, `keep_lock`), `narrowValue`/`keepLock` do runtime e, na CVM, `CAST`, `KEEPLOCK` e as
+  > oito instruções genéricas (`ADD`…`NEG`). `op` continua palavra reservada só para o erro
+  > "O tipo 'op<...>' foi removido da linguagem", relatado uma vez (o parser pula o `<...>`).
+  > `type(x)` fica, sem estreitar. Spec: sai a seção 3.7 (3.8–3.10 viram 3.7–3.9). Testes: saíram 30
+  > `op_*` e `iface_op`; `type_valores` e `erro_typeerror_embutido` renomeados (cobrem o que continua);
+  > novos `op_removido`, `op_removido_parametro`. 429/429/429, limpo sob ASan/UBSan.
+- [ ] 2. `i64`/`f64` no lugar de `int`/`decimal`: troca de nomes e migração mecânica dos testes, sem
+  mudar comportamento.
+- [ ] 3. `i32`/`f32`, literais com sufixo, famílias e promoção, IEEE nos flutuantes, `%` só inteiro
+  (semântico, `operacoes.cpp`, interpretador e CVM).
+- [ ] 4. `cast<T>(expr)`.
+- [ ] 5. Biblioteca padrão com os tipos novos (`Math` IEEE, `Convert` enxuto, tamanhos `i32`).
+- [ ] 6. Spec, desenho da CVM e o mapeamento para LLVM.
+
+---
+
 ## Registro de decisões
 
 | Data | Item | Decisão | Motivo |

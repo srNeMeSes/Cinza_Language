@@ -52,7 +52,6 @@ tipo          = "int" | "decimal" | "string" | "str" | "bool"
               | "list" "<" tipo ">"
               | "dict" "<" tipo "," tipo ">"
               | "pair" "<" tipo "," tipo ">"
-              | "op" "<" tipo { "," tipo } ">"           (* pelo menos 2 tipos *)
               | nomeTipo ;
 
 nomeTipo      = nome                                     (* class, struct, enum, interface, erro *)
@@ -130,7 +129,7 @@ par           = "{" expressao "," expressao "}" ;
 dicionario    = "{" entrada { "," entrada } "}" ;        (* não há "{}" vazio *)
 entrada       = "{" expressao "," expressao "}" ;
 tipoValor     = ( "int" | "decimal" | "string" | "str" | "bool"
-                | "list" | "dict" | "pair" | "op" ) … ;  (* um tipo escrito como valor *)
+                | "list" | "dict" | "pair" ) … ;         (* um tipo escrito como valor *)
 literal       = inteiro | decimal | texto | "true" | "false" ;
 ```
 
@@ -159,6 +158,6 @@ Observações:
 - Comparações encadeadas como `a < b < c` são sintaticamente válidas, mas comparam um `bool`
   com um número e por isso são erro de tipo (seção 5.3).
 - Um **tipo escrito como valor** (`int`, `list<int>`, o nome de uma classe) só serve para
-  comparar com `type(x)` (seção 3.9).
+  comparar com `type(x)` (seção 3.8).
 - Uma lista ou dicionário vazio se escreve omitindo o inicializador: `list<int> l;`.
 - `{a, b}` é um par; `{{k, v}, ...}` é um dicionário.

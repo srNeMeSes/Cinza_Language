@@ -1,5 +1,5 @@
 #include "executor.h"
-#include "semantic.h"   // op<...>: TypeChecker valida operações em runtime
+#include "semantic.h"
 #include "gc.h"         // coleta de ciclos
 #include "operacoes.h"   // aritmética compartilhada com a CVM
 #include "utf8.h"
@@ -271,7 +271,6 @@ void Executor::executeAssign(const AssignStmt* stmt) {
     Value* place = walkPlace(path);
 
     if (stmt->op == TokenType::OP_ASSIGN) {
-        if (stmt->keep_lock) val = keepLock(*place, std::move(val));   // op<...>
         *place = std::move(val);
         return;
     }
@@ -281,7 +280,6 @@ void Executor::executeAssign(const AssignStmt* stmt) {
     Token op_tok  = stmt->token;
     op_tok.lexeme = tokenTypeToOperatorString(stmt->op);
     Value result  = applyBinary(compoundBaseOp(stmt->op), *place, val, op_tok);
-    if (stmt->keep_lock) result = keepLock(*place, std::move(result));   // op<...>
     *place = std::move(result);
 }
 
@@ -549,7 +547,7 @@ Value Executor::evalLiteral(const LiteralExpr* expr) {
 }
 
 Value Executor::evalIdentifier(const IdentifierExpr* expr) {
-    if (expr->res.kind == Resolution::Kind::Type) return Value(expr->type_value);   // op<...>
+    if (expr->res.kind == Resolution::Kind::Type) return Value(expr->type_value);   // nome de tipo usado como valor
     if (Value* v = slotOf(expr))
         return *v;
 
@@ -610,7 +608,7 @@ Value Executor::evalUnary(const UnaryExpr* expr) {
 }
 
 Value Executor::evalCall(const CallExpr* expr) {
-    // op<...>: type(x) — o tipo do valor (o atual, se x for um op)
+    // type(x) — o tipo real do valor
     if (expr->type_of) {
         Value v = evalExpr(expr->arguments[0].get());
         return Value(runtimeType(v, expr->type_of));
@@ -893,11 +891,6 @@ Value Executor::evalPairLiteral(const PairLiteralExpr* expr) {
 // A2: conversão implícita inserida pelo semântico (hoje só int → decimal)
 Value Executor::evalCast(const CastExpr* expr) {
     Value v = evalExpr(expr->operand.get());
-    // op<...>: conferência do tipo guardado (TypeError) e int → decimal se preciso
-    if (expr->operand->resolved_type->is(TypeInfo::Kind::Op) ||
-        expr->resolved_type->is(TypeInfo::Kind::Op))
-        return narrow(std::move(v), expr->operand->resolved_type, expr->resolved_type,
-                      expr->token);
     if (expr->resolved_type->is(TypeInfo::Kind::Decimal) && v.kind() == Value::Kind::INT)
         return Value(static_cast<double>(v.asInt()));
     return v;
@@ -987,27 +980,6 @@ Value Executor::callCollectionMethod(Value& obj, const std::string& method,
 }
 
 
-
-// ============================================================================
-// op<...> EM RUNTIME
-//
-// Um op guarda um Value comum; o tipo real sai do próprio valor. Coleções não
-// guardam o tipo dos elementos, mas a regra 9 garante no máximo um list, um
-// dict e um pair por op, então o tipo vem do op.
-// ============================================================================
-
-
-Value Executor::narrow(Value v, TypeRef from, TypeRef to, const Token& tok) const {
-    try {
-        return narrowValue(std::move(v), from, to);   // CVM: regra compartilhada
-    } catch (RuntimeError& err) {
-        raise(RuntimeError(err.kind, err.message, tok.line, tok.column, tok.file_id));
-    }
-}
-
-
-// op<...>: o valor novo de quem já travou mantém o tipo travado. A única
-// conversão implícita da linguagem é int → decimal, então basta ela.
 
 // ============================================================================
 // RESOLUCAO DE NOMES (A1 + B2)

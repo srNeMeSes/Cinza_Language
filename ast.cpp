@@ -39,12 +39,6 @@ std::string Type::toString() const {
             }
             return result;
         }
-        case Kind::OP: {
-            std::string result = "op<";
-            for (size_t i = 0; i < type_params.size(); ++i)
-                result += (i ? ", " : "") + type_params[i]->toString();
-            return result + ">";
-        }
         case Kind::CUSTOM: return name; // classe
         default: return "unknown";
     }

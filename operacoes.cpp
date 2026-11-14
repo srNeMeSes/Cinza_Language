@@ -370,7 +370,7 @@ Value callBuiltin(Builtin b, Value& obj, std::span<const Value> args) {
 }
 
 // ============================================================================
-// op<...>, INTERFACES E type()
+// INTERFACES E type()
 // ============================================================================
 
 TypeRef runtimeType(const Value& v, TypeRef st) {
@@ -382,49 +382,7 @@ TypeRef runtimeType(const Value& v, TypeRef st) {
     // Objeto guardado como interface: o tipo real é a classe
     if (v.kind() == Value::Kind::INSTANCE && st->is(K::Interface))
         return t.classType(v.asInstance()->class_name);
-    if (!st->is(K::Op)) return st;
-
-    auto doOp = [&](K kind) -> TypeRef {
-        for (TypeRef m : st->params) if (m->is(kind)) return m;
-        return t.varType();   // não acontece: o semântico só deixa entrar tipos do op
-    };
-    switch (v.kind()) {
-        case Value::Kind::INT:      return t.intType();
-        case Value::Kind::DECIMAL:  return t.decimalType();
-        case Value::Kind::STRING:   return t.stringType();
-        case Value::Kind::BOOL:     return t.boolType();
-        case Value::Kind::TYPE:     return t.typeType();
-        case Value::Kind::LIST:     return doOp(K::List);
-        case Value::Kind::DICT:     return doOp(K::Dict);
-        case Value::Kind::PAIR:     return doOp(K::Pair);
-        case Value::Kind::INSTANCE: return t.classType(v.asInstance()->class_name);
-        case Value::Kind::STRUCT:   return t.structType(v.asStruct()->decl->name);
-        case Value::Kind::ENUM:     return t.enumType(v.asEnum().decl->name);
-        default:                    return t.voidType();
-    }
-}
-
-Value narrowValue(Value v, TypeRef from, TypeRef to) {
-    using K = TypeInfo::Kind;
-    TypeRef real = runtimeType(v, from);
-    if (!TypeChecker::isAssignable(to, real))
-        throw RuntimeError("TypeError: esperado '" + stripModulePrefixes(to->str()) +
-                           "', mas o valor é '" + stripModulePrefixes(real->str()) + "'");
-
-    // int → decimal: destino decimal, ou op que tem decimal e não tem int
-    if (v.kind() == Value::Kind::INT) {
-        const bool quer_decimal = to->is(K::Decimal) ||
-            (to->is(K::Op) && to->hasMember(TypeContext::instance().decimalType()) &&
-             !to->hasMember(TypeContext::instance().intType()));
-        if (quer_decimal) return Value(static_cast<double>(v.asInt()));
-    }
-    return v;
-}
-
-Value keepLock(const Value& atual, Value novo) {
-    if (atual.kind() == Value::Kind::DECIMAL && novo.kind() == Value::Kind::INT)
-        return Value(static_cast<double>(novo.asInt()));
-    return novo;
+    return st;   // nos demais casos o tipo estático já é o real
 }
 
 } // namespace cinza

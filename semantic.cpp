@@ -43,11 +43,6 @@ TypeRef TypeChecker::fromAst(const Type* type) {
         case Type::Kind::LIST:    return types.list(param(0));
         case Type::Kind::DICT:    return types.dict(param(0), param(1));
         case Type::Kind::PAIR:    return types.pair(param(0), param(1));
-        case Type::Kind::OP: {
-            std::vector<TypeRef> membros;
-            for (const auto& p : type->type_params) membros.push_back(fromAst(p.get()));
-            return types.op(std::move(membros));
-        }
         case Type::Kind::CUSTOM:  return types.named(type->name);   // class ou struct (C3)
     }
     return types.varType();
@@ -72,72 +67,7 @@ static bool sameGenericType(TypeRef declared, TypeRef value) {
 //   - int → decimal (promoção numérica)
 //   - A3: list/dict/pair são invariantes (list<int> NÃO cabe em list<decimal>);
 //     literais se adaptam ao tipo esperado em analyzeExpr(expr, expected)
-// op<...>: há op em algum ponto do tipo
-bool TypeChecker::containsOp(TypeRef t) {
-    if (t->is(TK::Op)) return true;
-    for (TypeRef p : t->params)
-        if (containsOp(p)) return true;
-    return false;
-}
-
-// op<...>: os tipos concretos que um tipo com op pode ter travado
-std::vector<TypeRef> TypeChecker::expand(TypeRef t) {
-    auto& types = TypeContext::instance();
-    if (!containsOp(t)) return {t};
-    if (t->is(TK::Op)) {
-        std::vector<TypeRef> out;
-        for (TypeRef m : t->params)
-            for (TypeRef e : expand(m)) out.push_back(e);
-        return out;
-    }
-    // genérico: combinações dos parâmetros
-    std::vector<std::vector<TypeRef>> combos{{}};
-    for (TypeRef p : t->params) {
-        std::vector<std::vector<TypeRef>> novos;
-        for (const auto& c : combos)
-            for (TypeRef e : expand(p)) {
-                auto n = c;
-                n.push_back(e);
-                novos.push_back(std::move(n));
-            }
-        combos = std::move(novos);
-    }
-    std::vector<TypeRef> out;
-    for (const auto& c : combos) {
-        if (t->is(TK::List)) out.push_back(types.list(c[0]));
-        else if (t->is(TK::Dict)) out.push_back(types.dict(c[0], c[1]));
-        else out.push_back(types.pair(c[0], c[1]));
-    }
-    return out;
-}
-
-// Atribuição entre tipos sem op (as regras de sempre)
-static bool assignableConcrete(TypeRef declared, TypeRef value);
-
-// op<...>: travar — cada tipo possível do valor cabe em algum tipo do destino
 bool TypeChecker::isAssignable(TypeRef declared, TypeRef value) {
-    if (declared == value) return true;
-    if (!containsOp(declared) && !containsOp(value)) return assignableConcrete(declared, value);
-    const auto destinos = expand(declared);
-    for (TypeRef v : expand(value)) {
-        bool cabe = false;
-        for (TypeRef d : destinos)
-            if (assignableConcrete(d, v)) { cabe = true; break; }
-        if (!cabe) return false;
-    }
-    return true;
-}
-
-// op<...>: trocar o valor de quem travou num tipo desconhecido — o valor novo
-// precisa caber em todos os tipos possíveis
-bool TypeChecker::reassignable(TypeRef declared, TypeRef value) {
-    for (TypeRef d : expand(declared))
-        for (TypeRef v : expand(value))
-            if (!assignableConcrete(d, v)) return false;
-    return true;
-}
-
-static bool assignableConcrete(TypeRef declared, TypeRef value) {
     if (declared == value) return true;
 
     // interface: aceita objeto de classe que a cumpre (nunca o contrário)
@@ -165,28 +95,6 @@ TypeRef TypeChecker::checkBinaryOp(TypeRef left, TokenType op, TypeRef right,
     const std::string& r = right->str();
     // C1: operador como escrito no código (and ou &&; += numa atribuição composta)
     const std::string op_text = tok.lexeme.empty() ? tokenTypeToOperatorString(op) : tok.lexeme;
-
-    // op<...>: o tipo travado é desconhecido aqui, então a operação precisa
-    // valer para todos os tipos possíveis. O resultado é o tipo (ou o op) dos
-    // resultados possíveis. Nada é conferido em runtime.
-    if (containsOp(left) || containsOp(right)) {
-        std::vector<TypeRef> resultados;
-        for (TypeRef a : expand(left))
-            for (TypeRef b : expand(right)) {
-                TypeRef res;
-                try {
-                    res = checkBinaryOp(a, op, b, tok);
-                } catch (const SemanticError&) {
-                    throw SemanticError(
-                        "Operador '" + op_text + "' entre '" + l + "' e '" + r + "' não vale para "
-                        "todos os tipos do op (falha com '" + a->str() + "' e '" + b->str() +
-                        "'). Trate cada tipo com if (type(x) == ...).", tok);
-                }
-                if (std::find(resultados.begin(), resultados.end(), res) == resultados.end())
-                    resultados.push_back(res);
-            }
-        return resultados.size() == 1 ? resultados[0] : types.op(std::move(resultados));
-    }
 
     switch (op) {
 
@@ -244,24 +152,6 @@ TypeRef TypeChecker::checkBinaryOp(TypeRef left, TokenType op, TypeRef right,
 
 // Retorna o tipo resultante de uma operação unária, ou lança SemanticError.
 TypeRef TypeChecker::checkUnaryOp(TokenType op, TypeRef operand, const Token& tok) {
-    // op<...>: como no binário, precisa valer para todos os tipos
-    if (containsOp(operand)) {
-        std::vector<TypeRef> resultados;
-        for (TypeRef m : expand(operand)) {
-            TypeRef res;
-            try {
-                res = checkUnaryOp(op, m, tok);
-            } catch (const SemanticError&) {
-                throw SemanticError("Operador '" + tok.lexeme + "' em '" + operand->str() +
-                                    "' não vale para todos os tipos do op (falha com '" + m->str() +
-                                    "'). Trate cada tipo com if (type(x) == ...).", tok);
-            }
-            if (std::find(resultados.begin(), resultados.end(), res) == resultados.end())
-                resultados.push_back(res);
-        }
-        return resultados.size() == 1 ? resultados[0]
-                                      : TypeContext::instance().op(std::move(resultados));
-    }
     switch (op) {
         case TokenType::OP_MINUS:
             if (operand->isNumeric()) return operand;
@@ -364,8 +254,6 @@ const Symbol* SymbolTable::resolve(const std::string& name) const {
 
 // faz o pré registro de funções e classes
 void SemanticAnalyzer::preRegisterDeclarations(const Program& program) {
-    registering = true;   // op<...>: tipo desconhecido é checado na análise do corpo
-    struct Fim { bool& f; ~Fim() { f = false; } } fim{registering};
     // C3: nomes de struct antes de tudo, para que `Ponto p` vire tipo struct
     // (e não class) em qualquer assinatura registrada a seguir
     for (const auto& stmt : program.statements)
@@ -558,7 +446,7 @@ void SemanticAnalyzer::checkStructCycles() {
     std::set<std::string>    verificados;
 
     std::function<void(TypeRef, const Token&)> visita = [&](TypeRef t, const Token& tok) {
-        if (t->is(TK::Pair) || t->is(TK::Op)) {   // op<...> guarda o valor dentro
+        if (t->is(TK::Pair)) {   // pair guarda os valores dentro
             for (TypeRef p : t->params) visita(p, tok);
             return;
         }
@@ -854,140 +742,7 @@ TypeRef SemanticAnalyzer::typeOf(Type* type) {
         for (auto& p : t->type_params) qualifica(p.get());
     };
     qualifica(type);
-    checkOpType(type);
     return TypeChecker::fromAst(type);
-}
-
-// op<...>: pelo menos 2 tipos, sem repetir, sem void/var, sem op dentro de op e
-// no máximo um list, um dict e um pair (regra 9: a coleção não guarda o tipo dos
-// elementos em runtime, então type() não saberia qual deles é)
-void SemanticAnalyzer::checkOpType(const Type* type) {
-    if (!type) return;
-    if (type->kind == Type::Kind::OP) {
-        if (type->type_params.size() < 2)
-            throwError("'op' precisa de pelo menos 2 tipos, ex.: op<int, string>. Com um tipo só, "
-                       "use o próprio tipo.", type->token);
-        std::vector<TypeRef> vistos;
-        int listas = 0, dicts = 0, pares = 0;
-        for (const auto& p : type->type_params) {
-            if (p->kind == Type::Kind::OP)
-                throwError("'op' dentro de 'op' não é permitido: junte todos os tipos num só "
-                           "op<...>.", p->token);
-            if (TypeChecker::fromAst(p.get())->is(TK::Interface))
-                throwError("'op' não aceita interface: a própria interface já aceita objetos de "
-                           "várias classes.", p->token);
-            if (TypeChecker::containsOp(TypeChecker::fromAst(p.get())))
-                throwError("Um tipo do 'op' não pode conter outro op (ex.: op<list<op<...>>, "
-                           "int>).", p->token);
-            if (p->kind == Type::Kind::VOID)
-                throwError("'void' não pode ser um tipo do 'op'.", p->token);
-            if (p->kind == Type::Kind::VAR)
-                throwError("'var' não pode ser um tipo do 'op': liste os tipos aceitos.", p->token);
-            if (p->kind == Type::Kind::CUSTOM && !registering && !isKnownType(p->name))
-                throwError("Tipo desconhecido '" + p->name + "' no op", p->token);
-            TypeRef t = TypeChecker::fromAst(p.get());
-            if (std::find(vistos.begin(), vistos.end(), t) != vistos.end())
-                throwError("Tipo '" + t->str() + "' repetido no op: cada tipo aparece uma vez.",
-                           p->token);
-            vistos.push_back(t);
-            listas += t->is(TK::List);
-            dicts  += t->is(TK::Dict);
-            pares  += t->is(TK::Pair);
-        }
-        if (listas > 1 || dicts > 1 || pares > 1)
-            throwError("Um 'op' aceita no máximo um list, um dict e um pair: em runtime a coleção "
-                       "não guarda o tipo dos elementos, então type() não saberia qual deles ela "
-                       "é.", type->token);
-    }
-    for (const auto& p : type->type_params) checkOpType(p.get());
-}
-
-// op<...>: `promover(c, n)` — um literal do tipo n pode ser adaptado a c
-// (mesmo tipo, int → decimal, ou coleção com os parâmetros adaptáveis)
-static bool promover(TypeRef c, TypeRef n) {
-    if (c == n || n->is(TK::Var)) return true;
-    if (c->is(TK::Decimal) && n->is(TK::Int)) return true;
-    if (c->isGeneric() && c->kind == n->kind && c->params.size() == n->params.size()) {
-        for (size_t i = 0; i < c->params.size(); ++i)
-            if (!promover(c->params[i], n->params[i])) return false;
-        return true;
-    }
-    return false;
-}
-
-// op<...>: um literal de coleção num lugar com op trava num dos tipos
-// concretos do destino: o próprio tipo natural, se ele for um deles, ou o
-// primeiro para o qual o literal pode ser adaptado ([1, 2] em
-// list<op<decimal, string>> vira list<decimal>). Todos os elementos ficam
-// do mesmo tipo.
-TypeRef SemanticAnalyzer::lockCollectionLiteral(Expr* expr, TypeRef natural, TypeRef target) {
-    const auto possiveis = TypeChecker::expand(target);
-    if (std::find(possiveis.begin(), possiveis.end(), natural) != possiveis.end()) return natural;
-    for (TypeRef c : possiveis) {
-        if (!promover(c, natural)) continue;
-        switch (expr->node_kind) {
-            case NodeKind::ListLiteral: {
-                auto* list = static_cast<ListLiteralExpr*>(expr);
-                for (auto& elem : list->elements) coerceInPlace(elem, c->elem());
-                break;
-            }
-            case NodeKind::DictLiteral: {
-                auto* dict = static_cast<DictLiteralExpr*>(expr);
-                for (auto& [k, v] : dict->pairs) {
-                    coerceInPlace(k, c->key());
-                    coerceInPlace(v, c->value());
-                }
-                break;
-            }
-            case NodeKind::PairLiteral: {
-                auto* pair = static_cast<PairLiteralExpr*>(expr);
-                coerceInPlace(pair->first,  c->first());
-                coerceInPlace(pair->second, c->second());
-                break;
-            }
-            default: break;
-        }
-        return expr->resolved_type = c;
-    }
-    return natural;   // quem chamou reporta a incompatibilidade
-}
-
-// op<...>: `type(x) == T` (ou `T == type(x)`), com x uma variável, parâmetro ou
-// campo cujo tipo tem op. Devolve o símbolo de x e o tipo T. Como o tipo
-// travado nunca muda, dentro do if x é sempre T.
-const Symbol* SemanticAnalyzer::narrowingOf(const Expr* cond, TypeRef& narrowed) {
-    if (cond->node_kind != NodeKind::Binary) return nullptr;
-    auto* bin = static_cast<const BinaryExpr*>(cond);
-    if (bin->op != TokenType::OP_EQUAL) return nullptr;
-
-    auto tipoLiteral = [](const Expr* e) -> TypeRef {
-        if (e->node_kind == NodeKind::TypeLiteral) return static_cast<const TypeLiteralExpr*>(e)->value;
-        if (e->node_kind == NodeKind::Identifier) {
-            auto* id = static_cast<const IdentifierExpr*>(e);
-            if (id->res.kind == Resolution::Kind::Type) return id->type_value;
-        }
-        return nullptr;
-    };
-    auto variavel = [](const Expr* e) -> const IdentifierExpr* {
-        if (e->node_kind != NodeKind::Call) return nullptr;
-        auto* call = static_cast<const CallExpr*>(e);
-        if (!call->type_of || call->arguments.size() != 1) return nullptr;
-        if (call->arguments[0]->node_kind != NodeKind::Identifier) return nullptr;
-        return static_cast<const IdentifierExpr*>(call->arguments[0].get());
-    };
-
-    const IdentifierExpr* id = variavel(bin->left.get());
-    TypeRef t = tipoLiteral(bin->right.get());
-    if (!id || !t) { id = variavel(bin->right.get()); t = tipoLiteral(bin->left.get()); }
-    if (!id || !t) return nullptr;
-
-    const Symbol* sym = findSymbol(id->name);
-    if (!sym || !sym->resolved_type->is(TK::Op)) return nullptr;
-    if (!sym->resolved_type->hasMember(t))
-        throwError("'" + id->name + "' é '" + sym->resolved_type->str() + "' e nunca será '" +
-                   t->str() + "': essa condição é sempre falsa.", cond->token);
-    narrowed = t;
-    return sym;
 }
 
 void SemanticAnalyzer::checkNotAlias(const std::string& name, const Token& tok) const {
@@ -1207,29 +962,9 @@ static std::string dictKeyMessage(TypeRef key_type) {
 // C3: const protege valores e coleções, mas não se aplica diretamente a um
 // objeto de classe (a linguagem não sabe se um método altera o objeto).
 // Em `const list<Pessoa>` a lista é const; os objetos dentro dela não.
-// op<...>: mensagens
-static std::string opNeedsNarrowing(const std::string& oque, TypeRef t) {
-    return oque + " não vale para todos os tipos de '" + t->str() + "'. Trate cada tipo com "
-           "if (type(x) == ...) { ... }: dentro do if, x tem o tipo testado.";
-}
-static std::string readOnlyMessage(TypeRef t) {
-    return "'" + t->str() + "' é somente leitura aqui: o tipo travado dos elementos não é "
-           "conhecido (ex.: coleção recebida por parâmetro), e alterar poderia quebrar o tipo "
-           "da coleção original.";
-}
-static std::string lockMessage(const std::string& alvo, TypeRef t, TypeRef v) {
-    return "'" + alvo + "' tem o tipo travado num dos tipos de '" + t->str() + "' (não se sabe "
-           "qual aqui), e '" + v->str() + "' não serve para todos eles. Trate cada tipo com "
-           "if (type(x) == ...).";
-}
-
-// C3: tipo de classe, ou op<...> que aceita uma classe (const não se aplica)
+// C3: tipo de classe ou interface (const não se aplica)
 static bool isClassLike(TypeRef t) {
-    if (t->is(TK::Class) || t->is(TK::Interface)) return true;
-    if (t->is(TK::Op))
-        for (TypeRef m : t->params)
-            if (m->is(TK::Class)) return true;
-    return false;
+    return t->is(TK::Class) || t->is(TK::Interface);
 }
 
 static std::string constClassMessage(TypeRef type) {
@@ -1349,15 +1084,6 @@ void SemanticAnalyzer::analyzeVarDecl(VarDeclStmt* stmt) {
             stmt->token);
     }
 
-    // op<...>: precisa de valor para travar; com valor de tipo conhecido, a
-    // variável passa a ter esse tipo (op<decimal, int> x = 1; → x é int)
-    if (TypeChecker::containsOp(declared_type)) {
-        if (!stmt->initializer)
-            throwError("'" + stmt->name + "' tem op no tipo e precisa de um valor inicial: é ele "
-                       "que trava o tipo.", stmt->token);
-        sym.resolved_type = stmt->initializer->resolved_type;
-    }
-
     // B2: o slot vem depois do inicializador (`int x = x;` não enxerga o novo x)
     sym.res   = (symbol_table.depth() == 1) ? newGlobal() : newLocal();
     stmt->res = sym.res;
@@ -1413,7 +1139,7 @@ const Symbol* SemanticAnalyzer::constRoot(const Expr* container) const {
             return constRoot(static_cast<const MemberAccessExpr*>(container)->object.get());
         case NodeKind::IndexAccess:
             return constRoot(static_cast<const IndexAccessExpr*>(container)->object.get());
-        case NodeKind::Cast:   // op<...> estreitado: o valor é o mesmo
+        case NodeKind::Cast:   // conversão implícita: o recipiente é o mesmo
             return constRoot(static_cast<const CastExpr*>(container)->operand.get());
         default:
             return nullptr;   // valor temporário (chamada, new, literal)
@@ -1493,8 +1219,6 @@ TypeRef SemanticAnalyzer::analyzeLValue(Expr* target) {
             if (ix->object->resolved_type->is(TK::String))
                 throwError("Strings são imutáveis: '" + lvalueName(ix) + "' não pode ser alterado. "
                            "Monte um texto novo (concatenação, fatias, Strings.replace).", ix->token);
-            if (TypeChecker::containsOp(ix->object->resolved_type))   // op<...>
-                throwError(readOnlyMessage(ix->object->resolved_type), ix->token);
             if (const Symbol* root = constRoot(ix->object.get()))
                 throwError(constMutationMessage(root, lvalueName(ix)), ix->token);
             return type;
@@ -1525,14 +1249,6 @@ void SemanticAnalyzer::analyzeAssign(AssignStmt* stmt) {
                 target_type->str() + "' do alvo",
                 stmt->token);
         }
-        // op<...>: alvo de tipo travado desconhecido — o resultado precisa servir
-        // para todos os tipos dele
-        if (TypeChecker::containsOp(target_type)) {
-            if (!TypeChecker::reassignable(target_type, result))
-                throwError(lockMessage(lvalueName(stmt->target.get()), target_type, result),
-                           stmt->token);
-            stmt->keep_lock = true;
-        }
         return;
     }
 
@@ -1555,15 +1271,6 @@ void SemanticAnalyzer::analyzeAssign(AssignStmt* stmt) {
             "': esperado '" + target_type->str() +
             "', mas recebeu '" + val_type->str() + "'",
             stmt->token);
-    }
-    // op<...>: alvo de tipo travado desconhecido — o valor novo precisa servir
-    // para todos os tipos dele (o executor mantém o tipo travado)
-    if (TypeChecker::containsOp(target_type)) {
-        if (!TypeChecker::reassignable(target_type, val_type))
-            throwError(lockMessage(lvalueName(stmt->target.get()), target_type, val_type),
-                       stmt->token);
-        stmt->keep_lock = true;
-        return;
     }
     coerceInPlace(stmt->value, target_type);   // A2
 }
@@ -1600,18 +1307,7 @@ void SemanticAnalyzer::analyzeIf(IfStmt* stmt) {
             "Condição do 'if' deve ser 'bool', mas recebeu '" + cond_type->str() + "'",
             stmt->token);
     }
-    // op<...>: dentro de `if (type(x) == T)`, x é T (o tipo travado nunca muda)
-    TypeRef estreito = nullptr;
-    if (const Symbol* sym = narrowingOf(stmt->condition.get(), estreito)) {
-        Symbol copia        = *sym;
-        copia.resolved_type = estreito;
-        symbol_table.pushScope();
-        symbol_table.declare(copia, stmt->token);
-        analyzeStmt(stmt->then_branch.get());
-        symbol_table.popScope();
-    } else {
-        analyzeStmt(stmt->then_branch.get());
-    }
+    analyzeStmt(stmt->then_branch.get());
     if (stmt->else_branch) analyzeStmt(stmt->else_branch.get());
 }
 
@@ -1648,8 +1344,6 @@ void SemanticAnalyzer::analyzeLoopControl(Stmt* stmt) {
 void SemanticAnalyzer::analyzeFor(ForStmt* stmt) {
     // tipo lista list<T>
     TypeRef iter_type = analyzeExpr(stmt->iterable.get());
-    if (iter_type->is(TK::Op))
-        throwError(opNeedsNarrowing("'for'", iter_type), stmt->token);
 
     // C2: list<T> → T; dict<K,V> → pair<K,V> (em ordem de chave); string → string
     //     de um caractere (code point UTF-8)
@@ -1674,8 +1368,6 @@ void SemanticAnalyzer::analyzeFor(ForStmt* stmt) {
             "Tipo do iterador '" + declared_iter->str() +
             "' é incompatível com o elemento da lista '" + elem_type->str() + "'",
             stmt->token);
-    } else if (TypeChecker::containsOp(declared_iter) && !TypeChecker::containsOp(elem_type)) {
-        declared_iter = elem_type;   // op<...>: trava no tipo do elemento, que é conhecido
     }
 
     // Escopo próprio do for: o iterador só existe dentro do corpo
@@ -1932,9 +1624,6 @@ void SemanticAnalyzer::analyzeStructDecl(StructDecl* stmt) {
                     field.token);
             }
             coerceInPlace(field.initializer, ftype);
-        } else if (TypeChecker::containsOp(ftype)) {
-            throwError("Campo '" + field.name + "' tem op no tipo e precisa de um valor "
-                       "inicial: é ele que trava o tipo.", field.token);
         } else if (!ftype->is(TK::List) && !ftype->is(TK::Dict)) {
             throwError(
                 "Erro interno: campo '" + field.name + "' de tipo '" + ftype->str() +
@@ -1999,9 +1688,6 @@ void SemanticAnalyzer::analyzeClassDecl(ClassDecl* stmt) {
                     field.token);
             }
             coerceInPlace(field.initializer, fsym.resolved_type);
-        } else if (TypeChecker::containsOp(fsym.resolved_type)) {
-            throwError("Campo '" + field.name + "' tem op no tipo e precisa de um valor "
-                       "inicial: é ele que trava o tipo.", field.token);
         } else {
             // Blindagem defensiva: campo não-coleção sem inicializador indica
             // inconsistência na pipeline — o parser deveria ter rejeitado.
@@ -2098,17 +1784,6 @@ void SemanticAnalyzer::analyzeClassDecl(ClassDecl* stmt) {
 TypeRef SemanticAnalyzer::analyzeExpr(Expr* expr, TypeRef expected) {
     if (!expr) return types.voidType();
 
-    // op<...>: um literal de coleção num lugar com op é analisado pelo tipo
-    // natural e travado num dos tipos concretos do destino (todos os
-    // elementos do mesmo tipo)
-    if (expected && TypeChecker::containsOp(expected) &&
-        (expr->node_kind == NodeKind::ListLiteral || expr->node_kind == NodeKind::DictLiteral ||
-         expr->node_kind == NodeKind::PairLiteral)) {
-        TypeRef natural = analyzeExpr(expr, nullptr);
-        return lockCollectionLiteral(expr, natural, expected);
-    }
-    if (expected && TypeChecker::containsOp(expected)) expected = nullptr;
-
     // B3: switch no NodeKind em vez de cadeia de dynamic_cast
     switch (expr->node_kind) {
         case NodeKind::Literal:      return analyzeLiteral     (static_cast<LiteralExpr*>(expr));
@@ -2124,7 +1799,7 @@ TypeRef SemanticAnalyzer::analyzeExpr(Expr* expr, TypeRef expected) {
         case NodeKind::ListLiteral:  return analyzeListLiteral (static_cast<ListLiteralExpr*>(expr), expected);
         case NodeKind::DictLiteral:  return analyzeDictLiteral (static_cast<DictLiteralExpr*>(expr), expected);
         case NodeKind::PairLiteral:  return analyzePairLiteral (static_cast<PairLiteralExpr*>(expr), expected);
-        case NodeKind::TypeLiteral: {   // op<...>: type(x) == int
+        case NodeKind::TypeLiteral: {   // tipo escrito como valor: type(x) == int
             auto* e  = static_cast<TypeLiteralExpr*>(expr);
             e->value = typeOf(e->type.get());
             return e->resolved_type = types.typeType();
@@ -2183,7 +1858,7 @@ TypeRef SemanticAnalyzer::analyzeIdentifier(IdentifierExpr* expr) {
     if (sym->kind == Symbol::Kind::FUNCTION)
         throwError("'" + expr->name + "' é uma função: chame-a com " + expr->name + "(...). Na "
                    "Cinza funções não são valores.", expr->token);
-    // op<...>: nome de class/struct/erro usado como valor é um tipo (type(x) == Pessoa)
+    // nome de class/struct/erro usado como valor é um tipo (type(x) == Pessoa)
     if (sym->kind == Symbol::Kind::CLASS) {
         expr->res        = {Resolution::Kind::Type, 0};
         expr->type_value = sym->resolved_type;
@@ -2279,18 +1954,14 @@ TypeRef SemanticAnalyzer::analyzeCall(CallExpr* expr) {
         return expr->resolved_type = types.errorType(expr->function_name);
     }
 
-    // op<...>: type(x) devolve o tipo do valor (o atual, se x for um op); uma
-    // função do usuário chamada type tem precedência
+    // type(x) devolve o tipo real do valor (a classe atrás de uma interface, o
+    // tipo de um erro); uma função do usuário chamada type tem precedência
     if (!sym && expr->function_name == "type") {
         if (expr->arguments.size() != 1)
             throwError("'type' recebe exatamente 1 argumento, ex.: type(x)", expr->token);
         expr->type_of = analyzeExpr(expr->arguments[0].get());
         if (expr->type_of->is(TK::Void))
             throwError("'type' precisa de um valor, mas a expressão é 'void'", expr->token);
-        if (TypeChecker::containsOp(expr->type_of) && !expr->type_of->is(TK::Op))
-            throwError("'type' não sabe o tipo travado de '" + expr->type_of->str() + "': em "
-                       "runtime a coleção não guarda o tipo dos elementos. Use type() num "
-                       "elemento.", expr->token);
         return expr->resolved_type = types.typeType();
     }
 
@@ -2427,12 +2098,9 @@ TypeRef SemanticAnalyzer::analyzeNativeCall(CallExpr* expr, const NativeFn& fn) 
             coerceInPlace(expr->arguments[i], concreto);
     }
 
-    // Fase 7: nativa que altera um argumento (Lists.sort, Lists.sort_by) não aceita
-    // const nem coleção de op com tipo travado desconhecido
+    // Fase 7: nativa que altera um argumento (Lists.sort, Lists.sort_by) não aceita const
     for (size_t i = 0; i < n && i < 32; ++i) {
         if (!(fn.mutates & (1u << i))) continue;
-        if (TypeChecker::containsOp(expr->arguments[i]->resolved_type))
-            throwError(readOnlyMessage(expr->arguments[i]->resolved_type), expr->token);
         if (const Symbol* root = constRoot(expr->arguments[i].get()))
             throwError("'" + nome + "' altera a lista, mas '" + root->name + "' é const. "
                        "Listas const não podem ser modificadas.", expr->token);
@@ -2448,9 +2116,6 @@ TypeRef SemanticAnalyzer::analyzeNativeCall(CallExpr* expr, const NativeFn& fn) 
 //   - Suporta métodos de classes definidas pelo usuário
 TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
     TypeRef obj_type = analyzeExpr(expr->object.get());
-
-    if (obj_type->is(TK::Op))
-        throwError(opNeedsNarrowing("O método '" + expr->method_name + "'", obj_type), expr->token);
 
     // interface: só os métodos que ela declara; qual código roda depende da
     // classe do objeto (escolhido em runtime pela tabela montada em checkInterfaces)
@@ -2478,11 +2143,6 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
         expr->iface_method = i;
         return expr->resolved_type = mi.return_type;
     }
-    // op<...>: coleção de op com tipo travado desconhecido é somente leitura
-    if (TypeChecker::containsOp(obj_type) &&
-        (expr->method_name == "add" || expr->method_name == "remove"))
-        throwError(readOnlyMessage(obj_type), expr->token);
-
     // Helper: o receptor vem de um const? Usado para bloquear métodos mutantes
     // (.add, .remove). C3/B5: vale em qualquer profundidade (m[0].add(x) com m
     // const), e para ao passar por um objeto de classe.
@@ -2701,8 +2361,6 @@ TypeRef SemanticAnalyzer::analyzeMemberAccess(MemberAccessExpr* expr) {
         }
     }
 
-    if (obj_type->is(TK::Op))
-        throwError(opNeedsNarrowing("O campo '" + expr->member_name + "'", obj_type), expr->token);
     if (obj_type->is(TK::Interface))
         throwError("A interface '" + obj_type->str() + "' só tem métodos: '" + expr->member_name +
                    "' não pode ser acessado por ela.", expr->token);
@@ -2769,9 +2427,6 @@ TypeRef SemanticAnalyzer::analyzeIndexAccess(IndexAccessExpr* expr) {
     TypeRef obj_type = analyzeExpr(expr->object.get());
     TypeRef idx_type = analyzeExpr(expr->index.get());
 
-    if (obj_type->is(TK::Op))
-        throwError(opNeedsNarrowing("O operador '[]'", obj_type), expr->token);
-
     if (obj_type->is(TK::List)) {
         if (!idx_type->is(TK::Int)) {
             throwError("Índice de lista deve ser 'int', mas recebeu '" + idx_type->str() + "'",
@@ -2790,7 +2445,7 @@ TypeRef SemanticAnalyzer::analyzeIndexAccess(IndexAccessExpr* expr) {
             throwError("Chave do dicionário deve ser '" + K->str() +
                        "', mas recebeu '" + idx_type->str() + "'", expr->token);
         }
-        coerceInPlace(expr->index, K);   // op<...>: chave conferida em runtime
+        coerceInPlace(expr->index, K);
         return expr->resolved_type = obj_type->value();
     }
 
@@ -2920,8 +2575,6 @@ TypeRef SemanticAnalyzer::analyzeInterpolation(CallExpr* expr) {
 // s[ini:fim:passo]: fatia de string; as partes presentes são int
 TypeRef SemanticAnalyzer::analyzeSlice(SliceExpr* expr) {
     TypeRef obj_type = analyzeExpr(expr->object.get());
-    if (obj_type->is(TK::Op))
-        throwError(opNeedsNarrowing("A fatia '[:]'", obj_type), expr->token);
     if (!obj_type->is(TK::String)) {
         if (obj_type->is(TK::List))
             throwError("Fatia '[:]' só vale para string; para listas use Lists.slice(l, ini, fim)",
@@ -3214,29 +2867,6 @@ TypeRef SemanticAnalyzer::analyzePairLiteral(PairLiteralExpr* expr, TypeRef expe
 
 void SemanticAnalyzer::coerceInPlace(ExprPtr& slot, TypeRef target) {
     if (!slot || !target || slot->resolved_type == target) return;
-
-    // op<...>: travar. Valor de tipo conhecido: fica num dos tipos concretos do
-    // destino (o próprio, ou int → decimal). Valor de tipo travado desconhecido:
-    // se todos os seus tipos já estão no destino, nada a fazer; senão a
-    // conversão int → decimal acontece em runtime (CastExpr, sem erro possível:
-    // o semântico já garantiu que todos cabem)
-    TypeRef origem = slot->resolved_type;
-    if (TypeChecker::containsOp(origem) || TypeChecker::containsOp(target)) {
-        const auto possiveis = TypeChecker::expand(target);
-        auto esta = [&](TypeRef t) {
-            return std::find(possiveis.begin(), possiveis.end(), t) != possiveis.end();
-        };
-        if (!TypeChecker::containsOp(origem)) {
-            if (esta(origem)) return;
-            for (TypeRef c : possiveis)
-                if (TypeChecker::isAssignable(c, origem)) { coerceInPlace(slot, c); return; }
-            return;
-        }
-        const auto origens = TypeChecker::expand(origem);
-        if (std::all_of(origens.begin(), origens.end(), esta)) return;
-        slot = std::make_unique<CastExpr>(std::move(slot), target);
-        return;
-    }
 
     if (target->is(TK::Decimal) && slot->resolved_type->is(TK::Int)) {
         slot = std::make_unique<CastExpr>(std::move(slot), target);

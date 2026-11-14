@@ -67,7 +67,7 @@ struct Value {
         INSTANCE,
         STRUCT,      // C3
         ERROR,       // C4: erro capturado em except / criado com Tipo("msg")
-        TYPE,        // op<...>: valor de type() e literal de tipo (int, list<int>, Pessoa)
+        TYPE,        // valor de type() e literal de tipo (int, list<int>, Pessoa)
         ENUM,        // valor de enum (Cor.Verde): a declaração e o índice do valor
         // VOID_VAL: valor técnico interno do runtime.
         // Usos legítimos: retorno de funções void, ausência de valor em
@@ -90,7 +90,7 @@ struct Value {
         std::shared_ptr<ClassInstance>,         // INSTANCE
         std::shared_ptr<StructValue>,           // STRUCT (C3)
         std::shared_ptr<ErrorValue>,            // ERROR (C4)
-        const TypeInfo*,                        // TYPE (op<...>)
+        const TypeInfo*,                        // TYPE
         EnumValue                               // ENUM
     > data;
 

@@ -43,13 +43,7 @@ int main() {
     CHECK(d->key() == t.stringType() && d->value() == t.intType());
     CHECK(t.list(t.boolType())->elem() == t.boolType());
 
-    // op<...>: a ordem não importa — os membros ficam em ordem canônica
-    TypeRef a = t.op({t.intType(), t.stringType()});
-    TypeRef b = t.op({t.stringType(), t.intType()});
-    CHECK(a == b);
-    CHECK(a->str() == "op<int, string>");
-    CHECK(a->hasMember(t.intType()) && !a->hasMember(t.boolType()));
-    CHECK(t.op({t.intType(), t.boolType()}) != a);
+    // tipo dos valores de type()
     CHECK(t.typeType()->str() == "type");
 
     return falhas ? 1 : 0;

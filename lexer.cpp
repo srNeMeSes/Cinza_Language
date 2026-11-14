@@ -48,7 +48,7 @@ const std::unordered_map<std::string, TokenType> Lexer::keywords = {
     {"dict", TokenType::TYPE_DICT},     // dict<K, V>
     {"list", TokenType::TYPE_LIST},     // list<T>
     {"pair", TokenType::TYPE_PAIR},     // pair<F, S>
-    {"op",   TokenType::TYPE_OP},       // op<T1, T2, ...>
+    {"op",   TokenType::TYPE_OP},       // reservada: op<...> foi removido (o parser explica)
     {"var", TokenType::TYPE_VAR}
 };
 

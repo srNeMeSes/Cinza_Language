@@ -206,8 +206,8 @@ precisa de valor inicial (exceto `list` e `dict`).
 campos, na ordem da declaração. Um número parcial de argumentos é erro.
 
 Um struct é um **valor**: cada atribuição, argumento e retorno copia os campos (seção 5.1). Por
-isso um struct não pode conter a si mesmo por valor, direta ou indiretamente (por um campo, um
-`pair` ou um `op`); dentro de uma `list`, pode.
+isso um struct não pode conter a si mesmo por valor, direta ou indiretamente (por um campo ou um
+`pair`); dentro de uma `list`, pode.
 
 Atribuir a um campo de um struct temporário — o resultado de uma chamada ou de `new` — é erro,
 porque a alteração iria para uma cópia que ninguém vê.
@@ -259,7 +259,7 @@ Uma interface só tem assinaturas de métodos, terminadas em `;` — sem corpo e
 de pelo menos um método, sem repetir nomes. Uma interface não pode ser instanciada.
 
 Uma classe declara as interfaces que cumpre depois de `:` (várias, separadas por vírgula); só
-interfaces podem aparecer ali — a Cinza não tem herança. As regras de uso estão na seção 3.8.
+interfaces podem aparecer ali — a Cinza não tem herança. As regras de uso estão na seção 3.7.
 
 ```cinza
 class Base { }

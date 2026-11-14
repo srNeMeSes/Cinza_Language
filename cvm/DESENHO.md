@@ -116,7 +116,6 @@ resultado infinito (spec 5.3); os casos de borda passam pela regra compartilhada
 | `LT_I a b c`, `LE_I`, `LT_D`, `LE_D`, `LT_S`, `LE_S` | `R[a] = R[b] < R[c]` (ou `<=`); `>` e `>=` trocam os **registradores** na instrução final (`a > b` vira `LT r, rb, ra`) — os operandos continuam sendo avaliados na ordem do fonte |
 | `EQ a b c`, `NE a b c`                      | igualdade da spec 5.3 (valor, estrutural ou identidade) |
 | `NOT a b`                                   | `R[a] = !R[b]` |
-| `ADD a b c`, `SUB`, `MUL`, `DIV`, `MOD`, `NEG`, `LT`, `LE` | **genéricas**: decidem pelo tipo real dos valores. Só para operandos `op<...>` de tipo travado desconhecido (spec 3.7), onde o tipo varia em runtime mas o semântico garantiu que toda combinação é válida |
 
 `&&` e `||` não são instruções: viram saltos (curto-circuito).
 
@@ -152,7 +151,7 @@ não muda as voltas); a regra é a mesma do interpretador (`forElements`, `opera
 | `CALL a b c`               | chama o protótipo `b` com `c` argumentos em `R[a]...`; resultado em `R[a]`. Num método, `R[a]` é o `self` e os argumentos vêm depois |
 | `CALLIFACE a b c`          | chamada pela interface `b`, método `c`: escolhe o protótipo pela classe de `R[a]` (tabela de interface); argumentos em `R[a+1]...` |
 | `CALLNATIVE a b c`         | nativa `b` com `c` argumentos em `R[a]...`; resultado em `R[a]` |
-| `TYPEOF a b c`             | `R[a] =` tipo real de `R[b]`, sendo `K[c]` o tipo estático (spec 3.9) |
+| `TYPEOF a b c`             | `R[a] =` tipo real de `R[b]`, sendo `K[c]` o tipo estático (spec 3.8) |
 | `RET a` / `RETVOID`        | retorna `R[a]` / retorna sem valor |
 | `NEWOBJ a b`               | `R[a] =` novo objeto da classe `b` (campos ainda vazios) |
 | `NEWSTRUCT a b c`          | `R[a] =` struct `b` com os campos `R[a]...R[a+c-1]` |
@@ -176,12 +175,10 @@ padrão (`new S()`) são calculados no próprio chamador, antes do `NEWSTRUCT`.
 | `INDEXPLACE a b c`, `SETINDEX a b c`          | atribuição a um lugar indexado (`m[i][j] = v`): `INDEXPLACE` desce o caminho, `SETINDEX` grava (no dict, só atualiza chave existente) |
 | `CALLBUILTIN a b c`                           | método embutido `b` de `R[a]` (`size`, `add`, `remove`, `has`, `keys`, `values`) com `c` argumentos depois dele (spec 5.7) |
 
-### 5.7 `op<...>` e exceções
+### 5.7 Exceções
 
 | Instrução               | Efeito |
 |-------------------------|--------|
-| `CAST a b c`            | conversão inserida pelo semântico de/para `op` (`K[c]` = tipo de destino, `K[c+1]` = de origem; só `int` → `decimal` acontece de fato) |
-| `KEEPLOCK a b`          | atribuição a um `op` de tipo travado desconhecido: se `R[a]` guarda `decimal` e `R[b]` é `int`, converte; depois `R[a] = R[b]` |
 | `NEWERROR a b c`        | `R[a] =` erro do tipo `K[b]` com a mensagem `R[c]` |
 | `ERRFIELD a b c`        | `R[a] =` `kind`, `message`, `line` ou `column` (`c` = 0 a 3) do erro `R[b]` |
 | `THROW a`               | lança o erro `R[a]` (relançar preserva posição e trace) |

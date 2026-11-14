@@ -54,8 +54,11 @@ and  or  not
 Nomes de tipo, também reservados:
 
 ```
-int  decimal  string  str  bool  void  var  list  dict  pair  op
+int  decimal  string  str  bool  void  var  list  dict  pair
 ```
+
+`op` também é reservada: era um tipo (`op<T1, T2>`), removido da linguagem; usá-lo é erro de
+compilação com essa explicação.
 
 `and`, `or` e `not` são sinônimos exatos de `&&`, `||` e `!`; `str` é sinônimo exato de
 `string`.

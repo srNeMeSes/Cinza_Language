@@ -219,16 +219,22 @@ TypePtr Parser::parseTypeInner() {
         return pair_type;
 
     } else if (match(TokenType::TYPE_OP)) {
-        // op<T1, T2, ...>: as regras (quantidade, repetição, op dentro de op...)
-        // são checadas no semântico, com a posição de cada tipo
-        auto op_type = std::make_unique<Type>(Type::Kind::OP);
-        consume(TokenType::OP_LESS,
-                "Esperado '<' após 'op': informe os tipos aceitos, ex.: op<int, string>");
-        do {
-            op_type->type_params.push_back(parseType());
-        } while (match(TokenType::COMMA));
-        consume(TokenType::OP_GREATER, "Esperado '>' após os tipos do op");
-        return op_type;
+        // op<T1, T2, ...> saiu da linguagem (seção K do REVISAO_V2.md). 'op'
+        // continua reservada só para este erro, mais claro que a cascata de
+        // erros de sintaxe que um identificador qualquer daria.
+        error("O tipo 'op<...>' foi removido da linguagem: declare um tipo só "
+              "(e use cast<T>(valor) para converter entre tipos numéricos)", type_token);
+        // pula o <...> inteiro e segue com um tipo qualquer: um erro só, sem cascata
+        // (a análise semântica não roda quando há erro de sintaxe)
+        if (match(TokenType::OP_LESS)) {
+            for (int abertos = 1; abertos > 0 && !isAtEnd();) {
+                if (check(TokenType::OP_LESS)) ++abertos;
+                else if (check(TokenType::OP_GREATER)) --abertos;
+                else if (check(TokenType::SEMICOLON) || check(TokenType::LBRACE)) break;
+                advance();
+            }
+        }
+        return std::make_unique<Type>(Type::Kind::VAR);
 
     } else if (checkQualified()) {
         // C5: tipo de um módulo importado: tx.Pessoa p;
@@ -444,7 +450,7 @@ ExprPtr Parser::parsePrimaryExpr() {
     }
     
     
-    // op<...>: tipo usado como valor, para comparar com type(x):
+    // Tipo usado como valor, para comparar com type(x):
     //   type(n) == int    type(l) == list<int>
     if (check(TokenType::TYPE_INT)  || check(TokenType::TYPE_DECIMAL) ||
         check(TokenType::TYPE_STRING) || check(TokenType::TYPE_BOOL) ||

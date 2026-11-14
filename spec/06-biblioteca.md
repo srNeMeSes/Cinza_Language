@@ -13,7 +13,7 @@ precedência.
 | `input(string prompt) -> string`              | escreve `prompt` sem pular linha e lê uma linha da entrada, sem o fim de linha. Fim da entrada lança `IOError`. |
 | `range(int ini, int fim) -> list<int>`        | os inteiros de `ini` (inclusive) até `fim` (exclusive). |
 | `range(int ini, int fim, int passo) -> list<int>` | idem, de `passo` em `passo`; passo negativo conta para baixo; passo `0` lança `ValueError`. |
-| `type(x) -> type`                             | o tipo real de `x` (seção 3.9). |
+| `type(x) -> type`                             | o tipo real de `x` (seção 3.8). |
 | `exit([int codigo])`                          | encerra o programa com o código de saída (padrão `0`, sucesso; de `0` a `255`, senão `ValueError`), depois de rodar os `finally` pendentes (abaixo). |
 
 Uma expressão `void` não pode ser argumento de nenhuma delas.
@@ -391,8 +391,7 @@ fn main() {
 | `shuffle(list<T> l)` | embaralha `l` no lugar |
 
 `k` negativo lança `ValueError`; `k` = 0 dá `[]`, mesmo com lista vazia. `shuffle` altera a
-lista: é erro numa lista `const` e numa coleção de `op` de tipo desconhecido (seção 3.7), como
-`Lists.sort`. A sequência exata gerada para uma semente não faz parte da especificação.
+lista: é erro numa lista `const`, como `Lists.sort`. A sequência exata gerada para uma semente não faz parte da especificação.
 
 ```cinza
 import Random;
@@ -513,8 +512,7 @@ fn main() {
 | `repeat(T x, int n) -> list<T>` | `n` cópias de `x`; `n` negativo, ou acima de 100 milhões, lança `ValueError` |
 
 As funções que alteram a lista (`sort`, `sort_desc`, `reverse`, as de "alterar no lugar" e, em
-`sort_by`, também as chaves) são erro numa lista `const` e numa coleção de `op` de tipo
-desconhecido (seção 3.7).
+`sort_by`, também as chaves) são erro numa lista `const`.
 
 ```cinza
 import Lists as L;

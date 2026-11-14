@@ -1,3 +1,0 @@
-// op<...>: valor de um tipo que não está no op.
-fn main() { op<int, bool> x = "texto"; }
-// expect-error: Tipo incompatível na declaração de 'x': declarado 'op<bool, int>', mas atribuído 'string'

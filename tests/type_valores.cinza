@@ -1,4 +1,4 @@
-// op<...>: type() funciona com qualquer valor e compara com nomes de tipo.
+// type() funciona com qualquer valor e compara com nomes de tipo.
 struct Ponto { int x = 0; }
 class Caixa { int v = 0; }
 error Falhou;

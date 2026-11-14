@@ -1,3 +1,0 @@
-// op<...>: sem repetir tipo (str é sinônimo de string).
-fn main() { op<string, int, str> x = 1; }
-// expect-error: Tipo 'string' repetido no op

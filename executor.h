@@ -208,16 +208,6 @@ private:
     // B2: o lugar da variável, pela resolução anotada no semântico
     Value* slotOf(const IdentifierExpr* id);
 
-    // ── op<...> ───────────────────────────────────────────────────────────
-    // Tipo real de um valor cujo tipo estático é `st` (se `st` for um op, o
-    // tipo do op que o valor guarda agora)
-
-    // Confere se o valor (de tipo estático `from`) cabe em `to`; TypeError se
-    // não couber. Converte int em decimal quando `to` pede.
-    Value narrow(Value v, TypeRef from, TypeRef to, const Token& tok) const;
-    // Atribuição a quem já travou (tipo desconhecido na compilação): mantém o tipo
-
-
     // ── Utilitário de erro ────────────────────────────────────────────────
     [[noreturn]] void throwRuntimeError(const std::string& msg,
                                         const Token& tok) const;

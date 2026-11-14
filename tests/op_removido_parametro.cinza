@@ -1,0 +1,4 @@
+// op<...> removido: também em parâmetro, retorno e dentro de coleção.
+fn media(list<op<decimal, int>> valores) -> decimal { return 0.0; }
+fn main() { }
+// expect-error: O tipo 'op<...>' foi removido da linguagem

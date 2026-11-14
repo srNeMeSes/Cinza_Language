@@ -59,7 +59,7 @@ enum class TokenType {
     TYPE_LIST,
     TYPE_VAR,
     TYPE_PAIR,         // par genérico pair<K, V>
-    TYPE_OP,           // op<T1, T2, ...>
+    TYPE_OP,           // 'op': reservada só para o erro de tipo removido
     
     // Operadores
     OP_PLUS,           // +

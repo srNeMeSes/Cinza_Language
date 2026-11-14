@@ -175,13 +175,6 @@ private:
     void        moduleInit(const ::cinza::Program* prog);
 };
 
-static bool hasOp(TypeRef t) {
-    if (!t) return false;
-    if (t->is(TK::Op)) return true;
-    for (TypeRef p : t->params) if (hasOp(p)) return true;
-    return false;
-}
-
 // ============================================================================
 // EXPRESSÕES
 // ============================================================================
@@ -246,14 +239,7 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
 
         case NodeKind::Cast: {
             auto* c = static_cast<const CastExpr*>(e);
-            if (c->operand->resolved_type->is(TK::Op) || c->resolved_type->is(TK::Op)) {
-                // conversão de/para op (como o evalCast): K[c] é o tipo de destino;
-                // o tipo de origem vai numa segunda constante logo depois
-                const std::uint16_t r = exprReg(c->operand.get());
-                const std::uint16_t k = constant16(Value(c->resolved_type), e->token);
-                constant(Value(c->operand->resolved_type), e->token);
-                emit(Op::CAST, dst, r, k, e->token);
-            } else if (c->resolved_type->is(TK::Decimal) && c->operand->resolved_type->is(TK::Int)) {
+            if (c->resolved_type->is(TK::Decimal) && c->operand->resolved_type->is(TK::Int)) {
                 const std::uint16_t r = exprReg(c->operand.get());
                 emit(Op::I2D, dst, r, 0, e->token);
             } else {
@@ -267,8 +253,6 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
             const std::uint16_t r = exprReg(u->operand.get());
             if (u->op == TokenType::OP_NOT)
                 emit(Op::NOT, dst, r, 0, e->token);
-            else if (hasOp(u->operand->resolved_type))   // tipo travado desconhecido
-                emit(Op::NEG, dst, r, 0, e->token);
             else
                 emit(u->operand->resolved_type->is(TK::Int) ? Op::NEG_I : Op::NEG_D, dst, r, 0, e->token);
             break;
@@ -471,24 +455,6 @@ void Compiler::arith(TokenType op, TypeRef lt, std::uint16_t l, TypeRef rt, std:
                      std::uint16_t dst, const Token& tok) {
     if (op == TokenType::OP_EQUAL)     { emit(Op::EQ, dst, l, r, tok); return; }
     if (op == TokenType::OP_NOT_EQUAL) { emit(Op::NE, dst, l, r, tok); return; }
-
-    // op<...> de tipo travado desconhecido: o tipo real só aparece em runtime;
-    // o semântico garantiu que toda combinação é válida (spec 3.7)
-    if (hasOp(lt) || hasOp(rt)) {
-        switch (op) {
-            case TokenType::OP_PLUS:          emit(Op::ADD, dst, l, r, tok); break;
-            case TokenType::OP_MINUS:         emit(Op::SUB, dst, l, r, tok); break;
-            case TokenType::OP_MULTIPLY:      emit(Op::MUL, dst, l, r, tok); break;
-            case TokenType::OP_DIVIDE:        emit(Op::DIV, dst, l, r, tok); break;
-            case TokenType::OP_MODULO:        emit(Op::MOD, dst, l, r, tok); break;
-            case TokenType::OP_LESS:          emit(Op::LT, dst, l, r, tok); break;
-            case TokenType::OP_LESS_EQUAL:    emit(Op::LE, dst, l, r, tok); break;
-            case TokenType::OP_GREATER:       emit(Op::LT, dst, r, l, tok); break;
-            case TokenType::OP_GREATER_EQUAL: emit(Op::LE, dst, r, l, tok); break;
-            default: throw Unsupported("operador desconhecido (erro interno)", tok);
-        }
-        return;
-    }
 
     if (op == TokenType::OP_PLUS && (lt->is(TK::String) || rt->is(TK::String))) {
         emit(Op::CONCAT, dst, l, r, tok);
@@ -799,15 +765,12 @@ void Compiler::assign(const AssignStmt* s) {
     if (id->res.kind == Resolution::Kind::Field) {   // campo do objeto atual
         const auto campo = u16(id->res.slot, tok, "campos");
         std::uint16_t v = exprReg(s->value.get());
-        if (s->op != TokenType::OP_ASSIGN || s->keep_lock) {
+        if (s->op != TokenType::OP_ASSIGN) {
             const std::uint16_t atual = alloc(tok);
             emit(Op::GETFIELD, atual, 0, campo, tok);   // lido depois do valor (spec 5.2)
-            if (s->op != TokenType::OP_ASSIGN) {
-                const std::uint16_t r = alloc(tok);
-                arith(compoundBaseOp(s->op), tt, atual, vt, v, r, tok);
-                v = r;
-            }
-            if (s->keep_lock) { emit(Op::KEEPLOCK, atual, v, 0, tok); v = atual; }
+            const std::uint16_t r = alloc(tok);
+            arith(compoundBaseOp(s->op), tt, atual, vt, v, r, tok);
+            v = r;
         }
         emit(Op::SETFIELD, 0, campo, v, tok);
         return;
@@ -816,26 +779,15 @@ void Compiler::assign(const AssignStmt* s) {
         throw Unsupported("alvo de atribuição inesperado (erro interno)", tok);
     const auto slot = slotReg(id->res.slot);
 
-    if (s->op == TokenType::OP_ASSIGN && !s->keep_lock) {
+    if (s->op == TokenType::OP_ASSIGN) {
         expr(s->value.get(), slot);
         return;
     }
     // a op= b: o valor primeiro, depois o valor atual do alvo (spec 5.2)
-    if (!s->keep_lock && !hasOp(tt) &&
-        arithK(compoundBaseOp(s->op), tt, slot, s->value.get(), slot, tok))
+    if (arithK(compoundBaseOp(s->op), tt, slot, s->value.get(), slot, tok))
         return;   // x += 1: constante embutida
-    std::uint16_t v = exprReg(s->value.get());
-    if (!s->keep_lock) {   // a op= b direto no registrador da variável
-        arith(compoundBaseOp(s->op), tt, slot, vt, v, slot, tok);
-        return;
-    }
-    if (s->op != TokenType::OP_ASSIGN) {
-        const std::uint16_t r = alloc(tok);
-        arith(compoundBaseOp(s->op), tt, slot, vt, v, r, tok);
-        v = r;
-    }
-    // op<...> de tipo travado desconhecido: o valor novo mantém o tipo travado
-    emit(Op::KEEPLOCK, slot, v, 0, tok);
+    const std::uint16_t v = exprReg(s->value.get());
+    arith(compoundBaseOp(s->op), tt, slot, vt, v, slot, tok);   // direto no registrador da variável
 }
 
 // Gravação num lugar com passos de índice e campo: x[i].c = v, o.lista[0] += v,
@@ -903,16 +855,13 @@ void Compiler::assignPlace(const AssignStmt* s) {
         nivel.push_back(t);
     }
     const std::size_t ult = passos.size() - 1;
-    if (s->op != TokenType::OP_ASSIGN || s->keep_lock) {
+    if (s->op != TokenType::OP_ASSIGN) {
         // o valor atual é lido depois do lado direito (spec 5.2)
         const std::uint16_t atual = alloc(tok);
         ler(ult, atual, nivel[ult]);
-        if (s->op != TokenType::OP_ASSIGN) {
-            const std::uint16_t r = alloc(tok);
-            arith(compoundBaseOp(s->op), tt, atual, vt, v, r, tok);
-            v = r;
-        }
-        if (s->keep_lock) { emit(Op::KEEPLOCK, atual, v, 0, tok); v = atual; }
+        const std::uint16_t r = alloc(tok);
+        arith(compoundBaseOp(s->op), tt, atual, vt, v, r, tok);
+        v = r;
     }
     gravar(ult, nivel[ult], v);
 

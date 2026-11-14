@@ -3,6 +3,7 @@ interface Forma {
   fn area() -> decimal;
   fn nome() -> string;
 }
+
 class Circulo : Forma {
   decimal r = 1.0;
   pub {
@@ -12,6 +13,7 @@ class Circulo : Forma {
     fn raio() -> decimal { return r; }
   }
 }
+
 class Retangulo : Forma {
   decimal a = 1.0;
   decimal b = 1.0;
@@ -21,6 +23,7 @@ class Retangulo : Forma {
     fn nome() -> string { return "retângulo"; }
   }
 }
+
 fn total(list<Forma> formas) -> decimal { return 0.0; }
 fn main() {
   list<Circulo> cs = [new Circulo(1.0)];
