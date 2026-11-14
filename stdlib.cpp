@@ -26,7 +26,7 @@ namespace cinza {
 //
 // Módulos nativos, usados com import: `import Strings as st;` → st.upper(s).
 // Cada função recebe os argumentos já checados pelo semântico (tipos da
-// assinatura) e lança RuntimeError("Tipo: mensagem") sem linha; o executor
+// assinatura) e lança RuntimeError("Tipo: mensagem") sem linha; a CVM
 // completa com a posição da chamada.
 // ============================================================================
 

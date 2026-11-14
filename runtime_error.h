@@ -36,7 +36,7 @@ inline const std::vector<std::string>& builtinErrorKinds() {
 //   kind    → tipo do erro ("ZeroDivisionError", "SaldoInsuficiente", "Error")
 //   message → texto sem o prefixo do tipo
 //   trace   → pilha de chamadas no momento do erro, da mais interna para fora
-//             ("em f (linha 3)"); preenchida pelo Executor
+//             ("em f (linha 3)"); preenchida pela CVM
 //
 // Construído só com a mensagem, o tipo é lido do prefixo "Tipo: " quando ele
 // é um tipo embutido ("IndexError: índice 5 ..."); senão o tipo é Error.

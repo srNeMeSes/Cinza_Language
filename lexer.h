@@ -56,7 +56,6 @@ enum class TokenType {
     TYPE_I64,          // inteiro de 64 bits
     TYPE_F32,          // ponto flutuante de 32 bits
     TYPE_F64,          // ponto flutuante de 64 bits
-    TYPE_REMOVED,      // 'int' e 'decimal': tipos substituídos (o parser explica)
     TYPE_STRING,
     TYPE_BOOL,
     TYPE_VOID,
@@ -64,7 +63,6 @@ enum class TokenType {
     TYPE_LIST,
     TYPE_VAR,
     TYPE_PAIR,         // par genérico pair<K, V>
-    TYPE_OP,           // 'op': reservada só para o erro de tipo removido
     
     // Operadores
     OP_PLUS,           // +

@@ -3,8 +3,8 @@
 Versão 2 · outubro de 2026
 
 Este documento define a linguagem Cinza: o que é um programa válido e o que ele faz ao
-executar. É a referência para quem implementa a linguagem — o interpretador atual e a futura
-máquina virtual (CVM) precisam se comportar exatamente como descrito aqui. Não é um tutorial:
+executar. É a referência para quem implementa a linguagem — a máquina virtual (CVM) e o futuro
+backend LLVM precisam se comportar exatamente como descrito aqui. Não é um tutorial:
 para aprender a linguagem, o livro (a ser reescrito) é o caminho.
 
 ## Capítulos
@@ -28,7 +28,7 @@ que pode ser conferido antes de executar é conferido na compilação. Os erros 
 ## Convenções deste documento
 
 - **Erro de compilação**: o programa é rejeitado antes de executar qualquer coisa (erros
-  léxicos, de sintaxe, de import ou semânticos). O interpretador sai com código 1.
+  léxicos, de sintaxe, de import ou semânticos). O `cinza` sai com código 1.
 - **Erro de runtime**: um erro lançado durante a execução (`IndexError`, `OverflowError`...).
   Pode ser capturado com `try`/`except`; se ninguém capturar, o programa termina com código 1.
 - A gramática usa EBNF: `{ x }` repete zero ou mais vezes, `[ x ]` é opcional, `( a | b )`

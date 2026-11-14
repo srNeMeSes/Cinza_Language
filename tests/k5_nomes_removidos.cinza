@@ -1,4 +1,0 @@
-// Seção K: Random.int / Random.decimal mudaram de nome.
-import Random as r;
-fn main() { print(r.decimal()); }
-// expect-error: 'r.decimal' não existe mais: use Random.f64()

@@ -11,7 +11,7 @@
 namespace cinza {
 
 // ============================================================================
-// OPERAÇÕES COMPARTILHADAS (interpretador e CVM)
+// OPERAÇÕES DO RUNTIME (CVM e biblioteca padrão)
 //
 // As regras de aritmética, comparação e concatenação ficam num lugar só, para
 // as duas implementações darem exatamente os mesmos resultados e as mesmas

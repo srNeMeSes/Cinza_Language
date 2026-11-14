@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 """Runner de testes da linguagem Cinza.
 
-Uso: python tests/run_tests.py [binario] [filtro] [--interp | --diff]
+Uso: python tests/run_tests.py [binario] [filtro]
 
-Por padrão os programas rodam na CVM (o modo padrão do cinza).
---interp: executa no interpretador de referência.
---diff: teste diferencial — executa cada programa no interpretador e na CVM e
-        compara código de saída, stdout e stderr byte a byte (desenho da CVM,
-        seção 11). Qualquer diferença é defeito da CVM.
+Os programas rodam na CVM (o único runtime da Cinza).
 
 Cada tests/*.cinza declara a saída esperada em comentários:
     // expect: <linha exata do stdout>
@@ -41,9 +37,8 @@ DIR_TESTES = RAIZ / "tests"
 DIR_SPEC = RAIZ / "spec"
 DIR_EXEMPLOS = DIR_TESTES / "spec_exemplos"   # gerado a cada execução (fora do git)
 RE_BLOCO = re.compile(r"^```cinza[ \t]*\r?\n(.*?)^```", re.M | re.S)
-# Folgado para o build com sanitizers (-O0 + ASan deixa o interpretador dezenas
-# de vezes mais lento: o exemplo da rede neural passava dos 10 s); um laço
-# infinito continua sendo pego
+# Folgado para o build com sanitizers (-O0 + ASan é dezenas de vezes mais lento:
+# o exemplo da rede neural passava dos 10 s); um laço infinito continua sendo pego
 TIMEOUT_S = 30
 
 RE_EXPECT = re.compile(r"//\s*expect:\s?(.*)$")
@@ -129,7 +124,7 @@ def rodar(binario, caminho):
 
     try:
         proc = subprocess.run(
-            [str(binario)] + OPCOES + [str(caminho.relative_to(RAIZ))] + ler_argumentos(caminho),
+            [str(binario), str(caminho.relative_to(RAIZ))] + ler_argumentos(caminho),
             cwd=RAIZ, capture_output=True, timeout=TIMEOUT_S, env=ler_ambiente(caminho),
             input=ler_entrada(caminho),
         )
@@ -200,49 +195,7 @@ def exemplos_da_spec(filtro):
     return exemplos
 
 
-OPCOES = []   # opções do interpretador antes do arquivo (ex.: --cvm)
-
-
-def executar(binario, caminho, opcoes):
-    """Executa um programa; devolve (código, stdout, stderr) em bytes."""
-    try:
-        proc = subprocess.run(
-            [str(binario)] + opcoes + [str(caminho.relative_to(RAIZ))] + ler_argumentos(caminho),
-            cwd=RAIZ, capture_output=True, timeout=TIMEOUT_S, env=ler_ambiente(caminho),
-            input=ler_entrada(caminho),
-        )
-        return proc.returncode, proc.stdout, proc.stderr
-    except subprocess.TimeoutExpired:
-        return "tempo esgotado", b"", b""
-
-
-def diferencial(binario, testes):
-    """Compara os dois modos em cada programa. Devolve o número de diferenças."""
-    diferencas = 0
-    for nome, caminho in testes:
-        a = executar(binario, caminho, ["--interp"])
-        b = executar(binario, caminho, ["--cvm"])
-        if a == b:
-            print(f"IGUAL  {nome}")
-            continue
-        diferencas += 1
-        print(f"DIFERENTE  {nome}")
-        for rotulo, x, y in (("código", a[0], b[0]), ("stdout", a[1], b[1]), ("stderr", a[2], b[2])):
-            if x != y:
-                print(f"    {rotulo} interpretador: {x!r}")
-                print(f"    {rotulo} cvm:           {y!r}")
-    print(f"\n{len(testes) - diferencas} iguais, {diferencas} diferentes, {len(testes)} no total")
-    return diferencas
-
-
 def main():
-    modo_diff = "--diff" in sys.argv
-    if modo_diff:
-        sys.argv.remove("--diff")
-    for opcao in ("--cvm", "--interp"):
-        if opcao in sys.argv:
-            sys.argv.remove(opcao)
-            OPCOES.append(opcao)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
 
@@ -265,9 +218,6 @@ def main():
     if not testes:
         print(f"Nenhum teste encontrado em {DIR_TESTES} com o filtro '{filtro}'")
         return 2
-
-    if modo_diff:
-        return 1 if diferencial(binario, testes) else 0
 
     falhas = 0
     for nome, caminho in testes:

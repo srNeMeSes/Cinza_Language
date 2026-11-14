@@ -1,7 +1,7 @@
 #ifndef CINZA_VALUE_H
 #define CINZA_VALUE_H
 
-#include "ast.h"          // ClassDecl* para lookup de métodos no executor
+#include "ast.h"          // ClassDecl* do objeto (métodos e interfaces na CVM)
 #include "source_files.h" // C5: displayName
 #include "gc_object.h"   // coleta de ciclos: contêineres rastreados
 #include <variant>
@@ -73,10 +73,10 @@ struct Value {
         F32,         // ponto flutuante de 32 bits (float, IEEE 754)
         // VOID_VAL: valor técnico interno do runtime.
         // Usos legítimos: retorno de funções void, ausência de valor em
-        // caminhos internos do executor (ex.: função sem return explícito).
+        // caminhos internos da CVM (ex.: função sem return explícito).
         // NÃO representa variável não-inicializada do usuário — a linguagem
         // não possui estados UNBOUND. Toda variável não-coleção chega ao
-        // executor com um valor concreto avaliado pelo inicializador obrigatório.
+        // runtime com um valor concreto avaliado pelo inicializador obrigatório.
         VOID_VAL
     };
 
@@ -125,7 +125,7 @@ struct Value {
     // struct é valor: copiar um Value que guarda struct clona os campos. É
     // cópia rasa: list/dict/objetos dentro dele continuam compartilhados,
     // porque copiar esses Values copia só o ponteiro. Assim toda atribuição,
-    // argumento, return e .add() copia o struct sem código extra no executor.
+    // argumento, return e .add() copia o struct sem código extra na CVM.
     // Mover não clona.
     Value(const Value& other);
     Value& operator=(const Value& other);
@@ -260,7 +260,7 @@ struct CinzaPair : GcObject {
 //   - fields:     valores dos campos, na ordem da declaração (B2: o
 //                 semântico anota o índice em cada acesso)
 //   - decl:       ponteiro para o nó ClassDecl na AST
-//                 (usado pelo executor para localizar métodos)
+//                 (usado pela CVM para localizar métodos)
 // ============================================================================
 
 struct ClassInstance : GcObject {

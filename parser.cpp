@@ -126,14 +126,12 @@ void Parser::synchronize() {
             case TokenType::TYPE_I32:
             case TokenType::TYPE_I64:
             case TokenType::TYPE_F32:
-            case TokenType::TYPE_REMOVED:
             case TokenType::TYPE_F64:
             case TokenType::TYPE_STRING:
             case TokenType::TYPE_BOOL:
             case TokenType::TYPE_LIST:
             case TokenType::TYPE_DICT:
             case TokenType::TYPE_PAIR:
-            case TokenType::TYPE_OP:
             case TokenType::TYPE_VAR:
                 return;
             default:
@@ -168,15 +166,6 @@ TypePtr Parser::parseTypeInner() {
         throw ParseError("'const' inválido em parâmetro de tipo", peek());
     }
     
-    if (match(TokenType::TYPE_REMOVED)) {
-        // int e decimal foram substituídos (seção K): um erro que explica, e segue
-        // com o tipo correspondente de 64 bits para não gerar erros em cascata
-        const bool inteiro = previous().lexeme == "int";
-        error(inteiro ? "O tipo 'int' não existe mais: use i32 (32 bits) ou i64 (64 bits)"
-                      : "O tipo 'decimal' não existe mais: use f32 (32 bits) ou f64 (64 bits)",
-              previous());
-        return std::make_unique<Type>(inteiro ? Type::Kind::I64 : Type::Kind::F64);
-    }
     if (match(TokenType::TYPE_I32)) {
         kind = Type::Kind::I32;
     } else if (match(TokenType::TYPE_I64)) {
@@ -233,24 +222,6 @@ TypePtr Parser::parseTypeInner() {
             consume(TokenType::OP_GREATER, "Esperado '>' após tipos do pair");
         }
         return pair_type;
-
-    } else if (match(TokenType::TYPE_OP)) {
-        // op<T1, T2, ...> saiu da linguagem (seção K do REVISAO_V2.md). 'op'
-        // continua reservada só para este erro, mais claro que a cascata de
-        // erros de sintaxe que um identificador qualquer daria.
-        error("O tipo 'op<...>' foi removido da linguagem: declare um tipo só "
-              "(e use cast<T>(valor) para converter entre tipos numéricos)", type_token);
-        // pula o <...> inteiro e segue com um tipo qualquer: um erro só, sem cascata
-        // (a análise semântica não roda quando há erro de sintaxe)
-        if (match(TokenType::OP_LESS)) {
-            for (int abertos = 1; abertos > 0 && !isAtEnd();) {
-                if (check(TokenType::OP_LESS)) ++abertos;
-                else if (check(TokenType::OP_GREATER)) --abertos;
-                else if (check(TokenType::SEMICOLON) || check(TokenType::LBRACE)) break;
-                advance();
-            }
-        }
-        return std::make_unique<Type>(Type::Kind::VAR);
 
     } else if (checkQualified()) {
         // C5: tipo de um módulo importado: tx.Pessoa p;
@@ -480,10 +451,10 @@ ExprPtr Parser::parsePrimaryExpr() {
 
     // Tipo usado como valor, para comparar com type(x):
     //   type(n) == int    type(l) == list<int>
-    if (check(TokenType::TYPE_I32) || check(TokenType::TYPE_I64) || check(TokenType::TYPE_F32) || check(TokenType::TYPE_REMOVED)  || check(TokenType::TYPE_F64) ||
+    if (check(TokenType::TYPE_I32) || check(TokenType::TYPE_I64) || check(TokenType::TYPE_F32)|| check(TokenType::TYPE_F64) ||
         check(TokenType::TYPE_STRING) || check(TokenType::TYPE_BOOL) ||
         check(TokenType::TYPE_LIST) || check(TokenType::TYPE_DICT) ||
-        check(TokenType::TYPE_PAIR) || check(TokenType::TYPE_OP)) {
+        check(TokenType::TYPE_PAIR)) {
         Token tok = peek();
         return std::make_unique<TypeLiteralExpr>(tok, parseType());
     }
@@ -494,7 +465,7 @@ ExprPtr Parser::parsePrimaryExpr() {
     }
 
     // self: o objeto atual dentro de um método (A10/B5). É palavra reservada;
-    // vira um IdentifierExpr "self", que o semântico e o executor tratam à parte.
+    // vira um IdentifierExpr "self", que o semântico e o compilador tratam à parte.
     if (match(TokenType::KW_SELF)) {
         return std::make_unique<IdentifierExpr>(previous(), "self");
     }
@@ -848,10 +819,10 @@ StmtPtr Parser::parseStatement() {
         }
 
         // Declaração de variável (começa com tipo primitivo ou composto)
-        if (check(TokenType::TYPE_I32) || check(TokenType::TYPE_I64) || check(TokenType::TYPE_F32) || check(TokenType::TYPE_REMOVED) || check(TokenType::TYPE_F64) ||
+        if (check(TokenType::TYPE_I32) || check(TokenType::TYPE_I64) || check(TokenType::TYPE_F32) || check(TokenType::TYPE_F64) ||
             check(TokenType::TYPE_STRING) || check(TokenType::TYPE_BOOL) ||
             check(TokenType::TYPE_LIST) || check(TokenType::TYPE_DICT) ||
-            check(TokenType::TYPE_PAIR) || check(TokenType::TYPE_OP) ||
+            check(TokenType::TYPE_PAIR) ||
             check(TokenType::TYPE_VAR)) {
             return parseVarDeclStatement();
         }
@@ -1060,10 +1031,10 @@ StmtPtr Parser::parseForStatement() {
     TypePtr type;
     
     // Verifica se começa com um tipo (primitivo, composto ou customizado)
-    if (check(TokenType::TYPE_I32) || check(TokenType::TYPE_I64) || check(TokenType::TYPE_F32) || check(TokenType::TYPE_REMOVED) || check(TokenType::TYPE_F64) ||
+    if (check(TokenType::TYPE_I32) || check(TokenType::TYPE_I64) || check(TokenType::TYPE_F32) || check(TokenType::TYPE_F64) ||
         check(TokenType::TYPE_STRING) || check(TokenType::TYPE_BOOL) ||
         check(TokenType::TYPE_LIST) || check(TokenType::TYPE_DICT) ||
-        check(TokenType::TYPE_PAIR) || check(TokenType::TYPE_OP) ||
+        check(TokenType::TYPE_PAIR) ||
         check(TokenType::TYPE_VAR) ||
         // tipo customizado: NomeClasse (IDENTIFIER seguido de IDENTIFIER)
         (check(TokenType::IDENTIFIER) &&
@@ -1356,11 +1327,10 @@ StmtPtr Parser::parseClassDeclaration() {
 // Início de um campo: tipo primitivo/composto, ou tipo customizado
 // (IDENTIFIER seguido de IDENTIFIER). Usado por class e struct (C3).
 bool Parser::checkFieldStart() const {
-    return check(TokenType::TYPE_I32) || check(TokenType::TYPE_I64) || check(TokenType::TYPE_F32) || check(TokenType::TYPE_REMOVED)    || check(TokenType::TYPE_F64) ||
+    return check(TokenType::TYPE_I32) || check(TokenType::TYPE_I64) || check(TokenType::TYPE_F32)|| check(TokenType::TYPE_F64) ||
            check(TokenType::TYPE_STRING) || check(TokenType::TYPE_BOOL)    ||
            check(TokenType::TYPE_LIST)   || check(TokenType::TYPE_DICT)    ||
            check(TokenType::TYPE_PAIR)   || check(TokenType::TYPE_VAR)     ||
-           check(TokenType::TYPE_OP)     ||
            (check(TokenType::IDENTIFIER) &&
             current + 1 < tokens.size() &&
             tokens[current + 1].type == TokenType::IDENTIFIER) ||

@@ -7,7 +7,7 @@ CXX = g++
 CXXFLAGS = -std=c++20 -O3 -Wall -Wextra -pedantic
 DEPFLAGS = -MMD -MP
 TARGET = cinza
-SOURCES = main.cpp lexer.cpp parser.cpp ast.cpp semantic.cpp executor.cpp operacoes.cpp natives.cpp stdlib.cpp plataforma.cpp module_loader.cpp \
+SOURCES = main.cpp lexer.cpp parser.cpp ast.cpp semantic.cpp operacoes.cpp natives.cpp stdlib.cpp plataforma.cpp module_loader.cpp \
           cvm/compiler.cpp cvm/vm.cpp cvm/disasm.cpp
 OBJECTS = $(SOURCES:.cpp=.o)
 DEPS = $(OBJECTS:.o=.d)
@@ -18,9 +18,8 @@ ifeq ($(MSYSTEM),CLANG64)
 endif
 
 # O binário ganha .exe em qualquer Windows (PowerShell, MSYS2).
-# A6: a pilha padrão do Windows (1 MB) só comporta ~1000 chamadas aninhadas
-# da Cinza; com 64 MB o limite de 2000 do executor (StackOverflowError) é
-# atingido antes de a pilha nativa estourar, com folga para corpos aninhados.
+# A6: pilha nativa de 64 MB (a padrão do Windows tem 1 MB), com folga para a
+# recursão do compilador e do semântico em programas muito aninhados.
 ifneq ($(OS)$(MSYSTEM),)
     EXE = .exe
     LDFLAGS = -Wl,--stack,67108864
@@ -77,22 +76,12 @@ $(TARGET_BIN): $(OBJECTS)
 debug: CXXFLAGS = -std=c++20 -O0 -g -Wall -Wextra -fsanitize=address,undefined
 debug: clean $(TARGET_BIN)
 
-# A mesma suíte no interpretador de referência (a CVM é o padrão)
-test-interp: $(TARGET_BIN)
-	$(PYTHON) tests/run_tests.py $(TARGET_BIN) --interp
-
-# Teste diferencial: interpretador × CVM, saída comparada byte a byte
-test-diff: $(TARGET_BIN)
-	$(PYTHON) tests/run_tests.py $(TARGET_BIN) --diff
-
 # Roda a suíte de testes em tests/
 test: $(TARGET_BIN) $(UNIT_BIN) $(UNIT_TYPES) $(UNIT_GC)
 	./$(UNIT_BIN)
 	./$(UNIT_TYPES)
 	./$(UNIT_GC)
 	$(PYTHON) tests/run_tests.py $(TARGET_BIN)
-	$(PYTHON) tests/run_tests.py $(TARGET_BIN) --interp
-	$(PYTHON) tests/run_tests.py $(TARGET_BIN) --diff
 
 # Testes de unidade em C++ (itens sem reprodução em .cinza, ex.: A11)
 $(UNIT_BIN): tests/unit_value.cpp value.h ast.h lexer.h types.h gc_object.h

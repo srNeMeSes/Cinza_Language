@@ -1,20 +1,19 @@
-# Benchmark: melhor de 5 execuções de cada programa de bench/ (em ms), no
-# interpretador e na CVM. Programa que a CVM ainda não compila aparece como "-".
+# Benchmark: melhor de 5 execuções de cada programa de bench/ (em ms) na CVM.
+# Programa que falha aparece como "-".
 # Uso (na raiz do projeto): powershell -File bench/medir.ps1
-function Melhor($programa, $opcoes) {
+function Melhor($programa) {
     $tempos = @()
     $saida = ""
     for ($i = 0; $i -lt 5; $i++) {
-        $t = Measure-Command { $script:saida = & .\cinza.exe @opcoes $programa 2>$null }
+        $t = Measure-Command { $script:saida = & .\cinza.exe $programa 2>$null }
         if ($LASTEXITCODE -ne 0) { return @("-", "") }
         $tempos += $t.TotalMilliseconds
     }
     return @(("{0:N0} ms" -f ($tempos | Measure-Object -Minimum).Minimum), ($script:saida -join " "))
 }
 
-"{0,-16} {1,12} {2,12}   {3}" -f "programa", "interpretador", "cvm", "saida"
+"{0,-16} {1,12}   {2}" -f "programa", "cvm", "saida"
 foreach ($p in Get-ChildItem bench\*.cinza | Sort-Object Name) {
-    $interp = Melhor $p.FullName @("--interp")
-    $cvm    = Melhor $p.FullName @()
-    "{0,-16} {1,12} {2,12}   {3}" -f $p.Name, $interp[0], $cvm[0], $interp[1]
+    $cvm = Melhor $p.FullName
+    "{0,-16} {1,12}   {2}" -f $p.Name, $cvm[0], $cvm[1]
 }

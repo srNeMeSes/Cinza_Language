@@ -11,7 +11,7 @@
 namespace cinza::cvm {
 
 // ============================================================================
-// ERROS E STACK TRACE — mesmo formato do interpretador (Executor::snapshotTrace)
+// ERROS E STACK TRACE — formato da spec 7 ("em f (arquivo:linha)")
 // ============================================================================
 
 std::vector<std::string> VM::trace(int error_line) const {
@@ -19,7 +19,7 @@ std::vector<std::string> VM::trace(int error_line) const {
     int line = error_line;
     for (std::size_t i = frames.size(); i-- > 0;) {
         // a inicialização dos const não é uma chamada: fica fora do trace,
-        // como no interpretador (lá os const rodam sem frame de chamada)
+        // (os const rodam sem frame de chamada)
         if (frames[i].proto->hidden()) continue;
         t.push_back("em " + frames[i].proto->name + " (" +
                     formatPosition({frames[i].proto->decl.file_id, line, 0}) + ")");
@@ -65,7 +65,7 @@ void VM::run(const std::vector<std::string>& args) {
     }
     execute(img.main, 0);
 
-    // CINZA_GC_STATS=1: coleta final e resumo, como no interpretador (testes gc_*)
+    // CINZA_GC_STATS=1: coleta final e resumo (testes gc_*)
     if (const char* e = std::getenv("CINZA_GC_STATS"); e && *e) {
         gcCollect();
         std::cout << "[gc] liberados em ciclos: " << gc_stats.liberados
@@ -329,7 +329,7 @@ Value VM::dispatch(std::size_t entrada) {
                     break;
                 }
 
-                // ── coleções (regras em operacoes.cpp, as mesmas do interpretador) ──
+                // ── coleções (regras em operacoes.cpp) ──
                 case Op::NEWLIST:
                     R[in.a] = makeList(std::vector<Value>(R + in.b, R + in.b + in.c));
                     break;
@@ -367,7 +367,7 @@ Value VM::dispatch(std::size_t entrada) {
 
                 // ── objetos e struct ─────────────────────────────────────
                 case Op::NEWOBJ: {
-                    // coleta de ciclos na criação de objetos, como o evalNew; a
+                    // coleta de ciclos na criação de objetos (ponto seguro); a
                     // coleta não move registradores, mas pode liberar objetos
                     gcMaybeCollect();
                     const ClassDecl* c = img.classes[in.b].decl;

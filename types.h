@@ -22,7 +22,7 @@ namespace cinza {
 //   - parâmetros acessados direto em `params`, sem parsing de texto
 //   - `str()` devolve a forma canônica, usada só em mensagens de erro
 //
-// Tempo de vida: os TypeInfo vivem até o fim do processo (o executor lê
+// Tempo de vida: os TypeInfo vivem até o fim do processo (o compilador lê
 // resolved_type de CastExpr depois que o semântico terminou).
 // ============================================================================
 

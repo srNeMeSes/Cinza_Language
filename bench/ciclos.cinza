@@ -13,6 +13,6 @@ fn cria() {
   b.liga(a);
 }
 fn main() {
-  for (int i in range(0, 300000)) { cria(); }
+  for (i32 i in range(0, 300000)) { cria(); }
   print("ok");
 }

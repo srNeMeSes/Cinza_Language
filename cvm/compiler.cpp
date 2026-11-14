@@ -144,11 +144,6 @@ private:
         return static_cast<std::uint16_t>(v);
     }
 
-    [[noreturn]] static void unsupported(const std::string& recurso, int etapa, const Token& tok) {
-        throw Unsupported(recurso + " ainda não é suportado pela CVM (etapa " +
-                          std::to_string(etapa) + "); use --interp", tok);
-    }
-
     // ── expressões ───────────────────────────────────────────────────────
     void          expr(const Expr* e, std::uint16_t dst);
     std::uint16_t exprReg(const Expr* e);   // registrador com o valor (variável local: sem cópia)
@@ -570,7 +565,7 @@ void Compiler::builtinCall(const MethodCallExpr* e, std::uint16_t dst) {
     if (dst != base) emit(Op::MOVE, dst, base, 0, e->token);
 }
 
-// new Classe(args) / new Struct(...) — na ordem do interpretador
+// new Classe(args) / new Struct(...) — argumentos na ordem do fonte (spec 5.2)
 void Compiler::newExpr(const NewExpr* e, std::uint16_t dst) {
     const Token& tok = e->token;
 
@@ -802,7 +797,7 @@ void Compiler::assign(const AssignStmt* s) {
 }
 
 // Gravação num lugar com passos de índice e campo: x[i].c = v, o.lista[0] += v,
-// self.p.x = v. Mesma ordem do interpretador (B5, spec 5.2): base e índices da
+// self.p.x = v. Ordem da spec 5.2 (B5): base e índices da
 // esquerda para a direita, depois o valor; só então o caminho até o lugar e a
 // gravação. Struct é valor: cada nível que é struct é lido para um
 // temporário, alterado e DEVOLVIDO ao nível de cima (desenho, seção 7). Entre
@@ -1009,7 +1004,7 @@ void Compiler::body(Proto* pr, std::uint32_t num_slots, std::size_t nparams, boo
 }
 
 // Inicializador dos campos (protótipo oculto: sem frame no stack trace, como no
-// interpretador), com self em r0; os campos na ordem da declaração
+// spec 5.2), com self em r0; os campos na ordem da declaração
 void Compiler::classInit(const ClassDecl* cls, std::size_t idx) {
     p      = &img.protos[idx];
     off    = 1;

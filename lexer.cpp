@@ -44,9 +44,6 @@ const std::unordered_map<std::string, TokenType> Lexer::keywords = {
     {"i64", TokenType::TYPE_I64},
     {"f32", TokenType::TYPE_F32},
     {"f64", TokenType::TYPE_F64},
-    // reservadas só para explicar a troca (seção K): int → i32/i64, decimal → f32/f64
-    {"int",     TokenType::TYPE_REMOVED},
-    {"decimal", TokenType::TYPE_REMOVED},
     {"string", TokenType::TYPE_STRING},
     {"str", TokenType::TYPE_STRING},
     {"bool", TokenType::TYPE_BOOL},
@@ -54,7 +51,6 @@ const std::unordered_map<std::string, TokenType> Lexer::keywords = {
     {"dict", TokenType::TYPE_DICT},     // dict<K, V>
     {"list", TokenType::TYPE_LIST},     // list<T>
     {"pair", TokenType::TYPE_PAIR},     // pair<F, S>
-    {"op",   TokenType::TYPE_OP},       // reservada: op<...> foi removido (o parser explica)
     {"var", TokenType::TYPE_VAR}
 };
 

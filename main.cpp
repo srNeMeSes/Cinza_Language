@@ -2,7 +2,6 @@
 #include "parser.h"
 #include "ast.h"
 #include "semantic.h"
-#include "executor.h"
 #include "module_loader.h"
 #include "cvm/compiler.h"
 #include "cvm/vm.h"
@@ -73,7 +72,6 @@ std::string tokenTypeToString(TokenType type) {
         case TokenType::TYPE_LIST: return "TYPE_LIST";
         case TokenType::TYPE_VAR: return "TYPE_VAR";
         case TokenType::TYPE_PAIR: return "TYPE_PAIR";
-        case TokenType::TYPE_OP:   return "TYPE_OP";
         
         case TokenType::OP_PLUS: return "OP_PLUS";
         case TokenType::OP_MINUS: return "OP_MINUS";
@@ -194,14 +192,13 @@ void reportInternalError(const std::string& detalhe) {
 }
 
 void printHelp() {
-    std::cout << "Compilador Cinza - Linguagem de Programação Interpretada\n\n";
+    std::cout << "Cinza - compilador para a CVM (máquina virtual da Cinza)\n\n";
     std::cout << "Uso:\n";
     std::cout << "  cinza [opções] <arquivo.cinza> [argumentos para main...]\n\n";
     std::cout << "Opções:\n";
     std::cout << "  --tokens, -t     Exibe tokens detalhados\n";
     std::cout << "  --ast, -a        Exibe a árvore sintática (AST)\n";
     std::cout << "  --bytecode       Mostra o bytecode da CVM antes de executar\n";
-    std::cout << "  --interp         Executa no interpretador de referência (em vez da CVM)\n";
     std::cout << "  --help, -h       Exibe esta ajuda\n\n";
     std::cout << "Exemplo:\n";
     std::cout << "  cinza --ast exemplo.cinza\n";
@@ -225,16 +222,13 @@ int main(int argc, char* argv[]) {
     }
     
     // Parse argumentos
-    // Fase 2.5: opções do interpretador vêm ANTES do arquivo; tudo o que vem
+    // Fase 2.5: opções do cinza vêm ANTES do arquivo; tudo o que vem
     // depois dele vai para main(list<string> args)
     std::string filename;
     std::vector<std::string> program_args;
     bool show_tokens = false;
     bool show_ast = false; // por padrão NÃO mostra AST
-    // A CVM (máquina virtual) é o padrão; --interp usa o interpretador de
-    // referência (tree-walk), que dá exatamente os mesmos resultados e serve
-    // para o teste diferencial. --bytecode mostra o bytecode antes de executar.
-    bool use_cvm = true;
+    // O programa roda na CVM (cvm/DESENHO.md); --bytecode mostra o bytecode antes
     bool show_bytecode = false;
 
     for (int i = 1; i < argc; i++) {
@@ -250,13 +244,13 @@ int main(int argc, char* argv[]) {
             show_tokens = true;
         } else if (arg == "--ast" || arg == "-a") {
             show_ast = true;
-        } else if (arg == "--cvm") {
-            use_cvm = true;    // já é o padrão (aceito por compatibilidade)
-        } else if (arg == "--interp") {
-            use_cvm = false;   // interpretador de referência
         } else if (arg == "--bytecode") {
-            use_cvm = show_bytecode = true;
-        } else if (!arg.empty() && arg[0] != '-') {
+            show_bytecode = true;
+        } else if (!arg.empty() && arg[0] == '-') {
+            std::cerr << "Erro: opção desconhecida '" << arg << "'.\n";
+            printHelp();
+            return 1;
+        } else {
             filename = arg;
         }
     }
@@ -336,31 +330,18 @@ int main(int argc, char* argv[]) {
         //std::cout << "[4] Executando...\n";
         //std::cout << std::string(80, '-') << "\n";
 
-        if (use_cvm) {
-            cvm::Image img;
-            try {
-                img = cvm::compile(programs, analyzer.globalLayout());
-            } catch (const cvm::Unsupported& e) {
-                diagnostics().report("CVMError", e.what(), e.loc);
-                diagnostics().flush(std::cerr);
-                return 1;
-            }
-            if (show_bytecode) std::cout << cvm::disassemble(img);
-            try {
-                cvm::VM vm(img);
-                vm.run(program_args);
-            } catch (const RuntimeError& e) {
-                if (isExit(e)) { std::cout.flush(); return std::stoi(e.message); }   // exit(código)
-                diagnostics().report(e.kind, e.message, e.location(), e.trace);
-                diagnostics().flush(std::cerr);
-                return 1;
-            }
-            return 0;
-        }
-
-        Executor executor;
+        cvm::Image img;
         try {
-            executor.execute(programs, analyzer.globalLayout(), program_args);
+            img = cvm::compile(programs, analyzer.globalLayout());
+        } catch (const cvm::Unsupported& e) {
+            diagnostics().report("CVMError", e.what(), e.loc);
+            diagnostics().flush(std::cerr);
+            return 1;
+        }
+        if (show_bytecode) std::cout << cvm::disassemble(img);
+        try {
+            cvm::VM vm(img);
+            vm.run(program_args);
         } catch (const RuntimeError& e) {
             if (isExit(e)) { std::cout.flush(); return std::stoi(e.message); }   // exit(código)
             // C4/B6: erro não tratado — tipo, mensagem e stack trace

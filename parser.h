@@ -32,7 +32,7 @@ private:
     // Profundidade da árvore em construção: parênteses, unários, cada operador de
     // uma cadeia (a + b + c... cresce para a esquerda) e instruções aninhadas.
     // Acima do limite é erro de sintaxe, antes que as etapas recursivas (parser,
-    // semântico, compilador, interpretador) estourem a pilha do C++.
+    // semântico, compilador da CVM) estourem a pilha do C++.
     int profundidade = 0;
     bool aninhamento_excedido = false;   // relatado uma vez; a análise para
     friend struct Niveis;   // parser.cpp: conta os níveis e relata o excesso

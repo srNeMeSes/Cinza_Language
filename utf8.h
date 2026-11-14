@@ -7,7 +7,7 @@
 // ============================================================================
 // UTF-8 — as strings da linguagem guardam UTF-8, e índices e tamanhos contam
 // caracteres (code points), não bytes (A10). Regras num lugar só, usadas pelo
-// interpretador, pela CVM e pela biblioteca padrão.
+// CVM e pela biblioteca padrão.
 // ============================================================================
 
 namespace cinza::utf8 {

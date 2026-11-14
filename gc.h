@@ -20,13 +20,13 @@ namespace cinza {
 //   1. gc_refs = referências fortes de cada contêiner (use_count);
 //   2. desconta as referências que vêm de outros contêineres rastreados;
 //   3. quem fica com gc_refs > 0 é referenciado de fora (frames, globais,
-//      temporários do executor): raiz. Marca tudo o que as raízes alcançam;
+//      temporários da CVM): raiz. Marca tudo o que as raízes alcançam;
 //   4. o resto é lixo em ciclo: esvazia esses contêineres (segurando uma
 //      referência a cada um enquanto isso), e a contagem libera tudo.
 //
 // Não é preciso enumerar os temporários do C++: qualquer shared_ptr fora dos
-// contêineres conta como referência externa. Por isso o executor só dispara a
-// coleta em pontos seguros (ver Executor::evalNew), onde nenhum ponteiro cru
+// contêineres conta como referência externa. Por isso a CVM só dispara a
+// coleta em pontos seguros (NEWOBJ, cvm/vm.cpp), onde nenhum ponteiro cru
 // aponta para dentro de um contêiner sem um Value forte segurando o dono.
 // ============================================================================
 

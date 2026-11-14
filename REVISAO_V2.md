@@ -1246,6 +1246,25 @@ comuns ao interpretador e à CVM):
   > `OverflowError`, como no `cast`). 12 testes novos `k5_*`. 472/472/472.
 - [ ] 6. Spec, desenho da CVM e o mapeamento para LLVM.
 
+## L. Só a CVM, sem compatibilidade antiga, e varredura (2026-11-14)
+
+Pedido do autor: apagar o interpretador ("vamos trabalhar só com a CVM e futuramente integrar tudo
+ao LLVM"), não manter suporte a versões anteriores da linguagem ("nenhum programa no mundo usa
+ela") e fazer uma varredura completa atrás de bugs e inconsistências.
+
+- [x] L1. Interpretador removido e compatibilidade antiga removida. — feito em 2026-11-14
+  > Nota: saíram `executor.cpp`/`executor.h`, as opções `--interp` e `--cvm` (opção desconhecida
+  > agora é erro, em vez de ser ignorada), os modos `--interp`/`--diff` do `run_tests.py` e os alvos
+  > `test-interp`/`test-diff`; `make test` roda a suíte na CVM. Saíram também `int`, `decimal` e `op`
+  > como palavras reservadas (com os erros "não existe mais"/"foi removido": agora `int` é só um nome
+  > de tipo desconhecido) e o mapa de nomes antigos de `Random`/`Convert`, com os 6 testes que
+  > existiam para essas mensagens. `bench/` migrado (ainda usava `int`) e `medir.ps1` só mede a CVM.
+  > Comentários, CLAUDE.md, README, spec e cvm/DESENHO.md atualizados; o DESENHO ganhou as
+  > instruções da seção K (que estavam desatualizadas) e a seção 12, o mapeamento para LLVM.
+  > Extensão do VS Code (`C:\cinza-vscode`, 0.3.0): tipos `i32`/`i64`/`f32`/`f64`, `cast`, literais
+  > `1.5f`/`1.5ff` (com ponto e sem sufixo aparece como inválido), módulo `Time`, `printf`/`format`/
+  > `exit`, diretivas de teste; saem `int`, `decimal` e `op`. 466/466.
+
 ---
 
 ## Registro de decisões
@@ -1287,4 +1306,5 @@ comuns ao interpretador e à CVM):
 | 2026-10-04 | J2 | `Files.read_bytes(caminho) -> list<int>` e `Files.write_bytes(caminho, list<int>)`, bytes de 0 a 255 (fora disso, `ValueError`). | Decisão do autor da linguagem; formatos binários sem passar por texto UTF-8. |
 | 2026-10-03 | I4 | `menor_int % -1` dá `0` (revê A5); `-0.0` continua `-0` no `print`; decimais extremos continuam em notação científica. | Decisão do autor da linguagem; `x % -1` cabe sempre em `int`. |
 | 2026-10-03 | H3 | `exit([código])`: padrão 0, de 0 a 255; roda os `finally` pendentes e nenhum `except` o captura; encerra o caminho na análise de fluxo. | Decisão do autor da linguagem; 0–255 dá o mesmo resultado em todo sistema. |
+| 2026-11-14 | L | Só a CVM (o interpretador de referência sai; o próximo backend é LLVM) e nenhuma compatibilidade com versões antigas da linguagem: o que muda, muda de vez. | Decisão do autor: a linguagem está em desenvolvimento e não tem programas de terceiros. |
 | 2026-11-14 | K | Quatro tipos numéricos em duas famílias (`i32`/`i64`, `f32`/`f64`) no lugar de `int`/`decimal`, sem apelidos; promoção só dentro da família; entre famílias, `cast<T>(valor)`; literal com ponto exige sufixo (`f`/`ff`); `%` só entre inteiros; ponto flutuante IEEE em tudo (revê A5, G2 e a revisão I); tamanhos e posições `i32`; `op<...>` removido (revê D). | Especificação do autor: "simplicidade na utilização, rigor na implementação e previsibilidade no comportamento". |

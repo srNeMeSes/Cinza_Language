@@ -6,9 +6,11 @@ Documento técnico da implementação (não é parte da especificação da lingu
 ## 1. Visão geral
 
 ```
-fonte → Lexer → Parser → Semântico ─┬→ Executor (interpretador de referência, --interp)
-                                    └→ Compilador CVM → bytecode → VM (padrão)
+fonte → Lexer → Parser → Semântico → Compilador CVM → bytecode → VM
 ```
+
+A CVM é o único runtime da Cinza (o interpretador tree-walk de referência saiu em 2026-11-14).
+O próximo passo é um backend LLVM (seção 12), a partir da mesma AST analisada.
 
 O compilador CVM recebe a AST **já analisada** — tipos resolvidos, slots do B2, alvos de chamada,
 tabelas de interface, conversões inseridas — e gera uma função compilada (**protótipo**) para
@@ -23,8 +25,8 @@ de registradores.
 | `num_params`    | parâmetros (num método e construtor, mais 1: o `self` em `r0`) |
 | `num_regs`      | registradores usados: parâmetros + locais (slots do B2) + temporários |
 | `code`          | as instruções |
-| `linhas`        | para cada instrução, arquivo, linha **e coluna** de origem (diagnósticos, `e.column` e stack trace precisam sair idênticos aos do interpretador; se o tamanho pesar, comprimir em faixas) |
-| `constantes`    | valores usados pelas instruções: inteiros grandes, decimais, textos, valores de enum, tipos |
+| `linhas`        | para cada instrução, arquivo, linha **e coluna** de origem (diagnósticos, `e.column` e stack trace da spec 7; se o tamanho pesar, comprimir em faixas) |
+| `constantes`    | valores usados pelas instruções: inteiros grandes, ponto flutuante, textos, valores de enum, tipos |
 | `tratadores`    | tabela de exceções (seção 6) |
 
 Tabelas globais da VM, referenciadas por índice nas instruções: protótipos, classes (com as
@@ -54,8 +56,8 @@ globais (o `GlobalLayout` do B2).
   recalculado.
 - **Registradores mortos.** Os registradores seguram objetos e contam como raízes para a coleta. No
   `RET` e no desempilhamento por erro, a janela do chamado é **limpa** (os `Value` voltam a vazio),
-  para a VM não manter vivo um objeto que o interpretador já teria liberado.
-- `Value` continua o mesmo do interpretador: copiar um registrador que guarda struct clona o
+  para a VM não manter vivo um objeto que a contagem de referências já teria liberado.
+- `Value` (value.h): copiar um registrador que guarda struct clona o
   struct (cópia rasa), list/dict/objeto são compartilhados — a semântica da spec 5.1 vem de graça.
 
 ## 4. Formato das instruções
@@ -89,7 +91,8 @@ registrador da janela, `K[x]` uma constante do protótipo, `G[x]` um slot global
 |-------------------------|--------|
 | `MOVE a b`              | `R[a] = R[b]` |
 | `LOADK a bc`            | `R[a] = K[bc]` (índice de 32 bits: uma função pode ter mais de 65535 constantes) |
-| `LOADINT a bc`          | `R[a] = bc` (inteiro de 32 bits) |
+| `LOADINT a bc`          | `R[a] = bc` como `i64` (literal `i64` que cabe em 32 bits; também os códigos internos do `finally`) |
+| `LOADI32 a bc`          | `R[a] = bc` como `i32` |
 | `LOADBOOL a b`          | `R[a] = (b != 0)` |
 | `LOADVOID a`            | `R[a] =` valor vazio (parte omitida de uma fatia) |
 | `GETGLOBAL a b`         | `R[a] = G[b]` |
@@ -97,23 +100,28 @@ registrador da janela, `K[x]` uma constante do protótipo, `G[x]` um slot global
 
 ### 5.2 Aritmética, texto e comparação (específicas por tipo)
 
-O semântico já inseriu as conversões (`int` → `decimal`); cada operação sabe o tipo dos
-operandos. As versões `_I` conferem overflow e divisão por zero, as `_D`, divisão por zero e
-resultado infinito (spec 5.3); os casos de borda passam pela regra compartilhada
-(`operacoes.cpp`), a mesma do interpretador.
+Seção K do REVISAO_V2.md: quatro tipos numéricos em duas famílias. O semântico já promoveu os dois
+lados de cada operação ao mesmo tipo (`i32 + i64` chega como `i64 + i64`, com um `CONV` no lado
+`i32`), então cada instrução tem um tipo só. As inteiras conferem overflow na largura (o `i32`
+conta em 64 bits e confere a faixa de 32) e divisão por zero; as de ponto flutuante seguem o IEEE
+754 sem exceção (`inf`, `nan`, `-0`; `f32` conta em `float`). Os casos de borda inteiros passam
+pela regra comum (`applyBinaryOp`, `operacoes.cpp`), que lança o erro com a mensagem da spec 5.3.
 
 | Instrução                                   | Efeito |
 |---------------------------------------------|--------|
-| `ADD_I a b c`, `SUB_I`, `MUL_I`, `DIV_I`, `MOD_I` | `R[a] = R[b] op R[c]` em `int` |
-| `ADD_D a b c`, `SUB_D`, `MUL_D`, `DIV_D`, `MOD_D` | idem em `decimal` |
-| `ADDK_I a b c`, `SUBK_I`, `MULK_I`, `DIVK_I`, `MODK_I` | `R[a] = R[b] op c`, com `c` inteiro de 16 bits com sinal embutido na instrução (seção 11) |
-| `LTK_I a b c`, `LEK_I`, `GTK_I`, `GEK_I`    | `R[a] = R[b] cmp c`, idem |
-| `NEG_I a b`, `NEG_D a b`                    | `R[a] = -R[b]` |
-| `I2D a b`                                   | `R[a] = decimal(R[b])` |
+| `ADD_I64 a b c`, `SUB_I64`, `MUL_I64`, `DIV_I64`, `MOD_I64` | `R[a] = R[b] op R[c]` em `i64` |
+| `ADD_I32 a b c`, `SUB_I32`, `MUL_I32`, `DIV_I32`, `MOD_I32` | idem em `i32` |
+| `ADD_F64 a b c`, `SUB_F64`, `MUL_F64`, `DIV_F64` | idem em `f64` (não há resto de ponto flutuante) |
+| `ADD_F32 a b c`, `SUB_F32`, `MUL_F32`, `DIV_F32` | idem em `f32` |
+| `ADDK_I64 a b c`, `SUBK_I64`, `MULK_I64`, `DIVK_I64`, `MODK_I64` | `R[a] = R[b] op c`, com `c` inteiro de 16 bits com sinal embutido na instrução (seção 11) |
+| `ADDK_I32 a b c` … `MODK_I32`               | idem em `i32` |
+| `LTK_I a b c`, `LEK_I`, `GTK_I`, `GEK_I`    | `R[a] = R[b] cmp c`, `R[b]` inteiro de qualquer largura |
+| `NEG_I64 a b`, `NEG_I32`, `NEG_F64`, `NEG_F32` | `R[a] = -R[b]` (inteiro: o menor valor não tem negativo, `OverflowError`) |
+| `CONV a b c`                                | `R[a] = cast<T>(R[b])`, `T` pelo código `c` (0 `i32`, 1 `i64`, 2 `f32`, 3 `f64`, 4 `string`); regra em `convertValue` (`operacoes.cpp`): `cast<T>` escrito, promoções do semântico e o resultado das nativas genéricas |
 | `CONCAT a b c`                              | `R[a] = texto(R[b]) + texto(R[c])` (spec 5.4) |
 | `FMT a b c`                                 | `R[a] =` `R[b]` como texto com o formato de `printf`/`format` (`K[c]` = largura × 1000 + casas + 1) |
 | `SLICE a b`                                 | `R[a] = R[b][R[b+1]:R[b+2]:R[b+3]]`, fatia de string (parte omitida = vazio) |
-| `LT_I a b c`, `LE_I`, `LT_D`, `LE_D`, `LT_S`, `LE_S` | `R[a] = R[b] < R[c]` (ou `<=`); `>` e `>=` trocam os **registradores** na instrução final (`a > b` vira `LT r, rb, ra`) — os operandos continuam sendo avaliados na ordem do fonte |
+| `LT_I a b c`, `LE_I`, `LT_F`, `LE_F`, `LT_S`, `LE_S` | `R[a] = R[b] < R[c]` (ou `<=`) entre inteiros, ponto flutuante (NaN compara falso) ou textos; `>` e `>=` trocam os **registradores** na instrução final (`a > b` vira `LT r, rb, ra`) — os operandos continuam sendo avaliados na ordem do fonte |
 | `EQ a b c`, `NE a b c`                      | igualdade da spec 5.3 (valor, estrutural ou identidade) |
 | `NOT a b`                                   | `R[a] = !R[b]` |
 
@@ -135,14 +143,14 @@ resultado infinito (spec 5.3); os casos de borda passam pela regra compartilhada
 |-------------------------|--------|
 | `FORPREP a b c`         | `R[a] =` cópia dos elementos de `R[b]` (lista: os elementos; dict: os pares em ordem de chave) — numa string, a própria string, percorrida um caractere por vez (é imutável, a cópia não é observável) —, `R[a+1] = 0`, `R[a+2] = c` (o slot do iterador) |
 | `FORNEXT a bc`          | se há próximo: `R[slot] =` o elemento (`slot = R[a+2]`) e avança `R[a+1]`; senão `pc += bc` (sai do laço) |
-| `FORNEXT_D a bc`        | idem, convertendo o elemento para `decimal` (`for (decimal x in list<int>)`) |
+| `FORNEXT_W a bc`        | idem, alargando o elemento (`for (i64 x in list<i32>)`, `f32` → `f64`) |
 | `RANGEPREP a b`         | `for` sobre `range(...)` embutido, sem criar a lista: `R[a]` atual, `R[a+1]` fim, `R[a+2]` passo (`ValueError` se 0), `R[a+3] = b` (slot) |
-| `FORRANGE a bc`, `FORRANGE_D` | próximo inteiro (ou `decimal`) em `R[slot]`, ou `pc += bc` |
+| `FORRANGE a bc`         | próximo inteiro em `R[slot]`, na largura do fim (`R[a+1]`, `i32` ou `i64`), ou `pc += bc`. Com o iterador mais largo que o `range` (`for (i64 i in range(0, 10))`), o compilador alarga início e fim com `CONV` antes |
 
 O laço usa registradores consecutivos, como o `FORLOOP` do Lua. (O slot do iterador é decidido
 pelo semântico, B2, então não pode ser forçado a ser `a+2`; guardar o número dele mantém o
 `FORNEXT` numa instrução só.) A cópia no `FORPREP` é a da spec 5.5 (alterar a coleção no corpo
-não muda as voltas); a regra é a mesma do interpretador (`forElements`, `operacoes.cpp`).
+não muda as voltas); a regra fica em `forElements` (`operacoes.cpp`).
 
 ### 5.5 Funções e objetos
 
@@ -158,7 +166,7 @@ não muda as voltas); a regra é a mesma do interpretador (`forElements`, `opera
 | `GETFIELD a b c`, `SETFIELD a b c` | campo do objeto ou struct: `R[a] = R[b].campo[c]` / `R[a].campo[b] = R[c]` |
 | `GETFIRST a b`, `GETSECOND a b` | campos de um `pair` |
 
-**`new Classe(args)`** vira, nesta ordem (a do interpretador): argumentos em registradores,
+**`new Classe(args)`** vira, nesta ordem (spec 5.2): argumentos em registradores,
 `NEWOBJ`, `CALL` do protótipo oculto de inicialização dos campos (se a classe tiver valores
 iniciais) e `CALL` do construtor com o objeto como `self`. Os campos de um struct com valores
 padrão (`new S()`) são calculados no próprio chamador, antes do `NEWSTRUCT`.
@@ -207,7 +215,7 @@ O `try` não custa nada quando não há erro.
 mais simples e sem os erros clássicos da cópia.)
 
 O `finally` é compilado **uma única vez**. Um `try` com `finally` reserva dois registradores: a
-**ação pendente** (`int`) e o **valor pendente**. Toda saída do bloco protegido grava o que fazer
+**ação pendente** (`i64`) e o **valor pendente**. Toda saída do bloco protegido grava o que fazer
 depois e salta para o `finally`:
 
 | Saída                                   | Ação pendente | Valor pendente |
@@ -225,8 +233,8 @@ preserva tipo, mensagem, posição e stack trace. A ação 0 segue para depois d
 
 Os intervalos da tabela cobrem só o bloco `try` (para cada `except` e para o pega-tudo) e os
 blocos `except` (só para o pega-tudo). O `finally` e o despacho ficam **fora** de todos os
-intervalos do próprio `try`: um erro lançado pelo `finally` sobe para fora, como no interpretador,
-e nunca roda o `finally` duas vezes.
+intervalos do próprio `try`: um erro lançado pelo `finally` sobe para fora e nunca roda o
+`finally` duas vezes.
 
 `return`, `break` e `continue` **dentro** do `finally` são proibidos pela linguagem (spec 5.6),
 então um `finally` nunca descarta um retorno ou um erro pendente.
@@ -234,7 +242,7 @@ então um `finally` nunca descarta um retorno ou um erro pendente.
 ### Exemplo
 
 ```cinza
-fn f(int n) -> int {
+fn f(i32 n) -> i32 {
   try {
     return 10 / n;
   } except (ZeroDivisionError e) {
@@ -264,7 +272,7 @@ tratadores (mais interno primeiro):
 ordem da spec 5.2: avalia a base e os índices, depois o valor, e então grava.
 
 Struct é um valor. Para gravar num campo de um struct que está dentro de outro lugar
-(`l[0].x = v`, `q.p.x = v`), o compilador segue esta ordem — a mesma do interpretador:
+(`l[0].x = v`, `q.p.x = v`), o compilador segue esta ordem:
 
 1. avalia a base e os índices, da esquerda para a direita, guardando cada um num registrador;
 2. avalia o valor;
@@ -273,7 +281,7 @@ Struct é um valor. Para gravar num campo de um struct que está dentro de outro
 Ler o struct antes do passo 2 seria um erro: se o valor alterar outro campo do mesmo struct
 (`l[0].x = f()` com `f` mudando `l[0].y`), a devolução apagaria essa alteração. Na ordem acima,
 nenhum código do programa roda entre ler e devolver, e se o valor tiver removido o elemento, a
-leitura do passo 3 lança `IndexError` exatamente onde o interpretador lança na gravação.
+leitura do passo 3 lança `IndexError` na posição da gravação.
 
 Em `a op= b`: passos 1 e 2 iguais (com `b`), depois lê o valor **atual** do lugar, calcula, grava
 e devolve. O valor atual é lido depois de `b` (spec 5.2): em `l[0].x += g()`, uma alteração que
@@ -282,7 +290,7 @@ e devolve. O valor atual é lido depois de `b` (spec 5.2): em `l[0].x += g()`, u
 Em níveis que são objetos ou coleções (referências), a gravação vai direto, sem devolução.
 
 Testes: `tests/cvm_struct_lugar_valor.cinza`, `cvm_struct_lugar_composto.cinza` e
-`cvm_struct_lugar_removido.cinza` (já verdes no interpretador; a CVM precisa reproduzi-los).
+`cvm_struct_lugar_removido.cinza`.
 
 ## 8. Módulos e início do programa
 
@@ -302,40 +310,37 @@ ou dos contêineres entre instruções.
 Uma linha por instrução: posição, nome, operandos e, quando ajuda, um comentário.
 
 ```cinza
-fn fib(int n) -> int {
+fn fib(i32 n) -> i32 {
   if (n < 2) { return n; }
   return fib(n - 1) + fib(n - 2);
 }
 ```
 
 ```
-fn fib  (1 parâmetro, 3 registradores)
-  0000  LOADINT    r1, 2
-  0001  LT_I       r1, r0, r1        ; n < 2
-  0002  JMPIFNOT   r1, -> 0004
-  0003  RET        r0
-  0004  LOADINT    r1, 1
-  0005  SUB_I      r1, r0, r1        ; n - 1
-  0006  CALL       r1, fib, 1        ; r1 = fib(n - 1)
-  0007  LOADINT    r2, 2
-  0008  SUB_I      r2, r0, r2        ; n - 2
-  0009  CALL       r2, fib, 1        ; r2 = fib(n - 2)
-  0010  ADD_I      r1, r1, r2
-  0011  RET        r1
+fn fib  (1 parâmetro, 5 registradores)
+  0000  JGEK_I     r0, 2             ; compara-e-salta: n >= 2 → 0003
+  0001  JMP        -> 0003
+  0002  RET        r0
+  0003  SUBK_I32   r3, r0, 1         ; n - 1 (constante embutida)
+  0004  CALL       r3, fib, 1
+  0005  MOVE       r2, r3
+  0006  SUBK_I32   r4, r0, 2
+  0007  CALL       r4, fib, 1
+  0008  MOVE       r3, r4
+  0009  ADD_I32    r1, r2, r3
+  0010  RET        r1
+  0011  RETVOID
 ```
-
-São 12 instruções; o interpretador percorre, para a mesma função, cerca de 20 nós da AST por
-chamada, cada um com despacho, cópias de `Value` e montagem de frame.
 
 ## 11. Otimizações previstas (depois de tudo funcionar)
 
-Só entram com o benchmark mostrando ganho e a suíte verde nos dois modos:
+Só entram com o benchmark mostrando ganho e a suíte verde:
 
 - instruções com constante imediata (`ADDK_I r1, r0, 1`) e comparação-e-salto fundidos
   (`JLT_I r0, r1, -> 0004`), que reduzem o número de instruções dos laços;
-- `for (int i in range(a, b))` sem criar a lista, quando `range` é a embutida (o resultado é o
+- `for (i32 i in range(a, b))` sem criar a lista, quando `range` é a embutida (o resultado é o
   mesmo: ela não tem efeito colateral);
-- registradores com `int`/`decimal` sem embrulho no `Value`, se a medição mostrar que o `Value`
+- registradores com números sem embrulho no `Value`, se a medição mostrar que o `Value`
   pesa;
 - `for` sobre `string` sem copiar os caracteres (strings são imutáveis, a cópia da spec 5.5 não é
   observável);
@@ -363,8 +368,27 @@ mensurável (os processadores atuais já preveem bem o salto indireto do `switch
 armadilha — o salto computado não destrói os locais do caso (`std::string`, `Value`), o que exige
 fechar o bloco antes de cada salto. Sem ganho, não compensa; fica registrado para não ser refeito.
 
-### Teste diferencial
+## 12. Mapeamento para LLVM (futuro)
 
-Além da suíte, um modo do `run_tests.py` roda cada programa dos testes e da spec nos dois modos
-(`--interp` e CVM) e compara saída, erros e código de saída **byte a byte**. Qualquer diferença é
-defeito da CVM.
+O backend LLVM partirá da mesma AST analisada (tipos já resolvidos e promoções já inseridas como
+`CastExpr`), então cada operação numérica tem um tipo só, como na CVM:
+
+| Cinza                        | LLVM |
+|------------------------------|------|
+| `i32`, `i64`                 | `i32`, `i64` |
+| `f32`, `f64`                 | `float`, `double` |
+| `+ - *` inteiros             | `llvm.sadd/ssub/smul.with.overflow.*` + salto para o `OverflowError` (sem `nsw`/`nuw`: o estouro é erro definido, não comportamento indefinido) |
+| `/ %` inteiros               | teste de divisor 0 (`ZeroDivisionError`) e de `menor / -1` (`OverflowError`; `x % -1` dá 0) antes do `sdiv`/`srem` |
+| `+ - * /` ponto flutuante    | `fadd`/`fsub`/`fmul`/`fdiv`, sem *fast-math* (IEEE estrito: `nan`, `inf`, `-0`) |
+| comparações                  | `icmp slt/sle/eq/ne` e `fcmp olt/ole/oeq` (NaN compara falso; `!=` é `une`) |
+| `-x`                         | inteiro: teste do menor valor + `sub 0, x`; ponto flutuante: `fneg` |
+| `i32` → `i64`                | `sext` |
+| `f32` → `f64`                | `fpext` |
+| `cast<i32>(i64)`             | teste de faixa + `trunc` |
+| `cast<inteiro>(flutuante)`   | teste de NaN/infinito (`ValueError`) e de faixa (`OverflowError`) + `fptosi` (trunca em direção a zero) |
+| `cast<flutuante>(inteiro)`   | `sitofp` |
+| `cast<f32>(f64)`             | `fptrunc` (IEEE: pode dar infinito) |
+| `cast<T>(string)` e para `string` | chamada ao runtime (`convertValue`) |
+
+O runtime (coleções, strings, coleta de ciclos, biblioteca padrão, erros e stack trace) continua
+em C++ e seria chamado pelo código gerado.

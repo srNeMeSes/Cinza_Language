@@ -732,22 +732,6 @@ std::string SemanticAnalyzer::qualifyName(const std::string& name, const Token& 
         const ModuleScope& dep = modules[static_cast<size_t>(it->second)];
         auto g = dep.globals.find(resto);
         if (g == dep.globals.end()) {
-            // seção K: nomes da biblioteca que mudaram com os tipos numéricos
-            static const std::map<std::string, std::string> renomeadas = {
-                {"Random::int",           "use Random.i32(a, b) ou Random.i64(a, b)"},
-                {"Random::decimal",       "use Random.f64()"},
-                {"Random::decimal_range", "use Random.f64_range(a, b)"},
-                {"Convert::to_int",       "use cast<i32>(texto) ou cast<i64>(texto)"},
-                {"Convert::to_decimal",   "use cast<f32>(texto) ou cast<f64>(texto)"},
-                {"Convert::to_string",    "use cast<string>(número) ou format(\"{valor}\")"},
-                {"Convert::is_int",       "use Convert.is_i32 ou Convert.is_i64"},
-                {"Convert::is_decimal",   "use Convert.is_f32 ou Convert.is_f64"},
-                {"Convert::to_int_or",    "use Convert.to_i32_or ou Convert.to_i64_or"},
-                {"Convert::to_decimal_or","use Convert.to_f32_or ou Convert.to_f64_or"},
-            };
-            auto r = renomeadas.find(dep.prefix + "::" + resto);
-            if (r != renomeadas.end())
-                throwError("'" + alias + "." + resto + "' não existe mais: " + r->second, tok);
             throwError("'" + resto + "' não existe no módulo '" + alias + "'", tok);
         }
         if (!dep.pub.count(resto))
@@ -1944,7 +1928,7 @@ TypeRef SemanticAnalyzer::analyzeIdentifier(IdentifierExpr* expr) {
 
 // Operação binária:  left OP right
 // Seção K: na mesma família, os dois lados são promovidos ao tipo comum ANTES
-// da operação (i32 + i64: o i32 vira i64), então o executor e a CVM sempre
+// da operação (i32 + i64: o i32 vira i64), então a CVM sempre
 // recebem operandos do mesmo tipo
 TypeRef SemanticAnalyzer::analyzeBinary(BinaryExpr* expr) {
     TypeRef left_type  = analyzeExpr(expr->left.get());
@@ -2104,7 +2088,7 @@ TypeRef SemanticAnalyzer::analyzeCall(CallExpr* expr) {
     if (sym->kind != Symbol::Kind::FUNCTION) {
         throwError("'" + expr->function_name + "' não é uma função", expr->token);
     }
-    // Fase 2.5: main é o ponto de entrada, chamado só pelo interpretador
+    // Fase 2.5: main é o ponto de entrada, chamado só pela CVM
     if (expr->function_name == "main") {
         throwError("'main' é o ponto de entrada do programa e não pode ser chamada "
                    "pelo próprio programa.", expr->token);
@@ -3002,7 +2986,7 @@ TypeRef SemanticAnalyzer::analyzePairLiteral(PairLiteralExpr* expr, TypeRef expe
 // COERÇÃO IMPLÍCITA (A2)
 //
 // isAssignable() só diz que i32 cabe em i64 (e f32 em f64); sem materializar
-// a promoção o valor chegaria ao executor com a largura menor. Literal muda
+// a promoção o valor chegaria à CVM com a largura menor. Literal muda
 // só o tipo (o valor é exato); o resto ganha um nó CastExpr.
 // ============================================================================
 

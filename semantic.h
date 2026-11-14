@@ -207,7 +207,7 @@ class SemanticAnalyzer {
 private:
     // C5: escopo global de cada módulo. Os nomes globais dos módulos
     // importados ganham o prefixo do módulo ("util.texto::soma") no próprio
-    // AST, então o executor vê um único espaço de nomes.
+    // AST, então a CVM vê um único espaço de nomes.
     struct ModuleScope {
         std::string                                  prefix;
         bool                                         is_main = false;
@@ -370,7 +370,7 @@ public:
     // por último
     void analyze(std::vector<ModuleUnit>& units);
 
-    // B2: slots dos const globais, para o executor
+    // B2: slots dos const globais, para a CVM
     const GlobalLayout& globalLayout() const { return global_layout; }
 };
 

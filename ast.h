@@ -115,7 +115,7 @@ public:
 };
 
 // Identificador (variável)
-// B2: onde uma variável vive, decidido pelo semântico. O executor acessa por
+// B2: onde uma variável vive, decidido pelo semântico. A CVM acessa por
 // índice, sem procurar o nome:
 //   Local  → slot no frame da função em execução
 //   Field  → índice do campo no objeto atual (current_instance)
@@ -134,7 +134,7 @@ class InterfaceDecl;
 
 // B2: const globais em slots. O semântico conta os slots e diz quais são
 // constantes de módulos nativos (valor já pronto); os demais recebem o valor
-// quando o executor avalia os const de cada módulo.
+// quando a CVM avalia os const de cada módulo.
 struct GlobalLayout {
     std::uint32_t count = 0;
     std::vector<std::pair<std::uint32_t, const NativeConst*>> natives;
@@ -189,7 +189,7 @@ public:
     std::vector<ExprPtr> arguments;
     const NativeFn* native = nullptr;   // C6: nativa resolvida pelo semântico
     // Custo das chamadas: função (ou método da própria classe, se
-    // implicit_method) resolvida pelo semântico; o executor não procura o nome
+    // implicit_method) resolvida pelo semântico; a CVM não procura o nome
     const FunctionDecl* target = nullptr;
     bool implicit_method = false;
     // type(x) embutido; guarda o tipo estático do argumento

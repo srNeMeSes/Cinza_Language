@@ -21,7 +21,7 @@ public:
     explicit VM(const Image& img) : img(img) {}
 
     // Avalia os const de cada módulo e chama a main. Erro não capturado sai
-    // como RuntimeError, com posição e stack trace (como no interpretador).
+    // como RuntimeError, com posição e stack trace.
     void run(const std::vector<std::string>& args);
 
     static constexpr std::size_t max_call_depth = 2000;   // spec 5.8

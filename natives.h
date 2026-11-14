@@ -13,7 +13,7 @@ namespace cinza {
 // FUNÇÕES NATIVAS (C6)
 //
 // Funções da linguagem implementadas em C++. O semântico checa a chamada pela
-// assinatura (`params`/`ret`) e o executor chama `impl` com os argumentos já
+// assinatura (`params`/`ret`) e a CVM chama `impl` com os argumentos já
 // avaliados.
 //
 // Variáveis de tipo (TypeInfo::Kind::TypeVar) só existem aqui, nas
@@ -24,7 +24,7 @@ namespace cinza {
 // número ou string. Seção K: uma variável já fixada alarga dentro da família
 // (Math.max(i32, i64) fica i64).
 //
-// Erros: `impl` lança RuntimeError("ValueError: ...") sem linha; o executor
+// Erros: `impl` lança RuntimeError("ValueError: ...") sem linha; a CVM
 // completa com a posição da chamada e o stack trace.
 // ============================================================================
 
