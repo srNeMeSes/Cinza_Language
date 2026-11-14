@@ -20,7 +20,7 @@ using TK = TypeInfo::Kind;
 // int+int→int  |  int+decimal→decimal  |  decimal+int→decimal  |  decimal+decimal→decimal
 TypeRef TypeChecker::promoteNumeric(TypeRef l, TypeRef r) {
     auto& types = TypeContext::instance();
-    return (l->is(TK::Decimal) || r->is(TK::Decimal)) ? types.decimalType() : types.intType();
+    return (l->is(TK::F64) || r->is(TK::F64)) ? types.f64Type() : types.i64Type();
 }
 
 // Tipo escrito na AST → TypeRef único
@@ -34,8 +34,8 @@ TypeRef TypeChecker::fromAst(const Type* type) {
     };
 
     switch (type->kind) {
-        case Type::Kind::INT:     return types.intType();
-        case Type::Kind::DECIMAL: return types.decimalType();
+        case Type::Kind::I64:     return types.i64Type();
+        case Type::Kind::F64: return types.f64Type();
         case Type::Kind::STRING:  return types.stringType();
         case Type::Kind::BOOL:    return types.boolType();
         case Type::Kind::VOID:    return types.voidType();
@@ -79,7 +79,7 @@ bool TypeChecker::isAssignable(TypeRef declared, TypeRef value) {
     if (value->is(TK::Var))    return true;   // valor var primitivo ainda não resolvido
 
     // Promoção numérica: int pode ser atribuído a decimal (v2.00 #19)
-    if (declared->is(TK::Decimal) && value->is(TK::Int)) return true;
+    if (declared->is(TK::F64) && value->is(TK::I64)) return true;
 
     // C4: Error é a raiz de todos os tipos de erro
     if (declared->is(TK::Error) && declared->name == "Error" && value->is(TK::Error)) return true;
@@ -942,7 +942,7 @@ static bool containsVoid(const Type* type) {
 static TypeRef invalidDictKey(TypeRef type) {
     if (type->is(TK::Dict)) {
         TypeRef k = type->key();
-        if (!k->is(TK::Int) && !k->is(TK::String) && !k->is(TK::Bool) && !k->is(TK::Enum) &&
+        if (!k->is(TK::I64) && !k->is(TK::String) && !k->is(TK::Bool) && !k->is(TK::Enum) &&
             !k->is(TK::Var))   // var em tipo composto tem erro próprio
             return k;
     }
@@ -952,10 +952,10 @@ static TypeRef invalidDictKey(TypeRef type) {
 }
 
 static std::string dictKeyMessage(TypeRef key_type) {
-    if (key_type->is(TK::Decimal))
-        return "Chave de dict não pode ser 'decimal': comparação exata de ponto "
-               "flutuante não é confiável. Use int, string ou bool.";
-    return "Chave de dict deve ser int, string, bool ou enum, mas recebeu '" + key_type->str() + "'. "
+    if (key_type->is(TK::F64))
+        return "Chave de dict não pode ser 'f64': comparação exata de ponto "
+               "flutuante não é confiável. Use i64, string ou bool.";
+    return "Chave de dict deve ser i64, string, bool ou enum, mas recebeu '" + key_type->str() + "'. "
            "Tipos compostos como list<>, pair<> e classes não podem ser chaves.";
 }
 
@@ -989,21 +989,21 @@ void SemanticAnalyzer::analyzeVarDecl(VarDeclStmt* stmt) {
     if (declared_type->is(TK::List) && declared_type->elem()->is(TK::Var)) {
         throwError(
             "Tipo 'var' não é permitido dentro de 'list<>'. "
-            "Use um tipo primitivo explícito: list<int>, list<string>, etc.",
+            "Use um tipo primitivo explícito: list<i64>, list<string>, etc.",
             stmt->token);
     }
     if (declared_type->is(TK::Dict) &&
         (declared_type->key()->is(TK::Var) || declared_type->value()->is(TK::Var))) {
         throwError(
             "Tipo 'var' não é permitido dentro de 'dict<>'. "
-            "Use tipos primitivos explícitos: dict<string, int>, etc.",
+            "Use tipos primitivos explícitos: dict<string, i64>, etc.",
             stmt->token);
     }
     if (declared_type->is(TK::Pair) &&
         (declared_type->first()->is(TK::Var) || declared_type->second()->is(TK::Var))) {
         throwError(
             "Tipo 'var' não é permitido dentro de 'pair<>'. "
-            "Use tipos explícitos: pair<string, int>, etc.",
+            "Use tipos explícitos: pair<string, i64>, etc.",
             stmt->token);
     }
 
@@ -1042,7 +1042,7 @@ void SemanticAnalyzer::analyzeVarDecl(VarDeclStmt* stmt) {
             if (!init_type->isPrimitive()) {
                 throwError(
                     "Inferência 'var' só é permitida para tipos primitivos "
-                    "(int, decimal, string, bool), mas recebeu '" + init_type->str() + "'. "
+                    "(i64, f64, string, bool), mas recebeu '" + init_type->str() + "'. "
                     "Declare o tipo explicitamente.",
                     stmt->token);
             }
@@ -1825,8 +1825,8 @@ TypeRef SemanticAnalyzer::analyzeExpr(Expr* expr, TypeRef expected) {
 TypeRef SemanticAnalyzer::analyzeLiteral(LiteralExpr* expr) {
     TypeRef type = nullptr;
 
-    if      (std::holds_alternative<std::int64_t>(expr->value)) type = types.intType();
-    else if (std::holds_alternative<double>      (expr->value)) type = types.decimalType();
+    if      (std::holds_alternative<std::int64_t>(expr->value)) type = types.i64Type();
+    else if (std::holds_alternative<double>      (expr->value)) type = types.f64Type();
     else if (std::holds_alternative<std::string> (expr->value)) type = types.stringType();
     else if (std::holds_alternative<bool>        (expr->value)) type = types.boolType();
     else throwError("Literal com tipo desconhecido", expr->token);
@@ -2027,9 +2027,9 @@ static bool unify(TypeRef param, TypeRef arg, std::map<std::string, TypeRef>& bi
         auto it = binds.find(param->name);
         if (it == binds.end()) {
             // Fase 7: variáveis com restrição
-            if (param->name == "número" && !arg->is(TK::Int) && !arg->is(TK::Decimal))
+            if (param->name == "número" && !arg->is(TK::I64) && !arg->is(TK::F64))
                 return false;
-            if (param->name == "comparável" && !arg->is(TK::Int) && !arg->is(TK::Decimal) &&
+            if (param->name == "comparável" && !arg->is(TK::I64) && !arg->is(TK::F64) &&
                 !arg->is(TK::String))
                 return false;
             binds[param->name] = arg;
@@ -2159,14 +2159,14 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
         if (m == "size") {
             if (!expr->arguments.empty())
                 throwError("'list.size()' não aceita argumentos", expr->token);
-            return expr->resolved_type = types.intType();
+            return expr->resolved_type = types.i64Type();
         }
         if (m == "has") {
             if (expr->arguments.size() != 1)
                 throwError("'list.has(idx)' requer exatamente 1 argumento", expr->token);
             TypeRef idx_type = analyzeExpr(expr->arguments[0].get());
-            if (!idx_type->is(TK::Int))
-                throwError("'list.has(idx)' requer índice 'int', recebeu '" + idx_type->str() + "'",
+            if (!idx_type->is(TK::I64))
+                throwError("'list.has(idx)' requer índice 'i64', recebeu '" + idx_type->str() + "'",
                            expr->token);
             return expr->resolved_type = types.boolType();
         }
@@ -2191,8 +2191,8 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
             if (expr->arguments.size() != 1)
                 throwError("'list.remove(idx)' requer exatamente 1 argumento", expr->token);
             TypeRef idx_type = analyzeExpr(expr->arguments[0].get());
-            if (!idx_type->is(TK::Int))
-                throwError("'list.remove(idx)' requer índice 'int', recebeu '" + idx_type->str() + "'",
+            if (!idx_type->is(TK::I64))
+                throwError("'list.remove(idx)' requer índice 'i64', recebeu '" + idx_type->str() + "'",
                            expr->token);
             return expr->resolved_type = types.voidType();
         }
@@ -2209,7 +2209,7 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
         if (m == "size") {
             if (!expr->arguments.empty())
                 throwError("'dict.size()' não aceita argumentos", expr->token);
-            return expr->resolved_type = types.intType();
+            return expr->resolved_type = types.i64Type();
         }
         if (m == "has") {
             if (expr->arguments.size() != 1)
@@ -2270,7 +2270,7 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
         if (expr->method_name == "size") {
             if (!expr->arguments.empty())
                 throwError("'string.size()' não aceita argumentos", expr->token);
-            return expr->resolved_type = types.intType();
+            return expr->resolved_type = types.i64Type();
         }
         throwError("Método '" + expr->method_name + "' não existe em 'string'",
                    expr->token);
@@ -2377,7 +2377,7 @@ TypeRef SemanticAnalyzer::analyzeMemberAccess(MemberAccessExpr* expr) {
     if (obj_type->is(TK::Error)) {
         const std::string& m = expr->member_name;
         if (m == "kind" || m == "message") return expr->resolved_type = types.stringType();
-        if (m == "line" || m == "column")  return expr->resolved_type = types.intType();
+        if (m == "line" || m == "column")  return expr->resolved_type = types.i64Type();
         throwError("Erro não possui o campo '" + m + "' (campos: kind, message, line, column)",
                    expr->token);
     }
@@ -2428,8 +2428,8 @@ TypeRef SemanticAnalyzer::analyzeIndexAccess(IndexAccessExpr* expr) {
     TypeRef idx_type = analyzeExpr(expr->index.get());
 
     if (obj_type->is(TK::List)) {
-        if (!idx_type->is(TK::Int)) {
-            throwError("Índice de lista deve ser 'int', mas recebeu '" + idx_type->str() + "'",
+        if (!idx_type->is(TK::I64)) {
+            throwError("Índice de lista deve ser 'i64', mas recebeu '" + idx_type->str() + "'",
                        expr->token);
         }
         // Índice negativo literal é erro semântico
@@ -2451,8 +2451,8 @@ TypeRef SemanticAnalyzer::analyzeIndexAccess(IndexAccessExpr* expr) {
 
     // s[i]: o caractere (string); índice negativo conta do fim
     if (obj_type->is(TK::String)) {
-        if (!idx_type->is(TK::Int))
-            throwError("Índice de string deve ser 'int', mas recebeu '" + idx_type->str() + "'",
+        if (!idx_type->is(TK::I64))
+            throwError("Índice de string deve ser 'i64', mas recebeu '" + idx_type->str() + "'",
                        expr->token);
         return expr->resolved_type = types.stringType();
     }
@@ -2556,8 +2556,8 @@ TypeRef SemanticAnalyzer::analyzeInterpolation(CallExpr* expr) {
         TypeRef t = analyzeExpr(parte.expr.get());
         if (t->is(TK::Void))
             throwError("'{" + codigo + "}' não tem valor (a expressão é 'void')", parte.expr->token);
-        if (parte.precision >= 0 && !t->is(TK::Int) && !t->is(TK::Decimal))
-            throwError("O formato de casas decimais só vale para int e decimal, mas '" + codigo + "' é '" +
+        if (parte.precision >= 0 && !t->is(TK::I64) && !t->is(TK::F64))
+            throwError("O formato de casas decimais só vale para i64 e f64, mas '" + codigo + "' é '" +
                        t->str() + "'", parte.expr->token);
         fechaTexto();
         expr->interp.push_back(std::move(parte));
@@ -2586,8 +2586,8 @@ TypeRef SemanticAnalyzer::analyzeSlice(SliceExpr* expr) {
     for (const auto& [nome, e] : partes) {
         if (!e) continue;
         TypeRef t = analyzeExpr(e);
-        if (!t->is(TK::Int))
-            throwError(std::string("O ") + nome + " da fatia deve ser 'int', mas recebeu '" + t->str() + "'",
+        if (!t->is(TK::I64))
+            throwError(std::string("O ") + nome + " da fatia deve ser 'i64', mas recebeu '" + t->str() + "'",
                        expr->token);
     }
     return expr->resolved_type = types.stringType();
@@ -2757,7 +2757,7 @@ TypeRef SemanticAnalyzer::analyzeDictLiteral(DictLiteralExpr* expr, TypeRef expe
         TypeRef vt = analyzeExpr(expr->pairs[i].second.get(), V);
 
         // v2.00 #13 / A10: chaves só int, string, bool ou enum
-        if (!kt->is(TK::Int) && !kt->is(TK::String) && !kt->is(TK::Bool) && !kt->is(TK::Enum)) {
+        if (!kt->is(TK::I64) && !kt->is(TK::String) && !kt->is(TK::Bool) && !kt->is(TK::Enum)) {
             throwError("Chave " + std::to_string(i + 1) + " do literal: " + dictKeyMessage(kt),
                        expr->token);
         }
@@ -2868,7 +2868,7 @@ TypeRef SemanticAnalyzer::analyzePairLiteral(PairLiteralExpr* expr, TypeRef expe
 void SemanticAnalyzer::coerceInPlace(ExprPtr& slot, TypeRef target) {
     if (!slot || !target || slot->resolved_type == target) return;
 
-    if (target->is(TK::Decimal) && slot->resolved_type->is(TK::Int)) {
+    if (target->is(TK::F64) && slot->resolved_type->is(TK::I64)) {
         slot = std::make_unique<CastExpr>(std::move(slot), target);
         return;
     }

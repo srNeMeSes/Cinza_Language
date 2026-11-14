@@ -1,6 +1,6 @@
 // A9: string de várias linhas registra a linha de início (a chave repetida começa na linha 6 e termina na 7).
 fn main() {
-  dict<string, int> d = {
+  dict<string, i64> d = {
     {"x
 y", 1},
     {"x

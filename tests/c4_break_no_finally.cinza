@@ -1,10 +1,10 @@
 // C4: break/continue não podem sair de um finally (laço dentro do finally continua valendo).
 fn main() {
-    for (int i in [1, 2]) {
+    for (i64 i in [1, 2]) {
         try {
             print(i);
         } finally {
-            for (int j in [1]) { break; }
+            for (i64 j in [1]) { break; }
             break;
         }
     }

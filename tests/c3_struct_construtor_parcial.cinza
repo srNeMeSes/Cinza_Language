@@ -1,5 +1,5 @@
 // C3: número parcial de argumentos no construtor é erro.
-struct Ponto { int x = 0; int y = 0; int z = 0; }
+struct Ponto { i64 x = 0; i64 y = 0; i64 z = 0; }
 fn main() {
     Ponto p = new Ponto(1, 2);
 }

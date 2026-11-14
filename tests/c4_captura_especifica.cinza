@@ -1,5 +1,5 @@
 // C4: except específico captura o erro do seu tipo; os campos kind/message/line/column existem.
-fn divide(int a, int b) -> int { return a / b; }
+fn divide(i64 a, i64 b) -> i64 { return a / b; }
 fn main() {
     try {
         print(divide(10, 0));

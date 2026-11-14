@@ -62,10 +62,10 @@ const NativeFn* findPrelude(const std::string& name) {
     auto& t = TypeContext::instance();
     static const std::unordered_map<std::string, NativeFn> prelude = {
         {"print", {"print", {t.typeVar("any")}, t.voidType(), nativePrint, 0, true}},
-        {"range", {"range", {t.intType(), t.intType(), t.intType()},
-                   t.list(t.intType()), nativeRange, 2, false}},
+        {"range", {"range", {t.i64Type(), t.i64Type(), t.i64Type()},
+                   t.list(t.i64Type()), nativeRange, 2, false}},
         {"input", {"input", {t.stringType()}, t.stringType(), nativeInput}},
-        {"exit",  {"exit",  {t.intType()}, t.voidType(), nativeExit, NativeFn::SEM_OBRIGATORIOS}},
+        {"exit",  {"exit",  {t.i64Type()}, t.voidType(), nativeExit, NativeFn::SEM_OBRIGATORIOS}},
     };
     auto it = prelude.find(name);
     return it != prelude.end() ? &it->second : nullptr;

@@ -1,4 +1,4 @@
-// A10: decimal não pode ser chave de dict, nem aninhado em parâmetro.
-fn f(list<dict<decimal, string>> l) -> int { return 1; }
+// A10: f64 não pode ser chave de dict, nem aninhado em parâmetro.
+fn f(list<dict<f64, string>> l) -> i64 { return 1; }
 fn main() {}
-// expect-error: Chave de dict não pode ser 'decimal'
+// expect-error: Chave de dict não pode ser 'f64'

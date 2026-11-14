@@ -1,7 +1,7 @@
 // CVM etapa 3: erro de runtime dentro de laço e de chamada, com posição e stack trace.
-fn divide(int a, int b) -> int { return a / b; }
+fn divide(i64 a, i64 b) -> i64 { return a / b; }
 fn main() {
-  int i = 3;
+  i64 i = 3;
   while (i >= 0) {
     print(divide(12, i));
     i -= 1;

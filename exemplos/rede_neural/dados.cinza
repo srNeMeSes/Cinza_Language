@@ -19,8 +19,8 @@ pub error ErroCSV;
 pub struct Tabela {
   list<string> entradas;     // nomes das colunas de entrada
   string alvo = "";          // nome da última coluna
-  list<list<decimal>> x;     // uma linha por amostra
-  list<decimal> y;
+  list<list<f64>> x;     // uma linha por amostra
+  list<f64> y;
 }
 
 // separa uma linha do CSV, tirando espaços e aspas em volta de cada campo
@@ -46,21 +46,21 @@ pub fn ler_csv(string caminho) -> Tabela {
   if (st.contains(cabecalho, ";")) { sep = ";"; }
 
   list<string> nomes = campos(cabecalho, sep);
-  int n = nomes.size();
+  i64 n = nomes.size();
   if (n < 2) { throw ErroCSV(format("'{caminho}': o cabeçalho precisa de pelo menos 2 colunas")); }
 
   Tabela t = new Tabela();
-  for (int j in range(0, n - 1)) { t.entradas.add(nomes[j]); }
+  for (i64 j in range(0, n - 1)) { t.entradas.add(nomes[j]); }
   t.alvo = nomes[n - 1];
 
-  for (int i in range(1, linhas.size())) {
+  for (i64 i in range(1, linhas.size())) {
     if (st.is_empty(st.trim(linhas[i]))) { continue; }
     list<string> cs = campos(linhas[i], sep);
     if (cs.size() != n) {
       throw ErroCSV(format("'{caminho}', linha {i + 1}: esperava {n} colunas, encontrou {cs.size()}"));
     }
-    list<decimal> entrada;
-    for (int j in range(0, n)) {
+    list<f64> entrada;
+    for (i64 j in range(0, n)) {
       string c = cs[j];
       if (sep == ";") { c = st.replace(c, ",", "."); }
       if (!cv.is_decimal(c)) {
@@ -79,11 +79,11 @@ pub fn ler_csv(string caminho) -> Tabela {
 }
 
 // Separa as amostras em treino e teste, embaralhadas (a semente fixa repete a divisão)
-pub fn dividir(Tabela t, decimal fracao_teste, int semente) -> pair<Tabela, Tabela> {
-  list<int> ordem = range(0, t.y.size());
+pub fn dividir(Tabela t, f64 fracao_teste, i64 semente) -> pair<Tabela, Tabela> {
+  list<i64> ordem = range(0, t.y.size());
   Random.seed(semente);
   Random.shuffle(ordem);
-  int n_teste = Math.round(t.y.size() * fracao_teste);
+  i64 n_teste = Math.round(t.y.size() * fracao_teste);
 
   Tabela treino = new Tabela();
   Tabela teste = new Tabela();
@@ -91,8 +91,8 @@ pub fn dividir(Tabela t, decimal fracao_teste, int semente) -> pair<Tabela, Tabe
   teste.entradas = t.entradas;
   treino.alvo = t.alvo;
   teste.alvo = t.alvo;
-  for (int k in range(0, ordem.size())) {
-    int i = ordem[k];
+  for (i64 k in range(0, ordem.size())) {
+    i64 i = ordem[k];
     if (k < n_teste) {
       teste.x.add(t.x[i]);
       teste.y.add(t.y[i]);
@@ -105,7 +105,7 @@ pub fn dividir(Tabela t, decimal fracao_teste, int semente) -> pair<Tabela, Tabe
 }
 
 // 1234567.891 → "R$ 1.234.567,89"
-pub fn reais(decimal v) -> string {
+pub fn reais(f64 v) -> string {
   string s = st.fixed(Math.abs(v), 2);
   list<string> partes = st.split(s, ".");
   string inteiro = partes[0];

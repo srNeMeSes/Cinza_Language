@@ -7,7 +7,7 @@ fn main() {
   print(Math.min(3, 7), Math.max(3, 7), Math.min(1.5, 0.5));
   print(Math.sin(0.0), Math.cos(0.0), Math.log(Math.e));
   print(Math.pi > 3.14159, Math.pi < 3.1416);
-  int f = Math.floor(9.99);
+  i64 f = Math.floor(9.99);
   print(f + 1);
 }
 // expect: 4 true 1024

@@ -14,7 +14,7 @@ fn main() { }
 ```
 
 ```cinza
-int contador = 0;
+i64 contador = 0;
 fn main() { }
 // expect-error: precisa ser 'const': não há variáveis globais mutáveis
 ```
@@ -49,8 +49,8 @@ programa antes da `main`.
 ## 4.3 `const` global
 
 ```
-const int LIMITE = 100;
-const decimal TAXA = LIMITE * 0.5;
+const i64 LIMITE = 100;
+const f64 TAXA = LIMITE * 0.5;
 ```
 
 O valor inicial de um `const` global precisa ser uma **expressão constante**: literais, valores
@@ -59,15 +59,15 @@ de enum, operadores (aritméticos, de comparação e lógicos), parênteses e ou
 permitidos.
 
 ```cinza
-const int A = 2;
-const int B = A * 3;
+const i64 A = 2;
+const i64 B = A * 3;
 fn main() { print(B); }
 // expect: 6
 ```
 
 ```cinza
-const int B = A * 3;
-const int A = 2;
+const i64 B = A * 3;
+const i64 A = 2;
 fn main() { print(B); }
 // expect-error: Variável 'A' não declarada
 ```
@@ -89,11 +89,11 @@ fn nome(tipo1 p1, tipo2 p2) -> tipoRetorno { ... }
   ela.
 
 ```cinza
-fn par(int n) -> bool {
+fn par(i64 n) -> bool {
   if (n == 0) { return true; }
   return impar(n - 1);
 }
-fn impar(int n) -> bool {
+fn impar(i64 n) -> bool {
   if (n == 0) { return false; }
   return par(n - 1);
 }
@@ -102,7 +102,7 @@ fn main() { print(par(10), impar(7)); }
 ```
 
 ```cinza
-fn f() -> int { return 1; }
+fn f() -> i64 { return 1; }
 fn main() { print(f); }
 // expect-error: 'f' é uma função
 ```
@@ -116,9 +116,9 @@ erro. Os parâmetros estão no mesmo escopo do corpo da função.
 
 ```cinza
 fn main() {
-  int x = 1;
+  i64 x = 1;
   if (true) {
-    int x = 2;
+    i64 x = 2;
     print(x);
   }
   print(x);
@@ -166,15 +166,15 @@ campos. Pode ser lido, passado e retornado, mas não reatribuído.
 
 ```cinza
 class Contador {
-  int total = 0;
-  int passo = 1;
+  i64 total = 0;
+  i64 passo = 1;
   pub {
-    Contador(int p) { passo = p; }
+    Contador(i64 p) { passo = p; }
     fn avanca() -> Contador {
       total += passo;
       return self;
     }
-    fn valor() -> int { return total; }
+    fn valor() -> i64 { return total; }
   }
 }
 fn main() {
@@ -185,7 +185,7 @@ fn main() {
 ```
 
 ```cinza
-class A { int x = 1; }
+class A { i64 x = 1; }
 fn main() {
   A a = new A();
   print(a.x);
@@ -196,7 +196,7 @@ fn main() {
 ## 4.7 `struct`
 
 ```
-struct Ponto { int x = 0; int y = 0; }
+struct Ponto { i64 x = 0; i64 y = 0; }
 ```
 
 Um struct só tem campos, todos públicos — não tem métodos, construtor nem `pub`. Cada campo
@@ -213,7 +213,7 @@ Atribuir a um campo de um struct temporário — o resultado de uma chamada ou d
 porque a alteração iria para uma cópia que ninguém vê.
 
 ```cinza
-struct Ponto { int x = 0; int y = 0; }
+struct Ponto { i64 x = 0; i64 y = 0; }
 fn main() {
   Ponto a = new Ponto(1, 2);
   Ponto b = a;
@@ -240,7 +240,7 @@ Um enum declara um tipo com um conjunto fixo de valores. Pelo menos um valor; se
 enum Cor { Vermelho, Verde, Azul }
 fn main() {
   Cor c = Cor.Verde;
-  dict<Cor, int> contagem = {{Cor.Verde, 2}, {Cor.Azul, 1}};
+  dict<Cor, i64> contagem = {{Cor.Verde, 2}, {Cor.Azul, 1}};
   print(c, c == Cor.Verde, contagem[Cor.Verde], type(c));
 }
 // expect: Cor.Verde true 2 Cor
@@ -250,7 +250,7 @@ fn main() {
 
 ```
 interface Forma {
-  fn area() -> decimal;
+  fn area() -> f64;
   fn nome() -> string;
 }
 ```
@@ -308,8 +308,8 @@ por isso o arquivo principal pode ter uma função com o mesmo nome de uma do m�
 Só o que é declarado com `pub` no nível superior é visível para quem importa:
 
 ```
-pub fn soma(int a, int b) -> int { return a + b; }
-fn auxiliar() -> int { return 0; }       // privado do módulo
+pub fn soma(i64 a, i64 b) -> i64 { return a + b; }
+fn auxiliar() -> i64 { return 0; }       // privado do módulo
 ```
 
 `pub` vale antes de `fn`, `class`, `struct`, `enum`, `interface`, `error` e `const`. Usar um nome

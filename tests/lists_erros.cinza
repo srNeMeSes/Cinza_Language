@@ -1,14 +1,14 @@
 // Lists: lista vazia, índice inválido, valor ausente e tamanhos diferentes lançam erro.
 import Lists as L;
 fn main() {
-  list<int> v;
+  list<i64> v;
   try { print(L.min(v)); } except (ValueError e) { print(e.message); }
   try { print(L.max(v)); } except (ValueError e) { print(e.message); }
   try { print(L.average(v)); } except (ValueError e) { print(e.message); }
   try { print(L.first(v)); } except (IndexError e) { print(e.message); }
   try { print(L.last(v)); } except (IndexError e) { print(e.message); }
   try { print(L.pop(v)); } except (IndexError e) { print(e.message); }
-  list<int> l = [1, 2];
+  list<i64> l = [1, 2];
   try { L.insert(l, 3, 0); } except (IndexError e) { print(e.message); }
   try { L.insert(l, -1, 0); } except (IndexError e) { print(e.message); }
   try { L.swap(l, 0, 2); } except (IndexError e) { print(e.message); }
@@ -30,5 +30,5 @@ fn main() {
 // expect: 'remove_value': 5 não está na lista
 // expect: 'sort_by' precisa de uma chave por elemento (lista de tamanho 2, 1 chaves)
 // expect: a quantidade de 'repeat' não pode ser negativa
-// expect: o produto de 'product' não cabe em int
+// expect: o produto de 'product' não cabe em i64
 // expect: [1, 2]

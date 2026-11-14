@@ -9,10 +9,10 @@ fn main() {
   try { print(Convert.to_decimal("1.")); } except (ValueError e) { print(e.message); }
   try { print(Convert.to_bool("sim")); } except (ValueError e) { print(e.kind); }
 }
-// expect: '12a' não é um int válido
-// expect: ' 1' não é um int válido
-// expect: '+-1' não é um int válido
-// expect: '99999999999999999999' está fora do intervalo de int
-// expect: 'abc' não é um decimal válido
-// expect: '1.' não é um decimal válido
+// expect: '12a' não é um i64 válido
+// expect: ' 1' não é um i64 válido
+// expect: '+-1' não é um i64 válido
+// expect: '99999999999999999999' está fora do intervalo de i64
+// expect: 'abc' não é um f64 válido
+// expect: '1.' não é um f64 válido
 // expect: ValueError

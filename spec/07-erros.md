@@ -11,8 +11,8 @@ Os tipos embutidos:
 | `ValueError`         | valor inválido para a operação: `range` com passo 0, `Convert` com texto inválido, `Strings.split`/`replace` com separador vazio, `Math.sqrt`/`log`/`pow` fora do domínio, `Random.int(a, b)` com `a > b` |
 | `IndexError`         | índice de lista negativo ou além do fim, `remove` inválido, `Strings.substr` e `Lists.slice` fora dos limites, `Random.choice` de lista vazia |
 | `KeyError`           | leitura ou atualização (`d[k] = v`) de chave inexistente, `remove` de chave inexistente |
-| `ZeroDivisionError`  | `/` ou `%` por zero (`int` ou `decimal`) |
-| `OverflowError`      | resultado de `int` fora da faixa; resultado de `decimal` infinito; `Math.abs` do menor `int`; `floor`/`ceil`/`round` fora de `int`; `Math.pow` infinito; `Lists.sum` que estoura |
+| `ZeroDivisionError`  | `/` ou `%` por zero (`i64` ou `f64`) |
+| `OverflowError`      | resultado de `i64` fora da faixa; resultado de `f64` infinito; `Math.abs` do menor `i64`; `floor`/`ceil`/`round` fora de `i64`; `Math.pow` infinito; `Lists.sum` que estoura |
 | `IOError`            | fim da entrada em `input`; falha ao abrir, ler ou gravar em `Files` |
 | `StackOverflowError` | mais de 2000 chamadas aninhadas |
 | `TypeError`          | não é lançado pela linguagem (toda conferência de tipo é na compilação); existe para uso com `throw` |
@@ -21,7 +21,7 @@ Novos tipos de erro são declarados com `error Nome;` (seção 4.10) e também s
 
 ```cinza
 error SaldoInsuficiente;
-fn saca(int saldo, int valor) -> int {
+fn saca(i64 saldo, i64 valor) -> i64 {
   if (valor > saldo) { throw SaldoInsuficiente("faltam " + (valor - saldo)); }
   return saldo - valor;
 }
@@ -38,7 +38,7 @@ fn main() {
 ```
 
 ```cinza
-fn r(int n) -> int { return r(n + 1); }
+fn r(i64 n) -> i64 { return r(n + 1); }
 fn main() {
   try { print(r(0)); } except (StackOverflowError e) { print("capturado"); }
 }
@@ -62,7 +62,7 @@ cadeia (`a + b + c ...`) ou instruções umas dentro das outras — é `SyntaxEr
 
 ```cinza
 fn main() {
-  int a = ;
+  i64 a = ;
   print(1;
 }
 // expect-error: SyntaxError: Esperado expressão
@@ -94,9 +94,9 @@ Pilhas muito fundas mostram as 10 chamadas mais internas, uma linha `... (N cham
 a mais externa. Métodos aparecem como `Classe.metodo`, construtores como `new Classe`.
 
 ```cinza
-fn f(list<int> l) -> int { return l[5]; }
+fn f(list<i64> l) -> i64 { return l[5]; }
 fn main() {
-  list<int> l = [1];
+  list<i64> l = [1];
   print(f(l));
 }
 // expect-error: IndexError: índice 5 fora dos limites (tamanho: 1)

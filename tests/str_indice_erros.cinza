@@ -2,7 +2,7 @@
 // passo 0 lança ValueError.
 fn main() {
   string s = "abc";
-  int i = 3;
+  i64 i = 3;
   try { print(s[i]); } except (IndexError e) { print(e.message); }
   try { print(s[-4]); } except (IndexError e) { print(e.message); }
   try { print(s[1:9]); } except (IndexError e) { print(e.message); }
@@ -10,7 +10,7 @@ fn main() {
   try { print(s[-5:]); } except (IndexError e) { print(e.message); }
   try { print(s[3::-1]); } except (IndexError e) { print(e.message); }
   try { print(s[0:2:-1]); } except (IndexError e) { print(e.message); }
-  int zero = 0;
+  i64 zero = 0;
   try { print(s[::zero]); } except (ValueError e) { print(e.message); }
   string v = "";
   try { print(v[0]); } except (IndexError e) { print(e.message); }

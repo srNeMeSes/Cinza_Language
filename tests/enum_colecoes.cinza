@@ -1,10 +1,10 @@
 // enum: em listas, como chave de dict, em struct e const.
 enum Cor { Vermelho, Verde, Azul }
-struct Pixel { Cor cor = Cor.Azul; int brilho = 0; }
+struct Pixel { Cor cor = Cor.Azul; i64 brilho = 0; }
 const Cor PADRAO = Cor.Verde;
 fn main() {
   list<Cor> l = [Cor.Azul, Cor.Vermelho];
-  dict<Cor, int> contagem = {{Cor.Verde, 2}, {Cor.Vermelho, 1}};
+  dict<Cor, i64> contagem = {{Cor.Verde, 2}, {Cor.Vermelho, 1}};
   contagem.add({Cor.Azul, 3});
   print(l, contagem[Cor.Verde], contagem.size());
   print(contagem);

@@ -396,7 +396,7 @@ Flow Executor::executeFor(const ForStmt* stmt) {
     }
 
     // A2: for (decimal x in list<int>) — o iterador recebe o valor convertido
-    const bool to_decimal = stmt->type_iterator->kind == Type::Kind::DECIMAL;
+    const bool to_decimal = stmt->type_iterator->kind == Type::Kind::F64;
 
     for (const Value& elem : elements) {
         if (to_decimal && elem.kind() == Value::Kind::INT)
@@ -473,7 +473,7 @@ Value Executor::callNative(const NativeFn& fn, const CallExpr* expr) {
         // Fase 7: nativa genérica que devolve int onde o tipo é decimal
         // (Lists.sum de uma list<decimal> vazia)
         if (r.kind() == Value::Kind::INT && expr->resolved_type &&
-            expr->resolved_type->is(TypeInfo::Kind::Decimal))
+            expr->resolved_type->is(TypeInfo::Kind::F64))
             r = Value(static_cast<double>(r.asInt()));
         return r;
     } catch (RuntimeError& err) {
@@ -891,7 +891,7 @@ Value Executor::evalPairLiteral(const PairLiteralExpr* expr) {
 // A2: conversão implícita inserida pelo semântico (hoje só int → decimal)
 Value Executor::evalCast(const CastExpr* expr) {
     Value v = evalExpr(expr->operand.get());
-    if (expr->resolved_type->is(TypeInfo::Kind::Decimal) && v.kind() == Value::Kind::INT)
+    if (expr->resolved_type->is(TypeInfo::Kind::F64) && v.kind() == Value::Kind::INT)
         return Value(static_cast<double>(v.asInt()));
     return v;
 }

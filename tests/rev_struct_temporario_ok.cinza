@@ -1,5 +1,5 @@
 // Revisão: alterar struct guardado em variável, lista ou campo continua valendo.
-struct P { int x = 0; }
+struct P { i64 x = 0; }
 struct Q { P p = new P(); }
 fn main() {
   P a = new P();

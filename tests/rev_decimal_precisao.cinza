@@ -1,4 +1,4 @@
-// Revisão: decimal é impresso sem perder dígitos (antes cortava em 6: 123456.789 saía 123457),
+// Revisão: f64 é impresso sem perder dígitos (antes cortava em 6: 123456.789 saía 123457),
 // e Convert.to_string volta ao mesmo número. Valor inteiro continua sem ".0".
 import Math;
 import Convert as cv;
@@ -6,7 +6,7 @@ fn main() {
   print(123456.789, 1234567.5, 4.0, 4.1, 0.5);
   print(Math.pi);
   print(1.0 / 4, 2.0 / 3);
-  decimal x = 1.0 / 3;
+  f64 x = 1.0 / 3;
   print(cv.to_decimal(cv.to_string(x)) == x);
 }
 // expect: 123456.789 1234567.5 4 4.1 0.5

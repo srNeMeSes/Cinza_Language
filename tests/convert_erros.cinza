@@ -18,5 +18,5 @@ fn main() {
 // expect: '0x1f' não é um número válido na base 16
 // expect: '' não é um número válido na base 10
 // expect: '-' não é um número válido na base 10
-// expect: '8000000000000000' está fora do intervalo de int
-// expect: '-8000000000000001' está fora do intervalo de int
+// expect: '8000000000000000' está fora do intervalo de i64
+// expect: '-8000000000000001' está fora do intervalo de i64

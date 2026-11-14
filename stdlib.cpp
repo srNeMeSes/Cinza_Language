@@ -61,7 +61,7 @@ double numero(const Value& v) { return v.asNumber(); }
 Value decimalParaInt(double d, const char* fn) {
     // 2^63 é o primeiro double fora da faixa (int64 vai até 2^63 - 1)
     if (!std::isfinite(d) || d < -9223372036854775808.0 || d >= 9223372036854775808.0)
-        falha(std::string("OverflowError: resultado de '") + fn + "' fora do intervalo de int");
+        falha(std::string("OverflowError: resultado de '") + fn + "' fora do intervalo de i64");
     return Value(static_cast<std::int64_t>(d));
 }
 
@@ -700,7 +700,7 @@ Value mathAbs(Args a) {
     if (a[0].kind() == Value::Kind::INT) {
         const std::int64_t v = a[0].asInt();
         if (v == std::numeric_limits<std::int64_t>::min())
-            falha("OverflowError: 'abs' do menor int não cabe em int");
+            falha("OverflowError: 'abs' do menor i64 não cabe em i64");
         return Value(v < 0 ? -v : v);
     }
     return Value(std::fabs(a[0].asDecimal()));
@@ -835,7 +835,7 @@ std::uint64_t mdcU(std::uint64_t x, std::uint64_t y) {
 Value mathGcd(Args a) {
     const std::uint64_t g = mdcU(magnitude(a[0].asInt()), magnitude(a[1].asInt()));
     if (g > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()))
-        falha("OverflowError: resultado de 'gcd' fora do intervalo de int");
+        falha("OverflowError: resultado de 'gcd' fora do intervalo de i64");
     return Value(static_cast<std::int64_t>(g));
 }
 
@@ -846,7 +846,7 @@ Value mathLcm(Args a) {
     std::uint64_t r;
     if (__builtin_mul_overflow(x / mdcU(x, y), y, &r) ||
         r > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()))
-        falha("OverflowError: resultado de 'lcm' fora do intervalo de int");
+        falha("OverflowError: resultado de 'lcm' fora do intervalo de i64");
     return Value(static_cast<std::int64_t>(r));
 }
 
@@ -872,7 +872,7 @@ Value mathClamp(Args a) {
 Value mathFactorial(Args a) {
     const std::int64_t n = a[0].asInt();
     if (n < 0)  falha("ValueError: 'factorial' de número negativo");
-    if (n > 20) falha("OverflowError: 'factorial(" + std::to_string(n) + ")' não cabe em int (o máximo é 20)");
+    if (n > 20) falha("OverflowError: 'factorial(" + std::to_string(n) + ")' não cabe em i64 (o máximo é 20)");
     std::int64_t r = 1;
     for (std::int64_t i = 2; i <= n; ++i) r *= i;
     return Value(r);
@@ -1091,8 +1091,8 @@ Value convToInt(Args a) {
     const std::string& s = a[0].asString();
     std::int64_t v = 0;
     switch (lerInt(s, v)) {
-        case Leitura::invalido: falha("ValueError: '" + s + "' não é um int válido");
-        case Leitura::fora:     falha("ValueError: '" + s + "' está fora do intervalo de int");
+        case Leitura::invalido: falha("ValueError: '" + s + "' não é um i64 válido");
+        case Leitura::fora:     falha("ValueError: '" + s + "' está fora do intervalo de i64");
         case Leitura::ok:       break;
     }
     return Value(v);
@@ -1102,8 +1102,8 @@ Value convToDecimal(Args a) {
     const std::string& s = a[0].asString();
     double v = 0;
     switch (lerDecimal(s, v)) {
-        case Leitura::invalido: falha("ValueError: '" + s + "' não é um decimal válido");
-        case Leitura::fora:     falha("ValueError: '" + s + "' está fora do intervalo de decimal");
+        case Leitura::invalido: falha("ValueError: '" + s + "' não é um f64 válido");
+        case Leitura::fora:     falha("ValueError: '" + s + "' está fora do intervalo de f64");
         case Leitura::ok:       break;
     }
     return Value(v);
@@ -1183,7 +1183,7 @@ Value convFromBase(Args a) {
         else falha(invalido);
         if (d >= base) falha(invalido);
         if (__builtin_mul_overflow(m, base, &m) || __builtin_add_overflow(m, d, &m) || m > limite)
-            falha("ValueError: '" + s + "' está fora do intervalo de int");
+            falha("ValueError: '" + s + "' está fora do intervalo de i64");
     }
     return Value(negativo ? static_cast<std::int64_t>(std::uint64_t{0} - m) : static_cast<std::int64_t>(m));
 }
@@ -1241,13 +1241,13 @@ Value listSum(Args a) {
     if (!elems.empty() && elems[0].kind() == Value::Kind::DECIMAL) {
         double total = 0;
         for (const auto& v : elems) total += v.asDecimal();
-        if (!std::isfinite(total)) falha("OverflowError: a soma de 'sum' excede a faixa de decimal");
+        if (!std::isfinite(total)) falha("OverflowError: a soma de 'sum' excede a faixa de f64");
         return Value(total);
     }
     std::int64_t total = 0;
     for (const auto& v : elems)
         if (__builtin_add_overflow(total, v.asInt(), &total))
-            falha("OverflowError: a soma de 'sum' não cabe em int");
+            falha("OverflowError: a soma de 'sum' não cabe em i64");
     return Value(total);
 }
 
@@ -1320,13 +1320,13 @@ Value listProduct(Args a) {
     if (!elems.empty() && elems[0].kind() == Value::Kind::DECIMAL) {
         double total = 1;
         for (const auto& v : elems) total *= v.asDecimal();
-        if (!std::isfinite(total)) falha("OverflowError: o produto de 'product' excede a faixa de decimal");
+        if (!std::isfinite(total)) falha("OverflowError: o produto de 'product' excede a faixa de f64");
         return Value(total);
     }
     std::int64_t total = 1;
     for (const auto& v : elems)
         if (__builtin_mul_overflow(total, v.asInt(), &total))
-            falha("OverflowError: o produto de 'product' não cabe em int");
+            falha("OverflowError: o produto de 'product' não cabe em i64");
     return Value(total);
 }
 
@@ -1683,7 +1683,7 @@ Value timeParseUtc(Args a) { return Value(interpreta(a[0].asString(), a[1].asStr
 Value somaTempo(Args a, std::int64_t unidade, const char* fn) {
     std::int64_t r;
     if (__builtin_mul_overflow(a[1].asInt(), unidade, &r) || __builtin_add_overflow(a[0].asInt(), r, &r))
-        falha(std::string("OverflowError: resultado de '") + fn + "' fora do intervalo de int");
+        falha(std::string("OverflowError: resultado de '") + fn + "' fora do intervalo de i64");
     return Value(r);
 }
 Value timeAddDays(Args a)    { return somaTempo(a, DIA, "add_days"); }
@@ -1716,7 +1716,7 @@ Value filesModified(Args a) {
 
 std::vector<NativeModule> criaModulos() {
     auto& t = TypeContext::instance();
-    const TypeRef I = t.intType(), D = t.decimalType(), S = t.stringType(),
+    const TypeRef I = t.i64Type(), D = t.f64Type(), S = t.stringType(),
                   B = t.boolType(), V = t.voidType();
     const TypeRef T   = t.typeVar("T");
     const TypeRef N   = t.typeVar("número");

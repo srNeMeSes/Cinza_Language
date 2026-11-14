@@ -16,9 +16,9 @@ import Convert as cv;
 import Files;
 import Strings as st;
 
-const int SEMENTE = 42;
-const int LOTE = 32;
-const decimal TAXA = 0.003;
+const i64 SEMENTE = 42;
+const i64 LOTE = 32;
+const f64 TAXA = 0.003;
 
 fn main(list<string> args) {
   try {
@@ -44,7 +44,7 @@ fn falha(string msg) {
 fn executa(list<string> args) {
   string csv = "casas.csv";
   string arquivo = "modelo.czr";
-  int epocas = 300;
+  i64 epocas = 300;
   if (args.size() > 0) { csv = args[0]; }
   if (args.size() > 1) { arquivo = args[1]; }
   if (args.size() > 2) { epocas = cv.to_int(args[2]); }
@@ -65,9 +65,9 @@ fn executa(list<string> args) {
   printf("rede: {modelo.arquitetura()}  |  {epocas} épocas, lotes de {LOTE}, Adam (taxa {TAXA})");
   print();
 
-  int t0 = Time.clock();
+  i64 t0 = Time.clock();
   modelo.treinar(treino.x, treino.y, epocas, LOTE, TAXA, Math.max(1, epocas / 10));
-  decimal segundos = (Time.clock() - t0) / 1000.0;
+  f64 segundos = (Time.clock() - t0) / 1000.0;
   printf("treino concluído em {segundos:.1f} s");
   print();
 
@@ -79,9 +79,9 @@ fn executa(list<string> args) {
   list<string> titulo;
   for (string n in tudo.entradas) { titulo.add(st.pad_left(n, 15)); }
   print(st.join(titulo, ""), st.pad_left("real", 18), st.pad_left("previsto", 18));
-  for (int i in range(0, Math.min(8, teste.y.size()))) {
+  for (i64 i in range(0, Math.min(8, teste.y.size()))) {
     list<string> celulas;
-    for (decimal v in teste.x[i]) { celulas.add(st.pad_left(cv.to_string(v), 15)); }
+    for (f64 v in teste.x[i]) { celulas.add(st.pad_left(cv.to_string(v), 15)); }
     print(st.join(celulas, ""), st.pad_left(dados.reais(teste.y[i]), 18), st.pad_left(dados.reais(modelo.prever(teste.x[i])), 18));
   }
   print();
@@ -91,27 +91,27 @@ fn executa(list<string> args) {
 
   // confere: o modelo relido do disco precisa prever exatamente o mesmo
   mlp.Modelo relido = mlp.carregar(arquivo);
-  int iguais = 0;
-  for (list<decimal> x in teste.x) {
+  i64 iguais = 0;
+  for (list<f64> x in teste.x) {
     if (relido.prever(x) == modelo.prever(x)) { iguais += 1; }
   }
   printf("relido do arquivo: {iguais} de {teste.x.size()} previsões idênticas às da rede em memória");
 }
 
 fn avaliar(string nome, mlp.Modelo modelo, dados.Tabela t) {
-  decimal soma_abs = 0.0;
-  decimal soma_q = 0.0;
-  decimal soma_q_media = 0.0;
-  decimal media = 0.0;
-  for (decimal v in t.y) { media += v; }
+  f64 soma_abs = 0.0;
+  f64 soma_q = 0.0;
+  f64 soma_q_media = 0.0;
+  f64 media = 0.0;
+  for (f64 v in t.y) { media += v; }
   media = media / t.y.size();
-  for (int i in range(0, t.y.size())) {
-    decimal erro = modelo.prever(t.x[i]) - t.y[i];
+  for (i64 i in range(0, t.y.size())) {
+    f64 erro = modelo.prever(t.x[i]) - t.y[i];
     soma_abs += Math.abs(erro);
     soma_q += erro * erro;
     soma_q_media += (t.y[i] - media) * (t.y[i] - media);
   }
-  int n = t.y.size();
+  i64 n = t.y.size();
   // R² compara com "sempre prever a média"; com todos os valores iguais, não há o que comparar
   string r2 = "indefinido (todos os valores iguais)";
   if (soma_q_media > 0.0) { r2 = st.fixed(1.0 - soma_q / soma_q_media, 4); }

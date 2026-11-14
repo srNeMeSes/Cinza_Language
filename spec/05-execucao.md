@@ -4,7 +4,7 @@
 
 | Tipo                                              | Na atribuição, argumento e retorno |
 |---------------------------------------------------|------------------------------------|
-| `int`, `decimal`, `string`, `bool`, enum, `type`  | copiado                            |
+| `i64`, `f64`, `string`, `bool`, enum, `type`  | copiado                            |
 | `pair<A, B>`                                      | copiado (e imutável)               |
 | `struct`                                          | copiado — **cópia rasa**           |
 | `list<T>`, `dict<K, V>`                           | compartilhado (mesma coleção)      |
@@ -16,9 +16,9 @@ continua apontando para a mesma coleção ou objeto. Um struct guardado numa lis
 é alterado no lugar (`l[0].x = 1`, `q.p.x = 1`).
 
 ```cinza
-struct P { int x = 0; list<int> l; }
+struct P { i64 x = 0; list<i64> l; }
 fn main() {
-  list<int> compartilhada = [1];
+  list<i64> compartilhada = [1];
   P a = new P(1, compartilhada);
   P b = a;
   b.x = 2;
@@ -40,8 +40,8 @@ fn main() {
   a gravação lança o erro correspondente (`IndexError`, `KeyError`).
 
 ```cinza
-struct P { int x = 1; int y = 0; }
-fn g(list<P> l) -> int {
+struct P { i64 x = 1; i64 y = 0; }
+fn g(list<P> l) -> i64 {
   l[0].y = 7;
   l[0].x = 100;
   return 5;
@@ -55,12 +55,12 @@ fn main() {
 ```
 
 ```cinza
-fn mostra(int n) -> int {
+fn mostra(i64 n) -> i64 {
   print(n);
   return n;
 }
 fn main() {
-  list<int> l = [0, 0, 0];
+  list<i64> l = [0, 0, 0];
   l[mostra(1)] = mostra(2);
   print(mostra(3) + mostra(4));
   print(false && mostra(5) == 5);
@@ -77,18 +77,18 @@ fn main() {
 
 ### Aritméticos: `+ - * / %`
 
-- `int` com `int` dá `int`; se algum lado é `decimal`, o outro é convertido e o resultado é
-  `decimal`.
+- `i64` com `i64` dá `i64`; se algum lado é `f64`, o outro é convertido e o resultado é
+  `f64`.
 - `/` entre inteiros **trunca em direção a zero** (`-7 / 2` é `-3`); o sinal de `%` segue o
   dividendo (`-7 % 2` é `-1`). Entre decimais, `%` é o resto de ponto flutuante (`7.5 % 2` é
   `1.5`).
-- Divisão ou resto por zero (`int` ou `decimal`) lança `ZeroDivisionError`.
-- Resultado de `int` fora da faixa (inclusive `-x` e `x / -1` com o menor `int`) lança
-  `OverflowError`. Resultado de `decimal` infinito também lança `OverflowError`. Já `x % -1` é
-  sempre `0`, que cabe na faixa — inclusive com o menor `int`.
+- Divisão ou resto por zero (`i64` ou `f64`) lança `ZeroDivisionError`.
+- Resultado de `i64` fora da faixa (inclusive `-x` e `x / -1` com o menor `i64`) lança
+  `OverflowError`. Resultado de `f64` infinito também lança `OverflowError`. Já `x % -1` é
+  sempre `0`, que cabe na faixa — inclusive com o menor `i64`.
 - `-` unário vale para números; `+` também concatena textos (abaixo).
 
-A divisão entre inteiros acontece antes de qualquer conversão: `decimal x = 7 / 2;` guarda `3`.
+A divisão entre inteiros acontece antes de qualquer conversão: `f64 x = 7 / 2;` guarda `3`.
 
 ```cinza
 fn main() {
@@ -99,7 +99,7 @@ fn main() {
 
 ```cinza
 fn main() {
-  int grande = 9223372036854775807;
+  i64 grande = 9223372036854775807;
   try { grande += 1; } except (OverflowError e) { print(e.kind); }
   try { print(1 / 0); } except (ZeroDivisionError e) { print(e.message); }
 }
@@ -121,7 +121,7 @@ fn main() {
 
 ### Comparação: `< <= > >=`
 
-Entre números (`int` e `decimal` podem se misturar) ou entre textos (ordem lexicográfica dos
+Entre números (`i64` e `f64` podem se misturar) ou entre textos (ordem lexicográfica dos
 bytes UTF-8, ou seja, dos code points). Outros tipos não se comparam por ordem.
 
 ### Igualdade: `== !=`
@@ -141,7 +141,7 @@ Só sobre `bool`.
 ### Atribuição composta: `+= -= *= /= %=`
 
 `a op= b` equivale a `a = a op b` com `a` avaliado uma vez. O resultado precisa caber no tipo de
-`a`: `int x; x += 1.5;` é erro, porque `int + decimal` dá `decimal`.
+`a`: `i64 x; x += 1.5;` é erro, porque `i64 + f64` dá `f64`.
 
 ## 5.4 Forma textual dos valores
 
@@ -149,8 +149,8 @@ Só sobre `bool`.
 
 | Valor          | Forma                                                                  |
 |----------------|------------------------------------------------------------------------|
-| `int`          | dígitos decimais: `-42`                                                |
-| `decimal`      | a menor forma que volta ao mesmo número: `3.14`, `0.1`; valor inteiro sem `.0` (`4`); muito grande ou muito pequeno em notação científica (`1e+24`) |
+| `i64`          | dígitos decimais: `-42`                                                |
+| `f64`      | a menor forma que volta ao mesmo número: `3.14`, `0.1`; valor inteiro sem `.0` (`4`); muito grande ou muito pequeno em notação científica (`1e+24`) |
 | `string`       | o próprio texto (dentro de coleções, entre aspas)                     |
 | `bool`         | `true`, `false`                                                        |
 | `list`         | `[1, 2]`, `["a", "b"]`                                                 |
@@ -160,10 +160,10 @@ Só sobre `bool`.
 | objeto         | `<Pessoa object>`                                                      |
 | erro           | `ValueError: mensagem`                                                 |
 | enum           | `Cor.Verde`                                                            |
-| tipo           | `int`, `list<int>`, `Ponto`                                            |
+| tipo           | `i64`, `list<i64>`, `Ponto`                                            |
 
 ```cinza
-struct Ponto { int x = 0; int y = 0; }
+struct Ponto { i64 x = 0; i64 y = 0; }
 fn main() {
   print(123456.789, 4.0, 1.0 / 4, [1, 2], ["a"], {{"b", 2}, {"a", 1}}, {1, "x"}, new Ponto(1, 2));
 }
@@ -198,8 +198,8 @@ list_de_int)` converte cada elemento.
 
 ```cinza
 fn main() {
-  list<int> l = [1, 2];
-  for (int v in l) { l.add(v * 10); }
+  list<i64> l = [1, 2];
+  for (i64 v in l) { l.add(v * 10); }
   print(l);
   for (string c in "ação") { print(c); }
 }
@@ -228,7 +228,7 @@ Uma instrução depois de outra que **sempre sai do bloco** é erro de compilaç
 `while (true)` sem `break` e um `try` com o bloco e todos os `except` saindo.
 
 ```cinza
-fn f() -> int {
+fn f() -> i64 {
   return 1;
   print("nunca");
 }
@@ -263,7 +263,7 @@ finally { ... }
 - `return`, `break` e `continue` não podem sair de um `finally`.
 
 ```cinza
-fn divide(int a, int b) -> int {
+fn divide(i64 a, i64 b) -> i64 {
   try {
     return a / b;
   } except (ZeroDivisionError e) {
@@ -286,7 +286,7 @@ fn main() {
 
 ### Campos de um erro
 
-`e.kind` (tipo, `string`), `e.message` (`string`), `e.line` e `e.column` (`int`, a posição onde
+`e.kind` (tipo, `string`), `e.message` (`string`), `e.line` e `e.column` (`i64`, a posição onde
 o erro surgiu). São somente leitura.
 
 ### Erro não capturado
@@ -296,7 +296,7 @@ Termina o programa com código 1 e mostra o erro no formato do capítulo 7, segu
 
 ## 5.7 Coleções em execução
 
-- Índice de `list` é `int`. Um literal negativo como índice é erro de compilação; um índice
+- Índice de `list` é `i64`. Um literal negativo como índice é erro de compilação; um índice
   negativo ou além do fim, em runtime, lança `IndexError`.
 - Ler `d[k]` com uma chave que não existe lança `KeyError`. `d[k] = v` **só atualiza** uma chave
   existente (com chave nova, `KeyError`); para inserir, use `d.add({k, v})`, que também substitui
@@ -304,7 +304,7 @@ Termina o programa com código 1 e mostra o erro no formato do capítulo 7, segu
 
 | `list<T>`          | Efeito                                                      |
 |--------------------|-------------------------------------------------------------|
-| `l.size()`         | número de elementos (`int`)                                 |
+| `l.size()`         | número de elementos (`i64`)                                 |
 | `l.add(x)`         | acrescenta `x` ao fim                                       |
 | `l.remove(i)`      | remove o elemento do índice `i` (`IndexError` se inválido)  |
 | `l.has(i)`         | `true` se `i` é um índice válido                            |
@@ -339,7 +339,7 @@ As demais funções de texto e de lista estão nos módulos `Strings` e `Lists` 
 
 ```cinza
 fn main() {
-  dict<string, int> d = {{"a", 1}};
+  dict<string, i64> d = {{"a", 1}};
   d.add({"b", 2});
   d["a"] = 10;
   print(d, d.keys(), "ação".size());

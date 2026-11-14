@@ -1,5 +1,5 @@
 // C3: campo que não existe no struct.
-struct Ponto { int x = 0; }
+struct Ponto { i64 x = 0; }
 fn main() {
     Ponto p = new Ponto();
     print(p.z);

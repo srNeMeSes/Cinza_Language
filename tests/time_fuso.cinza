@@ -4,13 +4,13 @@
 import Time;
 import Files;
 fn main() {
-  int t = Time.make_utc(2026, 10, 3, 18, 0, 0);
+  i64 t = Time.make_utc(2026, 10, 3, 18, 0, 0);
   print(Time.format(t, "dd/MM/yyyy HH:mm"), Time.hour(t), Time.day(t), Time.weekday(t), Time.weekday_utc(t));
   print(Time.make(2026, 10, 4, 3) == t, Time.parse("04/10/2026 03:00", "dd/MM/yyyy HH:mm") == t);
   print(Time.days_between(Time.make_utc(2026, 10, 3, 14), Time.make_utc(2026, 10, 3, 16)));
   str a = "tests/_tmp_time_fuso.txt";
   Files.write(a, "x");
-  int dif = Files.modified(a) - Time.now();
+  i64 dif = Files.modified(a) - Time.now();
   print(dif > -5 && dif < 5);
   Files.delete(a);
 }

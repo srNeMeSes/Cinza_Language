@@ -1,5 +1,5 @@
 // C3: == compara struct campo a campo (inclusive structs aninhados).
-struct Ponto { int x = 0; int y = 0; }
+struct Ponto { i64 x = 0; i64 y = 0; }
 struct Linha { Ponto a = new Ponto(); Ponto b = new Ponto(); }
 fn main() {
     Ponto p = new Ponto(1, 2);

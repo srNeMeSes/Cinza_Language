@@ -1,0 +1,5 @@
+// 'decimal' foi substituído por f32/f64 (seção K): o erro explica a troca, também em parâmetro.
+fn metade(decimal x) -> decimal { return x / 2; }
+fn main() { }
+// expect-error: O tipo 'decimal' não existe mais: use f32 (32 bits) ou f64 (64 bits)
+// expect-not: Esperado

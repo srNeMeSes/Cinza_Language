@@ -1,6 +1,6 @@
 // C5: o arquivo principal pode ter um nome igual ao de um módulo importado, sem conflito.
 import modulos.geom;
-fn area(int l) -> int { return 100 + l; }
-const int LADO = 50;
+fn area(i64 l) -> i64 { return 100 + l; }
+const i64 LADO = 50;
 fn main() { print(area(1), geom.area(3), LADO, geom.LADO); }
 // expect: 101 9 50 3

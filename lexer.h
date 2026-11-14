@@ -50,8 +50,9 @@ enum class TokenType {
     KW_SELF,           // self — o objeto atual dentro de métodos (A10/B5)
 
     // Tipos
-    TYPE_INT,
-    TYPE_DECIMAL,      // Sinônimo de double
+    TYPE_I64,          // inteiro de 64 bits
+    TYPE_F64,          // ponto flutuante de 64 bits
+    TYPE_REMOVED,      // 'int' e 'decimal': tipos substituídos (o parser explica)
     TYPE_STRING,
     TYPE_BOOL,
     TYPE_VOID,

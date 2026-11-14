@@ -21,26 +21,26 @@ int main() {
     auto& t = TypeContext::instance();
 
     // Hash-consing: tipos estruturalmente iguais são o mesmo ponteiro
-    CHECK(t.intType() == t.intType());
-    CHECK(t.list(t.intType()) == t.list(t.intType()));
-    CHECK(t.dict(t.stringType(), t.list(t.decimalType())) ==
-          t.dict(t.stringType(), t.list(t.decimalType())));
+    CHECK(t.i64Type() == t.i64Type());
+    CHECK(t.list(t.i64Type()) == t.list(t.i64Type()));
+    CHECK(t.dict(t.stringType(), t.list(t.f64Type())) ==
+          t.dict(t.stringType(), t.list(t.f64Type())));
     CHECK(t.classType("Pessoa") == t.classType("Pessoa"));
 
     // ...e tipos diferentes são ponteiros diferentes
-    CHECK(t.list(t.intType()) != t.list(t.decimalType()));
-    CHECK(t.pair(t.intType(), t.stringType()) != t.pair(t.stringType(), t.intType()));
+    CHECK(t.list(t.i64Type()) != t.list(t.f64Type()));
+    CHECK(t.pair(t.i64Type(), t.stringType()) != t.pair(t.stringType(), t.i64Type()));
     CHECK(t.classType("A") != t.classType("B"));
 
-    // Forma canônica igual à antiga representação em string (mensagens de erro)
-    CHECK(t.list(t.intType())->str() == "list<int>");
-    CHECK(t.dict(t.stringType(), t.list(t.decimalType()))->str() == "dict<string, list<decimal>>");
+    // Forma canônica (a mesma das mensagens de erro)
+    CHECK(t.list(t.i64Type())->str() == "list<i64>");
+    CHECK(t.dict(t.stringType(), t.list(t.f64Type()))->str() == "dict<string, list<f64>>");
     CHECK(t.pair(t.boolType(), t.classType("Pessoa"))->str() == "pair<bool, Pessoa>");
     CHECK(t.list(t.varType())->str() == "list<var>");
 
     // Parâmetros acessados direto, sem parsing de texto
-    TypeRef d = t.dict(t.stringType(), t.intType());
-    CHECK(d->key() == t.stringType() && d->value() == t.intType());
+    TypeRef d = t.dict(t.stringType(), t.i64Type());
+    CHECK(d->key() == t.stringType() && d->value() == t.i64Type());
     CHECK(t.list(t.boolType())->elem() == t.boolType());
 
     // tipo dos valores de type()

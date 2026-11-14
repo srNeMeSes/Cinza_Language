@@ -1,3 +1,3 @@
 // Módulo auxiliar: ciclo a → b → a.
 import ciclo_b;
-pub fn fa() -> int { return 1; }
+pub fn fa() -> i64 { return 1; }

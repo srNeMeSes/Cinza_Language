@@ -1,7 +1,7 @@
 // C3: struct não tem métodos nem bloco pub.
 struct S {
-    int x = 0;
-    fn f() -> int { return x; }
+    i64 x = 0;
+    fn f() -> i64 { return x; }
 }
 fn main() {}
 // expect-error: só pode ter campos

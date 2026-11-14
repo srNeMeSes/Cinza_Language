@@ -1,6 +1,6 @@
 // A5: overflow de multiplicação gera OverflowError.
 fn main() {
-  int m = 4611686018427387904;
+  i64 m = 4611686018427387904;
   print(m * 2);
 }
 // expect-error: OverflowError

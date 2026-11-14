@@ -1,9 +1,9 @@
 // C4: except (Error e) captura qualquer erro de runtime (índice, chave, overflow, pilha, range).
-fn infinita(int n) -> int { return infinita(n + 1); }
+fn infinita(i64 n) -> i64 { return infinita(n + 1); }
 fn main() {
-    list<int> l = [1];
-    dict<string, int> d = {{"a", 1}};
-    int big = 9223372036854775807;
+    list<i64> l = [1];
+    dict<string, i64> d = {{"a", 1}};
+    i64 big = 9223372036854775807;
     try { print(l[5]); } except (Error e) { print(e.kind); }
     try { print(d["x"]); } except (Error e) { print(e.kind); }
     try { big += 1; } except (Error e) { print(e.kind); }
@@ -12,7 +12,7 @@ fn main() {
     try { d["nova"] = 2; } except (KeyError e) { print(e.kind); }
     print(infinita2());
 }
-fn infinita2() -> int { return 7; }
+fn infinita2() -> i64 { return 7; }
 // expect: IndexError
 // expect: KeyError
 // expect: OverflowError

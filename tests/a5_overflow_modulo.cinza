@@ -1,10 +1,10 @@
-// A5 (revisto em 2026-10-03): x % -1 é sempre 0, que cabe em int — inclusive INT_MIN % -1, que
+// A5 (revisto em 2026-10-03): x % -1 é sempre 0, que cabe em i64 — inclusive INT_MIN % -1, que
 // antes lançava OverflowError. Pelos três caminhos da CVM: registrador, constante embutida e %=.
 fn main() {
-  int m = -9223372036854775807 - 1;
-  int menos_um = -1;
+  i64 m = -9223372036854775807 - 1;
+  i64 menos_um = -1;
   print(m % -1, m % menos_um, 7 % -1, -7 % menos_um);
-  int x = m;
+  i64 x = m;
   x %= -1;
   print(x);
   try { print(m / -1); } except (OverflowError e) { print(e.kind); }

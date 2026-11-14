@@ -7,11 +7,11 @@ namespace cinza {
 // TYPE IMPLEMENTATION
 // ============================================================================
 
-// r: int, string, decimal, bool, list<T>, dict<K,V>, pair<F,S> ...  
+// r: i64, string, f64, bool, list<T>, dict<K,V>, pair<F,S> ...
 std::string Type::toString() const { 
     switch (kind) {
-        case Kind::INT: return "int";
-        case Kind::DECIMAL: return "decimal";
+        case Kind::I64: return "i64";
+        case Kind::F64: return "f64";
         case Kind::STRING: return "string";
         case Kind::BOOL: return "bool";
         case Kind::VOID: return "void";
@@ -45,7 +45,7 @@ std::string Type::toString() const {
 }
 
 bool Type::isNumeric() const {
-    return kind == Kind::INT || kind == Kind::DECIMAL;
+    return kind == Kind::I64 || kind == Kind::F64;
 }
 
 bool Type::isComparable() const {

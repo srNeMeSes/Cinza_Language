@@ -1,6 +1,6 @@
-// A3: dict<string, int> não pode ser atribuído a dict<string, decimal>. Falhava antes (era aceito).
+// A3: dict<string, i64> não pode ser atribuído a dict<string, f64>. Falhava antes (era aceito).
 fn main() {
-  dict<string, int> a = {{"x", 1}};
-  dict<string, decimal> b = a;
+  dict<string, i64> a = {{"x", 1}};
+  dict<string, f64> b = a;
 }
 // expect-error: incompatível

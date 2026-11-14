@@ -4,7 +4,7 @@ class No {
   list<No> vizinhos;
   pub {
     fn liga(No o) { vizinhos.add(o); }
-    fn grau() -> int { return vizinhos.size(); }
+    fn grau() -> i64 { return vizinhos.size(); }
   }
 }
 fn cria() {
@@ -14,7 +14,7 @@ fn cria() {
   b.liga(a);
 }
 fn main() {
-  for (int i in range(0, 1000)) { cria(); }
+  for (i64 i in range(0, 1000)) { cria(); }
   print("ok");
 }
 // expect: ok

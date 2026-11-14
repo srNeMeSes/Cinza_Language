@@ -1,0 +1,7 @@
+// 'int' foi substituído por i32/i64 (seção K): o erro explica a troca, uma vez, sem cascata.
+fn main() {
+  int x = 1;
+  print(x);
+}
+// expect-error: O tipo 'int' não existe mais: use i32 (32 bits) ou i64 (64 bits)
+// expect-not: Esperado

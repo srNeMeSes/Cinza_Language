@@ -39,8 +39,11 @@ const std::unordered_map<std::string, TokenType> Lexer::keywords = {
     {"not", TokenType::OP_NOT},
 
     // Tipos
-    {"int", TokenType::TYPE_INT},
-    {"decimal", TokenType::TYPE_DECIMAL},
+    {"i64", TokenType::TYPE_I64},
+    {"f64", TokenType::TYPE_F64},
+    // reservadas só para explicar a troca (seção K): int → i32/i64, decimal → f32/f64
+    {"int",     TokenType::TYPE_REMOVED},
+    {"decimal", TokenType::TYPE_REMOVED},
     {"string", TokenType::TYPE_STRING},
     {"str", TokenType::TYPE_STRING},
     {"bool", TokenType::TYPE_BOOL},
@@ -204,7 +207,7 @@ Token Lexer::number() {
         double v = 0.0;
         auto [ptr, ec] = std::from_chars(first, last, v);
         if (ec != std::errc() || ptr != last)
-            return errorToken("Literal decimal '" + token.lexeme + "' fora do intervalo de decimal");
+            return errorToken("Literal f64 '" + token.lexeme + "' fora do intervalo de f64");
         token.value.double_value = v;
         return token;
     }
@@ -214,7 +217,7 @@ Token Lexer::number() {
     std::uint64_t v = 0;
     auto [ptr, ec] = std::from_chars(first, last, v);
     if (ec != std::errc() || ptr != last || v > max_int + 1)
-        return errorToken("Literal inteiro '" + token.lexeme + "' fora do intervalo de int "
+        return errorToken("Literal inteiro '" + token.lexeme + "' fora do intervalo de i64 "
                           "(-9223372036854775808 a 9223372036854775807)");
 
     if (v == max_int + 1) {

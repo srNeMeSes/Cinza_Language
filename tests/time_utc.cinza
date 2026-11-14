@@ -1,7 +1,7 @@
 // Time em UTC: valores exatos (conferidos com o calendário do Python), em toda a faixa de anos 1 a 9999.
 import Time;
 fn main() {
-  int t = Time.make_utc(2026, 10, 3, 14, 30, 0);
+  i64 t = Time.make_utc(2026, 10, 3, 14, 30, 0);
   print(t, Time.make_utc(2000, 2, 29), Time.make_utc(1, 1, 1), Time.make_utc(9999, 12, 31, 23, 59, 59));
   print(Time.make_utc(1969, 12, 31, 23, 59, 59), Time.make_utc(1970, 1, 1), Time.make_utc(2026, 10, 3, 14));
   print(Time.year_utc(t), Time.month_utc(t), Time.day_utc(t), Time.hour_utc(t), Time.minute_utc(t), Time.second_utc(t));

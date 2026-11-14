@@ -1,5 +1,5 @@
 // C3: l[0].x = v altera o struct dentro da lista; o iterador do for é uma cópia.
-struct Ponto { int x = 0; int y = 0; }
+struct Ponto { i64 x = 0; i64 y = 0; }
 fn main() {
     list<Ponto> l = [new Ponto(1, 2), new Ponto(3, 4)];
     l[0].x = 10;

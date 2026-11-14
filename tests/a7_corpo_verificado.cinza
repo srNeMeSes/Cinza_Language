@@ -1,5 +1,5 @@
 // A7: o corpo de uma função é verificado na declaração, mesmo sem chamada, sem ver locais do chamador.
-fn g(int x) -> int { return x + segredo; }
-fn h() -> int { int segredo = 42; return g(1); }
+fn g(i64 x) -> i64 { return x + segredo; }
+fn h() -> i64 { i64 segredo = 42; return g(1); }
 fn main() {}
 // expect-error: Variável 'segredo' não declarada

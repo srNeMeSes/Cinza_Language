@@ -8,7 +8,7 @@ fn main() {
   try { print(Random.sample([1, 2], 3)); } except (ValueError e) { print(e.message); }
   try { print(Random.sample([1, 2], -1)); } except (ValueError e) { print(e.message); }
   try { print(Random.choices([1, 2], -1)); } except (ValueError e) { print(e.message); }
-  list<int> vazia;
+  list<i64> vazia;
   try { print(Random.choices(vazia, 1)); } except (IndexError e) { print(e.message); }
   try { print(Random.gauss(0, -1)); } except (ValueError e) { print(e.message); }
 }

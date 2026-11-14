@@ -1,5 +1,5 @@
-// format devolve string: atribuir a int é erro de tipo.
+// format devolve string: atribuir a i64 é erro de tipo.
 fn main() {
-  int n = format("{1}");
+  i64 n = format("{1}");
 }
 // expect-error: string

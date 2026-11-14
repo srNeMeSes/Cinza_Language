@@ -1,7 +1,7 @@
 // Revisão: casos que NÃO são código morto continuam valendo.
-fn f(int n) -> string {
+fn f(i64 n) -> string {
   if (n > 0) { return "positivo"; }
-  int i = 0;
+  i64 i = 0;
   while (true) {
     i += 1;
     if (i == 3) { break; }

@@ -61,8 +61,8 @@ std::string tokenTypeToString(TokenType type) {
         case TokenType::KW_CONST: return "KW_CONST";
         case TokenType::KW_SELF:  return "KW_SELF";
         
-        case TokenType::TYPE_INT: return "TYPE_INT";
-        case TokenType::TYPE_DECIMAL: return "TYPE_DECIMAL";
+        case TokenType::TYPE_I64: return "TYPE_I64";
+        case TokenType::TYPE_F64: return "TYPE_F64";
         case TokenType::TYPE_STRING: return "TYPE_STRING";
         case TokenType::TYPE_BOOL: return "TYPE_BOOL";
         case TokenType::TYPE_VOID: return "TYPE_VOID";

@@ -6,16 +6,16 @@ fn main() {
   if (Files.exists(d)) { Files.delete_tree(d); }
   Files.make_dir(d);
   str a = Files.join(d, "dados.bin");
-  list<int> b = [0, 1, 127, 128, 200, 255, 10, 13];
+  list<i64> b = [0, 1, 127, 128, 200, 255, 10, 13];
   Files.write_bytes(a, b);
-  list<int> lido = Files.read_bytes(a);
+  list<i64> lido = Files.read_bytes(a);
   print(lido, lido == b, Files.size(a));
   // texto UTF-8 visto como bytes, e bytes gravados lidos como texto
   Files.write(a, "aç");
   print(Files.read_bytes(a));
   Files.write_bytes(a, [79, 108, 195, 161]);
   print(Files.read(a));
-  list<int> vazia;
+  list<i64> vazia;
   Files.write_bytes(a, vazia);
   print(Files.read_bytes(a), Files.size(a));
   try { Files.write_bytes(a, [1, 256]); } except (ValueError e) { print(e.message); }

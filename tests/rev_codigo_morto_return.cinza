@@ -1,5 +1,5 @@
 // Revisão: código depois de return é erro de compilação (código morto).
-fn f() -> int {
+fn f() -> i64 {
   return 1;
   print("nunca");
 }

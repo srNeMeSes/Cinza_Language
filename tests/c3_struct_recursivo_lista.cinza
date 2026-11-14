@@ -1,12 +1,12 @@
 // C3: list<S> dentro de S é permitido (list é referência e pode ficar vazia).
-struct No { int v = 0; list<No> filhos; }
-fn folha(int v) -> No {
+struct No { i64 v = 0; list<No> filhos; }
+fn folha(i64 v) -> No {
     No n = new No();
     n.v = v;
     return n;
 }
-fn soma(No n) -> int {
-    int total = n.v;
+fn soma(No n) -> i64 {
+    i64 total = n.v;
     for (No f in n.filhos) { total += soma(f); }
     return total;
 }

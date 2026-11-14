@@ -11,10 +11,10 @@ precedência.
 | `printf("texto")`                             | escreve o texto com as expressões `{...}` substituídas (abaixo) e pula linha, como `print` |
 | `format("texto") -> string`                   | o mesmo texto do `printf`, devolvido em vez de escrito |
 | `input(string prompt) -> string`              | escreve `prompt` sem pular linha e lê uma linha da entrada, sem o fim de linha. Fim da entrada lança `IOError`. |
-| `range(int ini, int fim) -> list<int>`        | os inteiros de `ini` (inclusive) até `fim` (exclusive). |
-| `range(int ini, int fim, int passo) -> list<int>` | idem, de `passo` em `passo`; passo negativo conta para baixo; passo `0` lança `ValueError`. |
+| `range(i64 ini, i64 fim) -> list<i64>`        | os inteiros de `ini` (inclusive) até `fim` (exclusive). |
+| `range(i64 ini, i64 fim, i64 passo) -> list<i64>` | idem, de `passo` em `passo`; passo negativo conta para baixo; passo `0` lança `ValueError`. |
 | `type(x) -> type`                             | o tipo real de `x` (seção 3.8). |
-| `exit([int codigo])`                          | encerra o programa com o código de saída (padrão `0`, sucesso; de `0` a `255`, senão `ValueError`), depois de rodar os `finally` pendentes (abaixo). |
+| `exit([i64 codigo])`                          | encerra o programa com o código de saída (padrão `0`, sucesso; de `0` a `255`, senão `ValueError`), depois de rodar os `finally` pendentes (abaixo). |
 
 Uma expressão `void` não pode ser argumento de nenhuma delas.
 
@@ -42,7 +42,7 @@ inalcançável (erro de compilação, seção 5.5). Como `print`, uma função d
 tem precedência — e é uma chamada comum.
 
 ```cinza
-fn le_idade(int n) -> int {
+fn le_idade(i64 n) -> i64 {
   if (n >= 0) { return n; }
   print("idade inválida:", n);
   exit(2);
@@ -73,7 +73,7 @@ Depois da expressão, um formato opcional após `:`:
 
 | Formato | Efeito |
 |---------|--------|
-| `{x:.2f}` | exatamente 2 casas decimais, arredondando como `Math.round_to`; só para `int` e `decimal` (outro tipo é erro de compilação) |
+| `{x:.2f}` | exatamente 2 casas decimais, arredondando como `Math.round_to`; só para `i64` e `f64` (outro tipo é erro de compilação) |
 | `{x:8}` | largura mínima de 8 caracteres: números alinham à direita, o resto à esquerda; texto mais longo fica inteiro |
 | `{x:8.2f}` | os dois |
 
@@ -87,8 +87,8 @@ texto sem interpolação.
 ```cinza
 fn main() {
   string nome = "Ana";
-  int idade = 30;
-  decimal preco = 2.5;
+  i64 idade = 30;
+  f64 preco = 2.5;
   printf("Olá, {nome}! Você tem {idade} anos; ano que vem, {idade + 1}.");
   printf("R$ {preco:.2f} | [{idade:5}] [{nome:5}] | {{chaves}}");
   string s = format("{nome.size()} letras");
@@ -108,7 +108,7 @@ import Math;
 import Strings as st;
 ```
 
-Nas assinaturas abaixo, **`número`** é `int` ou `decimal`, **`comparável`** é `int`, `decimal` ou
+Nas assinaturas abaixo, **`número`** é `i64` ou `f64`, **`comparável`** é `i64`, `f64` ou
 `string`, e **`T`** é qualquer tipo. Quando o mesmo nome aparece mais de uma vez numa assinatura,
 os argumentos precisam ser do mesmo tipo (o primeiro fixa o tipo) e o retorno tem esse tipo.
 
@@ -126,19 +126,19 @@ quebras de linha (`\t \n \r \f \v`).
 |--------|-----------|
 | `contains(string s, string trecho) -> bool` | `true` se `trecho` aparece em `s` |
 | `starts_with(string s, string prefixo) -> bool`, `ends_with(...)` | `true` se `s` começa / termina com o trecho |
-| `find(string s, string trecho) -> int` | índice da primeira ocorrência, ou `-1` |
-| `find_last(string s, string trecho) -> int` | índice da última ocorrência, ou `-1` |
-| `find_from(string s, string trecho, int inicio) -> int` | como `find`, a partir do índice `inicio` (de `0` ao tamanho; senão `IndexError`) |
-| `count(string s, string trecho) -> int` | ocorrências sem sobreposição (`count("aaaa", "aa")` = `2`); trecho vazio lança `ValueError` |
+| `find(string s, string trecho) -> i64` | índice da primeira ocorrência, ou `-1` |
+| `find_last(string s, string trecho) -> i64` | índice da última ocorrência, ou `-1` |
+| `find_from(string s, string trecho, i64 inicio) -> i64` | como `find`, a partir do índice `inicio` (de `0` ao tamanho; senão `IndexError`) |
+| `count(string s, string trecho) -> i64` | ocorrências sem sobreposição (`count("aaaa", "aa")` = `2`); trecho vazio lança `ValueError` |
 
 **Partes**
 
 | Função | Descrição |
 |--------|-----------|
-| `char_at(string s, int i) -> string` | o caractere do índice `i` (`IndexError` se inválido) |
-| `substr(string s, int inicio, int tamanho) -> string` | `tamanho` caracteres a partir de `inicio`; o trecho precisa caber em `s` (senão `IndexError`) |
-| `slice(string s, int ini, int fim) -> string` | de `ini` até `fim` (exclusive); exige `0 ≤ ini ≤ fim ≤ tamanho` (senão `IndexError`) |
-| `left(string s, int n) -> string`, `right(...)` | os `n` primeiros / últimos caracteres; `n` maior que o tamanho dá o texto todo; `n` negativo lança `ValueError` |
+| `char_at(string s, i64 i) -> string` | o caractere do índice `i` (`IndexError` se inválido) |
+| `substr(string s, i64 inicio, i64 tamanho) -> string` | `tamanho` caracteres a partir de `inicio`; o trecho precisa caber em `s` (senão `IndexError`) |
+| `slice(string s, i64 ini, i64 fim) -> string` | de `ini` até `fim` (exclusive); exige `0 ≤ ini ≤ fim ≤ tamanho` (senão `IndexError`) |
+| `left(string s, i64 n) -> string`, `right(...)` | os `n` primeiros / últimos caracteres; `n` maior que o tamanho dá o texto todo; `n` negativo lança `ValueError` |
 | `chars(string s) -> list<string>` | os caracteres, um por elemento |
 | `split(string s, string sep) -> list<string>` | partes separadas por `sep`; separadores seguidos geram partes vazias; `sep` vazio lança `ValueError` |
 | `lines(string s) -> list<string>` | as linhas, como `Files.lines` (`\n` ou `\r\n`; o `\n` final não gera linha vazia) |
@@ -161,12 +161,12 @@ O trecho procurado por `replace`, `replace_first` e `remove` não pode ser vazio
 | Função | Descrição |
 |--------|-----------|
 | `join(list<string> partes, string sep) -> string` | as partes unidas por `sep` |
-| `repeat(string s, int n) -> string` | `s` repetido `n` vezes; `n` negativo, ou resultado acima de 1 GiB, lança `ValueError` |
+| `repeat(string s, i64 n) -> string` | `s` repetido `n` vezes; `n` negativo, ou resultado acima de 1 GiB, lança `ValueError` |
 | `reverse(string s) -> string` | os caracteres em ordem inversa |
-| `pad_left(string s, int largura[, string p]) -> string` | completa à esquerda com `p` (padrão: espaço) até `largura` caracteres; texto já maior fica como está |
-| `pad_right(string s, int largura[, string p]) -> string` | idem, à direita |
-| `center(string s, int largura[, string p]) -> string` | idem, dos dois lados (a sobra ímpar fica à direita) |
-| `fixed(decimal x, int casas) -> string` | o número com **exatamente** `casas` casas decimais (`fixed(2.5, 2)` → `"2.50"`); arredonda como `Math.round_to`; `casas` de 0 a 100 (senão `ValueError`) |
+| `pad_left(string s, i64 largura[, string p]) -> string` | completa à esquerda com `p` (padrão: espaço) até `largura` caracteres; texto já maior fica como está |
+| `pad_right(string s, i64 largura[, string p]) -> string` | idem, à direita |
+| `center(string s, i64 largura[, string p]) -> string` | idem, dos dois lados (a sobra ímpar fica à direita) |
+| `fixed(f64 x, i64 casas) -> string` | o número com **exatamente** `casas` casas decimais (`fixed(2.5, 2)` → `"2.50"`); arredonda como `Math.round_to`; `casas` de 0 a 100 (senão `ValueError`) |
 
 O preenchimento `p` precisa ter exatamente 1 caractere (senão `ValueError`).
 
@@ -192,10 +192,10 @@ O preenchimento `p` precisa ter exatamente 1 caractere (senão `ValueError`).
 
 | Função | Descrição |
 |--------|-----------|
-| `ord(string c) -> int` | o código Unicode de um único caractere (`ord("A")` = `65`); outro tamanho lança `ValueError` |
-| `chr(int n) -> string` | o caractere do código Unicode `n`; código inválido lança `ValueError` |
+| `ord(string c) -> i64` | o código Unicode de um único caractere (`ord("A")` = `65`); outro tamanho lança `ValueError` |
+| `chr(i64 n) -> string` | o caractere do código Unicode `n`; código inválido lança `ValueError` |
 | `equals_ignore_case(string a, string b) -> bool` | iguais sem diferenciar maiúsculas de minúsculas |
-| `compare(string a, string b) -> int` | `-1`, `0` ou `1`, na ordem de `<` entre strings |
+| `compare(string a, string b) -> i64` | `-1`, `0` ou `1`, na ordem de `<` entre strings |
 
 ```cinza
 import Strings as st;
@@ -230,8 +230,8 @@ algo existente sem pedir ou apagar uma pasta com conteúdo pela função errada 
 | `append(string caminho, string conteudo)` | acrescenta ao fim; cria o arquivo se não existir |
 | `write_lines(string caminho, list<string> linhas)` | grava cada linha seguida de `\n`, substituindo o conteúdo anterior |
 | `append_line(string caminho, string linha)` | acrescenta a linha seguida de `\n`; cria o arquivo se não existir |
-| `read_bytes(string caminho) -> list<int>` | o conteúdo como bytes, cada um de `0` a `255` (sem interpretar como texto) — para formatos binários |
-| `write_bytes(string caminho, list<int> bytes)` | grava os bytes, substituindo o conteúdo anterior; valor fora de `0` a `255` lança `ValueError` |
+| `read_bytes(string caminho) -> list<i64>` | o conteúdo como bytes, cada um de `0` a `255` (sem interpretar como texto) — para formatos binários |
+| `write_bytes(string caminho, list<i64> bytes)` | grava os bytes, substituindo o conteúdo anterior; valor fora de `0` a `255` lança `ValueError` |
 
 **Consultar**
 
@@ -240,7 +240,7 @@ algo existente sem pedir ou apagar uma pasta com conteúdo pela função errada 
 | `exists(string caminho) -> bool` | `true` se existe (arquivo ou pasta) |
 | `is_file(string caminho) -> bool` | `true` se é um arquivo |
 | `is_dir(string caminho) -> bool` | `true` se é uma pasta |
-| `size(string caminho) -> int` | tamanho do arquivo em **bytes** (não em caracteres) |
+| `size(string caminho) -> i64` | tamanho do arquivo em **bytes** (não em caracteres) |
 
 **Arquivos e pastas**
 
@@ -254,7 +254,7 @@ algo existente sem pedir ou apagar uma pasta com conteúdo pela função errada 
 | `delete_dir(string caminho)` | apaga uma pasta **vazia** |
 | `delete_tree(string caminho)` | apaga uma pasta e todo o seu conteúdo |
 | `current_dir() -> string` | a pasta em que o programa foi executado (caminho completo) |
-| `modified(string caminho) -> int` | o instante da última modificação (um instante de `Time`) |
+| `modified(string caminho) -> i64` | o instante da última modificação (um instante de `Time`) |
 
 **Caminhos** — só manipulam o texto, sem consultar o disco:
 
@@ -291,22 +291,22 @@ fn main() {
 ### `Math`
 
 Nenhuma função produz infinito nem NaN: fora do domínio lança `ValueError`; resultado grande
-demais lança `OverflowError`. Argumentos `int` em parâmetros `decimal` são convertidos.
+demais lança `OverflowError`. Argumentos `i64` em parâmetros `f64` são convertidos.
 
-**Constantes** (`decimal`): `pi` (π), `e`, `tau` (2π).
+**Constantes** (`f64`): `pi` (π), `e`, `tau` (2π).
 
 **Potências, raízes e logaritmos**
 
 | Função | Descrição |
 |--------|-----------|
-| `sqrt(decimal x) -> decimal` | raiz quadrada; `x` negativo lança `ValueError` |
-| `cbrt(decimal x) -> decimal` | raiz cúbica (aceita negativos: `cbrt(-8)` = `-2`) |
-| `pow(decimal b, decimal x) -> decimal` | `b` elevado a `x`; sem resultado real lança `ValueError` |
-| `exp(decimal x) -> decimal` | *e* elevado a `x` |
-| `log(decimal x) -> decimal` | logaritmo natural |
-| `log10(decimal x) -> decimal`, `log2(...)` | logaritmo na base 10 / na base 2 |
-| `log_base(decimal x, decimal base) -> decimal` | logaritmo na base dada; a base precisa ser positiva e diferente de 1 |
-| `hypot(decimal x, decimal y) -> decimal` | √(x² + y²), sem estourar no meio do cálculo |
+| `sqrt(f64 x) -> f64` | raiz quadrada; `x` negativo lança `ValueError` |
+| `cbrt(f64 x) -> f64` | raiz cúbica (aceita negativos: `cbrt(-8)` = `-2`) |
+| `pow(f64 b, f64 x) -> f64` | `b` elevado a `x`; sem resultado real lança `ValueError` |
+| `exp(f64 x) -> f64` | *e* elevado a `x` |
+| `log(f64 x) -> f64` | logaritmo natural |
+| `log10(f64 x) -> f64`, `log2(...)` | logaritmo na base 10 / na base 2 |
+| `log_base(f64 x, f64 base) -> f64` | logaritmo na base dada; a base precisa ser positiva e diferente de 1 |
+| `hypot(f64 x, f64 y) -> f64` | √(x² + y²), sem estourar no meio do cálculo |
 
 Os logaritmos lançam `ValueError` para `x` ≤ 0.
 
@@ -314,47 +314,47 @@ Os logaritmos lançam `ValueError` para `x` ≤ 0.
 
 | Função | Descrição |
 |--------|-----------|
-| `sin`, `cos`, `tan(decimal x) -> decimal` | seno, cosseno, tangente |
-| `asin`, `acos(decimal x) -> decimal` | arco seno e arco cosseno; `x` fora de -1 a 1 lança `ValueError` |
-| `atan(decimal x) -> decimal` | arco tangente |
-| `atan2(decimal y, decimal x) -> decimal` | ângulo do ponto (x, y), de -π a π (note a ordem: `y` primeiro) |
-| `sinh`, `cosh`, `tanh(decimal x) -> decimal` | funções hiperbólicas |
-| `degrees(decimal rad) -> decimal`, `radians(decimal graus)` | conversão entre radianos e graus |
+| `sin`, `cos`, `tan(f64 x) -> f64` | seno, cosseno, tangente |
+| `asin`, `acos(f64 x) -> f64` | arco seno e arco cosseno; `x` fora de -1 a 1 lança `ValueError` |
+| `atan(f64 x) -> f64` | arco tangente |
+| `atan2(f64 y, f64 x) -> f64` | ângulo do ponto (x, y), de -π a π (note a ordem: `y` primeiro) |
+| `sinh`, `cosh`, `tanh(f64 x) -> f64` | funções hiperbólicas |
+| `degrees(f64 rad) -> f64`, `radians(f64 graus)` | conversão entre radianos e graus |
 
 **Arredondamento**
 
 | Função | Descrição |
 |--------|-----------|
-| `floor(decimal x) -> int` | maior inteiro ≤ `x` |
-| `ceil(decimal x) -> int` | menor inteiro ≥ `x` |
-| `round(decimal x) -> int` | inteiro mais próximo; metade se afasta do zero (`2.5` → `3`, `-2.5` → `-3`) |
-| `trunc(decimal x) -> int` | corta as casas, em direção ao zero (`-2.7` → `-2`) |
-| `round_to(decimal x, int casas) -> decimal` | arredonda para `casas` casas decimais (metade se afasta do zero); `casas` negativo lança `ValueError` |
+| `floor(f64 x) -> i64` | maior inteiro ≤ `x` |
+| `ceil(f64 x) -> i64` | menor inteiro ≥ `x` |
+| `round(f64 x) -> i64` | inteiro mais próximo; metade se afasta do zero (`2.5` → `3`, `-2.5` → `-3`) |
+| `trunc(f64 x) -> i64` | corta as casas, em direção ao zero (`-2.7` → `-2`) |
+| `round_to(f64 x, i64 casas) -> f64` | arredonda para `casas` casas decimais (metade se afasta do zero); `casas` negativo lança `ValueError` |
 
-`floor`, `ceil`, `round` e `trunc` lançam `OverflowError` se o resultado não couber em `int`.
+`floor`, `ceil`, `round` e `trunc` lançam `OverflowError` se o resultado não couber em `i64`.
 
 `round_to` arredonda o número **como ele é escrito** (a forma da seção 5.4), não a sua representação
 binária: `round_to(2.675, 2)` é `2.68`, embora `2.675` não seja exato em binário. O resultado é um
-`decimal`, mostrado pela forma da seção 5.4: `round_to(2.5, 2)` é `2.5`, não `2.50`.
+`f64`, mostrado pela forma da seção 5.4: `round_to(2.5, 2)` é `2.5`, não `2.50`.
 
 **Inteiros e sinais**
 
 | Função | Descrição |
 |--------|-----------|
-| `abs(número x) -> número` | valor absoluto; `abs` do menor `int` lança `OverflowError` |
-| `sign(número x) -> int` | `-1`, `0` ou `1` |
+| `abs(número x) -> número` | valor absoluto; `abs` do menor `i64` lança `OverflowError` |
+| `sign(número x) -> i64` | `-1`, `0` ou `1` |
 | `min(número a, número b) -> número`, `max(...)` | o menor / o maior (para uma lista, `Lists`) |
 | `clamp(número x, número min, número max) -> número` | `x` limitado ao intervalo; `min > max` lança `ValueError` |
-| `gcd(int a, int b) -> int`, `lcm(...)` | máximo divisor comum / mínimo múltiplo comum, sempre ≥ 0; `gcd(0, 0)` = `0`, `lcm` com zero = `0` |
-| `is_even(int n) -> bool`, `is_odd(...)` | par / ímpar |
-| `factorial(int n) -> int` | n!; negativo lança `ValueError`; acima de `20` não cabe em `int` (`OverflowError`) |
-| `is_prime(int n) -> bool` | `true` se `n` é primo (exato em toda a faixa de `int`; menores que 2 não são) |
+| `gcd(i64 a, i64 b) -> i64`, `lcm(...)` | máximo divisor comum / mínimo múltiplo comum, sempre ≥ 0; `gcd(0, 0)` = `0`, `lcm` com zero = `0` |
+| `is_even(i64 n) -> bool`, `is_odd(...)` | par / ímpar |
+| `factorial(i64 n) -> i64` | n!; negativo lança `ValueError`; acima de `20` não cabe em `i64` (`OverflowError`) |
+| `is_prime(i64 n) -> bool` | `true` se `n` é primo (exato em toda a faixa de `i64`; menores que 2 não são) |
 
 **Comparar decimais**
 
 | Função | Descrição |
 |--------|-----------|
-| `is_close(decimal a, decimal b) -> bool` | iguais a menos de erro de arredondamento: diferença relativa até 10⁻⁹, ou absoluta até 10⁻¹² (perto de zero). `0.1 + 0.2 == 0.3` é `false`; `is_close(0.1 + 0.2, 0.3)` é `true` |
+| `is_close(f64 a, f64 b) -> bool` | iguais a menos de erro de arredondamento: diferença relativa até 10⁻⁹, ou absoluta até 10⁻¹² (perto de zero). `0.1 + 0.2 == 0.3` é `false`; `is_close(0.1 + 0.2, 0.3)` é `true` |
 
 ```cinza
 import Math;
@@ -378,16 +378,16 @@ fn main() {
 
 | Função | Descrição |
 |--------|-----------|
-| `seed(int s)` | reinicia o gerador; a mesma semente produz a mesma sequência (na mesma implementação) |
-| `int(int a, int b) -> int` | inteiro de `a` até `b`, **os dois inclusive**; `a > b` lança `ValueError` |
-| `decimal() -> decimal` | de `0.0` (inclusive) até `1.0` (exclusive) |
-| `decimal_range(decimal a, decimal b) -> decimal` | de `a` (inclusive) até `b` (exclusive); `a` ≥ `b` lança `ValueError` |
+| `seed(i64 s)` | reinicia o gerador; a mesma semente produz a mesma sequência (na mesma implementação) |
+| `int(i64 a, i64 b) -> i64` | inteiro de `a` até `b`, **os dois inclusive**; `a > b` lança `ValueError` |
+| `decimal() -> f64` | de `0.0` (inclusive) até `1.0` (exclusive) |
+| `decimal_range(f64 a, f64 b) -> f64` | de `a` (inclusive) até `b` (exclusive); `a` ≥ `b` lança `ValueError` |
 | `bool() -> bool` | `true` ou `false`, com a mesma chance |
-| `chance(decimal p) -> bool` | `true` com probabilidade `p`, de `0` (nunca) a `1` (sempre); fora disso, `ValueError` |
-| `gauss(decimal media, decimal desvio) -> decimal` | distribuição normal; desvio `0` devolve a média; desvio negativo lança `ValueError` |
+| `chance(f64 p) -> bool` | `true` com probabilidade `p`, de `0` (nunca) a `1` (sempre); fora disso, `ValueError` |
+| `gauss(f64 media, f64 desvio) -> f64` | distribuição normal; desvio `0` devolve a média; desvio negativo lança `ValueError` |
 | `choice(list<T> l) -> T` | um elemento de `l`; lista vazia lança `IndexError` |
-| `choices(list<T> l, int k) -> list<T>` | `k` sorteios **com** repetição (`k` pode passar do tamanho); com `k` > 0, lista vazia lança `IndexError` |
-| `sample(list<T> l, int k) -> list<T>` | `k` elementos de posições **distintas**, em ordem aleatória; `k` maior que o tamanho lança `ValueError` |
+| `choices(list<T> l, i64 k) -> list<T>` | `k` sorteios **com** repetição (`k` pode passar do tamanho); com `k` > 0, lista vazia lança `IndexError` |
+| `sample(list<T> l, i64 k) -> list<T>` | `k` elementos de posições **distintas**, em ordem aleatória; `k` maior que o tamanho lança `ValueError` |
 | `shuffle(list<T> l)` | embaralha `l` no lugar |
 
 `k` negativo lança `ValueError`; `k` = 0 dá `[]`, mesmo com lista vazia. `shuffle` altera a
@@ -397,7 +397,7 @@ lista: é erro numa lista `const`, como `Lists.sort`. A sequência exata gerada 
 import Random;
 fn main() {
   Random.seed(7);
-  int a = Random.int(1, 100);
+  i64 a = Random.int(1, 100);
   Random.seed(7);
   print(a == Random.int(1, 100), Random.int(5, 5));
 }
@@ -410,8 +410,8 @@ fn main() {
 
 | Função | Descrição |
 |--------|-----------|
-| `to_int(string s) -> int` | sinal opcional (`+` ou `-`) seguido de dígitos; texto inválido ou fora da faixa de `int` lança `ValueError` |
-| `to_decimal(string s) -> decimal` | `[sinal] dígitos [. dígitos] [e [sinal] dígitos]`; texto inválido ou grande demais para `decimal` lança `ValueError`; pequeno demais vira `0` |
+| `to_int(string s) -> i64` | sinal opcional (`+` ou `-`) seguido de dígitos; texto inválido ou fora da faixa de `i64` lança `ValueError` |
+| `to_decimal(string s) -> f64` | `[sinal] dígitos [. dígitos] [e [sinal] dígitos]`; texto inválido ou grande demais para `f64` lança `ValueError`; pequeno demais vira `0` |
 | `to_bool(string s) -> bool` | só `"true"` ou `"false"`; outro texto lança `ValueError` |
 | `to_string(T x) -> string` | a forma textual da seção 5.4 |
 
@@ -424,17 +424,17 @@ vírgula decimal, troque-a antes: `to_decimal(Strings.replace(s, ",", "."))`.
 | Função | Descrição |
 |--------|-----------|
 | `is_int(string s) -> bool`, `is_decimal(...)`, `is_bool(...)` | `true` se o `to_*` correspondente aceitaria o texto |
-| `to_int_or(string s, int padrao) -> int` | o valor convertido, ou `padrao` se o texto não for aceito |
-| `to_decimal_or(string s, decimal padrao) -> decimal` | idem |
+| `to_int_or(string s, i64 padrao) -> i64` | o valor convertido, ou `padrao` se o texto não for aceito |
+| `to_decimal_or(string s, f64 padrao) -> f64` | idem |
 | `to_bool_or(string s, bool padrao) -> bool` | idem |
 
 **Bases numéricas** — dígitos `0`–`9` e `a`–`z`, sem prefixo (`0x`, `0b`); negativo com `-`
 
 | Função | Descrição |
 |--------|-----------|
-| `to_base(int n, int base) -> string` | `n` na base dada, de 2 a 36 (senão `ValueError`), em minúsculas |
-| `to_hex(int n) -> string`, `to_binary(...)`, `to_octal(...)` | atalhos para as bases 16, 2 e 8 |
-| `from_base(string s, int base) -> int` | o inverso: sinal opcional e dígitos da base (maiúsculas ou minúsculas); dígito inválido ou fora da faixa de `int` lança `ValueError` |
+| `to_base(i64 n, i64 base) -> string` | `n` na base dada, de 2 a 36 (senão `ValueError`), em minúsculas |
+| `to_hex(i64 n) -> string`, `to_binary(...)`, `to_octal(...)` | atalhos para as bases 16, 2 e 8 |
+| `from_base(string s, i64 base) -> i64` | o inverso: sinal opcional e dígitos da base (maiúsculas ou minúsculas); dígito inválido ou fora da faixa de `i64` lança `ValueError` |
 
 ```cinza
 import Convert as cv;
@@ -445,7 +445,7 @@ fn main() {
   print(cv.to_hex(255), cv.to_binary(5), cv.from_base("ff", 16), cv.to_base(35, 36));
 }
 // expect: 43 2.5 10! true
-// expect: '12a' não é um int válido
+// expect: '12a' não é um i64 válido
 // expect: false 0 12
 // expect: ff 101 255 z
 ```
@@ -474,7 +474,7 @@ fn main() {
 |--------|-----------|
 | `sum(list<número> l) -> número` | soma; lista vazia dá `0`; estouro lança `OverflowError` |
 | `product(list<número> l) -> número` | produto; lista vazia dá `1`; estouro lança `OverflowError` |
-| `average(list<número> l) -> decimal` | média |
+| `average(list<número> l) -> f64` | média |
 | `min(list<comparável> l) -> comparável`, `max(...)` | o menor / o maior (o primeiro, se houver empate) |
 
 `average`, `min` e `max` de uma lista vazia lançam `ValueError`.
@@ -484,9 +484,9 @@ fn main() {
 | Função | Descrição |
 |--------|-----------|
 | `contains(list<T> l, T x) -> bool` | `true` se algum elemento é igual a `x` |
-| `index_of(list<T> l, T x) -> int` | índice do primeiro elemento igual a `x`, ou `-1` |
-| `last_index_of(list<T> l, T x) -> int` | índice do último, ou `-1` |
-| `count(list<T> l, T x) -> int` | quantos elementos são iguais a `x` |
+| `index_of(list<T> l, T x) -> i64` | índice do primeiro elemento igual a `x`, ou `-1` |
+| `last_index_of(list<T> l, T x) -> i64` | índice do último, ou `-1` |
+| `count(list<T> l, T x) -> i64` | quantos elementos são iguais a `x` |
 | `first(list<T> l) -> T`, `last(...)` | o primeiro / o último elemento; lista vazia lança `IndexError` |
 | `is_empty(list<T> l) -> bool` | `true` se não tem elementos |
 
@@ -494,22 +494,22 @@ fn main() {
 
 | Função | Descrição |
 |--------|-----------|
-| `insert(list<T> l, int i, T x)` | insere `x` na posição `i`, de `0` ao tamanho (no tamanho = acrescentar); senão `IndexError` |
+| `insert(list<T> l, i64 i, T x)` | insere `x` na posição `i`, de `0` ao tamanho (no tamanho = acrescentar); senão `IndexError` |
 | `pop(list<T> l) -> T` | remove e devolve o último; lista vazia lança `IndexError` |
 | `remove_value(list<T> l, T x)` | remove o primeiro elemento igual a `x`; ausente lança `ValueError` |
 | `clear(list<T> l)` | remove todos os elementos |
 | `extend(list<T> l, list<T> outra)` | acrescenta os elementos de `outra` ao fim de `l` (`outra` pode ser `l`) |
-| `swap(list<T> l, int i, int j)` | troca dois elementos de lugar (`IndexError` se um índice for inválido) |
+| `swap(list<T> l, i64 i, i64 j)` | troca dois elementos de lugar (`IndexError` se um índice for inválido) |
 
 **Listas novas** — a original não muda
 
 | Função | Descrição |
 |--------|-----------|
-| `slice(list<T> l, int ini, int fim) -> list<T>` | os elementos de `ini` até `fim` (exclusive); exige `0 ≤ ini ≤ fim ≤ tamanho` (senão `IndexError`) |
+| `slice(list<T> l, i64 ini, i64 fim) -> list<T>` | os elementos de `ini` até `fim` (exclusive); exige `0 ≤ ini ≤ fim ≤ tamanho` (senão `IndexError`) |
 | `concat(list<T> a, list<T> b) -> list<T>` | os elementos de `a` seguidos dos de `b` |
 | `copy(list<T> l) -> list<T>` | uma cópia (rasa: objetos dentro continuam compartilhados; structs, como sempre, são valores) |
 | `unique(list<T> l) -> list<T>` | sem repetidos, mantendo a primeira ocorrência e a ordem |
-| `repeat(T x, int n) -> list<T>` | `n` cópias de `x`; `n` negativo, ou acima de 100 milhões, lança `ValueError` |
+| `repeat(T x, i64 n) -> list<T>` | `n` cópias de `x`; `n` negativo, ou acima de 100 milhões, lança `ValueError` |
 
 As funções que alteram a lista (`sort`, `sort_desc`, `reverse`, as de "alterar no lugar" e, em
 `sort_by`, também as chaves) são erro numa lista `const`.
@@ -517,14 +517,14 @@ As funções que alteram a lista (`sort`, `sort_desc`, `reverse`, as de "alterar
 ```cinza
 import Lists as L;
 fn main() {
-  list<int> n = [5, 3, 9, 1];
+  list<i64> n = [5, 3, 9, 1];
   L.sort(n);
   print(n, L.contains(n, 9), L.index_of(n, 5), L.slice(n, 1, 3), L.sum(n));
   L.reverse(n);
   print(n);
   print(L.max(n), L.average(n), L.unique([1, 2, 1]), L.repeat("-", 3));
   list<string> nomes = ["Caio", "Ana", "Bia"];
-  list<int> idades = [30, 25, 18];
+  list<i64> idades = [30, 25, 18];
   L.sort_by(nomes, idades);
   print(nomes, idades);
 }
@@ -536,8 +536,8 @@ fn main() {
 
 ### `Time`
 
-Um **instante** é um `int`: os segundos desde 1970-01-01 00:00 UTC (negativo antes disso). Por ser
-um `int`, instantes se comparam, se ordenam, servem de chave de `dict` e se somam. A faixa de
+Um **instante** é um `i64`: os segundos desde 1970-01-01 00:00 UTC (negativo antes disso). Por ser
+um `i64`, instantes se comparam, se ordenam, servem de chave de `dict` e se somam. A faixa de
 datas vai do ano 1 ao 9999; um instante fora dela, nas funções que leem as partes, lança
 `ValueError`.
 
@@ -548,44 +548,44 @@ verão); as variantes terminadas em `_utc` usam o UTC.
 
 | Função | Descrição |
 |--------|-----------|
-| `now() -> int` | o instante atual |
-| `clock() -> int` | milissegundos de um relógio que só avança — use a diferença entre duas leituras para medir duração |
-| `sleep(int ms)` | espera `ms` milissegundos; negativo lança `ValueError` |
+| `now() -> i64` | o instante atual |
+| `clock() -> i64` | milissegundos de um relógio que só avança — use a diferença entre duas leituras para medir duração |
+| `sleep(i64 ms)` | espera `ms` milissegundos; negativo lança `ValueError` |
 
 **Montar e desmontar**
 
 | Função | Descrição |
 |--------|-----------|
-| `make(int ano, int mes, int dia[, int hora, int minuto, int segundo]) -> int` | o instante da data local; as partes de hora que faltam valem `0`; data inválida (`31/02`, mês `13`, hora `24`...) lança `ValueError` |
-| `year(int t) -> int`, `month`, `day`, `hour`, `minute`, `second` | as partes de `t` |
-| `weekday(int t) -> int` | dia da semana, padrão ISO: `1` = segunda ... `7` = domingo |
-| `day_of_year(int t) -> int` | de `1` a `366` |
-| `make_utc(...)`, `year_utc(int t)`, `month_utc`, ..., `day_of_year_utc` | as mesmas, em UTC |
+| `make(i64 ano, i64 mes, i64 dia[, i64 hora, i64 minuto, i64 segundo]) -> i64` | o instante da data local; as partes de hora que faltam valem `0`; data inválida (`31/02`, mês `13`, hora `24`...) lança `ValueError` |
+| `year(i64 t) -> i64`, `month`, `day`, `hour`, `minute`, `second` | as partes de `t` |
+| `weekday(i64 t) -> i64` | dia da semana, padrão ISO: `1` = segunda ... `7` = domingo |
+| `day_of_year(i64 t) -> i64` | de `1` a `366` |
+| `make_utc(...)`, `year_utc(i64 t)`, `month_utc`, ..., `day_of_year_utc` | as mesmas, em UTC |
 
 **Texto** — campos do padrão: `yyyy` (ano, 4 dígitos), `MM` (mês), `dd` (dia), `HH` (hora, 0 a
 23), `mm` (minuto), `ss` (segundo), todos com 2 dígitos; o resto do padrão é texto literal
 
 | Função | Descrição |
 |--------|-----------|
-| `format(int t, string padrao) -> string` | `format(t, "dd/MM/yyyy HH:mm")` → `"03/10/2026 14:30"` |
-| `parse(string texto, string padrao) -> int` | o inverso: o texto precisa casar **exatamente** com o padrão (campos com o número exato de dígitos); o que o padrão não traz vale ano 1970, mês 1, dia 1, hora 0; texto fora do padrão ou data inválida lança `ValueError` |
+| `format(i64 t, string padrao) -> string` | `format(t, "dd/MM/yyyy HH:mm")` → `"03/10/2026 14:30"` |
+| `parse(string texto, string padrao) -> i64` | o inverso: o texto precisa casar **exatamente** com o padrão (campos com o número exato de dígitos); o que o padrão não traz vale ano 1970, mês 1, dia 1, hora 0; texto fora do padrão ou data inválida lança `ValueError` |
 | `format_utc(...)`, `parse_utc(...)` | as mesmas, em UTC |
 
 **Contas e calendário**
 
 | Função | Descrição |
 |--------|-----------|
-| `add_days(int t, int n) -> int`, `add_hours`, `add_minutes`, `add_seconds` | `t` mais `n` dias (de 86400 segundos), horas, minutos ou segundos; `n` pode ser negativo; estouro lança `OverflowError` |
-| `days_between(int a, int b) -> int` | dias de **calendário** (local) de `a` até `b`: de 23h de um dia a 1h do seguinte é `1`; negativo se `b` vem antes |
-| `is_leap_year(int ano) -> bool` | ano bissexto |
-| `days_in_month(int ano, int mes) -> int` | dias do mês (`28` a `31`); mês inválido lança `ValueError` |
+| `add_days(i64 t, i64 n) -> i64`, `add_hours`, `add_minutes`, `add_seconds` | `t` mais `n` dias (de 86400 segundos), horas, minutos ou segundos; `n` pode ser negativo; estouro lança `OverflowError` |
+| `days_between(i64 a, i64 b) -> i64` | dias de **calendário** (local) de `a` até `b`: de 23h de um dia a 1h do seguinte é `1`; negativo se `b` vem antes |
+| `is_leap_year(i64 ano) -> bool` | ano bissexto |
+| `days_in_month(i64 ano, i64 mes) -> i64` | dias do mês (`28` a `31`); mês inválido lança `ValueError` |
 
 ```cinza
 import Time;
 fn main() {
-  int t = Time.make_utc(2026, 10, 3, 14, 30, 0);
+  i64 t = Time.make_utc(2026, 10, 3, 14, 30, 0);
   print(t, Time.format_utc(t, "dd/MM/yyyy HH:mm"), Time.weekday_utc(t), Time.day_of_year_utc(t));
-  int p = Time.parse_utc("25/12/2026", "dd/MM/yyyy");
+  i64 p = Time.parse_utc("25/12/2026", "dd/MM/yyyy");
   print(Time.days_between(Time.make(2026, 10, 3), Time.make(2026, 12, 25)), Time.format_utc(Time.add_days(p, 7), "dd/MM"));
   print(Time.is_leap_year(2028), Time.days_in_month(2026, 2), Time.make(2026, 1, 1) < Time.now());
 }

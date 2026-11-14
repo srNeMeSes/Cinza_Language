@@ -32,7 +32,7 @@ Value applyBinaryOp(TokenType op, const Value& left, const Value& right) {
 
         auto overflow = [&](const char* simbolo) -> Value {
             throw RuntimeError("OverflowError: " + std::to_string(a) + " " + simbolo + " " +
-                              std::to_string(b) + " excede a faixa de int "
+                              std::to_string(b) + " excede a faixa de i64 "
                               "(-9223372036854775808 a 9223372036854775807)");
         };
         constexpr std::int64_t int_min = std::numeric_limits<std::int64_t>::min();
@@ -69,7 +69,7 @@ Value applyBinaryOp(TokenType op, const Value& left, const Value& right) {
     auto finito = [&](double r, const char* simbolo) -> Value {
         if (!std::isfinite(r))
             throw RuntimeError(std::string("OverflowError: ") + left.toString() + " " + simbolo +
-                              " " + right.toString() + " excede a faixa de decimal");
+                              " " + right.toString() + " excede a faixa de f64");
         return Value(r);
     };
 
@@ -111,7 +111,7 @@ Value negateOp(const Value& v) {
         // A5: -INT_MIN não cabe em 64 bits
         if (v.asInt() == std::numeric_limits<std::int64_t>::min())
             throw RuntimeError("OverflowError: -(" + std::to_string(v.asInt()) +
-                               ") excede a faixa de int "
+                               ") excede a faixa de i64 "
                                "(-9223372036854775808 a 9223372036854775807)");
         return Value(-v.asInt());
     }

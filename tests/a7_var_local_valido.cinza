@@ -1,5 +1,5 @@
 // A7: 'var' continua válido em declaração local e no iterador do for.
-fn dobro(int n) -> int { var d = n * 2; return d; }
+fn dobro(i64 n) -> i64 { var d = n * 2; return d; }
 fn main() {
   var x = 5;
   print(x + 1, dobro(4));

@@ -1,5 +1,5 @@
 // B5: o lado esquerdo precisa ser variável, campo ou índice.
-fn f() -> int { return 1; }
+fn f() -> i64 { return 1; }
 fn main() {
   f() = 3;
 }

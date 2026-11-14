@@ -1,22 +1,22 @@
 // Lists: ordem (inclusive de objetos por chaves), estatística, busca, alteração no lugar e listas novas.
 import Lists as L;
-struct Ponto { int x = 0; int y = 0; }
+struct Ponto { i64 x = 0; i64 y = 0; }
 class Pessoa {
   string nome = "";
-  int idade = 0;
+  i64 idade = 0;
   pub {
-    Pessoa(string n, int i) { nome = n; idade = i; }
+    Pessoa(string n, i64 i) { nome = n; idade = i; }
     fn get_nome() -> string { return nome; }
-    fn get_idade() -> int { return idade; }
+    fn get_idade() -> i64 { return idade; }
   }
 }
 fn main() {
-  list<int> n = [5, 3, 9, 1, 3];
+  list<i64> n = [5, 3, 9, 1, 3];
   L.sort_desc(n);
   print(n, L.sorted([3, 1, 2]), L.reversed(["a", "b", "c"]), L.sorted(["b", "A", "a"]));
   // sort_by: estável; as chaves vão junto
   list<Pessoa> p = [new Pessoa("Ana", 30), new Pessoa("Bia", 25), new Pessoa("Caio", 30), new Pessoa("Duda", 18)];
-  list<int> idades;
+  list<i64> idades;
   for (Pessoa x in p) { idades.add(x.get_idade()); }
   L.sort_by(p, idades);
   string nomes = "";
@@ -29,8 +29,8 @@ fn main() {
   // estatística
   print(L.min([4, -2, 7]), L.max([4, -2, 7]), L.min(["pera", "uva", "abacaxi"]), L.max([1.5, 2.5]));
   print(L.average([1, 2, 3, 4]), L.average([2.5]), L.product([2, 3, 4]), L.product([1.5, 2.0]));
-  list<int> vazia;
-  list<decimal> vaziad;
+  list<i64> vazia;
+  list<f64> vaziad;
   print(L.product(vazia), L.product(vaziad) + 0.5);
   // busca
   print(L.count([1, 2, 1, 1], 1), L.count(["a"], "b"), L.last_index_of([1, 2, 1], 1), L.last_index_of([1], 5));
@@ -51,9 +51,9 @@ fn main() {
   L.clear(l);
   print(l, l.size());
   // listas novas (as originais não mudam)
-  list<int> a = [1, 2];
-  list<int> b = L.concat(a, [3]);
-  list<int> c = L.copy(a);
+  list<i64> a = [1, 2];
+  list<i64> b = L.concat(a, [3]);
+  list<i64> c = L.copy(a);
   c.add(99);
   print(a, b, c, L.unique([3, 1, 3, 2, 1]), L.unique(["a", "a"]), L.repeat(0, 4), L.repeat("-", 0));
   print(L.unique([[1], [2], [1]]), L.unique([1, 1.0, 2]));

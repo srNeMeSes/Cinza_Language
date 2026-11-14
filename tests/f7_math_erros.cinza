@@ -9,6 +9,6 @@ fn main() {
 }
 // expect: ValueError 'sqrt' de número negativo
 // expect: ValueError
-// expect: OverflowError resultado de 'floor' fora do intervalo de int
+// expect: OverflowError resultado de 'floor' fora do intervalo de i64
 // expect: OverflowError
 // expect: OverflowError

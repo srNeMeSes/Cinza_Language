@@ -1,5 +1,5 @@
 // C6: print e range são nativas do prelude; print aceita qualquer número de argumentos de qualquer tipo.
-struct P { int x = 1; }
+struct P { i64 x = 1; }
 fn main() {
     print();
     print(1, 2.5, "a", true, [1, 2], {"k", 3}, new P());

@@ -1,5 +1,5 @@
-// A10: decimal não pode ser chave de dict (declaração).
+// A10: f64 não pode ser chave de dict (declaração).
 fn main() {
-  dict<decimal, int> d;
+  dict<f64, i64> d;
 }
-// expect-error: Chave de dict não pode ser 'decimal'
+// expect-error: Chave de dict não pode ser 'f64'

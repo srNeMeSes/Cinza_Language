@@ -34,8 +34,8 @@ using TypePtr = std::unique_ptr<Type>;
 class Type {
 public:
     enum class Kind {
-        INT,       // 123
-        DECIMAL,   // sinônimo de DOUBLE
+        I64,       // inteiro de 64 bits
+        F64,       // ponto flutuante de 64 bits (IEEE 754)
         STRING,    // "amigo de cu é rola"
         BOOL,      // true / false
         VOID,      // sem retorno

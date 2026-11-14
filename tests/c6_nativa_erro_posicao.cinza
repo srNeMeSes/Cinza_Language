@@ -5,7 +5,7 @@ fn main() {
     } except (ValueError e) {
         print(e.kind, e.line);
     }
-    list<int> l = range(0, 1, 0);
+    list<i64> l = range(0, 1, 0);
 }
 // expect: ValueError 4
 // expect-error: tests/c6_nativa_erro_posicao.cinza:8:19: ValueError: o passo de 'range' não pode ser 0

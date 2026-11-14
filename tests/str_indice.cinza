@@ -11,7 +11,7 @@ fn main() {
   string e = "a😀b";
   print(e[1], e.size(), e[-2:]);
   string r = "";
-  for (int i in range(0, t.size())) { r = t[i] + r; }
+  for (i64 i in range(0, t.size())) { r = t[i] + r; }
   print(r == t[::-1]);
   // a fatia é uma string nova; a original não muda
   string s = t[0:3];

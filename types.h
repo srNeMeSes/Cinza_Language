@@ -30,7 +30,7 @@ struct TypeInfo;
 using TypeRef = const TypeInfo*;
 
 struct TypeInfo {
-    enum class Kind { Int, Decimal, String, Bool, Void, Var, List, Dict, Pair, Class, Struct, Error,
+    enum class Kind { I64, F64, String, Bool, Void, Var, List, Dict, Pair, Class, Struct, Error,
                       TypeVar /* C6: só em assinaturas nativas */,
                       Type    /* valor devolvido por type() e escrito como int, list<int>, Pessoa */,
                       Enum    /* enum Cor { ... }: só nomes, sem int por trás */,
@@ -39,12 +39,12 @@ struct TypeInfo {
     Kind                 kind;
     std::vector<TypeRef> params;   // List: {T}; Dict: {K, V}; Pair: {A, B}
     std::string          name;     // Class/Struct/Error/Enum: nome do tipo (vazio nos demais)
-    std::string          text;     // forma canônica: "int", "dict<string, int>", "Pessoa"
+    std::string          text;     // forma canônica: "i64", "dict<string, i64>", "Pessoa"
 
     const std::string& str() const { return text; }
 
     bool is(Kind k)       const { return kind == k; }
-    bool isNumeric()      const { return kind == Kind::Int || kind == Kind::Decimal; }
+    bool isNumeric()      const { return kind == Kind::I64 || kind == Kind::F64; }
     bool isPrimitive()    const { return isNumeric() || kind == Kind::String || kind == Kind::Bool; }
     bool isGeneric()      const { return kind == Kind::List || kind == Kind::Dict || kind == Kind::Pair; }
 
@@ -68,8 +68,8 @@ public:
         return ctx;
     }
 
-    TypeRef intType()     { return intern(Kind::Int,     {}, ""); }
-    TypeRef decimalType() { return intern(Kind::Decimal, {}, ""); }
+    TypeRef i64Type()     { return intern(Kind::I64,     {}, ""); }
+    TypeRef f64Type() { return intern(Kind::F64, {}, ""); }
     TypeRef stringType()  { return intern(Kind::String,  {}, ""); }
     TypeRef boolType()    { return intern(Kind::Bool,    {}, ""); }
     TypeRef voidType()    { return intern(Kind::Void,    {}, ""); }
@@ -142,8 +142,8 @@ private:
     // Mesmo formato de Type::toString() (ast.cpp), para as mensagens não mudarem
     static std::string canonical(const TypeInfo& t) {
         switch (t.kind) {
-            case Kind::Int:     return "int";
-            case Kind::Decimal: return "decimal";
+            case Kind::I64:     return "i64";
+            case Kind::F64:     return "f64";
             case Kind::String:  return "string";
             case Kind::Bool:    return "bool";
             case Kind::Void:    return "void";

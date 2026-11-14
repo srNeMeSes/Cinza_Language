@@ -123,8 +123,9 @@ void Parser::synchronize() {
             case TokenType::KW_WHILE:
             case TokenType::KW_FOR:
             case TokenType::KW_RETURN:
-            case TokenType::TYPE_INT:
-            case TokenType::TYPE_DECIMAL:
+            case TokenType::TYPE_I64:
+            case TokenType::TYPE_REMOVED:
+            case TokenType::TYPE_F64:
             case TokenType::TYPE_STRING:
             case TokenType::TYPE_BOOL:
             case TokenType::TYPE_LIST:
@@ -165,10 +166,19 @@ TypePtr Parser::parseTypeInner() {
         throw ParseError("'const' inválido em parâmetro de tipo", peek());
     }
     
-    if (match(TokenType::TYPE_INT)) {
-        kind = Type::Kind::INT;
-    } else if (match(TokenType::TYPE_DECIMAL)) {
-        kind = Type::Kind::DECIMAL;  // Sinônimo de double
+    if (match(TokenType::TYPE_REMOVED)) {
+        // int e decimal foram substituídos (seção K): um erro que explica, e segue
+        // com o tipo correspondente de 64 bits para não gerar erros em cascata
+        const bool inteiro = previous().lexeme == "int";
+        error(inteiro ? "O tipo 'int' não existe mais: use i32 (32 bits) ou i64 (64 bits)"
+                      : "O tipo 'decimal' não existe mais: use f32 (32 bits) ou f64 (64 bits)",
+              previous());
+        return std::make_unique<Type>(inteiro ? Type::Kind::I64 : Type::Kind::F64);
+    }
+    if (match(TokenType::TYPE_I64)) {
+        kind = Type::Kind::I64;
+    } else if (match(TokenType::TYPE_F64)) {
+        kind = Type::Kind::F64;  // Sinônimo de double
     } else if (match(TokenType::TYPE_STRING)) {
         kind = Type::Kind::STRING;
     } else if (match(TokenType::TYPE_BOOL)) {
@@ -182,7 +192,7 @@ TypePtr Parser::parseTypeInner() {
         
         // Parse tipo genérico: list<T> — A9: '<T>' é obrigatório
         consume(TokenType::OP_LESS,
-                "Esperado '<' após 'list': informe o tipo dos elementos, ex.: list<int>");
+                "Esperado '<' após 'list': informe o tipo dos elementos, ex.: list<i64>");
         {
             list_type->type_params.push_back(parseType());
             consume(TokenType::OP_GREATER, "Esperado '>' após tipo do list");
@@ -194,7 +204,7 @@ TypePtr Parser::parseTypeInner() {
         
         // Parse tipo genérico: dict<K, V> — A9: '<K, V>' é obrigatório
         consume(TokenType::OP_LESS,
-                "Esperado '<' após 'dict': informe chave e valor, ex.: dict<string, int>");
+                "Esperado '<' após 'dict': informe chave e valor, ex.: dict<string, i64>");
         {
             dict_type->type_params.push_back(parseType());
             consume(TokenType::COMMA, "Esperado ',' entre tipos do dict");
@@ -209,7 +219,7 @@ TypePtr Parser::parseTypeInner() {
         
         // A9: '<A, B>' é obrigatório
         consume(TokenType::OP_LESS,
-                "Esperado '<' após 'pair': informe os dois tipos, ex.: pair<string, int>");
+                "Esperado '<' após 'pair': informe os dois tipos, ex.: pair<string, i64>");
         {
             pair_type->type_params.push_back(parseType());
             consume(TokenType::COMMA, "Esperado ',' entre tipos do pair");
@@ -452,7 +462,7 @@ ExprPtr Parser::parsePrimaryExpr() {
     
     // Tipo usado como valor, para comparar com type(x):
     //   type(n) == int    type(l) == list<int>
-    if (check(TokenType::TYPE_INT)  || check(TokenType::TYPE_DECIMAL) ||
+    if (check(TokenType::TYPE_I64) || check(TokenType::TYPE_REMOVED)  || check(TokenType::TYPE_F64) ||
         check(TokenType::TYPE_STRING) || check(TokenType::TYPE_BOOL) ||
         check(TokenType::TYPE_LIST) || check(TokenType::TYPE_DICT) ||
         check(TokenType::TYPE_PAIR) || check(TokenType::TYPE_OP)) {
@@ -475,7 +485,7 @@ ExprPtr Parser::parsePrimaryExpr() {
     if (match(TokenType::INTEGER_LITERAL)) {
         Token tok = previous();
         if (tok.int_needs_minus) {
-            std::string msg = "Literal inteiro '" + tok.lexeme + "' fora do intervalo de int "
+            std::string msg = "Literal inteiro '" + tok.lexeme + "' fora do intervalo de i64 "
                               "(-9223372036854775808 a 9223372036854775807)";
             error(msg, tok);
             throw ParseError(msg, tok);
@@ -818,7 +828,7 @@ StmtPtr Parser::parseStatement() {
         }
 
         // Declaração de variável (começa com tipo primitivo ou composto)
-        if (check(TokenType::TYPE_INT) || check(TokenType::TYPE_DECIMAL) ||
+        if (check(TokenType::TYPE_I64) || check(TokenType::TYPE_REMOVED) || check(TokenType::TYPE_F64) ||
             check(TokenType::TYPE_STRING) || check(TokenType::TYPE_BOOL) ||
             check(TokenType::TYPE_LIST) || check(TokenType::TYPE_DICT) ||
             check(TokenType::TYPE_PAIR) || check(TokenType::TYPE_OP) ||
@@ -906,8 +916,8 @@ StmtPtr Parser::parseVarDeclStatement() {
         std::string suggestion;
         std::string extra_note;
         switch (type->kind) {
-            case Type::Kind::INT:     suggestion = "= 0";              break;
-            case Type::Kind::DECIMAL: suggestion = "= 0.0";            break;
+            case Type::Kind::I64:     suggestion = "= 0";              break;
+            case Type::Kind::F64: suggestion = "= 0.0";            break;
             case Type::Kind::BOOL:    suggestion = "= false";          break;
             case Type::Kind::STRING:  suggestion = "= \"\"";           break;
             case Type::Kind::VAR:
@@ -1030,7 +1040,7 @@ StmtPtr Parser::parseForStatement() {
     TypePtr type;
     
     // Verifica se começa com um tipo (primitivo, composto ou customizado)
-    if (check(TokenType::TYPE_INT) || check(TokenType::TYPE_DECIMAL) ||
+    if (check(TokenType::TYPE_I64) || check(TokenType::TYPE_REMOVED) || check(TokenType::TYPE_F64) ||
         check(TokenType::TYPE_STRING) || check(TokenType::TYPE_BOOL) ||
         check(TokenType::TYPE_LIST) || check(TokenType::TYPE_DICT) ||
         check(TokenType::TYPE_PAIR) || check(TokenType::TYPE_OP) ||
@@ -1135,7 +1145,7 @@ StmtPtr Parser::parseFunctionDeclaration() {
         // A7: sem 'var' no retorno
         if (containsVar(return_type.get())) {
             error("'var' não é permitido como tipo de retorno de '" + func_name +
-                  "'. Declare o tipo explicitamente, ex.: '-> int'.", type_token);
+                  "'. Declare o tipo explicitamente, ex.: '-> i64'.", type_token);
             throw ParseError("'var' inválido em retorno", type_token);
         }
     }
@@ -1165,7 +1175,7 @@ std::vector<Parameter> Parser::parseParameterList() {
             // A7: sem 'var' em parâmetros (o corpo precisa ser checado uma vez só)
             if (containsVar(param_type.get())) {
                 error("'var' não é permitido em parâmetros ('" + param_name_token.lexeme +
-                      "'). Use um tipo explícito, ex.: 'fn f(int " +
+                      "'). Use um tipo explícito, ex.: 'fn f(i64 " +
                       param_name_token.lexeme + ")'.", type_token);
                 throw ParseError("'var' inválido em parâmetro", type_token);
             }
@@ -1326,7 +1336,7 @@ StmtPtr Parser::parseClassDeclaration() {
 // Início de um campo: tipo primitivo/composto, ou tipo customizado
 // (IDENTIFIER seguido de IDENTIFIER). Usado por class e struct (C3).
 bool Parser::checkFieldStart() const {
-    return check(TokenType::TYPE_INT)    || check(TokenType::TYPE_DECIMAL) ||
+    return check(TokenType::TYPE_I64) || check(TokenType::TYPE_REMOVED)    || check(TokenType::TYPE_F64) ||
            check(TokenType::TYPE_STRING) || check(TokenType::TYPE_BOOL)    ||
            check(TokenType::TYPE_LIST)   || check(TokenType::TYPE_DICT)    ||
            check(TokenType::TYPE_PAIR)   || check(TokenType::TYPE_VAR)     ||
@@ -1366,8 +1376,8 @@ ClassDecl::Field Parser::parseFieldDeclaration() {
         std::string suggestion;
         std::string extra_note;
         switch (field_type->kind) {
-            case Type::Kind::INT:     suggestion = "= 0";          break;
-            case Type::Kind::DECIMAL: suggestion = "= 0.0";        break;
+            case Type::Kind::I64:     suggestion = "= 0";          break;
+            case Type::Kind::F64: suggestion = "= 0.0";        break;
             case Type::Kind::BOOL:    suggestion = "= false";      break;
             case Type::Kind::STRING:  suggestion = "= \"\"";       break;
             case Type::Kind::VAR:

@@ -35,7 +35,7 @@ Maiúsculas e minúsculas são diferentes (`nome` e `Nome` são identificadores 
 
 ```cinza
 fn main() {
-  int ação = 1;
+  i64 ação = 1;
 }
 // expect-error: Identificadores não podem conter 'ç'
 ```
@@ -54,7 +54,7 @@ and  or  not
 Nomes de tipo, também reservados:
 
 ```
-int  decimal  string  str  bool  void  var  list  dict  pair
+i64  f64  string  str  bool  void  var  list  dict  pair
 ```
 
 `op` também é reservada: era um tipo (`op<T1, T2>`), removido da linguagem; usá-lo é erro de
@@ -76,14 +76,14 @@ reservada é aceita como nome — é o que permite `Random.int(1, 6)`.
 Uma sequência de dígitos decimais: `0`, `42`, `9223372036854775807`. Não há prefixos de base
 (hexadecimal, binário) nem separadores.
 
-O valor precisa caber em `int` (64 bits com sinal). O literal `9223372036854775808` só é aceito
-logo depois de um `-` unário, formando o menor `int`, `-9223372036854775808`. Fora da faixa é
+O valor precisa caber em `i64` (64 bits com sinal). O literal `9223372036854775808` só é aceito
+logo depois de um `-` unário, formando o menor `i64`, `-9223372036854775808`. Fora da faixa é
 erro de compilação.
 
 ```cinza
 fn main() {
-  int maior = 9223372036854775807;
-  int menor = -9223372036854775808;
+  i64 maior = 9223372036854775807;
+  i64 menor = -9223372036854775808;
   print(maior, menor);
 }
 // expect: 9223372036854775807 -9223372036854775808
@@ -94,7 +94,7 @@ fn main() {
 Dígitos, um ponto e dígitos: `3.14`, `0.5`, `10.0`. Os dois lados do ponto são obrigatórios
 (`1.` e `.5` não são literais). **Não há notação com expoente** (`1e10` não é literal).
 
-Um literal que não cabe em `decimal` (ponto flutuante de 64 bits) é erro léxico.
+Um literal que não cabe em `f64` (ponto flutuante de 64 bits) é erro léxico.
 
 ### Texto (string)
 
@@ -147,7 +147,7 @@ Todos os erros léxicos de um arquivo são relatados juntos, antes da análise s
 
 ```cinza
 fn main() {
-  int a = 1 @ 2;
+  i64 a = 1 @ 2;
 }
 // expect-error: LexicalError
 ```

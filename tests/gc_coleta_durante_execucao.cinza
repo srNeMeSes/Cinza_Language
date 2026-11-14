@@ -5,7 +5,7 @@ class No {
   list<No> vizinhos;
   pub {
     fn liga(No o) { vizinhos.add(o); }
-    fn grau() -> int { return vizinhos.size(); }
+    fn grau() -> i64 { return vizinhos.size(); }
   }
 }
 fn cria() {
@@ -16,7 +16,7 @@ fn cria() {
 }
 fn main() {
   list<No> guardados;
-  for (int i in range(0, 30000)) {
+  for (i64 i in range(0, 30000)) {
     cria();
     if (i % 1000 == 0) {
       No n = new No();
@@ -24,7 +24,7 @@ fn main() {
       guardados.add(n);
     }
   }
-  int total = 0;
+  i64 total = 0;
   for (No n in guardados) { total += n.grau(); }
   print(guardados.size(), total);
 }

@@ -69,15 +69,15 @@ formato continua de 7 bits para os `.czr` já gravados seguirem válidos:
 | Campo     | Bytes | Conteúdo |
 |-----------|-------|----------|
 | cabeçalho | 4     | `C` `Z` `R` e a versão (1) |
-| `int`     | 5     | 35 bits sem sinal, o grupo mais significativo primeiro |
-| `decimal` | 10    | 2 bytes com o sinal e o expoente IEEE 754, depois 8 bytes com os 52 bits da mantissa |
+| `i64`     | 5     | 35 bits sem sinal, o grupo mais significativo primeiro |
+| `f64`     | 10    | 2 bytes com o sinal e o expoente IEEE 754, depois 8 bytes com os 52 bits da mantissa |
 | texto     | 5 + 3n | o número de caracteres, depois 21 bits (o código Unicode) por caractere |
 | rodapé    | 5     | Adler-32 de todos os bytes anteriores |
 
 O conteúdo vem nesta ordem: os nomes das entradas e do alvo; a arquitetura (entradas, saídas e
 ativação de cada camada); as épocas treinadas; as médias e desvios da padronização; os pesos e vieses.
 
-O decimal é decomposto só com multiplicações e divisões por 2, que são exatas. Por isso o número
+O `f64` é decomposto só com multiplicações e divisões por 2, que são exatas. Por isso o número
 lido é **bit a bit** o número gravado, e o modelo relido prevê exatamente o mesmo que o treinado. O
 `treinar.cinza` confere isso no fim. Ao ler, o `Leitor` confere a assinatura, a versão, a soma de
 verificação e a coerência das camadas antes de usar qualquer peso. Um arquivo corrompido ou de outro

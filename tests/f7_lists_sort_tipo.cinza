@@ -1,4 +1,4 @@
-// Fase 7: Lists.sort só ordena int, decimal ou string.
+// Fase 7: Lists.sort só ordena i64, f64 ou string.
 import Lists;
 fn main() {
   list<bool> b = [true, false];

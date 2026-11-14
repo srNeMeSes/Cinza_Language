@@ -1,7 +1,7 @@
 // interface: os métodos da interface precisam estar em pub { }.
-interface Forma { fn area() -> decimal; }
+interface Forma { fn area() -> f64; }
 class Ponto : Forma {
-  fn area() -> decimal { return 0.0; }
+  fn area() -> f64 { return 0.0; }
 }
 fn main() { }
 // expect-error: A classe 'Ponto' cumpre 'Forma', então 'area' precisa estar em pub { }.

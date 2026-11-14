@@ -1,5 +1,5 @@
 // Fase 2.5: const só pode usar const declarados antes dele.
-const int A = B;
-const int B = 1;
+const i64 A = B;
+const i64 B = 1;
 fn main() {}
 // expect-error: Variável 'B' não declarada

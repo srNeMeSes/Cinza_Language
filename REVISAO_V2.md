@@ -1179,8 +1179,18 @@ comuns ao interpretador e à CVM):
   > `type(x)` fica, sem estreitar. Spec: sai a seção 3.7 (3.8–3.10 viram 3.7–3.9). Testes: saíram 30
   > `op_*` e `iface_op`; `type_valores` e `erro_typeerror_embutido` renomeados (cobrem o que continua);
   > novos `op_removido`, `op_removido_parametro`. 429/429/429, limpo sob ASan/UBSan.
-- [ ] 2. `i64`/`f64` no lugar de `int`/`decimal`: troca de nomes e migração mecânica dos testes, sem
-  mudar comportamento.
+- [x] 2. `i64`/`f64` no lugar de `int`/`decimal`: troca de nomes e migração mecânica dos testes, sem
+  mudar comportamento. — feito em 2026-11-14
+  > Nota: palavras-chave `i64` e `f64`; `int` e `decimal` ficam reservadas só para o erro "O tipo 'int'
+  > não existe mais: use i32 (32 bits) ou i64 (64 bits)" (e o equivalente para `decimal`), relatado uma
+  > vez — o parser segue com o tipo de 64 bits, sem cascata. Nomes internos do sistema de tipos
+  > renomeados (`TK::I64`/`F64`, `TYPE_I64`/`F64`, `Type::Kind::I64`/`F64`, `i64Type()`/`f64Type()`);
+  > os do runtime (`Value::Kind::INT`, `asInt`) mudam na etapa 3, junto com os tipos de 32 bits.
+  > Mensagens de erro passam a citar `i64`/`f64`. Migrados 264 programas (testes, módulos de teste e o
+  > exemplo da rede neural) e os blocos de código da spec; o texto corrido da spec é reescrito na etapa 6.
+  > `Random.int`/`Random.decimal` e `Convert.to_int`/`to_decimal` ficam para a etapa 5. Testes novos
+  > `tipo_int_removido`, `tipo_decimal_removido`. 431/431/431, limpo sob ASan/UBSan (uma falha passageira
+  > de `files_pastas` sob ASan, por trava do Windows na pasta temporária, não se repetiu em 4 execuções).
 - [ ] 3. `i32`/`f32`, literais com sufixo, famílias e promoção, IEEE nos flutuantes, `%` só inteiro
   (semântico, `operacoes.cpp`, interpretador e CVM).
 - [ ] 4. `cast<T>(expr)`.

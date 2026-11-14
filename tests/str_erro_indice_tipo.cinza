@@ -1,6 +1,6 @@
-// Índice de string precisa ser int.
+// Índice de string precisa ser i64.
 fn main() {
   string s = "abc";
   print(s["a"]);
 }
-// expect-error: Índice de string deve ser 'int'
+// expect-error: Índice de string deve ser 'i64'

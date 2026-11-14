@@ -1,5 +1,5 @@
 // Revisão: if/else em que os dois ramos saem torna inalcançável o que vem depois.
-fn f(int n) -> string {
+fn f(i64 n) -> string {
   if (n > 0) { return "positivo"; } else { return "não positivo"; }
   return "nunca";
 }

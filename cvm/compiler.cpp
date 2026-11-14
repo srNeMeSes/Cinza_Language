@@ -239,7 +239,7 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
 
         case NodeKind::Cast: {
             auto* c = static_cast<const CastExpr*>(e);
-            if (c->resolved_type->is(TK::Decimal) && c->operand->resolved_type->is(TK::Int)) {
+            if (c->resolved_type->is(TK::F64) && c->operand->resolved_type->is(TK::I64)) {
                 const std::uint16_t r = exprReg(c->operand.get());
                 emit(Op::I2D, dst, r, 0, e->token);
             } else {
@@ -254,7 +254,7 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
             if (u->op == TokenType::OP_NOT)
                 emit(Op::NOT, dst, r, 0, e->token);
             else
-                emit(u->operand->resolved_type->is(TK::Int) ? Op::NEG_I : Op::NEG_D, dst, r, 0, e->token);
+                emit(u->operand->resolved_type->is(TK::I64) ? Op::NEG_I : Op::NEG_D, dst, r, 0, e->token);
             break;
         }
 
@@ -420,7 +420,7 @@ void Compiler::binary(const BinaryExpr* e, std::uint16_t dst) {
 
 // Literal int que cabe em 16 bits com sinal (constante embutida na instrução)
 static bool intPequeno(const Expr* e, std::int16_t& k) {
-    if (e->node_kind != NodeKind::Literal || !e->resolved_type || !e->resolved_type->is(TK::Int))
+    if (e->node_kind != NodeKind::Literal || !e->resolved_type || !e->resolved_type->is(TK::I64))
         return false;
     auto* v = std::get_if<std::int64_t>(&static_cast<const LiteralExpr*>(e)->value);
     if (!v || *v < std::numeric_limits<std::int16_t>::min() || *v > std::numeric_limits<std::int16_t>::max())
@@ -432,7 +432,7 @@ static bool intPequeno(const Expr* e, std::int16_t& k) {
 bool Compiler::arithK(TokenType op, TypeRef lt, std::uint16_t l, const Expr* direita,
                       std::uint16_t dst, const Token& tok) {
     std::int16_t k;
-    if (!lt->is(TK::Int) || !intPequeno(direita, k)) return false;
+    if (!lt->is(TK::I64) || !intPequeno(direita, k)) return false;
     Op o;
     switch (op) {
         case TokenType::OP_PLUS:          o = Op::ADDK_I; break;
@@ -462,13 +462,13 @@ void Compiler::arith(TokenType op, TypeRef lt, std::uint16_t l, TypeRef rt, std:
     }
 
     const bool strings = lt->is(TK::String) && rt->is(TK::String);
-    const bool inteiros = lt->is(TK::Int) && rt->is(TK::Int);
+    const bool inteiros = lt->is(TK::I64) && rt->is(TK::I64);
     // int misturado com decimal: converte o lado int (sem efeito colateral,
     // depois de os dois operandos já estarem avaliados)
     std::uint16_t a = l, b = r;
     if (!inteiros && !strings) {
-        if (lt->is(TK::Int)) { a = alloc(tok); emit(Op::I2D, a, l, 0, tok); }
-        if (rt->is(TK::Int)) { b = alloc(tok); emit(Op::I2D, b, r, 0, tok); }
+        if (lt->is(TK::I64)) { a = alloc(tok); emit(Op::I2D, a, l, 0, tok); }
+        if (rt->is(TK::I64)) { b = alloc(tok); emit(Op::I2D, b, r, 0, tok); }
     }
 
     auto pick = [&](Op i, Op d, Op s) { return inteiros ? i : (strings ? s : d); };
@@ -540,7 +540,7 @@ void Compiler::call(const CallExpr* e, std::uint16_t dst) {
         emit(Op::CALLNATIVE, base, nativeIndex(e->native), n, tok);
         // nativa genérica pode devolver int onde o tipo é decimal (Lists.sum de
         // list<decimal> vazia): I2D converte só se vier int
-        if (e->resolved_type && e->resolved_type->is(TK::Decimal))
+        if (e->resolved_type && e->resolved_type->is(TK::F64))
             emit(Op::I2D, base, base, 0, tok);
     } else {
         emit(Op::CALL, base, u16(proto_of.at(e->target), tok, "funções"), n, tok);
@@ -705,7 +705,7 @@ void Compiler::stmt(const Stmt* s) {
                 else emitBc(Op::LOADINT, static_cast<std::uint16_t>(a + 2), 1, s->token);
                 // o erro de passo 0 sai na posição da chamada, como na nativa
                 emit(Op::RANGEPREP, a, slotReg(f->iter_slot), 0, rc->token);
-                const bool para_decimal = f->type_iterator->kind == Type::Kind::DECIMAL;
+                const bool para_decimal = f->type_iterator->kind == Type::Kind::F64;
                 const std::size_t prox = emitBc(para_decimal ? Op::FORRANGE_D : Op::FORRANGE, a, 0, s->token);
                 lacos.push_back({});
                 stmt(f->body.get());
@@ -725,7 +725,7 @@ void Compiler::stmt(const Stmt* s) {
             emit(Op::FORPREP, a, col, slotReg(f->iter_slot), s->token);
             top = static_cast<std::uint16_t>(a + 3);
             // for (decimal x in list<int>): converte cada elemento
-            const bool para_decimal = f->type_iterator->kind == Type::Kind::DECIMAL;
+            const bool para_decimal = f->type_iterator->kind == Type::Kind::F64;
             const std::size_t prox = emitBc(para_decimal ? Op::FORNEXT_D : Op::FORNEXT, a, 0, s->token);
             lacos.push_back({});
             stmt(f->body.get());

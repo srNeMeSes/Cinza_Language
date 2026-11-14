@@ -1,9 +1,9 @@
 // B5: atribuição a campo de outro objeto da mesma classe (obj.campo = x).
 class Ponto {
-  int x = 0;
+  i64 x = 0;
   pub {
-    fn moveOutro(Ponto o, int v) { o.x = v; }
-    fn get() -> int { return x; }
+    fn moveOutro(Ponto o, i64 v) { o.x = v; }
+    fn get() -> i64 { return x; }
   }
 }
 fn main() {

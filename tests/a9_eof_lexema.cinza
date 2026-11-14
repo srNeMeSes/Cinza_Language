@@ -2,4 +2,4 @@
 // expect-error: (token: '')
 // expect-not: (token: '1
 fn main() {}
-const int x = 1
+const i64 x = 1

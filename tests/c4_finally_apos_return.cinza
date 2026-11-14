@@ -1,15 +1,15 @@
 // C4: finally roda depois de um return no try, e o valor retornado não se perde
 // (nem se o finally chamar outra função que retorna).
-fn outra() -> int { return 99; }
-fn f() -> int {
+fn outra() -> i64 { return 99; }
+fn f() -> i64 {
     try {
         return 1;
     } finally {
         print("finally", outra());
     }
 }
-fn g() -> int {
-    for (int i in [1, 2, 3]) {
+fn g() -> i64 {
+    for (i64 i in [1, 2, 3]) {
         try {
             if (i == 2) { return i * 10; }
         } finally {

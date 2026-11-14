@@ -1,7 +1,7 @@
-// A5: os limites de int (64 bits) são válidos, e contas que estouravam 32 bits agora funcionam.
+// A5: os limites de i64 (64 bits) são válidos, e contas que estouravam 32 bits agora funcionam.
 fn main() {
-  int minimo = -9223372036854775808;
-  int maximo = 9223372036854775807;
+  i64 minimo = -9223372036854775808;
+  i64 maximo = 9223372036854775807;
   print(minimo);
   print(maximo);
   print(3000000000 * 3);

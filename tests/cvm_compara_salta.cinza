@@ -1,6 +1,6 @@
-// CVM (otimização: compara-e-salta): if/while com comparação int viram uma instrução só;
-// o resultado é o mesmo — inclusive quando não pode fundir (&&, bool guardado, decimal).
-fn conta(int a, int b) -> string {
+// CVM (otimização: compara-e-salta): if/while com comparação i64 viram uma instrução só;
+// o resultado é o mesmo — inclusive quando não pode fundir (&&, bool guardado, f64).
+fn conta(i64 a, i64 b) -> string {
   string r = "";
   if (a < b) { r += "<"; }
   if (a <= b) { r += "l"; }
@@ -14,8 +14,8 @@ fn conta(int a, int b) -> string {
 }
 fn main() {
   print(conta(1, 2), conta(2, 2), conta(3, 2), conta(-2, 9), conta(-3, -3));
-  int i = 0;
-  int passos = 0;
+  i64 i = 0;
+  i64 passos = 0;
   while (i < 10) { i += 3; passos += 1; }
   print(i, passos);
   while (i >= 0) { i -= 4; }
@@ -27,9 +27,9 @@ fn main() {
   // o bool fica guardado: a comparação não pode sumir
   bool menor = i < 0;
   if (menor) { print(menor); }
-  // int com decimal: comparação comum
-  decimal d = 0.5;
-  if (i < d) { print("decimal"); }
+  // i64 com f64: comparação comum
+  f64 d = 0.5;
+  if (i < d) { print("f64"); }
 }
 // expect: <lk<klk>kg lgk<klk>kg >g-klk>kg <lk<klkg lgk<kl
 // expect: 12 4
@@ -37,4 +37,4 @@ fn main() {
 // expect: e
 // expect: ou
 // expect: true
-// expect: decimal
+// expect: f64

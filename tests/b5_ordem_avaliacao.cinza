@@ -1,8 +1,8 @@
 // B5: o alvo é avaliado antes do valor, e cada índice uma única vez.
-fn idx() -> int { print("indice"); return 0; }
-fn val() -> int { print("valor"); return 5; }
+fn idx() -> i64 { print("indice"); return 0; }
+fn val() -> i64 { print("valor"); return 5; }
 fn main() {
-  list<int> l = [0];
+  list<i64> l = [0];
   l[idx()] = val();
   print(l[0]);
 }

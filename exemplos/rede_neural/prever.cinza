@@ -49,14 +49,14 @@ fn executa(list<string> args) {
     return;
   }
 
-  list<decimal> x;
+  list<f64> x;
   if (args.size() > 1) {
     if (args.size() - 1 != nomes.size()) {
       string lista = st.join(nomes, ", ");
       printf("erro: o modelo espera {nomes.size()} valores ({lista}), recebeu {args.size() - 1}");
       exit(2);
     }
-    for (int i in range(1, args.size())) { x.add(numero(args[i], nomes[i - 1])); }
+    for (i64 i in range(1, args.size())) { x.add(numero(args[i], nomes[i - 1])); }
   } else {
     print("digite as características da casa (vírgula ou ponto nos decimais):");
     for (string nome in nomes) {
@@ -73,11 +73,11 @@ fn executa(list<string> args) {
     }
     print();
   }
-  for (int i in range(0, nomes.size())) { printf("  {nomes[i]:14} {x[i]}"); }
+  for (i64 i in range(0, nomes.size())) { printf("  {nomes[i]:14} {x[i]}"); }
   printf("  {modelo.nome_alvo()} previsto: {dados.reais(modelo.prever(x))}");
 }
 
-fn numero(string s, string nome) -> decimal {
+fn numero(string s, string nome) -> f64 {
   string t = st.replace(s, ",", ".");
   if (!cv.is_decimal(t)) {
     printf("erro: '{s}' não é um número (para {nome})");
@@ -92,9 +92,9 @@ fn prever_csv(mlp.Modelo modelo, string caminho) {
     printf("erro: o CSV tem {t.entradas.size()} entradas, o modelo espera {modelo.entradas().size()}");
     exit(2);
   }
-  decimal soma_abs = 0.0;
-  for (int i in range(0, t.y.size())) {
-    decimal p = modelo.prever(t.x[i]);
+  f64 soma_abs = 0.0;
+  for (i64 i in range(0, t.y.size())) {
+    f64 p = modelo.prever(t.x[i]);
     soma_abs += Math.abs(p - t.y[i]);
     print(" ", st.pad_right(cv.to_string(t.x[i]), 24), "real", st.pad_left(dados.reais(t.y[i]), 16),
           "  previsto", st.pad_left(dados.reais(p), 16));

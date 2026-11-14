@@ -1,7 +1,7 @@
 // Revisão: com break saindo do laço, o while (true) pode terminar e o retorno continua obrigatório.
-fn f() -> int {
+fn f() -> i64 {
   while (true) {
-    for (int i in range(0, 2)) { break; }
+    for (i64 i in range(0, 2)) { break; }
     break;
   }
 }

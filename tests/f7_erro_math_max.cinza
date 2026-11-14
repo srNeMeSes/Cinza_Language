@@ -3,4 +3,4 @@ import Math;
 fn main() {
   print(Math.max(1, "2"));
 }
-// expect-error: Argumento 2 de 'Math.max': esperado 'int', mas recebeu 'string'
+// expect-error: Argumento 2 de 'Math.max': esperado 'i64', mas recebeu 'string'

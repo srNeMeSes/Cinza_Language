@@ -5,7 +5,7 @@ fn main() {
   string r = "";
   for (string c in s) { r = r + "[" + c + "]"; }
   print(r);
-  int n = 0;
+  i64 n = 0;
   for (string c in "") { n += 1; }
   print(n);
   for (string c in s) {

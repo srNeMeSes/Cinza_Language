@@ -1,8 +1,8 @@
-// A2 (regressão): sem decimal envolvido a divisão continua inteira; a conversão vem depois da operação.
+// A2 (regressão): sem f64 envolvido a divisão continua inteira; a conversão vem depois da operação.
 fn main() {
-  int i = 5;
+  i64 i = 5;
   print(i / 2);
-  decimal d = 5 / 2;
+  f64 d = 5 / 2;
   print(d);
   print(d / 4);
 }

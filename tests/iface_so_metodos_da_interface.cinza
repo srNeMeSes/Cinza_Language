@@ -1,23 +1,23 @@
 // interface: por um valor do tipo interface, só os métodos que ela declara.
 interface Forma {
-  fn area() -> decimal;
+  fn area() -> f64;
   fn nome() -> string;
 }
 class Circulo : Forma {
-  decimal r = 1.0;
+  f64 r = 1.0;
   pub {
-    Circulo(decimal raio) { r = raio; }
-    fn area() -> decimal { return 3.0 * r * r; }
+    Circulo(f64 raio) { r = raio; }
+    fn area() -> f64 { return 3.0 * r * r; }
     fn nome() -> string { return "círculo"; }
-    fn raio() -> decimal { return r; }
+    fn raio() -> f64 { return r; }
   }
 }
 class Retangulo : Forma {
-  decimal a = 1.0;
-  decimal b = 1.0;
+  f64 a = 1.0;
+  f64 b = 1.0;
   pub {
-    Retangulo(decimal x, decimal y) { a = x; b = y; }
-    fn area() -> decimal { return a * b; }
+    Retangulo(f64 x, f64 y) { a = x; b = y; }
+    fn area() -> f64 { return a * b; }
     fn nome() -> string { return "retângulo"; }
   }
 }

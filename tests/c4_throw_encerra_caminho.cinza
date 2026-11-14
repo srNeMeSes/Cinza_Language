@@ -1,8 +1,8 @@
 // C4: throw encerra o caminho — a função com retorno não precisa de return depois dele.
-fn raiz(int n) -> int {
+fn raiz(i64 n) -> i64 {
     if (n < 0) { throw ValueError("negativo: " + n); } else { return n; }
 }
-fn escolhe(bool b) -> int {
+fn escolhe(bool b) -> i64 {
     try { return raiz(4); } except (ValueError e) { return -1; }
 }
 fn main() {

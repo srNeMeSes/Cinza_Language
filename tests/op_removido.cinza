@@ -1,7 +1,7 @@
 // O tipo op<...> foi removido da linguagem (seção K): usar dá um erro de compilação que explica,
 // em vez de uma cascata de erros de sintaxe.
 fn main() {
-  op<int, string> x = 1;
+  op<i64, string> x = 1;
   print(x);
 }
 // expect-error: O tipo 'op<...>' foi removido da linguagem

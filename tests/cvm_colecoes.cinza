@@ -1,23 +1,23 @@
 // CVM etapa 4: literais, índices aninhados, atribuição composta em índice, métodos embutidos,
 // coleções vazias, pair e cópia no for (iguais nos dois modos).
-fn adiciona(list<int> l, int x) { l.add(x); }
+fn adiciona(list<i64> l, i64 x) { l.add(x); }
 fn main() {
-  list<list<int>> m = [[1, 2], [3]];
+  list<list<i64>> m = [[1, 2], [3]];
   m[1].add(4);
   m[0][1] = 20;
   m[1][0] += 10;
   print(m, m[1][1], m.size());
-  dict<string, int> d;
+  dict<string, i64> d;
   d.add({"b", 2});
   d.add({"a", 1});
   d["a"] *= 7;
   print(d, d.keys(), d.values(), d.has("a"), d.has("z"));
   d.remove("b");
-  pair<string, int> p = {"x", 9};
+  pair<string, i64> p = {"x", 9};
   print(d, p, p.first, p.second, "ação".size());
-  list<int> l = [1];
+  list<i64> l = [1];
   adiciona(l, 2);
-  for (int v in l) { l.add(v * 10); }
+  for (i64 v in l) { l.add(v * 10); }
   print(l, l.has(3), l.has(4));
   l.remove(0);
   print(l);

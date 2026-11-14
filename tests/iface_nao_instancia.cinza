@@ -1,4 +1,4 @@
 // interface: não pode ser instanciada.
-interface Forma { fn area() -> decimal; }
+interface Forma { fn area() -> f64; }
 fn main() { Forma f = new Forma(); }
 // expect-error: A interface 'Forma' não pode ser instanciada

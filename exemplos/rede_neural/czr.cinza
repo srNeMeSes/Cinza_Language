@@ -6,14 +6,14 @@
 // gravar texto, e continua assim para os .czr já gravados seguirem válidos).
 //
 //   cabeçalho  'C' 'Z' 'R' versão                         4 bytes
-//   int        sem sinal, 35 bits, 7 bits por byte        5 bytes (mais significativo primeiro)
-//   decimal    IEEE 754 de 64 bits, exato:                10 bytes
+//   i64        sem sinal, 35 bits, 7 bits por byte        5 bytes (mais significativo primeiro)
+//   f64    IEEE 754 de 64 bits, exato:                10 bytes
 //                2 bytes: sinal (bit 12) + expoente com viés 1023 (bits 0-10; 0 = zero)
 //                8 bytes: os 52 bits da mantissa (56 bits, os 4 primeiros são 0)
-//   texto      int com o número de caracteres + 3 bytes (21 bits) por caractere Unicode
-//   rodapé     Adler-32 de todos os bytes anteriores, como int
+//   texto      i64 com o número de caracteres + 3 bytes (21 bits) por caractere Unicode
+//   rodapé     Adler-32 de todos os bytes anteriores, como i64
 //
-// O decimal é decomposto só com contas exatas (multiplicar e dividir por 2), então
+// O f64 é decomposto só com contas exatas (multiplicar e dividir por 2), então
 // o número lido é bit a bit o número gravado.
 // ============================================================================
 
@@ -23,14 +23,14 @@ import Math;
 
 pub error ErroCzr;
 
-pub const int VERSAO = 1;
-const int MOD_ADLER = 65521;
-const decimal DOIS_52 = 4503599627370496.0;
+pub const i64 VERSAO = 1;
+const i64 MOD_ADLER = 65521;
+const f64 DOIS_52 = 4503599627370496.0;
 
 pub class Escritor {
-  list<int> bytes;
-  int adler_a = 1;
-  int adler_b = 0;
+  list<i64> bytes;
+  i64 adler_a = 1;
+  i64 adler_b = 0;
 
   pub {
     Escritor() {
@@ -40,7 +40,7 @@ pub class Escritor {
       escreve_byte(VERSAO);
     }
 
-    fn escreve_byte(int v) {
+    fn escreve_byte(i64 v) {
       if (v < 0 || v > 127) { throw ErroCzr(format("byte fora de 0..127: {v}")); }
       bytes.add(v);
       adler_a = (adler_a + v) % MOD_ADLER;
@@ -48,36 +48,36 @@ pub class Escritor {
     }
 
     // n grupos de 7 bits, o mais significativo primeiro
-    fn escreve_grupos(int v, int n) {
-      list<int> grupos;
-      int resto = v;
-      for (int i in range(0, n)) {
+    fn escreve_grupos(i64 v, i64 n) {
+      list<i64> grupos;
+      i64 resto = v;
+      for (i64 i in range(0, n)) {
         grupos.add(resto % 128);
         resto = resto / 128;
       }
       if (resto != 0) { throw ErroCzr(format("{v} não cabe em {n * 7} bits")); }
-      for (int i in range(n - 1, -1, -1)) { escreve_byte(grupos[i]); }
+      for (i64 i in range(n - 1, -1, -1)) { escreve_byte(grupos[i]); }
     }
 
-    fn escreve_int(int v) {
-      if (v < 0) { throw ErroCzr(format("int negativo não é gravado: {v}")); }
+    fn escreve_int(i64 v) {
+      if (v < 0) { throw ErroCzr(format("i64 negativo não é gravado: {v}")); }
       escreve_grupos(v, 5);
     }
 
-    fn escreve_decimal(decimal x) {
+    fn escreve_decimal(f64 x) {
       if (x == 0.0) {
         escreve_grupos(0, 2);
         escreve_grupos(0, 8);
         return;
       }
-      int sinal = 0;
-      decimal a = x;
+      i64 sinal = 0;
+      f64 a = x;
       if (a < 0.0) {
         sinal = 1;
         a = -a;
       }
       // normaliza para 1 <= a < 2, contando o expoente
-      int e = 0;
+      i64 e = 0;
       while (a >= 2.0) {
         a = a / 2.0;
         e += 1;
@@ -92,7 +92,7 @@ pub class Escritor {
         escreve_grupos(0, 8);
         return;
       }
-      int mantissa = Math.trunc((a - 1.0) * DOIS_52);
+      i64 mantissa = Math.trunc((a - 1.0) * DOIS_52);
       escreve_grupos(sinal * 4096 + (e + 1023), 2);
       escreve_grupos(mantissa, 8);
     }
@@ -105,7 +105,7 @@ pub class Escritor {
 
     // grava o rodapé e o arquivo inteiro de uma vez
     fn salva(string caminho) {
-      int soma = adler_b * 65536 + adler_a;
+      i64 soma = adler_b * 65536 + adler_a;
       escreve_int(soma);
       Files.write_bytes(caminho, bytes);
     }
@@ -113,9 +113,9 @@ pub class Escritor {
 }
 
 pub class Leitor {
-  list<int> dados;
-  int pos = 0;
-  int fim_dados = 0;
+  list<i64> dados;
+  i64 pos = 0;
+  i64 fim_dados = 0;
   string origem = "";
 
   fn falha(string motivo) {
@@ -126,7 +126,7 @@ pub class Leitor {
     Leitor(string caminho) {
       origem = caminho;
       dados = Files.read_bytes(caminho);
-      for (int v in dados) {
+      for (i64 v in dados) {
         if (v > 127) { falha("byte fora de 0..127 (arquivo de outro formato?)"); }
       }
       if (dados.size() < 9) { falha("arquivo curto demais"); }
@@ -135,44 +135,44 @@ pub class Leitor {
 
       // confere o Adler-32 antes de interpretar qualquer coisa
       fim_dados = dados.size() - 5;
-      int a = 1;
-      int b = 0;
-      for (int i in range(0, fim_dados)) {
+      i64 a = 1;
+      i64 b = 0;
+      for (i64 i in range(0, fim_dados)) {
         a = (a + dados[i]) % MOD_ADLER;
         b = (b + a) % MOD_ADLER;
       }
-      int gravada = 0;   // o rodapé: os 5 últimos bytes
-      for (int i in range(fim_dados, dados.size())) { gravada = gravada * 128 + dados[i]; }
+      i64 gravada = 0;   // o rodapé: os 5 últimos bytes
+      for (i64 i in range(fim_dados, dados.size())) { gravada = gravada * 128 + dados[i]; }
       if (gravada != b * 65536 + a) { falha("soma de verificação não confere (arquivo corrompido)"); }
       pos = 4;
     }
 
-    fn le_byte() -> int {
+    fn le_byte() -> i64 {
       if (pos >= fim_dados) { falha("fim inesperado dos dados"); }
-      int v = dados[pos];
+      i64 v = dados[pos];
       pos += 1;
       return v;
     }
 
-    fn le_grupos(int n) -> int {
-      int v = 0;
-      for (int i in range(0, n)) { v = v * 128 + le_byte(); }
+    fn le_grupos(i64 n) -> i64 {
+      i64 v = 0;
+      for (i64 i in range(0, n)) { v = v * 128 + le_byte(); }
       return v;
     }
 
     // como os demais campos, nunca passa do fim dos dados (o rodapé não é dado)
-    fn le_int() -> int { return le_grupos(5); }
+    fn le_int() -> i64 { return le_grupos(5); }
 
-    fn le_decimal() -> decimal {
-      int cab = le_grupos(2);
-      int mantissa = le_grupos(8);
+    fn le_decimal() -> f64 {
+      i64 cab = le_grupos(2);
+      i64 mantissa = le_grupos(8);
       if (cab == 0 && mantissa == 0) { return 0.0; }
-      int sinal = cab / 4096;
-      int e = cab % 4096 - 1023;
+      i64 sinal = cab / 4096;
+      i64 e = cab % 4096 - 1023;
       if (sinal > 1 || e < -1022 || e > 1023 || mantissa >= 4503599627370496) {
-        falha("decimal malformado");
+        falha("f64 malformado");
       }
-      decimal a = 1.0 + mantissa / DOIS_52;
+      f64 a = 1.0 + mantissa / DOIS_52;
       while (e > 0) {
         a = a * 2.0;
         e -= 1;
@@ -186,11 +186,11 @@ pub class Leitor {
     }
 
     fn le_texto() -> string {
-      int n = le_int();
+      i64 n = le_int();
       if (n > fim_dados - pos) { falha("texto maior que o arquivo"); }
       list<string> cs;
-      for (int i in range(0, n)) {
-        int cp = le_grupos(3);
+      for (i64 i in range(0, n)) {
+        i64 cp = le_grupos(3);
         try {
           cs.add(st.chr(cp));
         } except (ValueError e) {

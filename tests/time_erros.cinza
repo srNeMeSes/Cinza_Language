@@ -31,5 +31,5 @@ fn main() {
 // expect: o instante -62135596801 está fora do intervalo de datas (anos 1 a 9999)
 // expect: mês 0 inválido (use 1 a 12)
 // expect: o tempo de 'sleep' não pode ser negativo
-// expect: resultado de 'add_days' fora do intervalo de int
+// expect: resultado de 'add_days' fora do intervalo de i64
 // expect: não existe: 'tests/_nao_existe_time'

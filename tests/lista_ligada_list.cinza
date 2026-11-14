@@ -1,11 +1,11 @@
 // Estruturas recursivas sem null: list<No> vazia = sem próximo; com 1 elemento = o próximo.
 class No {
-  int valor = 0;
+  i64 valor = 0;
   list<No> proximo;
   pub {
-    No(int v) { valor = v; }
+    No(i64 v) { valor = v; }
     fn liga(No n) { proximo.add(n); }
-    fn getValor() -> int { return valor; }
+    fn getValor() -> i64 { return valor; }
     fn temProximo() -> bool { return proximo.size() > 0; }
     fn getProximo() -> No { return proximo[0]; }
   }
@@ -17,7 +17,7 @@ fn main() {
   a.liga(b);
   b.liga(c);
   No atual = a;
-  int soma = atual.getValor();
+  i64 soma = atual.getValor();
   while (atual.temProximo()) {
     atual = atual.getProximo();
     soma += atual.getValor();

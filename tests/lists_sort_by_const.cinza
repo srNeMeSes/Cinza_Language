@@ -2,7 +2,7 @@
 import Lists as L;
 fn main() {
   list<string> nomes = ["b", "a"];
-  const list<int> chaves = [2, 1];
+  const list<i64> chaves = [2, 1];
   L.sort_by(nomes, chaves);
 }
 // expect-error: 'Lists.sort_by' altera a lista, mas 'chaves' é const

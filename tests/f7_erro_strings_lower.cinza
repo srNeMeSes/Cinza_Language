@@ -3,4 +3,4 @@ import Strings;
 fn main() {
   print(Strings.lower(1));
 }
-// expect-error: Argumento 1 de 'Strings.lower': esperado 'string', mas recebeu 'int'
+// expect-error: Argumento 1 de 'Strings.lower': esperado 'string', mas recebeu 'i64'

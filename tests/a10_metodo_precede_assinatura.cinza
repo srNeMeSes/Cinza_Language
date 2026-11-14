@@ -1,10 +1,10 @@
 // A10: a checagem de tipos também usa o método (assinatura diferente da global).
-fn soma(int a, int b) -> int { return a + b; }
+fn soma(i64 a, i64 b) -> i64 { return a + b; }
 class C {
-  int base = 10;
+  i64 base = 10;
   pub {
-    fn soma(int a) -> int { return base + a; }
-    fn usa() -> int { return soma(5); }
+    fn soma(i64 a) -> i64 { return base + a; }
+    fn usa() -> i64 { return soma(5); }
   }
 }
 fn main() {

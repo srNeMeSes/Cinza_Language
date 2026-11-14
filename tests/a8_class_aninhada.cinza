@@ -1,4 +1,4 @@
 // A8: class declarada dentro de função é erro de parser.
-fn f() -> int { class Interna { int v = 1; } return 1; }
+fn f() -> i64 { class Interna { i64 v = 1; } return 1; }
 fn main() {}
 // expect-error: nível superior

@@ -2,7 +2,7 @@
 fn main() {
   print(true and false, true or false, not true);
   print(not false && true, false || not false);
-  int x = 5;
+  i64 x = 5;
   print(x > 1 and x < 10, not (x == 5) or x == 5);
 }
 // expect: false true false

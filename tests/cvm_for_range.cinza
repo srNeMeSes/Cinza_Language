@@ -1,34 +1,34 @@
 // CVM (otimização: for sobre range sem criar a lista): mesmos resultados do range comum — passo
-// negativo, intervalo vazio, conversão para decimal, break/continue, limite de int e argumentos
+// negativo, intervalo vazio, conversão para f64, break/continue, limite de i64 e argumentos
 // avaliados uma vez, na ordem.
-fn mostra(int n) -> int {
+fn mostra(i64 n) -> i64 {
   print("arg", n);
   return n;
 }
 fn main() {
-  int s = 0;
-  for (int i in range(10, 0, -3)) { s = s * 100 + i; }
+  i64 s = 0;
+  for (i64 i in range(10, 0, -3)) { s = s * 100 + i; }
   print(s);
-  for (int i in range(5, 5)) { print("nunca"); }
-  for (int i in range(5, 0)) { print("nunca"); }
-  decimal t = 0.0;
-  for (decimal x in range(1, 4)) { t += x / 2; }
+  for (i64 i in range(5, 5)) { print("nunca"); }
+  for (i64 i in range(5, 0)) { print("nunca"); }
+  f64 t = 0.0;
+  for (f64 x in range(1, 4)) { t += x / 2; }
   print(t);
-  int c = 0;
-  for (int i in range(0, 100)) {
+  i64 c = 0;
+  for (i64 i in range(0, 100)) {
     if (i % 2 == 0) { continue; }
     if (i > 9) { break; }
     c += i;
   }
   print(c);
-  int ultimo = 0;
-  int voltas = 0;
-  for (int i in range(9223372036854775805, 9223372036854775807, 1)) { ultimo = i; voltas += 1; }
+  i64 ultimo = 0;
+  i64 voltas = 0;
+  for (i64 i in range(9223372036854775805, 9223372036854775807, 1)) { ultimo = i; voltas += 1; }
   print(ultimo, voltas);
-  for (int i in range(9223372036854775806, 9223372036854775807, 5)) { print("só um", i); }
-  for (int i in range(mostra(1), mostra(3))) { print("volta", i); }
-  int x = 7;
-  for (int i in range(0, x)) { x = 0; }
+  for (i64 i in range(9223372036854775806, 9223372036854775807, 5)) { print("só um", i); }
+  for (i64 i in range(mostra(1), mostra(3))) { print("volta", i); }
+  i64 x = 7;
+  for (i64 i in range(0, x)) { x = 0; }
   print(x);
 }
 // expect: 10070401

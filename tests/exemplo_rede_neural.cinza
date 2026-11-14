@@ -15,43 +15,43 @@ fn main() {
   Files.make_dir(pasta);
 
   // decimais extremos fazem a ida e volta exata
-  list<decimal> valores = [0.0, 1.0, -1.0, 0.1, -2.5, 1234567.891, 0.000000001, 3.141592653589793,
+  list<f64> valores = [0.0, 1.0, -1.0, 0.1, -2.5, 1234567.891, 0.000000001, 3.141592653589793,
                            179769313486231570000000000000000000000000000.0, 0.30000000000000004];
   czr.Escritor e = new czr.Escritor();
-  for (decimal v in valores) { e.escreve_decimal(v); }
+  for (f64 v in valores) { e.escreve_decimal(v); }
   e.escreve_int(34359738367);
   e.escreve_texto("m² ação");
   string arq = Files.join(pasta, "valores.czr");
   e.salva(arq);
   czr.Leitor l = new czr.Leitor(arq);
-  int iguais = 0;
-  for (decimal v in valores) {
+  i64 iguais = 0;
+  for (f64 v in valores) {
     if (l.le_decimal() == v) { iguais += 1; }
   }
   print(iguais, valores.size(), l.le_int(), l.le_texto(), l.terminou());
 
   // y = 3·a − 2·b + 5: a rede precisa chegar perto
   Random.seed(7);
-  list<list<decimal>> x;
-  list<decimal> y;
-  for (int i in range(0, 60)) {
-    decimal a = Random.decimal_range(-2.0, 2.0);
-    decimal b = Random.decimal_range(-2.0, 2.0);
+  list<list<f64>> x;
+  list<f64> y;
+  for (i64 i in range(0, 60)) {
+    f64 a = Random.decimal_range(-2.0, 2.0);
+    f64 b = Random.decimal_range(-2.0, 2.0);
     x.add([a, b]);
     y.add(3.0 * a - 2.0 * b + 5.0);
   }
   mlp.Modelo m = new mlp.Modelo(["a", "b"], "y", [6]);
   m.ajustar_padronizacao(x, y);
   m.treinar(x, y, 60, 10, 0.03, 0);
-  decimal erro = 0.0;
-  for (int i in range(0, y.size())) { erro += Math.abs(m.prever(x[i]) - y[i]); }
+  f64 erro = 0.0;
+  for (i64 i in range(0, y.size())) { erro += Math.abs(m.prever(x[i]) - y[i]); }
   print(m.arquitetura(), m.epocas_treinadas(), erro / y.size() < 0.25);
 
   string modelo = Files.join(pasta, "modelo.czr");
   m.salvar(modelo);
   mlp.Modelo r = mlp.carregar(modelo);
-  int mesmas = 0;
-  for (list<decimal> amostra in x) {
+  i64 mesmas = 0;
+  for (list<f64> amostra in x) {
     if (r.prever(amostra) == m.prever(amostra)) { mesmas += 1; }
   }
   print(mesmas, r.entradas(), r.nome_alvo(), r.epocas_treinadas());

@@ -4,11 +4,11 @@ class No {
   list<No> vizinhos;
   pub {
     fn liga(No o) { vizinhos.add(o); }
-    fn grau() -> int { return vizinhos.size(); }
+    fn grau() -> i64 { return vizinhos.size(); }
   }
 }
 fn main() {
-  for (int i in range(0, 100)) {
+  for (i64 i in range(0, 100)) {
     No a = new No();
     No b = new No();
     a.liga(b);

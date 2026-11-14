@@ -7,8 +7,8 @@ deste capítulo são conferidas antes de executar.
 
 | Tipo      | Valores                                                                 |
 |-----------|-------------------------------------------------------------------------|
-| `int`     | inteiro de 64 bits com sinal: -9223372036854775808 a 9223372036854775807 |
-| `decimal` | ponto flutuante de 64 bits (IEEE 754, precisão dupla)                    |
+| `i64`     | inteiro de 64 bits com sinal: -9223372036854775808 a 9223372036854775807 |
+| `f64` | ponto flutuante de 64 bits (IEEE 754, precisão dupla)                    |
 | `string`  | texto em UTF-8 (sinônimo: `str`)                                         |
 | `bool`    | `true` ou `false`                                                        |
 
@@ -37,7 +37,7 @@ fn main() {
   var x = 1;
   x = "a";
 }
-// expect-error: esperado 'int', mas recebeu 'string'
+// expect-error: esperado 'i64', mas recebeu 'string'
 ```
 
 `var` só pode aparecer em declarações de variável local e no iterador do `for`; não vale em
@@ -51,7 +51,7 @@ parâmetros, retornos, campos nem dentro de `list<>`, `dict<>` ou `pair<>`.
 | `dict<K, V>`   | associação de chaves `K` a valores `V`, ordenada pela chave            |
 | `pair<A, B>`   | par imutável com os campos `first` (tipo `A`) e `second` (tipo `B`)    |
 
-A chave de um `dict` só pode ser `int`, `string`, `bool` ou um `enum`. `decimal` é proibido
+A chave de um `dict` só pode ser `i64`, `string`, `bool` ou um `enum`. `f64` é proibido
 (comparação exata de ponto flutuante não é confiável), assim como coleções e objetos.
 
 Uma variável ou campo `list` ou `dict` declarado sem valor inicial nasce vazio.
@@ -70,17 +70,17 @@ Um valor do tipo `V` pode ser usado onde se espera o tipo `T` (atribuição, ini
 argumento, retorno, elemento de coleção) quando:
 
 1. `V` e `T` são o mesmo tipo; ou
-2. `V` é `int` e `T` é `decimal` — o valor é convertido; ou
+2. `V` é `i64` e `T` é `f64` — o valor é convertido; ou
 3. `T` é `Error` e `V` é qualquer tipo de erro (`Error` é a raiz dos erros); ou
 4. `T` é uma interface e `V` é uma classe que declara cumpri-la (seção 3.7).
 
-Nenhuma outra conversão é implícita: `decimal` não vira `int`, número não vira `string`, `bool`
+Nenhuma outra conversão é implícita: `f64` não vira `i64`, número não vira `string`, `bool`
 não vira número.
 
 ```cinza
-fn metade(decimal x) -> decimal { return x / 2; }
+fn metade(f64 x) -> f64 { return x / 2; }
 fn main() {
-  decimal d = 3;
+  f64 d = 3;
   print(d, metade(5));
 }
 // expect: 3 2.5
@@ -88,17 +88,17 @@ fn main() {
 
 ### Invariância das coleções
 
-`list`, `dict` e `pair` são **invariantes**: `list<int>` não é `list<decimal>`, mesmo que `int`
-caiba em `decimal`. (Se fosse, uma função poderia pôr um `decimal` numa lista que o chamador
-acredita ser de `int`.)
+`list`, `dict` e `pair` são **invariantes**: `list<i64>` não é `list<f64>`, mesmo que `i64`
+caiba em `f64`. (Se fosse, uma função poderia pôr um `f64` numa lista que o chamador
+acredita ser de `i64`.)
 
-**Literais se adaptam ao tipo esperado**: `[1, 2]` onde se espera `list<decimal>` vira uma
-`list<decimal>` com os elementos convertidos. Uma variável `list<int>` não se adapta.
+**Literais se adaptam ao tipo esperado**: `[1, 2]` onde se espera `list<f64>` vira uma
+`list<f64>` com os elementos convertidos. Uma variável `list<i64>` não se adapta.
 
 ```cinza
-fn soma(list<decimal> l) -> decimal {
-  decimal s = 0.0;
-  for (decimal x in l) { s += x; }
+fn soma(list<f64> l) -> f64 {
+  f64 s = 0.0;
+  for (f64 x in l) { s += x; }
   return s;
 }
 fn main() {
@@ -108,16 +108,16 @@ fn main() {
 ```
 
 ```cinza
-fn soma(list<decimal> l) -> decimal { return 0.0; }
+fn soma(list<f64> l) -> f64 { return 0.0; }
 fn main() {
-  list<int> inteiros = [1, 2];
+  list<i64> inteiros = [1, 2];
   print(soma(inteiros));
 }
-// expect-error: esperado 'list<decimal>', mas recebeu 'list<int>'
+// expect-error: esperado 'list<f64>', mas recebeu 'list<i64>'
 ```
 
 Sem tipo esperado, um literal de lista toma o tipo comum dos elementos: `[1, 2.5]` é
-`list<decimal>`; elementos de tipos incompatíveis são erro.
+`list<f64>`; elementos de tipos incompatíveis são erro.
 
 ## 3.6 Valor inicial obrigatório
 
@@ -126,7 +126,7 @@ Toda variável e todo campo precisa de valor inicial na declaração, exceto `li
 
 ```cinza
 fn main() {
-  int x;
+  i64 x;
 }
 // expect-error: 'x' deve ser inicializado na declaração
 ```
@@ -147,24 +147,24 @@ cumpri-la (`class Circulo : Forma`) pode ser usada onde se espera a interface.
   se espera `list<Forma>` é.
 
 ```cinza
-interface Forma { fn area() -> decimal; }
+interface Forma { fn area() -> f64; }
 class Quadrado : Forma {
-  decimal lado = 1.0;
+  f64 lado = 1.0;
   pub {
-    Quadrado(decimal l) { lado = l; }
-    fn area() -> decimal { return lado * lado; }
+    Quadrado(f64 l) { lado = l; }
+    fn area() -> f64 { return lado * lado; }
   }
 }
 class Retangulo : Forma {
-  decimal a = 1.0;
-  decimal b = 1.0;
+  f64 a = 1.0;
+  f64 b = 1.0;
   pub {
-    Retangulo(decimal x, decimal y) { a = x; b = y; }
-    fn area() -> decimal { return a * b; }
+    Retangulo(f64 x, f64 y) { a = x; b = y; }
+    fn area() -> f64 { return a * b; }
   }
 }
-fn total(list<Forma> formas) -> decimal {
-  decimal s = 0.0;
+fn total(list<Forma> formas) -> f64 {
+  f64 s = 0.0;
   for (Forma f in formas) { s += f.area(); }
   return s;
 }
@@ -178,17 +178,17 @@ fn main() {
 ## 3.8 Tipos como valores
 
 `type(x)` (seção 6.1) devolve um valor do tipo `type`, que representa o tipo real de `x`. Um
-tipo escrito como valor (`int`, `list<int>`, o nome de uma classe, struct, enum ou erro) pode ser
+tipo escrito como valor (`i64`, `list<i64>`, o nome de uma classe, struct, enum ou erro) pode ser
 comparado com ele por `==` e `!=`. No `print`, um tipo aparece pelo nome. Não existe declaração
 de variável do tipo `type`.
 
 ```cinza
-struct Ponto { int x = 0; }
+struct Ponto { i64 x = 0; }
 fn main() {
-  list<int> l = [1];
-  print(type(5) == int, type(l) == list<int>, type(new Ponto()) == Ponto, type(l));
+  list<i64> l = [1];
+  print(type(5) == i64, type(l) == list<i64>, type(new Ponto()) == Ponto, type(l));
 }
-// expect: true true true list<int>
+// expect: true true true list<i64>
 ```
 
 ## 3.9 `const`
@@ -204,7 +204,7 @@ fn main() {
 
 ```cinza
 fn main() {
-  const list<int> l = [1, 2];
+  const list<i64> l = [1, 2];
   l.add(3);
 }
 // expect-error: Listas const não podem ser modificadas

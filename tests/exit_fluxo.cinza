@@ -1,6 +1,6 @@
 // Para a análise de fluxo, exit encerra o caminho como throw: uma função com retorno compila
 // mesmo sem return depois do exit. O código fora de 0 a 255 lança ValueError (capturável).
-fn le_positivo(int n) -> int {
+fn le_positivo(i64 n) -> i64 {
   if (n > 0) { return n; }
   print("número inválido:", n);
   exit(2);

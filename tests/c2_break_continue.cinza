@@ -1,14 +1,14 @@
 // C2: break e continue em while e for, inclusive aninhados (break sai só do laço interno).
 fn main() {
-  int i = 0;
+  i64 i = 0;
   while (true) {
     i += 1;
     if (i % 2 == 0) { continue; }
     if (i > 7) { break; }
     print(i);
   }
-  for (int x in [1, 2, 3]) {
-    for (int y in [10, 20, 30]) {
+  for (i64 x in [1, 2, 3]) {
+    for (i64 y in [10, 20, 30]) {
       if (y == 20) { break; }
       print(x * y);
     }

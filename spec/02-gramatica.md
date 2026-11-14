@@ -1,7 +1,7 @@
 # 2. Gramática
 
 A sintaxe completa da Cinza, em EBNF (convenções no [README](README.md)). `nome` é um
-identificador (seção 1.3); `inteiro`, `decimal` e `texto` são os literais da seção 1.5.
+identificador (seção 1.3); `inteiro`, `f64` e `texto` são os literais da seção 1.5.
 
 Regras que a gramática sozinha não expressa estão nos comentários `(* ... *)` e são detalhadas
 nos capítulos seguintes.
@@ -46,7 +46,7 @@ erro          = "error" nome ";" ;
 ## 2.2 Tipos
 
 ```ebnf
-tipo          = "int" | "decimal" | "string" | "str" | "bool"
+tipo          = "i64" | "f64" | "string" | "str" | "bool"
               | "void"                                   (* só como tipo de retorno *)
               | "var"                                    (* só em variável local e no for *)
               | "list" "<" tipo ">"
@@ -128,9 +128,9 @@ lista         = "[" expressao { "," expressao } "]" ;    (* não há "[]" vazio 
 par           = "{" expressao "," expressao "}" ;
 dicionario    = "{" entrada { "," entrada } "}" ;        (* não há "{}" vazio *)
 entrada       = "{" expressao "," expressao "}" ;
-tipoValor     = ( "int" | "decimal" | "string" | "str" | "bool"
+tipoValor     = ( "i64" | "f64" | "string" | "str" | "bool"
                 | "list" | "dict" | "pair" ) … ;         (* um tipo escrito como valor *)
-literal       = inteiro | decimal | texto | "true" | "false" ;
+literal       = inteiro | f64 | texto | "true" | "false" ;
 ```
 
 | Precedência | Operadores                       |
@@ -157,7 +157,7 @@ Observações:
   `-9223372036854775808` é válido.
 - Comparações encadeadas como `a < b < c` são sintaticamente válidas, mas comparam um `bool`
   com um número e por isso são erro de tipo (seção 5.3).
-- Um **tipo escrito como valor** (`int`, `list<int>`, o nome de uma classe) só serve para
+- Um **tipo escrito como valor** (`i64`, `list<i64>`, o nome de uma classe) só serve para
   comparar com `type(x)` (seção 3.8).
-- Uma lista ou dicionário vazio se escreve omitindo o inicializador: `list<int> l;`.
+- Uma lista ou dicionário vazio se escreve omitindo o inicializador: `list<i64> l;`.
 - `{a, b}` é um par; `{{k, v}, ...}` é um dicionário.

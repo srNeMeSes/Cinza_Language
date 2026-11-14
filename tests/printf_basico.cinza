@@ -7,18 +7,18 @@ class Pessoa {
     fn get_nome() -> string { return nome; }
   }
 }
-struct Ponto { int x = 0; int y = 0; }
+struct Ponto { i64 x = 0; i64 y = 0; }
 enum Cor { Verde, Azul }
-fn dobro(int n) -> int { return n * 2; }
+fn dobro(i64 n) -> i64 { return n * 2; }
 fn main() {
   string nome = "Ana";
-  int idade = 30;
-  decimal preco = 2.5;
+  i64 idade = 30;
+  f64 preco = 2.5;
   printf("Olá, {nome}! Você tem {idade} anos.");
   printf("{idade + 1} {dobro(idade)} {nome.size()} {idade > 18} {preco * 2}");
   // qualquer tipo, na forma do print
-  list<int> l = [1, 2];
-  dict<string, int> d = {{"a", 1}};
+  list<i64> l = [1, 2];
+  dict<string, i64> d = {{"a", 1}};
   Pessoa p = new Pessoa("Bia");
   printf("{l} {d} {l[0]} {d[\"a\"]} {p.get_nome()} {new Ponto(1, 2)} {Cor.Azul} {type(preco)}");
   // formatos
@@ -37,7 +37,7 @@ fn main() {
 }
 // expect: Olá, Ana! Você tem 30 anos.
 // expect: 31 60 3 true 5
-// expect: [1, 2] {"a": 1} 1 1 Bia Ponto{x: 1, y: 2} Cor.Azul decimal
+// expect: [1, 2] {"a": 1} 1 1 Bia Ponto{x: 1, y: 2} Cor.Azul f64
 // expect: R$ 2.50 | 30.0 | 2.68 | 0.00 | 7
 // expect: [   30] [Ana  ] [   2.500] [Ana] [ção  ]
 // expect: {x} = 30; vazio: {}

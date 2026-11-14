@@ -1,10 +1,10 @@
 // C2: for sobre dict<K,V> com iterador pair<K,V>, em ordem de chave.
 fn main() {
-  dict<string, int> d = {{"banana", 2}, {"abacaxi", 1}, {"caju", 3}};
-  for (pair<string, int> p in d) {
+  dict<string, i64> d = {{"banana", 2}, {"abacaxi", 1}, {"caju", 3}};
+  for (pair<string, i64> p in d) {
     print(p.first, p.second);
   }
-  int total = 0;
+  i64 total = 0;
   for (var p in d) { total += p.second; }
   print(total);
 }
