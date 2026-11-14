@@ -7,7 +7,7 @@ fn main() {
   print(Math.pi);
   print(1.0ff / 4.ff, 2.0ff / 3.ff);
   f64 x = 1.0ff / 3.ff;
-  print(cv.to_decimal(cv.to_string(x)) == x);
+  print(cast<f64>(cast<string>(x)) == x);
 }
 // expect: 123456.789 1234567.5 4 4.1 0.5
 // expect: 3.141592653589793

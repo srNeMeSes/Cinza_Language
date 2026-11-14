@@ -1,0 +1,18 @@
+// Seção K: o Convert fica com o que o cast não faz — validação (is_*), conversão
+// com padrão (to_*_or), bool e bases — e lê o texto exatamente como o cast.
+import Convert as cv;
+fn main() {
+  print(cv.is_i32("42"), cv.is_i32("3000000000"), cv.is_i64("3000000000"), cv.is_i64("1.5"));
+  print(cv.is_f32("1e39"), cv.is_f64("1e39"), cv.is_f64("inf"), cv.is_f64("nan"), cv.is_f64(" 1"));
+  print(cv.to_i32_or("7", 0), type(cv.to_i32_or("7", 0)), cv.to_i32_or("x", -1), cv.to_i64_or("9000000000", 0));
+  print(cv.to_f32_or("0.1", 0.f), type(cv.to_f32_or("0.1", 0.f)), cv.to_f64_or("2.5", 0.ff), cv.to_f64_or("?", -1.ff));
+  print(cv.is_bool("true"), cv.to_bool_or("sim", false), cv.to_hex(255), cv.from_base("z", 36));
+  i32 n = 10;
+  print(cv.to_binary(n), cv.to_base(n, 3));
+}
+// expect: true false true false
+// expect: false true true true false
+// expect: 7 i32 -1 9000000000
+// expect: 0.1 f32 2.5 -1
+// expect: true false ff 35
+// expect: 1010 101

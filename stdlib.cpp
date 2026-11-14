@@ -1,4 +1,5 @@
 #include "natives.h"
+#include "operacoes.h"   // convertValue, doubleToF32 (seção K)
 #include "plataforma.h"
 #include "runtime_error.h"
 #include "utf8.h"
@@ -54,13 +55,27 @@ char32_t paraMinuscula(char32_t c) {
     return c;
 }
 
-// Número (int ou decimal) como double
+// Número (inteiro ou ponto flutuante) como double
 double numero(const Value& v) { return v.asNumber(); }
 
-// decimal → int, com OverflowError fora da faixa de int
-Value decimalParaInt(double d, const char* fn) {
-    // 2^63 é o primeiro double fora da faixa (int64 vai até 2^63 - 1)
-    if (!std::isfinite(d) || d < -9223372036854775808.0 || d >= 9223372036854775808.0)
+// Seção K: posição, tamanho ou contagem — i32 (cabe sempre: nenhuma string ou
+// lista chega a 2^31 elementos)
+Value i32Valor(std::int64_t v) { return Value::i32(static_cast<std::int32_t>(v)); }
+
+// Resultado de ponto flutuante na largura do argumento: f32 entra e sai f32
+// (a conta é feita em double e arredondada uma vez); IEEE, sem erro
+Value naLargura(const Value& arg, double r) {
+    return arg.kind() == Value::Kind::F32 ? Value::f32(doubleToF32(r)) : Value(r);
+}
+
+// ponto flutuante → i64 (floor, ceil, round, trunc): NaN e infinito não têm
+// valor inteiro (ValueError); fora da faixa, OverflowError
+Value flutuanteParaInt(double d, const char* fn) {
+    if (d != d) falha(std::string("ValueError: '") + fn + "' de nan não tem valor inteiro");
+    if (std::isinf(d))
+        falha(std::string("ValueError: '") + fn + "' de " + (d > 0 ? "inf" : "-inf") + " não tem valor inteiro");
+    // 2^63 é o primeiro double fora da faixa (i64 vai até 2^63 - 1)
+    if (d < -9223372036854775808.0 || d >= 9223372036854775808.0)
         falha(std::string("OverflowError: resultado de '") + fn + "' fora do intervalo de i64");
     return Value(static_cast<std::int64_t>(d));
 }
@@ -146,8 +161,8 @@ Value strSubstr(Args a) {
 Value strFind(Args a) {
     const std::string& s = a[0].asString();
     const size_t pos = s.find(a[1].asString());
-    if (pos == std::string::npos) return Value(std::int64_t{-1});
-    return Value(utf8::indiceDoByte(s, pos));
+    if (pos == std::string::npos) return i32Valor(-1);
+    return i32Valor(utf8::indiceDoByte(s, pos));
 }
 
 Value strStartsWith(Args a) {
@@ -165,7 +180,7 @@ Value strEndsWith(Args a) {
 Value strFindLast(Args a) {
     const std::string& s = a[0].asString();
     const size_t pos = s.rfind(a[1].asString());
-    return Value(pos == std::string::npos ? std::int64_t{-1} : utf8::indiceDoByte(s, pos));
+    return i32Valor(pos == std::string::npos ? std::int64_t{-1} : utf8::indiceDoByte(s, pos));
 }
 
 // find_from(s, trecho, inicio): como find, a partir do caractere `inicio`
@@ -177,7 +192,7 @@ Value strFindFrom(Args a) {
         falha("IndexError: início " + std::to_string(ini) + " fora dos limites de uma string de tamanho " +
               std::to_string(n));
     const size_t pos = s.find(a[1].asString(), utf8::byteDoCaractere(s, ini));
-    return Value(pos == std::string::npos ? std::int64_t{-1} : utf8::indiceDoByte(s, pos));
+    return i32Valor(pos == std::string::npos ? std::int64_t{-1} : utf8::indiceDoByte(s, pos));
 }
 
 // count: ocorrências sem sobreposição ("aaaa" tem 2 de "aa")
@@ -187,7 +202,7 @@ Value strCount(Args a) {
     if (t.empty()) falha("ValueError: o trecho de 'count' não pode ser vazio");
     std::int64_t n = 0;
     for (size_t pos = s.find(t); pos != std::string::npos; pos = s.find(t, pos + t.size())) ++n;
-    return Value(n);
+    return i32Valor(n);
 }
 
 Value strCharAt(Args a) {
@@ -403,7 +418,7 @@ Value strOrd(Args a) {
     const std::u32string s = decodifica(a[0].asString());
     if (s.size() != 1) falha("ValueError: 'ord' espera exatamente 1 caractere (recebeu " +
                              std::to_string(s.size()) + ")");
-    return Value(static_cast<std::int64_t>(s[0]));
+    return i32Valor(static_cast<std::int64_t>(s[0]));
 }
 
 // chr(n): o caractere do código Unicode n
@@ -424,17 +439,17 @@ Value strEqualsIgnoreCase(Args a) {
 // compare: -1, 0 ou 1, na mesma ordem de < entre strings
 Value strCompare(Args a) {
     const int r = a[0].asString().compare(a[1].asString());
-    return Value(std::int64_t{r < 0 ? -1 : (r > 0 ? 1 : 0)});
+    return i32Valor(r < 0 ? -1 : (r > 0 ? 1 : 0));
 }
 
-// fixed(x, casas): o decimal como texto com exatamente `casas` casas
-// (arredonda como Math.round_to; sem "-0.00")
+// fixed(x, casas): o número como texto com exatamente `casas` casas
+// (arredonda como Math.round_to; sem "-0.00"; f32 pela forma decimal do float)
 Value strFixed(Args a) {
     const double x = a[0].asFloat();
     const std::int64_t casas = a[1].asInt();
     if (casas < 0 || casas > 100)
         falha("ValueError: o número de casas de 'fixed' precisa estar entre 0 e 100");
-    return Value(fixedText(x, casas));
+    return Value(fixedText(x, casas, a[0].kind() == Value::Kind::F32));
 }
 
 // ============================================================================
@@ -490,7 +505,7 @@ Value filesReadBytes(Args a) {
     const std::string s = lerArquivo(a[0].asString());
     std::vector<Value> bytes;
     bytes.reserve(s.size());
-    for (unsigned char c : s) bytes.emplace_back(static_cast<std::int64_t>(c));
+    for (unsigned char c : s) bytes.push_back(Value::i32(c));
     return makeList(std::move(bytes));
 }
 
@@ -681,20 +696,12 @@ Value filesAbsolute(Args a) {
 // Math
 // ============================================================================
 
-Value mathSqrt(Args a) {
-    const double x = a[0].asFloat();
-    if (x < 0) falha("ValueError: 'sqrt' de número negativo");
-    return Value(std::sqrt(x));
-}
-
-Value mathPow(Args a) {
-    if (a[0].asFloat() == 0 && a[1].asFloat() < 0)
-        falha("ZeroDivisionError: 'pow' de 0 com expoente negativo (divisão por zero)");
-    const double r = std::pow(a[0].asFloat(), a[1].asFloat());
-    if (std::isnan(r)) falha("ValueError: 'pow' sem resultado real");
-    if (std::isinf(r)) falha("OverflowError: resultado de 'pow' grande demais");
-    return Value(r);
-}
+// Seção K: ponto flutuante segue o IEEE 754 em toda a Math — fora do domínio dá
+// nan (sqrt(-1), log(-1), asin(2)), polo dá ±inf (log(0), pow(0, -1)) e o que
+// passa da faixa dá inf. Nenhuma lança erro. O resultado tem a largura do
+// argumento (naLargura).
+Value mathSqrt(Args a) { return naLargura(a[0], std::sqrt(a[0].asFloat())); }
+Value mathPow(Args a)  { return naLargura(a[0], std::pow(a[0].asFloat(), a[1].asFloat())); }
 
 // abs: o resultado tem o tipo do argumento (seção K)
 Value mathAbs(Args a) {
@@ -716,79 +723,48 @@ Value mathAbs(Args a) {
     }
 }
 
-Value mathFloor(Args a) { return decimalParaInt(std::floor(a[0].asFloat()), "floor"); }
-Value mathCeil (Args a) { return decimalParaInt(std::ceil (a[0].asFloat()), "ceil"); }
+Value mathFloor(Args a) { return flutuanteParaInt(std::floor(a[0].asFloat()), "floor"); }
+Value mathCeil (Args a) { return flutuanteParaInt(std::ceil (a[0].asFloat()), "ceil"); }
 // round: metade se afasta do zero (2.5 → 3, -2.5 → -3)
-Value mathRound(Args a) { return decimalParaInt(std::round(a[0].asFloat()), "round"); }
+Value mathRound(Args a) { return flutuanteParaInt(std::round(a[0].asFloat()), "round"); }
 
 Value mathMin(Args a) { return numero(a[1]) < numero(a[0]) ? a[1] : a[0]; }
 Value mathMax(Args a) { return numero(a[1]) > numero(a[0]) ? a[1] : a[0]; }
 
-Value mathSin(Args a) { return Value(std::sin(a[0].asFloat())); }
-Value mathCos(Args a) { return Value(std::cos(a[0].asFloat())); }
-
-// log(x): logaritmo natural
-Value mathLog(Args a) {
-    const double x = a[0].asFloat();
-    if (x <= 0) falha("ValueError: 'log' só é definido para números positivos");
-    return Value(std::log(x));
-}
-
-// Resultado decimal de uma função: a linguagem nunca produz infinito nem NaN
-Value decimalFinito(double r, const char* fn) {
-    if (std::isnan(r)) falha(std::string("ValueError: '") + fn + "' sem resultado real");
-    if (std::isinf(r)) falha(std::string("OverflowError: resultado de '") + fn + "' grande demais");
-    return Value(r);
-}
-
-Value mathTan(Args a)  { return decimalFinito(std::tan(a[0].asFloat()), "tan"); }
-Value mathAtan(Args a) { return Value(std::atan(a[0].asFloat())); }
-Value mathAtan2(Args a) { return Value(std::atan2(a[0].asFloat(), a[1].asFloat())); }
-
-// asin/acos: só de -1 a 1
-Value mathAsin(Args a) {
-    const double x = a[0].asFloat();
-    if (x < -1 || x > 1) falha("ValueError: 'asin' só é definido de -1 a 1");
-    return Value(std::asin(x));
-}
-Value mathAcos(Args a) {
-    const double x = a[0].asFloat();
-    if (x < -1 || x > 1) falha("ValueError: 'acos' só é definido de -1 a 1");
-    return Value(std::acos(x));
-}
+Value mathSin(Args a)   { return naLargura(a[0], std::sin(a[0].asFloat())); }
+Value mathCos(Args a)   { return naLargura(a[0], std::cos(a[0].asFloat())); }
+Value mathTan(Args a)   { return naLargura(a[0], std::tan(a[0].asFloat())); }
+Value mathAsin(Args a)  { return naLargura(a[0], std::asin(a[0].asFloat())); }
+Value mathAcos(Args a)  { return naLargura(a[0], std::acos(a[0].asFloat())); }
+Value mathAtan(Args a)  { return naLargura(a[0], std::atan(a[0].asFloat())); }
+Value mathAtan2(Args a) { return naLargura(a[0], std::atan2(a[0].asFloat(), a[1].asFloat())); }
 
 constexpr double PI = 3.14159265358979323846;
-Value mathDegrees(Args a) { return decimalFinito(a[0].asFloat() * (180.0 / PI), "degrees"); }
-Value mathRadians(Args a) { return Value(a[0].asFloat() * (PI / 180.0)); }
+Value mathDegrees(Args a) { return naLargura(a[0], a[0].asFloat() * (180.0 / PI)); }
+Value mathRadians(Args a) { return naLargura(a[0], a[0].asFloat() * (PI / 180.0)); }
 
-Value mathSinh(Args a) { return decimalFinito(std::sinh(a[0].asFloat()), "sinh"); }
-Value mathCosh(Args a) { return decimalFinito(std::cosh(a[0].asFloat()), "cosh"); }
-Value mathTanh(Args a) { return Value(std::tanh(a[0].asFloat())); }
+Value mathSinh(Args a)  { return naLargura(a[0], std::sinh(a[0].asFloat())); }
+Value mathCosh(Args a)  { return naLargura(a[0], std::cosh(a[0].asFloat())); }
+Value mathTanh(Args a)  { return naLargura(a[0], std::tanh(a[0].asFloat())); }
+Value mathCbrt(Args a)  { return naLargura(a[0], std::cbrt(a[0].asFloat())); }
+Value mathExp(Args a)   { return naLargura(a[0], std::exp(a[0].asFloat())); }
+Value mathHypot(Args a) { return naLargura(a[0], std::hypot(a[0].asFloat(), a[1].asFloat())); }
 
-Value mathCbrt(Args a)  { return Value(std::cbrt(a[0].asFloat())); }
-Value mathExp(Args a)   { return decimalFinito(std::exp(a[0].asFloat()), "exp"); }
-Value mathHypot(Args a) { return decimalFinito(std::hypot(a[0].asFloat(), a[1].asFloat()), "hypot"); }
-
-Value mathLog10(Args a) {
-    const double x = a[0].asFloat();
-    if (x <= 0) falha("ValueError: 'log10' só é definido para números positivos");
-    return Value(std::log10(x));
-}
-Value mathLog2(Args a) {
-    const double x = a[0].asFloat();
-    if (x <= 0) falha("ValueError: 'log2' só é definido para números positivos");
-    return Value(std::log2(x));
-}
-// log_base(x, base): logaritmo de x na base dada
+// log, log10, log2: log(0) = -inf; negativo dá nan
+Value mathLog(Args a)   { return naLargura(a[0], std::log(a[0].asFloat())); }
+Value mathLog10(Args a) { return naLargura(a[0], std::log10(a[0].asFloat())); }
+Value mathLog2(Args a)  { return naLargura(a[0], std::log2(a[0].asFloat())); }
+// log_base(x, base) = log(x) / log(base): base 1 dá ±inf (ou nan com x = 1)
 Value mathLogBase(Args a) {
-    const double x = a[0].asFloat(), base = a[1].asFloat();
-    if (x <= 0) falha("ValueError: 'log_base' só é definido para números positivos");
-    if (base <= 0 || base == 1) falha("ValueError: a base de 'log_base' precisa ser positiva e diferente de 1");
-    return Value(std::log(x) / std::log(base));
+    return naLargura(a[0], std::log(a[0].asFloat()) / std::log(a[1].asFloat()));
 }
+
+// is_nan / is_inf (inf ou -inf)
+Value mathIsNan(Args a) { const double x = a[0].asFloat(); return Value(x != x); }
+Value mathIsInf(Args a) { return Value(std::isinf(a[0].asFloat())); }
 
 // trunc: corta as casas, em direção ao zero
-Value mathTrunc(Args a) { return decimalParaInt(std::trunc(a[0].asFloat()), "trunc"); }
+Value mathTrunc(Args a) { return flutuanteParaInt(std::trunc(a[0].asFloat()), "trunc"); }
 
 // round_to(x, casas): arredonda o número como ele é escrito (a forma decimal
 // mais curta, a mesma do print), não o valor binário — round_to(2.675, 2) é
@@ -822,16 +798,19 @@ std::string arredondaTexto(double x, std::int64_t casas, bool f32 = false) {
     return r;
 }
 
+// f32 arredonda a forma decimal do float (round_to(2.675f, 2) = 2.68f); nan e
+// infinito voltam como estão
 Value mathRoundTo(Args a) {
     const double x = a[0].asFloat();
     const std::int64_t casas = a[1].asInt();
     if (casas < 0) falha("ValueError: o número de casas de 'round_to' não pode ser negativo");
-    if (casas > 400) return Value(x);   // além disso nenhum decimal tem casas para cortar
-    const std::string r = arredondaTexto(x, casas);
+    if (!std::isfinite(x) || casas > 400) return a[0];   // além de 400 nenhum número tem casas para cortar
+    const bool f32 = a[0].kind() == Value::Kind::F32;
+    const std::string r = arredondaTexto(x, casas, f32);
     double v = 0;
     std::from_chars(r.data(), r.data() + r.size(), v);
-    if (v == 0) return Value(0.0);   // sem -0
-    return decimalFinito(x < 0 ? -v : v, "round_to");
+    if (v == 0) return naLargura(a[0], 0.0);   // sem -0
+    return naLargura(a[0], x < 0 ? -v : v);
 }
 
 // Magnitude de um int como unsigned (|menor int| não cabe em int)
@@ -844,32 +823,39 @@ std::uint64_t mdcU(std::uint64_t x, std::uint64_t y) {
     return x;
 }
 
+// Inteiro na largura do argumento (gcd/lcm de i32 dão i32), com OverflowError
+// se não couber
+Value inteiroNaLargura(const Value& arg, std::uint64_t r, const char* fn) {
+    const bool i32 = arg.kind() == Value::Kind::I32;
+    const std::uint64_t max = i32 ? static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max())
+                                  : static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max());
+    if (r > max)
+        falha(std::string("OverflowError: resultado de '") + fn + "' fora do intervalo de " + (i32 ? "i32" : "i64"));
+    return i32 ? Value::i32(static_cast<std::int32_t>(r)) : Value(static_cast<std::int64_t>(r));
+}
+
 // gcd: máximo divisor comum, sempre >= 0; gcd(0, 0) = 0
 Value mathGcd(Args a) {
-    const std::uint64_t g = mdcU(magnitude(a[0].asInt()), magnitude(a[1].asInt()));
-    if (g > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()))
-        falha("OverflowError: resultado de 'gcd' fora do intervalo de i64");
-    return Value(static_cast<std::int64_t>(g));
+    return inteiroNaLargura(a[0], mdcU(magnitude(a[0].asInt()), magnitude(a[1].asInt())), "gcd");
 }
 
 // lcm: mínimo múltiplo comum, sempre >= 0; com um zero, 0
 Value mathLcm(Args a) {
     const std::uint64_t x = magnitude(a[0].asInt()), y = magnitude(a[1].asInt());
-    if (x == 0 || y == 0) return Value(std::int64_t{0});
+    if (x == 0 || y == 0) return inteiroNaLargura(a[0], 0, "lcm");
     std::uint64_t r;
-    if (__builtin_mul_overflow(x / mdcU(x, y), y, &r) ||
-        r > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()))
-        falha("OverflowError: resultado de 'lcm' fora do intervalo de i64");
-    return Value(static_cast<std::int64_t>(r));
+    if (__builtin_mul_overflow(x / mdcU(x, y), y, &r))
+        r = std::numeric_limits<std::uint64_t>::max();   // não cabe em nenhuma largura
+    return inteiroNaLargura(a[0], r, "lcm");
 }
 
 Value mathIsEven(Args a) { return Value(a[0].asInt() % 2 == 0); }
 Value mathIsOdd(Args a)  { return Value(a[0].asInt() % 2 != 0); }
 
-// sign: -1, 0 ou 1
+// sign: -1, 0 ou 1 (i32); sign(nan) é 0
 Value mathSign(Args a) {
     const double x = numero(a[0]);
-    return Value(std::int64_t{x > 0 ? 1 : (x < 0 ? -1 : 0)});
+    return i32Valor(x > 0 ? 1 : (x < 0 ? -1 : 0));
 }
 
 // clamp(x, min, max): x limitado ao intervalo
@@ -928,10 +914,13 @@ Value mathIsPrime(Args a) {
 
 // is_close(a, b): iguais a menos de erro de arredondamento — diferença
 // relativa até 1e-9, ou absoluta até 1e-12 (perto de zero)
+// is_close: em f64, diferença relativa até 1e-9 (ou absoluta até 1e-12, perto de
+// zero); em f32, que tem 7 dígitos, relativa até 1e-5 (ou absoluta até 1e-7)
 Value mathIsClose(Args a) {
     const double x = a[0].asFloat(), y = a[1].asFloat();
+    const bool f32 = a[0].kind() == Value::Kind::F32;
     const double dif = std::fabs(x - y);
-    return Value(dif <= 1e-9 * std::max(std::fabs(x), std::fabs(y)) || dif <= 1e-12);
+    return Value(dif <= (f32 ? 1e-5 : 1e-9) * std::max(std::fabs(x), std::fabs(y)) || dif <= (f32 ? 1e-7 : 1e-12));
 }
 
 // ============================================================================
@@ -948,18 +937,20 @@ Value randSeed(Args a) {
     return Value();
 }
 
-// int(a, b): inteiro de a até b, os dois inclusive
-Value randInt(Args a) {
+// i32(a, b) / i64(a, b): inteiro de a até b, os dois inclusive
+Value sorteiaInteiro(Args a, const char* fn) {
     const std::int64_t lo = a[0].asInt();
     const std::int64_t hi = a[1].asInt();
     if (lo > hi)
-        falha("ValueError: 'int(" + std::to_string(lo) + ", " + std::to_string(hi) +
+        falha(std::string("ValueError: '") + fn + "(" + std::to_string(lo) + ", " + std::to_string(hi) +
               ")': o início é maior que o fim");
     std::uniform_int_distribution<std::int64_t> d(lo, hi);
     return Value(d(gerador()));
 }
+Value randI32(Args a) { return i32Valor(sorteiaInteiro(a, "i32").asInt()); }
+Value randI64(Args a) { return sorteiaInteiro(a, "i64"); }
 
-// decimal(): de 0.0 (inclusive) até 1.0 (exclusive)
+// f64(): de 0.0 (inclusive) até 1.0 (exclusive)
 Value randDecimal(Args) {
     std::uniform_real_distribution<double> d(0.0, 1.0);
     return Value(d(gerador()));
@@ -972,12 +963,12 @@ Value randChoice(Args a) {
     return elems[d(gerador())];
 }
 
-// decimal_range(a, b): de a (inclusive) até b (exclusive)
+// f64_range(a, b): de a (inclusive) até b (exclusive)
 Value randDecimalRange(Args a) {
     const double lo = a[0].asFloat(), hi = a[1].asFloat();
     if (!(lo < hi))
-        falha("ValueError: em 'decimal_range' o início precisa ser menor que o fim");
-    if (!std::isfinite(hi - lo)) falha("ValueError: intervalo de 'decimal_range' grande demais");
+        falha("ValueError: em 'f64_range' o início precisa ser menor que o fim");
+    if (!std::isfinite(hi - lo)) falha("ValueError: intervalo de 'f64_range' grande demais");
     std::uniform_real_distribution<double> d(lo, hi);
     const double r = d(gerador());
     return Value(r < hi ? r : lo);   // arredondamento nunca entrega o fim
@@ -1041,115 +1032,43 @@ Value randGauss(Args a) {
     const double media = a[0].asFloat(), desvio = a[1].asFloat();
     if (desvio < 0) falha("ValueError: o desvio de 'gauss' não pode ser negativo");
     if (desvio == 0) return Value(media);
-    return decimalFinito(std::normal_distribution<double>(media, desvio)(gerador()), "gauss");
+    return Value(std::normal_distribution<double>(media, desvio)(gerador()));
 }
 
 // ============================================================================
 // Convert
 // ============================================================================
 
-// Leitura estrita de texto, comum a to_*, is_* e to_*_or (aceitam os mesmos textos)
-enum class Leitura { ok, invalido, fora };
-
-// int: só sinal opcional e dígitos, sem espaços
-Leitura lerInt(const std::string& s, std::int64_t& v) {
-    const char* fim = s.data() + s.size();
-    // from_chars aceita '-' mas não '+'; "+-5" não é válido
-    const size_t pula = (!s.empty() && s[0] == '+') ? 1 : 0;
-    if (s.empty() || (pula && (s.size() == 1 || s[1] == '-'))) return Leitura::invalido;
-    auto [ptr, ec] = std::from_chars(s.data() + pula, fim, v);
-    if (ptr != fim || ec == std::errc::invalid_argument) return Leitura::invalido;
-    if (ec == std::errc::result_out_of_range) return Leitura::fora;
-    return Leitura::ok;
-}
-
-// decimal: [sinal] dígitos [. dígitos] [e [sinal] dígitos]
-Leitura lerDecimal(const std::string& s, double& v) {
-    size_t i = 0;
-    auto digitos = [&]() {
-        const size_t antes = i;
-        while (i < s.size() && s[i] >= '0' && s[i] <= '9') ++i;
-        return i > antes;
-    };
-    if (i < s.size() && (s[i] == '+' || s[i] == '-')) ++i;
-    bool ok = digitos();
-    if (ok && i < s.size() && s[i] == '.') { ++i; ok = digitos(); }
-    if (ok && i < s.size() && (s[i] == 'e' || s[i] == 'E')) {
-        ++i;
-        if (i < s.size() && (s[i] == '+' || s[i] == '-')) ++i;
-        ok = digitos();
+// is_* e to_*_or aceitam exatamente o texto que cast<T> aceita (a leitura
+// estrita mora em convertValue, operacoes.cpp): is_i32(s) é true se cast<i32>(s)
+// não lançaria erro. Só bool tem leitura própria ("true" ou "false").
+bool converte(const Value& s, TypeRef t, Value& out) {
+    try {
+        out = convertValue(s, t);
+        return true;
+    } catch (const RuntimeError&) {
+        return false;
     }
-    if (!ok || i != s.size()) return Leitura::invalido;
-    const char* ini = s.data() + (s[0] == '+' ? 1 : 0);
-    auto [ptr, ec] = std::from_chars(ini, s.data() + s.size(), v);
-    (void)ptr;
-    if (ec == std::errc::result_out_of_range) {
-        // from_chars não diz se estourou ou ficou pequeno demais (e não toca em
-        // v); strtod diz: grande demais é erro, pequeno demais vira 0
-        const double r = std::strtod(std::string(ini, s.data() + s.size()).c_str(), nullptr);
-        if (std::isinf(r)) return Leitura::fora;
-        v = 0.0;
-    }
-    return Leitura::ok;
 }
+template <TypeRef (TypeContext::*TIPO)()>
+Value convIs(Args a) { Value v; return Value(converte(a[0], (TypeContext::instance().*TIPO)(), v)); }
+template <TypeRef (TypeContext::*TIPO)()>
+Value convToOr(Args a) { Value v; return converte(a[0], (TypeContext::instance().*TIPO)(), v) ? v : a[1]; }
 
-// bool: só "true" ou "false"
-Leitura lerBool(const std::string& s, bool& v) {
-    if (s == "true")  { v = true;  return Leitura::ok; }
-    if (s == "false") { v = false; return Leitura::ok; }
-    return Leitura::invalido;
+bool lerBool(const std::string& s, bool& v) {
+    if (s == "true")  { v = true;  return true; }
+    if (s == "false") { v = false; return true; }
+    return false;
 }
-
-Value convToInt(Args a) {
-    const std::string& s = a[0].asString();
-    std::int64_t v = 0;
-    switch (lerInt(s, v)) {
-        case Leitura::invalido: falha("ValueError: '" + s + "' não é um i64 válido");
-        case Leitura::fora:     falha("ValueError: '" + s + "' está fora do intervalo de i64");
-        case Leitura::ok:       break;
-    }
-    return Value(v);
-}
-
-Value convToDecimal(Args a) {
-    const std::string& s = a[0].asString();
-    double v = 0;
-    switch (lerDecimal(s, v)) {
-        case Leitura::invalido: falha("ValueError: '" + s + "' não é um f64 válido");
-        case Leitura::fora:     falha("ValueError: '" + s + "' está fora do intervalo de f64");
-        case Leitura::ok:       break;
-    }
-    return Value(v);
-}
-
-Value convToString(Args a) { return Value(a[0].toString()); }
 
 Value convToBool(Args a) {
     const std::string& s = a[0].asString();
     bool v = false;
-    if (lerBool(s, v) != Leitura::ok)
-        falha("ValueError: '" + s + "' não é um bool válido (use \"true\" ou \"false\")");
+    if (!lerBool(s, v)) falha("ValueError: '" + s + "' não é um bool válido (use \"true\" ou \"false\")");
     return Value(v);
 }
-
-// is_*: o texto seria aceito pelo to_* correspondente
-Value convIsInt(Args a)     { std::int64_t v; return Value(lerInt(a[0].asString(), v) == Leitura::ok); }
-Value convIsDecimal(Args a) { double v;       return Value(lerDecimal(a[0].asString(), v) == Leitura::ok); }
-Value convIsBool(Args a)    { bool v;         return Value(lerBool(a[0].asString(), v) == Leitura::ok); }
-
-// to_*_or: o valor convertido, ou o padrão se o texto não for aceito
-Value convToIntOr(Args a) {
-    std::int64_t v;
-    return lerInt(a[0].asString(), v) == Leitura::ok ? Value(v) : a[1];
-}
-Value convToDecimalOr(Args a) {
-    double v;
-    return lerDecimal(a[0].asString(), v) == Leitura::ok ? Value(v) : a[1];
-}
-Value convToBoolOr(Args a) {
-    bool v;
-    return lerBool(a[0].asString(), v) == Leitura::ok ? Value(v) : a[1];
-}
+Value convIsBool(Args a)   { bool v; return Value(lerBool(a[0].asString(), v)); }
+Value convToBoolOr(Args a) { bool v; return lerBool(a[0].asString(), v) ? Value(v) : a[1]; }
 
 std::int64_t confereBase(std::int64_t base, const char* fn) {
     if (base < 2 || base > 36)
@@ -1231,8 +1150,7 @@ Value listContains(Args a) {
 Value listIndexOf(Args a) {
     const auto& elems = a[0].asList()->elements;
     auto it = std::find(elems.begin(), elems.end(), a[1]);
-    return Value(it == elems.end() ? std::int64_t{-1}
-                                   : static_cast<std::int64_t>(it - elems.begin()));
+    return i32Valor(it == elems.end() ? std::int64_t{-1} : static_cast<std::int64_t>(it - elems.begin()));
 }
 
 // slice(l, inicio, fim): nova lista com os elementos de inicio até fim (exclusive)
@@ -1342,7 +1260,7 @@ Value listAverage(Args a) {
     const auto& elems = naoVazia(a, "average");
     double total = 0;
     for (const auto& v : elems) total += numero(v);
-    return decimalFinito(total / static_cast<double>(elems.size()), "average");
+    return Value(total / static_cast<double>(elems.size()));   // IEEE
 }
 
 // product: lista vazia dá 1; estouro lança OverflowError
@@ -1350,14 +1268,14 @@ Value listProduct(Args a) { return foldNumeros(a, false, "product"); }
 
 Value listCount(Args a) {
     const auto& elems = a[0].asList()->elements;
-    return Value(static_cast<std::int64_t>(std::count(elems.begin(), elems.end(), a[1])));
+    return i32Valor(static_cast<std::int64_t>(std::count(elems.begin(), elems.end(), a[1])));
 }
 
 Value listLastIndexOf(Args a) {
     const auto& elems = a[0].asList()->elements;
     for (size_t i = elems.size(); i > 0; --i)
-        if (elems[i - 1] == a[1]) return Value(static_cast<std::int64_t>(i - 1));
-    return Value(std::int64_t{-1});
+        if (elems[i - 1] == a[1]) return i32Valor(static_cast<std::int64_t>(i - 1));
+    return i32Valor(-1);
 }
 
 Value listFirst(Args a) {
@@ -1737,9 +1655,12 @@ std::vector<NativeModule> criaModulos() {
     const TypeRef I = t.i64Type(), D = t.f64Type(), S = t.stringType(),
                   B = t.boolType(), V = t.voidType();
     const TypeRef T   = t.typeVar("T");
+    const TypeRef I32 = t.i32Type();   // posições, tamanhos e contagens (seção K)
+    const TypeRef F32 = t.f32Type();
     const TypeRef N   = t.typeVar("número");
+    const TypeRef F   = t.typeVar("flutuante");   // f32 ou f64: o resultado tem a mesma largura
+    const TypeRef Z   = t.typeVar("inteiro");     // i32 ou i64
     const TypeRef C   = t.typeVar("comparável");
-    const TypeRef ANY = t.typeVar("any");
 
     std::vector<NativeModule> m;
 
@@ -1752,12 +1673,12 @@ std::vector<NativeModule> criaModulos() {
         {"contains",    {S, S},    B,           strContains},
         {"replace",     {S, S, S}, S,           strReplace},
         {"substr",      {S, I, I}, S,           strSubstr},
-        {"find",        {S, S},    I,           strFind},
+        {"find",        {S, S},    I32,         strFind},
         {"starts_with", {S, S},    B,           strStartsWith},
         {"ends_with",   {S, S},    B,           strEndsWith},
-        {"find_last",   {S, S},    I,           strFindLast},
-        {"find_from",   {S, S, I}, I,           strFindFrom},
-        {"count",       {S, S},    I,           strCount},
+        {"find_last",   {S, S},    I32,         strFindLast},
+        {"find_from",   {S, S, I}, I32,         strFindFrom},
+        {"count",       {S, S},    I32,         strCount},
         {"char_at",     {S, I},    S,           strCharAt},
         {"left",        {S, I},    S,           strLeft},
         {"right",       {S, I},    S,           strRight},
@@ -1783,19 +1704,19 @@ std::vector<NativeModule> criaModulos() {
         {"is_space",    {S},       B,           todos<ehBranco>},
         {"is_upper",    {S},       B,           strIsUpper},
         {"is_lower",    {S},       B,           strIsLower},
-        {"ord",         {S},       I,           strOrd},
+        {"ord",         {S},       I32,         strOrd},
         {"chr",         {I},       S,           strChr},
         {"equals_ignore_case", {S, S}, B,       strEqualsIgnoreCase},
-        {"compare",     {S, S},    I,           strCompare},
-        {"fixed",       {D, I},    S,           strFixed},
+        {"compare",     {S, S},    I32,         strCompare},
+        {"fixed",       {F, I},    S,           strFixed},
     }, {}});
 
     m.push_back({"Files", {
         {"read",        {S},             S,         filesRead},
         {"lines",       {S},             t.list(S), filesLines},
         {"write",       {S, S},          V,         filesWrite},
-        {"read_bytes",  {S},             t.list(I), filesReadBytes},
-        {"write_bytes", {S, t.list(I)},  V,         filesWriteBytes},
+        {"read_bytes",  {S},             t.list(I32), filesReadBytes},
+        {"write_bytes", {S, t.list(Z)},  V,         filesWriteBytes},
         {"append",      {S, S},          V,         filesAppend},
         {"write_lines", {S, t.list(S)},  V,         filesWriteLines},
         {"append_line", {S, S},          V,         filesAppendLine},
@@ -1820,56 +1741,61 @@ std::vector<NativeModule> criaModulos() {
     }, {}});
 
     m.push_back({"Math", {
-        {"sqrt",  {D},    D, mathSqrt},
-        {"pow",   {D, D}, D, mathPow},
+        {"sqrt",  {F},    F, mathSqrt},
+        {"pow",   {F, F}, F, mathPow},
         {"abs",   {N},    N, mathAbs},
-        {"floor", {D},    I, mathFloor},
-        {"ceil",  {D},    I, mathCeil},
-        {"round", {D},    I, mathRound},
+        {"floor", {F},    I, mathFloor},
+        {"ceil",  {F},    I, mathCeil},
+        {"round", {F},    I, mathRound},
         {"min",   {N, N}, N, mathMin},
         {"max",   {N, N}, N, mathMax},
-        {"sin",   {D},    D, mathSin},
-        {"cos",   {D},    D, mathCos},
-        {"log",   {D},    D, mathLog},
-        {"tan",       {D},       D, mathTan},
-        {"asin",      {D},       D, mathAsin},
-        {"acos",      {D},       D, mathAcos},
-        {"atan",      {D},       D, mathAtan},
-        {"atan2",     {D, D},    D, mathAtan2},
-        {"degrees",   {D},       D, mathDegrees},
-        {"radians",   {D},       D, mathRadians},
-        {"sinh",      {D},       D, mathSinh},
-        {"cosh",      {D},       D, mathCosh},
-        {"tanh",      {D},       D, mathTanh},
-        {"cbrt",      {D},       D, mathCbrt},
-        {"exp",       {D},       D, mathExp},
-        {"log10",     {D},       D, mathLog10},
-        {"log2",      {D},       D, mathLog2},
-        {"log_base",  {D, D},    D, mathLogBase},
-        {"hypot",     {D, D},    D, mathHypot},
-        {"trunc",     {D},       I, mathTrunc},
-        {"round_to",  {D, I},    D, mathRoundTo},
-        {"gcd",       {I, I},    I, mathGcd},
-        {"lcm",       {I, I},    I, mathLcm},
-        {"is_even",   {I},       B, mathIsEven},
-        {"is_odd",    {I},       B, mathIsOdd},
-        {"sign",      {N},       I, mathSign},
+        {"sin",   {F},    F, mathSin},
+        {"cos",   {F},    F, mathCos},
+        {"log",   {F},    F, mathLog},
+        {"tan",       {F},       F, mathTan},
+        {"asin",      {F},       F, mathAsin},
+        {"acos",      {F},       F, mathAcos},
+        {"atan",      {F},       F, mathAtan},
+        {"atan2",     {F, F},    F, mathAtan2},
+        {"degrees",   {F},       F, mathDegrees},
+        {"radians",   {F},       F, mathRadians},
+        {"sinh",      {F},       F, mathSinh},
+        {"cosh",      {F},       F, mathCosh},
+        {"tanh",      {F},       F, mathTanh},
+        {"cbrt",      {F},       F, mathCbrt},
+        {"exp",       {F},       F, mathExp},
+        {"log10",     {F},       F, mathLog10},
+        {"log2",      {F},       F, mathLog2},
+        {"log_base",  {F, F},    F, mathLogBase},
+        {"hypot",     {F, F},    F, mathHypot},
+        {"trunc",     {F},       I, mathTrunc},
+        {"round_to",  {F, I},    F, mathRoundTo},
+        {"gcd",       {Z, Z},    Z, mathGcd},
+        {"lcm",       {Z, Z},    Z, mathLcm},
+        {"is_even",   {Z},       B, mathIsEven},
+        {"is_odd",    {Z},       B, mathIsOdd},
+        {"sign",      {N},       I32, mathSign},
         {"clamp",     {N, N, N}, N, mathClamp},
         {"factorial", {I},       I, mathFactorial},
         {"is_prime",  {I},       B, mathIsPrime},
-        {"is_close",  {D, D},    B, mathIsClose},
+        {"is_close",  {F, F},    B, mathIsClose},
+        {"is_nan",    {F},       B, mathIsNan},
+        {"is_inf",    {F},       B, mathIsInf},
     }, {
         {"pi",  D, Value(PI)},
         {"e",   D, Value(2.71828182845904523536)},
         {"tau", D, Value(2 * PI)},
+        {"inf", D, Value(std::numeric_limits<double>::infinity())},
+        {"nan", D, Value(std::numeric_limits<double>::quiet_NaN())},
     }});
 
     m.push_back({"Random", {
         {"seed",    {I},         V, randSeed},
-        {"int",     {I, I},      I, randInt},
-        {"decimal", {},          D, randDecimal},
+        {"i32",     {I32, I32},  I32, randI32},
+        {"i64",     {I, I},      I, randI64},
+        {"f64",     {},          D, randDecimal},
         {"choice",  {t.list(T)}, T, randChoice},
-        {"decimal_range", {D, D},         D,         randDecimalRange},
+        {"f64_range",     {D, D},         D,         randDecimalRange},
         {"bool",          {},             B,         randBool},
         {"chance",        {D},            B,         randChance},
         {"shuffle",       {t.list(T)},    V,         randShuffle, 0, false, true},
@@ -1879,16 +1805,17 @@ std::vector<NativeModule> criaModulos() {
     }, {}});
 
     m.push_back({"Convert", {
-        {"to_int",     {S},   I, convToInt},
-        {"to_decimal", {S},   D, convToDecimal},
-        {"to_string",  {ANY}, S, convToString},
         {"to_bool",    {S},   B, convToBool},
-        {"is_int",        {S},    B, convIsInt},
-        {"is_decimal",    {S},    B, convIsDecimal},
-        {"is_bool",       {S},    B, convIsBool},
-        {"to_int_or",     {S, I}, I, convToIntOr},
-        {"to_decimal_or", {S, D}, D, convToDecimalOr},
-        {"to_bool_or",    {S, B}, B, convToBoolOr},
+        {"is_i32",     {S},   B, convIs<&TypeContext::i32Type>},
+        {"is_i64",     {S},   B, convIs<&TypeContext::i64Type>},
+        {"is_f32",     {S},   B, convIs<&TypeContext::f32Type>},
+        {"is_f64",     {S},   B, convIs<&TypeContext::f64Type>},
+        {"is_bool",    {S},   B, convIsBool},
+        {"to_i32_or",  {S, I32}, I32, convToOr<&TypeContext::i32Type>},
+        {"to_i64_or",  {S, I},   I,   convToOr<&TypeContext::i64Type>},
+        {"to_f32_or",  {S, F32}, F32, convToOr<&TypeContext::f32Type>},
+        {"to_f64_or",  {S, D},   D,   convToOr<&TypeContext::f64Type>},
+        {"to_bool_or", {S, B},   B,   convToBoolOr},
         {"to_base",       {I, I}, S, convToBase},
         {"from_base",     {S, I}, I, convFromBase},
         {"to_hex",        {I},    S, convToHex},
@@ -1900,7 +1827,7 @@ std::vector<NativeModule> criaModulos() {
         {"sort",     {t.list(C)},       V,         listSort,    0, false, true},
         {"reverse",  {t.list(T)},       V,         listReverse, 0, false, true},
         {"contains", {t.list(T), T},    B,         listContains},
-        {"index_of", {t.list(T), T},    I,         listIndexOf},
+        {"index_of", {t.list(T), T},    I32,       listIndexOf},
         {"slice",    {t.list(T), I, I}, t.list(T), listSlice},
         {"sum",      {t.list(N)},       N,         listSum},
         {"sort_desc",     {t.list(C)},             V,         listSortDesc,    0, false, 1},
@@ -1911,8 +1838,8 @@ std::vector<NativeModule> criaModulos() {
         {"max",           {t.list(C)},             C,         listMax},
         {"average",       {t.list(N)},             D,         listAverage},
         {"product",       {t.list(N)},             N,         listProduct},
-        {"count",         {t.list(T), T},          I,         listCount},
-        {"last_index_of", {t.list(T), T},          I,         listLastIndexOf},
+        {"count",         {t.list(T), T},          I32,       listCount},
+        {"last_index_of", {t.list(T), T},          I32,       listLastIndexOf},
         {"first",         {t.list(T)},             T,         listFirst},
         {"last",          {t.list(T)},             T,         listLast},
         {"is_empty",      {t.list(T)},             B,         listIsEmpty},

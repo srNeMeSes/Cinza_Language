@@ -1,0 +1,7 @@
+// Seção K: Random.i32 recebe i32 (um i64 precisa de cast).
+import Random;
+fn main() {
+  i64 n = 10;
+  print(Random.i32(0, n));
+}
+// expect-error: Argumento 2 de 'Random.i32': esperado 'i32', mas recebeu 'i64'

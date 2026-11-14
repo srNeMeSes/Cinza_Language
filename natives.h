@@ -19,8 +19,10 @@ namespace cinza {
 // Variáveis de tipo (TypeInfo::Kind::TypeVar) só existem aqui, nas
 // assinaturas nativas: "T" é fixada pelo primeiro argumento que a usa e os
 // demais precisam ser compatíveis (unificação simples); "any" aceita qualquer
-// tipo sem se fixar. Duas variáveis têm restrição (Fase 7): "número" só se
-// fixa em int ou decimal, e "comparável" em int, decimal ou string.
+// tipo sem se fixar. Algumas têm restrição: "número" se fixa em qualquer tipo
+// numérico, "inteiro" em i32/i64, "flutuante" em f32/f64 e "comparável" em
+// número ou string. Seção K: uma variável já fixada alarga dentro da família
+// (Math.max(i32, i64) fica i64).
 //
 // Erros: `impl` lança RuntimeError("ValueError: ...") sem linha; o executor
 // completa com a posição da chamada e o stack trace.

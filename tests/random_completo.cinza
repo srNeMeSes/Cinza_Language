@@ -6,7 +6,7 @@ fn main() {
   bool dentro = true;
   i64 verdadeiros = 0;
   for (i64 i in range(0, 2000)) {
-    f64 x = Random.decimal_range(-2.5ff, 3.ff);
+    f64 x = Random.f64_range(-2.5ff, 3.ff);
     if (x < -2.5ff || x >= 3.ff) { dentro = false; }
     if (Random.bool()) { verdadeiros += 1; }
   }

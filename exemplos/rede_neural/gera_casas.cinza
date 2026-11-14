@@ -15,14 +15,14 @@ fn main(list<string> args) {
   i64 n = 800;
   i64 semente = 2026;
   if (args.size() > 0) { caminho = args[0]; }
-  if (args.size() > 1) { n = cv.to_int(args[1]); }
-  if (args.size() > 2) { semente = cv.to_int(args[2]); }
+  if (args.size() > 1) { n = cast<i64>(args[1]); }
+  if (args.size() > 2) { semente = cast<i64>(args[2]); }
   Random.seed(semente);
 
   list<string> linhas = ["qtd_quartos,qtd_banheiros,m²,tem_piscina,valor"];
   for (i64 i in range(0, n)) {
-    i64 quartos = Random.int(1, 5);
-    i64 banheiros = Random.int(1, Math.min(quartos + 1, 4));
+    i64 quartos = Random.i64(1, 5);
+    i64 banheiros = Random.i64(1, Math.min(quartos + 1, 4));
     i64 m2 = Math.max(30, Math.round(cast<f64>(35 + 22 * quartos + 8 * banheiros) + Random.gauss(0.0ff, 15.0ff)));
     f64 p_piscina = Math.clamp(cast<f64>(m2 - 80) / 250.0ff, 0.03ff, 0.6ff);
     i64 piscina = 0;

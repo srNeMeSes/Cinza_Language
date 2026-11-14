@@ -1,5 +1,5 @@
-// C2: range só aceita i64.
+// C2: range só aceita inteiros (o primeiro argumento fixa a largura).
 fn main() {
   for (i64 i in range(0, 2.5ff)) { print(i); }
 }
-// expect-error: Argumento 2 de 'range': esperado 'i64'
+// expect-error: Argumento 2 de 'range': esperado 'i32', mas recebeu 'f64'

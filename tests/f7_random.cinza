@@ -2,17 +2,17 @@
 import Random as R;
 fn main() {
   R.seed(7);
-  i64 a = R.int(1, 100);
-  f64 d = R.decimal();
+  i64 a = R.i64(1, 100);
+  f64 d = R.f64();
   R.seed(7);
-  print(a == R.int(1, 100), d == R.decimal());
+  print(a == R.i64(1, 100), d == R.f64());
   bool ok = true;
   for (i64 i in range(0, 200)) {
-    i64 x = R.int(-3, 3);
-    f64 y = R.decimal();
+    i64 x = R.i64(-3, 3);
+    f64 y = R.f64();
     if (x < -3 or x > 3 or y < 0.0ff or y >= 1.0ff) { ok = false; }
   }
-  print(ok, R.int(5, 5));
+  print(ok, R.i64(5, 5));
   list<string> cores = ["azul", "verde"];
   str c = R.choice(cores);
   print(c == "azul" or c == "verde");

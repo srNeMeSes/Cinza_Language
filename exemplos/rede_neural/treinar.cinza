@@ -47,7 +47,7 @@ fn executa(list<string> args) {
   i64 epocas = 300;
   if (args.size() > 0) { csv = args[0]; }
   if (args.size() > 1) { arquivo = args[1]; }
-  if (args.size() > 2) { epocas = cv.to_int(args[2]); }
+  if (args.size() > 2) { epocas = cast<i64>(args[2]); }
 
   if (epocas < 1) { falha("o número de épocas precisa ser pelo menos 1"); }
 
@@ -81,7 +81,7 @@ fn executa(list<string> args) {
   print(st.join(titulo, ""), st.pad_left("real", 18), st.pad_left("previsto", 18));
   for (i64 i in range(0, Math.min(8, teste.y.size()))) {
     list<string> celulas;
-    for (f64 v in teste.x[i]) { celulas.add(st.pad_left(cv.to_string(v), 15)); }
+    for (f64 v in teste.x[i]) { celulas.add(st.pad_left(cast<string>(v), 15)); }
     print(st.join(celulas, ""), st.pad_left(dados.reais(teste.y[i]), 18), st.pad_left(dados.reais(modelo.prever(teste.x[i])), 18));
   }
   print();

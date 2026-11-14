@@ -1,4 +1,4 @@
-// Fase 7: Convert.to_int recebe string (i64 → i64 é cast, não conversão de texto).
+// Fase 7: os to_*_or do Convert leem texto (número → número é cast).
 import Convert;
-fn main() { print(Convert.to_int(5)); }
-// expect-error: Argumento 1 de 'Convert.to_int': esperado 'string', mas recebeu 'i32'
+fn main() { print(Convert.to_i64_or(5, 0)); }
+// expect-error: Argumento 1 de 'Convert.to_i64_or': esperado 'string', mas recebeu 'i32'

@@ -1,13 +1,15 @@
-// Convert.to_decimal: texto grande demais para f64 lança ValueError (antes devolvia 0 em
-// silêncio); pequeno demais vira 0, como num cálculo com f64.
+// Texto grande demais para f64 lança OverflowError (o cast e o Convert leem igual);
+// pequeno demais vira 0, como num cálculo com f64.
 import Convert as cv;
 fn main() {
-  try { print(cv.to_decimal("1e999")); } except (ValueError e) { print(e.message); }
-  try { print(cv.to_decimal("-1e400")); } except (ValueError e) { print(e.message); }
-  print(cv.to_decimal("1e-999"), cv.to_decimal("-1e-400"), cv.to_decimal("1e308") > 0.ff);
-  print(cv.is_decimal("1e999"), cv.is_decimal("1e-999"), cv.to_decimal_or("1e999", -1.ff));
+  try { print(cast<f64>("1e999")); } except (OverflowError e) { print(e.message); }
+  try { print(cast<f64>("-1e400")); } except (OverflowError e) { print(e.message); }
+  print(cast<f64>("1e-999"), cast<f64>("-1e-400"), cast<f64>("1e308") > 0.ff);
+  print(cv.is_f64("1e999"), cv.is_f64("1e-999"), cv.to_f64_or("1e999", -1.ff));
+  print(cv.is_f32("1e39"), cv.is_f64("1e39"), cv.to_f32_or("1e39", 0.f));
 }
-// expect: '1e999' está fora do intervalo de f64
-// expect: '-1e400' está fora do intervalo de f64
-// expect: 0 0 true
+// expect: cast<f64>("1e999"): o valor não cabe em f64
+// expect: cast<f64>("-1e400"): o valor não cabe em f64
+// expect: 0 -0 true
 // expect: false true -1
+// expect: false true 0

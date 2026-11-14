@@ -739,8 +739,8 @@ Value Executor::evalMemberAccess(const MemberAccessExpr* expr) {
         const std::string& m = expr->member_name;
         if (m == "kind")    return Value(displayName(ev.kind));   // C5: sem o prefixo do módulo
         if (m == "message") return Value(ev.message);
-        if (m == "line")    return Value(ev.line);
-        if (m == "column")  return Value(ev.column);
+        if (m == "line")    return Value::i32(static_cast<std::int32_t>(ev.line));
+        if (m == "column")  return Value::i32(static_cast<std::int32_t>(ev.column));
         throwRuntimeError("Erro não possui o campo '" + m + "'", expr->token);
     }
 

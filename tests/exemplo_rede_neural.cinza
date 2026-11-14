@@ -35,8 +35,8 @@ fn main() {
   list<list<f64>> x;
   list<f64> y;
   for (i64 i in range(0, 60)) {
-    f64 a = Random.decimal_range(-2.0ff, 2.0ff);
-    f64 b = Random.decimal_range(-2.0ff, 2.0ff);
+    f64 a = Random.f64_range(-2.0ff, 2.0ff);
+    f64 b = Random.f64_range(-2.0ff, 2.0ff);
     x.add([a, b]);
     y.add(3.0ff * a - 2.0ff * b + 5.0ff);
   }

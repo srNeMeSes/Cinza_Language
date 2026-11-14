@@ -1,0 +1,17 @@
+// Seção K: Files.read_bytes devolve list<i32>; write_bytes aceita list<i32> ou list<i64>.
+import Files;
+fn main() {
+  str d = "tests/_tmp_k5_bytes";
+  if (Files.exists(d)) { Files.delete_tree(d); }
+  Files.make_dir(d);
+  str a = Files.join(d, "b.bin");
+  list<i64> g = [1, 255];
+  Files.write_bytes(a, g);
+  list<i32> lido = Files.read_bytes(a);
+  print(lido, type(lido));
+  Files.write_bytes(a, lido);
+  print(Files.read_bytes(a), type(Files.size(a)));
+  Files.delete_tree(d);
+}
+// expect: [1, 255] list<i32>
+// expect: [1, 255] i64

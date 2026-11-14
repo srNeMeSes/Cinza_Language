@@ -197,7 +197,7 @@ static bool lerFlutuante(const std::string& s, bool f32, double& v, bool& fora) 
 // double → float pelo IEEE: arredonda para o mais próximo, e só vira infinito a
 // partir de FLT_MAX + meia unidade (2^103). Em C++, converter um double fora da
 // faixa do float é comportamento indefinido, então a borda é tratada aqui.
-static float paraF32(double d) {
+float doubleToF32(double d) {
     static const double limite = static_cast<double>(std::numeric_limits<float>::max()) + std::ldexp(1.0, 103);
     if (d != d)        return std::numeric_limits<float>::quiet_NaN();
     if (d >= limite)   return std::numeric_limits<float>::infinity();
@@ -271,7 +271,7 @@ Value convertValue(const Value& v, TypeRef to) {
         } else {
             throw RuntimeError("Erro interno: cast<" + alvo + "> de um valor que não é número nem texto");
         }
-        return f32 ? Value::f32(paraF32(d)) : Value(d);
+        return f32 ? Value::f32(doubleToF32(d)) : Value(d);
     }
 
     if (to->is(K::String))
@@ -496,7 +496,7 @@ Value callBuiltin(Builtin b, Value& obj, std::span<const Value> args) {
             obj.asList()->elements.push_back(args[0]);
             return Value();
         case Builtin::ListSize:
-            return Value(static_cast<std::int64_t>(obj.asList()->elements.size()));
+            return Value::i32(static_cast<std::int32_t>(obj.asList()->elements.size()));   // seção K
         case Builtin::ListHas: {
             std::int64_t idx = args[0].asInt();
             return Value(idx >= 0 && idx < static_cast<std::int64_t>(obj.asList()->elements.size()));
@@ -529,7 +529,7 @@ Value callBuiltin(Builtin b, Value& obj, std::span<const Value> args) {
             return Value();
         }
         case Builtin::DictSize:
-            return Value(static_cast<std::int64_t>(obj.asDict()->entries.size()));
+            return Value::i32(static_cast<std::int32_t>(obj.asDict()->entries.size()));
         case Builtin::DictKeys: {
             std::vector<Value> keys;
             keys.reserve(obj.asDict()->entries.size());
@@ -543,7 +543,7 @@ Value callBuiltin(Builtin b, Value& obj, std::span<const Value> args) {
             return makeList(std::move(vals));
         }
         case Builtin::StrSize:   // A10: conta caracteres (code points UTF-8), não bytes
-            return Value(tamanho(obj.asString()));
+            return Value::i32(static_cast<std::int32_t>(tamanho(obj.asString())));
         case Builtin::COUNT: break;
     }
     throw RuntimeError("Erro interno: método embutido desconhecido");

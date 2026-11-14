@@ -731,8 +731,25 @@ std::string SemanticAnalyzer::qualifyName(const std::string& name, const Token& 
         if (it == ms.imports.end()) return name;
         const ModuleScope& dep = modules[static_cast<size_t>(it->second)];
         auto g = dep.globals.find(resto);
-        if (g == dep.globals.end())
+        if (g == dep.globals.end()) {
+            // seção K: nomes da biblioteca que mudaram com os tipos numéricos
+            static const std::map<std::string, std::string> renomeadas = {
+                {"Random::int",           "use Random.i32(a, b) ou Random.i64(a, b)"},
+                {"Random::decimal",       "use Random.f64()"},
+                {"Random::decimal_range", "use Random.f64_range(a, b)"},
+                {"Convert::to_int",       "use cast<i32>(texto) ou cast<i64>(texto)"},
+                {"Convert::to_decimal",   "use cast<f32>(texto) ou cast<f64>(texto)"},
+                {"Convert::to_string",    "use cast<string>(número) ou format(\"{valor}\")"},
+                {"Convert::is_int",       "use Convert.is_i32 ou Convert.is_i64"},
+                {"Convert::is_decimal",   "use Convert.is_f32 ou Convert.is_f64"},
+                {"Convert::to_int_or",    "use Convert.to_i32_or ou Convert.to_i64_or"},
+                {"Convert::to_decimal_or","use Convert.to_f32_or ou Convert.to_f64_or"},
+            };
+            auto r = renomeadas.find(dep.prefix + "::" + resto);
+            if (r != renomeadas.end())
+                throwError("'" + alias + "." + resto + "' não existe mais: " + r->second, tok);
             throwError("'" + resto + "' não existe no módulo '" + alias + "'", tok);
+        }
         if (!dep.pub.count(resto))
             throwError("'" + resto + "' é privado no módulo '" + alias + "': declare-o com "
                        "'pub' para exportá-lo.", tok);
@@ -2132,6 +2149,10 @@ static bool unify(TypeRef param, TypeRef arg, std::map<std::string, TypeRef>& bi
             // Fase 7: variáveis com restrição
             if (param->name == "número" && !arg->isNumeric())
                 return false;
+            if (param->name == "inteiro" && !arg->isInteger())
+                return false;
+            if (param->name == "flutuante" && !arg->isFloat())
+                return false;
             if (param->name == "comparável" && !arg->isNumeric() && !arg->is(TK::String))
                 return false;
             binds[param->name] = arg;
@@ -2148,6 +2169,18 @@ static bool unify(TypeRef param, TypeRef arg, std::map<std::string, TypeRef>& bi
         return true;
     }
     return TypeChecker::isAssignable(param, arg);
+}
+
+// Tipo esperado numa mensagem: as variáveis com restrição viram os tipos que
+// aceitam ('f32' ou 'f64'); o resto, o nome entre aspas
+static std::string tiposAceitos(TypeRef t) {
+    if (t->is(TK::TypeVar)) {
+        if (t->name == "número")     return "'i32', 'i64', 'f32' ou 'f64'";
+        if (t->name == "inteiro")    return "'i32' ou 'i64'";
+        if (t->name == "flutuante")  return "'f32' ou 'f64'";
+        if (t->name == "comparável") return "um número ou 'string'";
+    }
+    return "'" + t->str() + "'";
 }
 
 // Tipo da assinatura com as variáveis já fixadas (nullptr se sobrar alguma livre)
@@ -2195,7 +2228,7 @@ TypeRef SemanticAnalyzer::analyzeNativeCall(CallExpr* expr, const NativeFn& fn) 
         if (!unify(param, at, binds)) {
             TypeRef mostrado = expected ? expected : param;
             throwError("Argumento " + std::to_string(i + 1) + " de '" + nome +
-                       "': esperado '" + mostrado->str() + "', mas recebeu '" + at->str() + "'",
+                       "': esperado " + tiposAceitos(mostrado) + ", mas recebeu '" + at->str() + "'",
                        expr->token);
         }
     }
@@ -2267,7 +2300,7 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
         if (m == "size") {
             if (!expr->arguments.empty())
                 throwError("'list.size()' não aceita argumentos", expr->token);
-            return expr->resolved_type = types.i64Type();
+            return expr->resolved_type = types.i32Type();   // seção K: tamanhos são i32
         }
         if (m == "has") {
             if (expr->arguments.size() != 1)
@@ -2317,7 +2350,7 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
         if (m == "size") {
             if (!expr->arguments.empty())
                 throwError("'dict.size()' não aceita argumentos", expr->token);
-            return expr->resolved_type = types.i64Type();
+            return expr->resolved_type = types.i32Type();
         }
         if (m == "has") {
             if (expr->arguments.size() != 1)
@@ -2378,7 +2411,7 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
         if (expr->method_name == "size") {
             if (!expr->arguments.empty())
                 throwError("'string.size()' não aceita argumentos", expr->token);
-            return expr->resolved_type = types.i64Type();
+            return expr->resolved_type = types.i32Type();
         }
         throwError("Método '" + expr->method_name + "' não existe em 'string'",
                    expr->token);
@@ -2485,7 +2518,7 @@ TypeRef SemanticAnalyzer::analyzeMemberAccess(MemberAccessExpr* expr) {
     if (obj_type->is(TK::Error)) {
         const std::string& m = expr->member_name;
         if (m == "kind" || m == "message") return expr->resolved_type = types.stringType();
-        if (m == "line" || m == "column")  return expr->resolved_type = types.i64Type();
+        if (m == "line" || m == "column")  return expr->resolved_type = types.i32Type();
         throwError("Erro não possui o campo '" + m + "' (campos: kind, message, line, column)",
                    expr->token);
     }

@@ -1,6 +1,6 @@
-// Fase 7: erro em Convert.to_string.
+// Seção K: os nomes antigos do Convert têm erro que aponta o substituto.
 import Convert;
 fn main() {
-  print(Convert.to_string());
+  print(Convert.to_string(1));
 }
-// expect-error: Aridade incorreta em 'Convert.to_string'
+// expect-error: 'Convert.to_string' não existe mais: use cast<string>(número) ou format("{valor}")

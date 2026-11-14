@@ -113,7 +113,7 @@ pub class Escritor {
 }
 
 pub class Leitor {
-  list<i64> dados;
+  list<i32> dados;
   i64 pos = 0;
   i64 fim_dados = 0;
   string origem = "";

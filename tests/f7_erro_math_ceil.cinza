@@ -3,4 +3,4 @@ import Math;
 fn main() {
   print(Math.ceil("1.5"));
 }
-// expect-error: Argumento 1 de 'Math.ceil': esperado 'f64', mas recebeu 'string'
+// expect-error: Argumento 1 de 'Math.ceil': esperado 'f32' ou 'f64', mas recebeu 'string'

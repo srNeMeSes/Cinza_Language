@@ -73,6 +73,10 @@ Value       callBuiltin(Builtin b, Value& obj, std::span<const Value> args);
 // flutuante); inválido → ValueError, fora da faixa → OverflowError.
 Value convertValue(const Value& v, TypeRef to);
 
+// double → float pelo IEEE (arredonda para o mais próximo; além de FLT_MAX +
+// meia unidade vira infinito), sem o comportamento indefinido do static_cast
+float doubleToF32(double d);
+
 // Valor de um literal numérico/texto/bool, na largura que o semântico decidiu
 // (resolved_type: i32/i64, f32/f64)
 Value literalValue(const std::variant<std::int64_t, double, std::string, bool>& v, TypeRef t);

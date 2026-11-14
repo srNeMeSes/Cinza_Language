@@ -1,0 +1,3 @@
+// Seção K: list é invariante: range(0, 3) é list<i32>, não list<i64>.
+fn main() { list<i64> l = range(0, 3); }
+// expect-error: declarado 'list<i64>', mas atribuído 'list<i32>'

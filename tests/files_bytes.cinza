@@ -6,9 +6,9 @@ fn main() {
   if (Files.exists(d)) { Files.delete_tree(d); }
   Files.make_dir(d);
   str a = Files.join(d, "dados.bin");
-  list<i64> b = [0, 1, 127, 128, 200, 255, 10, 13];
+  list<i32> b = [0, 1, 127, 128, 200, 255, 10, 13];   // bytes são i32 (seção K)
   Files.write_bytes(a, b);
-  list<i64> lido = Files.read_bytes(a);
+  list<i32> lido = Files.read_bytes(a);
   print(lido, lido == b, Files.size(a));
   // texto UTF-8 visto como bytes, e bytes gravados lidos como texto
   Files.write(a, "aç");

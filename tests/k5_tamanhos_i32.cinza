@@ -1,0 +1,21 @@
+// Seção K: tamanhos, posições e contagens são i32.
+import Strings;
+import Lists;
+fn main() {
+  list<string> l = ["a", "b", "a"];
+  dict<string, i32> d = {{"x", 1}};
+  print(type(l.size()), type(d.size()), type("ação".size()), "ação".size());
+  print(type(Strings.find("abc", "c")), type(Strings.find_last("abc", "c")), type(Strings.count("aa", "a")));
+  print(type(Strings.compare("a", "b")), type(Strings.ord("a")), Strings.ord("ç"));
+  print(type(Lists.index_of(l, "a")), type(Lists.last_index_of(l, "a")), type(Lists.count(l, "a")));
+  i64 n = l.size();          // i32 → i64
+  i32 m = l.size() * 2;
+  print(n, m);
+  try { throw ValueError("x"); } except (ValueError e) { print(type(e.line), e.line); }
+}
+// expect: i32 i32 i32 4
+// expect: i32 i32 i32
+// expect: i32 i32 231
+// expect: i32 i32 i32
+// expect: 3 6
+// expect: i32 14

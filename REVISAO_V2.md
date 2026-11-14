@@ -1221,7 +1221,29 @@ comuns ao interpretador e à CVM):
   > posições que um modo temporário do compilador registrou, já removido); o resto à mão, com `cast`
   > (testes, módulos de teste, exemplo da rede neural, blocos da spec 3.5, 5.3, 5.4 e 6.x, e as frases
   > de regra mudadas junto). 29 testes novos `k3_*`. 460/460/460.
-- [ ] 5. Biblioteca padrão com os tipos novos (`Math` IEEE, `Convert` enxuto, tamanhos `i32`).
+- [x] 5. Biblioteca padrão com os tipos novos (`Math` IEEE, `Convert` enxuto, tamanhos `i32`). — feito em 2026-11-14
+  > Decisões do autor (2026-11-14): `Random` com o nome do tipo (`i32(a, b)`, `i64(a, b)`, `f64()`,
+  > `f64_range(a, b)`); `range` segue os argumentos; a `Math` de ponto flutuante segue a largura do
+  > argumento. Nota: duas variáveis de tipo novas nas assinaturas nativas, `inteiro` (i32/i64) e
+  > `flutuante` (f32/f64); a mensagem de argumento errado mostra os tipos aceitos ("esperado 'f32' ou
+  > 'f64'"). **Math** — sqrt, pow, trigonométricas, exp, log* e hypot são `flutuante → flutuante`
+  > (conta em double, um arredondamento para f32); IEEE em tudo: fora do domínio dá `nan`, polo dá
+  > `±inf`, grande demais dá `inf` (saem os `ValueError`/`OverflowError` da G2). Entram `Math.inf`,
+  > `Math.nan`, `is_nan`, `is_inf`. `floor`/`ceil`/`round`/`trunc` continuam `i64` (nan/inf → `ValueError`).
+  > `round_to` e `Strings.fixed` com f32 arredondam a forma decimal do float. `is_close` em f32 tem
+  > tolerância de f32 (1e-5 relativa). `gcd`/`lcm`/`is_even`/`is_odd` aceitam i32 e i64 (resultado na
+  > largura); `sign` é i32; `factorial`/`is_prime` ficam em i64. **Tamanhos e posições i32** — `size()`
+  > de list/dict/string, `Strings.find`/`find_last`/`find_from`/`count`/`compare`/`ord`,
+  > `Lists.index_of`/`last_index_of`/`count`, `e.line`/`e.column`; os parâmetros de posição continuam
+  > `i64` (aceitam os dois). `Files.read_bytes` devolve `list<i32>`; `write_bytes` aceita list de
+  > qualquer inteiro. `Files.size`/`modified` e `Time.*` ficam i64. **range** — `range(0, 10)` é
+  > `list<i32>`, com i64 é `list<i64>`; a CVM mantém a largura no `FORRANGE` e alarga o contador
+  > (`CONV`) quando o iterador é mais largo. **Convert** — saem `to_int`, `to_decimal`, `to_string`
+  > (e `is_int`, `is_decimal`, `to_int_or`, `to_decimal_or`); entram `is_i32`/`is_i64`/`is_f32`/`is_f64`,
+  > `to_i32_or`/`to_i64_or`/`to_f32_or`/`to_f64_or`, que leem o texto pela mesma regra do `cast`
+  > (`convertValue`). Os nomes antigos de `Random`/`Convert` têm erro que aponta o substituto. Testes
+  > migrados por script (nomes) e à mão (mensagens: `Math` agora devolve nan/inf; texto que não cabe é
+  > `OverflowError`, como no `cast`). 12 testes novos `k5_*`. 472/472/472.
 - [ ] 6. Spec, desenho da CVM e o mapeamento para LLVM.
 
 ---

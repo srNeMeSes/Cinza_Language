@@ -19,9 +19,11 @@ static Value nativePrint(std::span<const Value> args) {
     return Value();
 }
 
-// range(int inicio, int fim[, int passo]) -> list<int>: de inicio (inclusive)
-// até fim (exclusive). Passo negativo conta para baixo; passo 0 é ValueError.
+// range(inicio, fim[, passo]): de inicio (inclusive) até fim (exclusive). Passo
+// negativo conta para baixo; passo 0 é ValueError. Seção K: os elementos têm o
+// tipo dos argumentos (i32 ou i64; o semântico já os deixou na mesma largura).
 static Value nativeRange(std::span<const Value> args) {
+    const bool i32 = args[0].kind() == Value::Kind::I32;
     const std::int64_t inicio = args[0].asInt();
     const std::int64_t fim    = args[1].asInt();
     const std::int64_t passo  = args.size() == 3 ? args[2].asInt() : 1;
@@ -31,8 +33,8 @@ static Value nativeRange(std::span<const Value> args) {
 
     std::vector<Value> elems;
     for (std::int64_t i = inicio; passo > 0 ? i < fim : i > fim;) {
-        elems.emplace_back(i);
-        if (__builtin_add_overflow(i, passo, &i)) break;   // chegou ao limite de int
+        elems.push_back(i32 ? Value::i32(static_cast<std::int32_t>(i)) : Value(i));
+        if (__builtin_add_overflow(i, passo, &i)) break;   // chegou ao limite de i64
     }
     return makeList(std::move(elems));
 }
@@ -62,8 +64,8 @@ const NativeFn* findPrelude(const std::string& name) {
     auto& t = TypeContext::instance();
     static const std::unordered_map<std::string, NativeFn> prelude = {
         {"print", {"print", {t.typeVar("any")}, t.voidType(), nativePrint, 0, true}},
-        {"range", {"range", {t.i64Type(), t.i64Type(), t.i64Type()},
-                   t.list(t.i64Type()), nativeRange, 2, false}},
+        {"range", {"range", {t.typeVar("inteiro"), t.typeVar("inteiro"), t.typeVar("inteiro")},
+                   t.list(t.typeVar("inteiro")), nativeRange, 2, false}},
         {"input", {"input", {t.stringType()}, t.stringType(), nativeInput}},
         {"exit",  {"exit",  {t.i64Type()}, t.voidType(), nativeExit, NativeFn::SEM_OBRIGATORIOS}},
     };

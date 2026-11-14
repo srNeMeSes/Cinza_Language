@@ -63,8 +63,8 @@ fn executa(list<string> args) {
       bool ok = false;
       while (!ok) {
         string s = st.trim(input(nome + ": "));
-        if (cv.is_decimal(st.replace(s, ",", "."))) {
-          x.add(cv.to_decimal(st.replace(s, ",", ".")));
+        if (cv.is_f64(st.replace(s, ",", "."))) {
+          x.add(cast<f64>(st.replace(s, ",", ".")));
           ok = true;
         } else {
           print("  digite um número");
@@ -79,11 +79,11 @@ fn executa(list<string> args) {
 
 fn numero(string s, string nome) -> f64 {
   string t = st.replace(s, ",", ".");
-  if (!cv.is_decimal(t)) {
+  if (!cv.is_f64(t)) {
     printf("erro: '{s}' não é um número (para {nome})");
     exit(2);
   }
-  return cv.to_decimal(t);
+  return cast<f64>(t);
 }
 
 fn prever_csv(mlp.Modelo modelo, string caminho) {
@@ -96,7 +96,7 @@ fn prever_csv(mlp.Modelo modelo, string caminho) {
   for (i64 i in range(0, t.y.size())) {
     f64 p = modelo.prever(t.x[i]);
     soma_abs += Math.abs(p - t.y[i]);
-    print(" ", st.pad_right(cv.to_string(t.x[i]), 24), "real", st.pad_left(dados.reais(t.y[i]), 16),
+    print(" ", st.pad_right(format("{t.x[i]}"), 24), "real", st.pad_left(dados.reais(t.y[i]), 16),
           "  previsto", st.pad_left(dados.reais(p), 16));
   }
   print();

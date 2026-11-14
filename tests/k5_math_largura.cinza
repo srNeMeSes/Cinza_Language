@@ -1,0 +1,20 @@
+// Seção K: as funções de ponto flutuante da Math seguem a largura do argumento
+// (f32 entra e sai f32; a conta é em double, arredondada uma vez).
+import Math;
+fn main() {
+  f32 x = 2.f;
+  print(Math.sqrt(x), type(Math.sqrt(x)), Math.sqrt(2.ff), type(Math.sqrt(2.ff)));
+  print(type(Math.sin(x)), type(Math.pow(x, 3.f)), Math.pow(x, 10.f), type(Math.atan2(1.f, x)));
+  print(Math.pow(x, 0.5ff), type(Math.pow(x, 0.5ff)));   // f32 com f64: alarga para f64
+  print(Math.round_to(2.675f, 2), type(Math.round_to(2.675f, 2)), Math.round_to(2.675ff, 2));
+  print(Math.floor(2.7f), type(Math.floor(2.7f)), Math.round(-2.5f), Math.trunc(-2.7f));
+  print(Math.is_close(0.1f + 0.2f, 0.3f), Math.is_close(1.f, 1.0001f), Math.is_close(1.ff, 1.0001ff));
+  print(Math.abs(-1.5f), type(Math.abs(-1.5f)), Math.max(1.f, 2.f), type(Math.min(1.f, 2.ff)));
+}
+// expect: 1.4142135 f32 1.4142135623730951 f64
+// expect: f32 f32 1024 f32
+// expect: 1.4142135623730951 f64
+// expect: 2.68 f32 2.68
+// expect: 2 i64 -3 -2
+// expect: true false false
+// expect: 1.5 f32 2 f64

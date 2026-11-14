@@ -1,6 +1,6 @@
-// Fase 7: erro em Random.decimal.
+// Fase 7: erro em Random.f64.
 import Random;
 fn main() {
-  print(Random.decimal(1));
+  print(Random.f64(1));
 }
-// expect-error: Aridade incorreta em 'Random.decimal': esperados 0 argumento(s), mas recebeu 1
+// expect-error: Aridade incorreta em 'Random.f64': esperados 0 argumento(s), mas recebeu 1

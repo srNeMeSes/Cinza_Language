@@ -1,0 +1,17 @@
+// Seção K: Math.inf, Math.nan, is_nan e is_inf; a Math não lança erro em ponto flutuante.
+import Math;
+fn main() {
+  print(Math.inf, -Math.inf, Math.nan, type(Math.inf), type(Math.nan));
+  print(Math.is_nan(Math.nan), Math.is_nan(Math.inf), Math.is_nan(1.ff), Math.is_nan(0.f / 0.f));
+  print(Math.is_inf(Math.inf), Math.is_inf(-Math.inf), Math.is_inf(Math.nan), Math.is_inf(1.f / 0.f));
+  print(Math.sqrt(-4.f), Math.log(0.f), Math.exp(100.f), Math.exp(100.ff) < Math.inf);
+  print(Math.nan == Math.nan, Math.inf == Math.inf, Math.inf > 1000000000.ff);
+  f64 n = Math.nan;
+  print(n != n, Math.round_to(Math.inf, 2), Math.round_to(Math.nan, 2), Math.sign(Math.nan));
+}
+// expect: inf -inf nan f64 f64
+// expect: true false false true
+// expect: true true false true
+// expect: nan -inf inf true
+// expect: false true true
+// expect: true inf nan 0

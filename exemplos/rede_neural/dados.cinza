@@ -63,13 +63,13 @@ pub fn ler_csv(string caminho) -> Tabela {
     for (i64 j in range(0, n)) {
       string c = cs[j];
       if (sep == ";") { c = st.replace(c, ",", "."); }
-      if (!cv.is_decimal(c)) {
+      if (!cv.is_f64(c)) {
         throw ErroCSV(format("'{caminho}', linha {i + 1}, coluna '{nomes[j]}': '{cs[j]}' não é um número"));
       }
       if (j < n - 1) {
-        entrada.add(cv.to_decimal(c));
+        entrada.add(cast<f64>(c));
       } else {
-        t.y.add(cv.to_decimal(c));
+        t.y.add(cast<f64>(c));
       }
     }
     t.x.add(entrada);
@@ -80,7 +80,7 @@ pub fn ler_csv(string caminho) -> Tabela {
 
 // Separa as amostras em treino e teste, embaralhadas (a semente fixa repete a divisão)
 pub fn dividir(Tabela t, f64 fracao_teste, i64 semente) -> pair<Tabela, Tabela> {
-  list<i64> ordem = range(0, t.y.size());
+  list<i32> ordem = range(0, t.y.size());
   Random.seed(semente);
   Random.shuffle(ordem);
   i64 n_teste = Math.round(cast<f64>(t.y.size()) * fracao_teste);

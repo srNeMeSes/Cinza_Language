@@ -1,0 +1,11 @@
+// Seção K: gcd/lcm/is_even/is_odd aceitam i32 e i64 (o resultado tem a largura
+// dos argumentos); sign devolve i32; factorial e is_prime são de i64.
+import Math;
+fn main() {
+  print(Math.gcd(12, 18), type(Math.gcd(12, 18)), type(Math.gcd(cast<i64>(12), 18)), Math.lcm(4, 6));
+  print(Math.is_even(4), Math.is_odd(cast<i64>(7)), Math.sign(-5), type(Math.sign(2.5ff)));
+  print(Math.factorial(5), type(Math.factorial(5)), Math.is_prime(97));
+}
+// expect: 6 i32 i64 12
+// expect: true true -1 i32
+// expect: 120 i64 true

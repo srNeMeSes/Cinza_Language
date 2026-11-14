@@ -1,12 +1,14 @@
-// Fase 7: namespace Convert.
+// Fase 7 / seção K: texto → número é cast<T>; número → texto é cast<string>; o
+// Convert fica com bool, validação, padrão e bases.
 import Convert as cv;
 fn main() {
-  print(cv.to_int("42") + 1, cv.to_int("-7"), cv.to_int("+3"));
-  print(cv.to_decimal("2.5"), cv.to_decimal("-1e2"), cv.to_decimal("3"));
-  print(cv.to_string(10) + "!", cv.to_string(2.5ff), cv.to_string(true), cv.to_string([1, 2]));
+  print(cast<i64>("42") + 1, cast<i64>("-7"), cast<i64>("+3"), cast<i32>("12"));
+  print(cast<f64>("2.5"), cast<f64>("-1e2"), cast<f64>("3"), cast<f32>("0.1"));
+  list<i32> l = [1, 2];
+  print(cast<string>(10) + "!", cast<string>(2.5ff), format("{true} {l}"));
   print(cv.to_bool("true"), cv.to_bool("false"));
 }
-// expect: 43 -7 3
-// expect: 2.5 -100 3
+// expect: 43 -7 3 12
+// expect: 2.5 -100 3 0.1
 // expect: 10! 2.5 true [1, 2]
 // expect: true false

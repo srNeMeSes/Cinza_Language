@@ -397,9 +397,9 @@ lista: é erro numa lista `const`, como `Lists.sort`. A sequência exata gerada 
 import Random;
 fn main() {
   Random.seed(7);
-  i64 a = Random.int(1, 100);
+  i64 a = Random.i64(1, 100);
   Random.seed(7);
-  print(a == Random.int(1, 100), Random.int(5, 5));
+  print(a == Random.i64(1, 100), Random.i64(5, 5));
 }
 // expect: true 5
 ```
@@ -439,13 +439,13 @@ vírgula decimal, troque-a antes: `to_decimal(Strings.replace(s, ",", "."))`.
 ```cinza
 import Convert as cv;
 fn main() {
-  print(cv.to_int("42") + 1, cv.to_decimal("2.5"), cv.to_string(10) + "!", cv.to_bool("true"));
-  try { print(cv.to_int("12a")); } except (ValueError e) { print(e.message); }
-  print(cv.is_int("12a"), cv.to_int_or("12a", 0), cv.to_int_or("12", 0));
+  print(cast<i64>("42") + 1, cast<f64>("2.5"), cast<string>(10) + "!", cv.to_bool("true"));
+  try { print(cast<i64>("12a")); } except (ValueError e) { print(e.message); }
+  print(cv.is_i64("12a"), cv.to_i64_or("12a", 0), cv.to_i64_or("12", 0));
   print(cv.to_hex(255), cv.to_binary(5), cv.from_base("ff", 16), cv.to_base(35, 36));
 }
 // expect: 43 2.5 10! true
-// expect: '12a' não é um i64 válido
+// expect: cast<i64>("12a"): não é um número inteiro (só sinal e dígitos)
 // expect: false 0 12
 // expect: ff 101 255 z
 ```

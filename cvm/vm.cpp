@@ -293,12 +293,15 @@ Value VM::dispatch(std::size_t entrada) {
                     const std::int64_t i = R[in.a].asInt(), fim = R[in.a + 1].asInt(),
                                        passo = R[in.a + 2].asInt();
                     if (passo > 0 ? i >= fim : i <= fim) { f->pc += in.bc(); break; }
+                    // seção K: o contador tem a largura dos argumentos (i32 ou i64)
+                    const bool i32 = R[in.a + 1].kind() == Value::Kind::I32;
                     Value& destino = R[R[in.a + 3].asInt()];
-                    destino = Value(i);
+                    destino = i32 ? Value::i32(static_cast<std::int32_t>(i)) : Value(i);
                     std::int64_t prox;
-                    // chegou ao limite de int: este foi o último (como a nativa range)
-                    if (__builtin_add_overflow(i, passo, &prox)) R[in.a] = R[in.a + 1];
-                    else                                         R[in.a] = Value(prox);
+                    // passou do limite da largura: este foi o último (como a nativa range)
+                    if (__builtin_add_overflow(i, passo, &prox) ||
+                        (i32 && (prox < INT32_MIN || prox > INT32_MAX))) R[in.a] = R[in.a + 1];
+                    else R[in.a] = i32 ? Value::i32(static_cast<std::int32_t>(prox)) : Value(prox);
                     break;
                 }
                 case Op::FORNEXT: case Op::FORNEXT_W: {
@@ -415,8 +418,8 @@ Value VM::dispatch(std::size_t entrada) {
                     switch (in.c) {
                         case 0:  R[in.a] = Value(displayName(ev.kind)); break;   // sem prefixo de módulo
                         case 1:  R[in.a] = Value(ev.message); break;
-                        case 2:  R[in.a] = Value(ev.line); break;
-                        default: R[in.a] = Value(ev.column); break;
+                        case 2:  R[in.a] = Value::i32(static_cast<std::int32_t>(ev.line)); break;
+                        default: R[in.a] = Value::i32(static_cast<std::int32_t>(ev.column)); break;
                     }
                     break;
                 }

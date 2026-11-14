@@ -1,37 +1,34 @@
-// Math: fora do domínio lança ValueError; resultado grande demais lança OverflowError (nunca infinito).
+// Math (seção K): ponto flutuante segue o IEEE 754 — fora do domínio dá nan,
+// polo dá -inf/inf e grande demais dá inf, sem erro (antes, G2: ValueError e
+// OverflowError). Continuam erro: inteiro que não cabe, nan/inf para inteiro e
+// argumentos inválidos.
 import Math;
 fn main() {
-  try { print(Math.asin(2.ff)); } except (ValueError e) { print(e.message); }
-  try { print(Math.acos(-1.5ff)); } except (ValueError e) { print(e.message); }
-  try { print(Math.log10(0.ff)); } except (ValueError e) { print(e.message); }
-  try { print(Math.log2(-1.ff)); } except (ValueError e) { print(e.message); }
-  try { print(Math.log_base(8.ff, 1.ff)); } except (ValueError e) { print(e.message); }
-  try { print(Math.log_base(-8.ff, 2.ff)); } except (ValueError e) { print(e.message); }
-  try { print(Math.exp(1000.ff)); } except (OverflowError e) { print(e.message); }
-  try { print(Math.sinh(1000.ff)); } except (OverflowError e) { print(e.message); }
+  print(Math.asin(2.ff), Math.acos(-1.5ff), Math.log10(0.ff), Math.log2(-1.ff));
+  print(Math.log_base(8.ff, 1.ff), Math.log_base(-8.ff, 2.ff), Math.exp(1000.ff), Math.sinh(1000.ff));
   f64 enorme = Math.pow(10.ff, 308.ff) * 1.5ff;
-  try { print(Math.hypot(enorme, enorme)); } except (OverflowError e) { print(e.kind); }
+  print(Math.hypot(enorme, enorme), Math.pow(0.ff, -1.ff), Math.sqrt(-0.ff), Math.tan(Math.pi / 2.ff) > 1000000.ff);
   try { print(Math.trunc(Math.pow(10.ff, 30.ff))); } except (OverflowError e) { print(e.message); }
+  try { print(Math.floor(Math.nan)); } except (ValueError e) { print(e.message); }
+  try { print(Math.round(-Math.inf)); } except (ValueError e) { print(e.message); }
   try { print(Math.round_to(1.5ff, -1)); } except (ValueError e) { print(e.message); }
   try { print(Math.factorial(-1)); } except (ValueError e) { print(e.message); }
   try { print(Math.factorial(21)); } except (OverflowError e) { print(e.message); }
   try { print(Math.gcd(-9223372036854775807 - 1, 0)); } except (OverflowError e) { print(e.message); }
   try { print(Math.lcm(9223372036854775807, 2)); } except (OverflowError e) { print(e.message); }
+  try { print(Math.lcm(65536, 65537)); } except (OverflowError e) { print(e.message); }
   try { print(Math.clamp(5, 10, 0)); } except (ValueError e) { print(e.message); }
 }
-// expect: 'asin' só é definido de -1 a 1
-// expect: 'acos' só é definido de -1 a 1
-// expect: 'log10' só é definido para números positivos
-// expect: 'log2' só é definido para números positivos
-// expect: a base de 'log_base' precisa ser positiva e diferente de 1
-// expect: 'log_base' só é definido para números positivos
-// expect: resultado de 'exp' grande demais
-// expect: resultado de 'sinh' grande demais
-// expect: OverflowError
+// expect: nan nan -inf nan
+// expect: inf nan inf inf
+// expect: inf inf -0 true
 // expect: resultado de 'trunc' fora do intervalo de i64
+// expect: 'floor' de nan não tem valor inteiro
+// expect: 'round' de -inf não tem valor inteiro
 // expect: o número de casas de 'round_to' não pode ser negativo
 // expect: 'factorial' de número negativo
 // expect: 'factorial(21)' não cabe em i64 (o máximo é 20)
 // expect: resultado de 'gcd' fora do intervalo de i64
 // expect: resultado de 'lcm' fora do intervalo de i64
+// expect: resultado de 'lcm' fora do intervalo de i32
 // expect: em 'clamp' o mínimo não pode ser maior que o máximo

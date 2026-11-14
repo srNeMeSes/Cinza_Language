@@ -710,6 +710,12 @@ void Compiler::stmt(const Stmt* s) {
                 expr(rc->arguments[1].get(), static_cast<std::uint16_t>(a + 1));
                 if (rc->arguments.size() == 3) expr(rc->arguments[2].get(), static_cast<std::uint16_t>(a + 2));
                 else emitBc(Op::LOADINT, static_cast<std::uint16_t>(a + 2), 1, s->token);
+                // for (i64 i in range(0, 10)): o contador já nasce na largura do iterador
+                if (f->widen_to) {
+                    const auto alvo = static_cast<std::uint16_t>(convAlvo(f->widen_to));
+                    emit(Op::CONV, a, a, alvo, s->token);
+                    emit(Op::CONV, static_cast<std::uint16_t>(a + 1), static_cast<std::uint16_t>(a + 1), alvo, s->token);
+                }
                 // o erro de passo 0 sai na posição da chamada, como na nativa
                 emit(Op::RANGEPREP, a, slotReg(f->iter_slot), 0, rc->token);
                 const std::size_t prox = emitBc(Op::FORRANGE, a, 0, s->token);

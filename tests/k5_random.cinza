@@ -1,0 +1,20 @@
+// Seção K: Random.i32 / i64 / f64 / f64_range (no lugar de int, decimal, decimal_range).
+import Random;
+fn main() {
+  Random.seed(7);
+  i32 a = Random.i32(1, 6);
+  i64 b = Random.i64(1, 10000000000);
+  f64 c = Random.f64();
+  f64 d = Random.f64_range(-1.ff, 1.ff);
+  print(type(Random.i32(1, 2)), type(Random.i64(1, 2)), type(Random.f64()), type(Random.f64_range(0.ff, 1.ff)));
+  print(a >= 1 && a <= 6, b >= 1 && b <= 10000000000, c >= 0.ff && c < 1.ff, d >= -1.ff && d < 1.ff);
+  Random.seed(7);
+  print(Random.i32(1, 6) == a, Random.i64(1, 10000000000) == b, Random.f64() == c);
+  print(Random.i32(-2147483648, 2147483647) >= -2147483648, Random.i32(5, 5));
+  try { print(Random.i32(5, 1)); } except (ValueError e) { print(e.message); }
+}
+// expect: i32 i64 f64 f64
+// expect: true true true true
+// expect: true true true
+// expect: true 5
+// expect: 'i32(5, 1)': o início é maior que o fim

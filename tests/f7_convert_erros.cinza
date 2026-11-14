@@ -1,18 +1,20 @@
-// Fase 7: Convert lança ValueError para texto inválido.
+// Fase 7 / seção K: texto inválido lança ValueError; número que não cabe, OverflowError.
 import Convert;
 fn main() {
-  try { print(Convert.to_int("12a")); } except (ValueError e) { print(e.message); }
-  try { print(Convert.to_int(" 1")); } except (ValueError e) { print(e.message); }
-  try { print(Convert.to_int("+-1")); } except (ValueError e) { print(e.message); }
-  try { print(Convert.to_int("99999999999999999999")); } except (ValueError e) { print(e.message); }
-  try { print(Convert.to_decimal("abc")); } except (ValueError e) { print(e.message); }
-  try { print(Convert.to_decimal("1.")); } except (ValueError e) { print(e.message); }
+  try { print(cast<i64>("12a")); } except (ValueError e) { print(e.message); }
+  try { print(cast<i64>(" 1")); } except (ValueError e) { print(e.message); }
+  try { print(cast<i64>("+-1")); } except (ValueError e) { print(e.message); }
+  try { print(cast<i64>("99999999999999999999")); } except (OverflowError e) { print(e.message); }
+  try { print(cast<i32>("3000000000")); } except (OverflowError e) { print(e.message); }
+  try { print(cast<f64>("abc")); } except (ValueError e) { print(e.message); }
+  try { print(cast<f64>("1.")); } except (ValueError e) { print(e.message); }
   try { print(Convert.to_bool("sim")); } except (ValueError e) { print(e.kind); }
 }
-// expect: '12a' não é um i64 válido
-// expect: ' 1' não é um i64 válido
-// expect: '+-1' não é um i64 válido
-// expect: '99999999999999999999' está fora do intervalo de i64
-// expect: 'abc' não é um f64 válido
-// expect: '1.' não é um f64 válido
+// expect: cast<i64>("12a"): não é um número inteiro (só sinal e dígitos)
+// expect: cast<i64>(" 1"): não é um número inteiro (só sinal e dígitos)
+// expect: cast<i64>("+-1"): não é um número inteiro (só sinal e dígitos)
+// expect: cast<i64>("99999999999999999999"): o valor não cabe em i64
+// expect: cast<i32>("3000000000"): o valor não cabe em i32
+// expect: cast<f64>("abc"): não é um número (ex.: 2.5, -3, 1e10, inf, nan)
+// expect: cast<f64>("1."): não é um número (ex.: 2.5, -3, 1e10, inf, nan)
 // expect: ValueError
