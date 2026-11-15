@@ -204,6 +204,8 @@ public:
     };
     std::vector<InterpPart> interp;
     bool interpolated = false;
+    // N: tipos explícitos de uma chamada genérica, f[i32, string](...); vazio sem colchetes
+    std::vector<TypePtr> type_args;
 
     CallExpr(const Token& tok, const std::string& name, std::vector<ExprPtr> args)
         : Expr(NodeKind::Call, tok), function_name(name), arguments(std::move(args)) {}
@@ -565,6 +567,11 @@ public:
     StmtPtr body; // sempre um BlockStmt
     std::uint32_t num_slots = 0;   // B2: parâmetros (slots 0..n-1) + locais
     std::string trace_name;        // nome no stack trace ("f", "Classe.metodo"), montado uma vez
+    // N: função genérica, fn f[T, U](...). Vazio numa função comum. `fonte` guarda os tokens
+    // da declaração (de 'fn' ao '}' do corpo): cada cópia para tipos concretos é gerada
+    // reparseando-os, com a própria AST
+    std::vector<Token> type_params;
+    std::vector<Token> fonte;
     
     FunctionDecl(const Token& tok, const std::string& fname, 
                  std::vector<Parameter> params, TypePtr ret_type, StmtPtr body_stmt)

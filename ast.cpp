@@ -114,6 +114,12 @@ std::string CallExpr::toString(int indent_level) const {
     std::ostringstream oss;
     oss << indent(indent_level) << "CallExpr(\n";
     oss << indent(indent_level + 1) << "function: " << function_name << "\n";
+    if (!type_args.empty()) {
+        oss << indent(indent_level + 1) << "type_args: [";
+        for (size_t i = 0; i < type_args.size(); ++i)
+            oss << (i ? ", " : "") << type_args[i]->toString();
+        oss << "]\n";
+    }
     oss << indent(indent_level + 1) << "arguments: [\n";
     for (const auto& arg : arguments) {
         oss << arg->toString(indent_level + 2) << "\n";
@@ -309,6 +315,12 @@ std::string FunctionDecl::toString(int indent_level) const {
     std::ostringstream oss;
     oss << indent(indent_level) << "FunctionDecl(\n";
     oss << indent(indent_level + 1) << "name: " << name << "\n";
+    if (!type_params.empty()) {
+        oss << indent(indent_level + 1) << "type_params: [";
+        for (size_t i = 0; i < type_params.size(); ++i)
+            oss << (i ? ", " : "") << type_params[i].lexeme;
+        oss << "]\n";
+    }
     oss << indent(indent_level + 1) << "parameters: [\n";
     for (const auto& param : parameters) {
         oss << indent(indent_level + 2) << param.type->toString() << " " << param.name << "\n";

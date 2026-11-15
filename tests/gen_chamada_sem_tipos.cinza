@@ -1,0 +1,4 @@
+fn main() {
+  print(f[](2));
+}
+// expect-error: Esperado ao menos um tipo entre os colchetes da chamada genérica

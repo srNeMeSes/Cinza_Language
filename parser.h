@@ -127,6 +127,14 @@ private:
     ExprPtr parseUnaryExpr();
     ExprPtr parsePrimaryExpr();
     ExprPtr parseCallExpr();
+
+    // N1: genéricos. Colchetes são a sintaxe da função genérica, e só dela:
+    //   fn f[T, U](...)  — parâmetros de tipo (só nomes)
+    //   f[i32, string](...) — chamada com tipos explícitos (só tipos)
+    std::vector<Token> parseTypeParams();               // consome "[T, U]"
+    bool    checkGenericCall() const;                   // '[' cujo ']' é seguido de '('
+    ExprPtr parseGenericCall(const Token& name_token);  // f[tipos](args), com '[' atual
+    void    recusaParametrosTipo(const std::string& oque);   // struct Par[A, B]: erro e pula
     ExprPtr parsePostfixExpr(ExprPtr expr);
     ExprPtr parseNewExpr();            // new NomeClasse(args)
     
@@ -147,7 +155,7 @@ private:
     StmtPtr parseForStatement();
     StmtPtr parseReturnStatement();
     StmtPtr parseBlockStatement();
-    StmtPtr parseFunctionDeclaration();
+    StmtPtr parseFunctionDeclaration(bool metodo = false);
     StmtPtr parseClassDeclaration();   // class Name { fields... pub { methods... } }
     
     // ========================================================================

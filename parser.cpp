@@ -536,6 +536,7 @@ ExprPtr Parser::parsePrimaryExpr() {
         Token name_token = peek();
         std::string name = parseQualifiedName();
         name_token.lexeme = name;
+        if (checkGenericCall()) return parseGenericCall(name_token);   // u.f[i32](...)
         if (match(TokenType::LPAREN)) {
             std::vector<ExprPtr> arguments;
             if (!check(TokenType::RPAREN)) {
@@ -556,6 +557,7 @@ ExprPtr Parser::parsePrimaryExpr() {
         if (check(TokenType::LPAREN)) {
             return parseCallExpr();
         }
+        if (checkGenericCall()) return parseGenericCall(name_token);   // f[i32](...)
         
         return std::make_unique<IdentifierExpr>(name_token, name_token.lexeme);
     }
@@ -596,6 +598,106 @@ ExprPtr Parser::parseCallExpr() {
     consume(TokenType::RPAREN, "Esperado ')' após argumentos");
     
     return std::make_unique<CallExpr>(name_token, func_name, std::move(arguments));
+}
+
+
+// N1: o '[' atual fecha num ']' seguido de '('? Então é uma chamada genérica,
+// f[i32](...): funções não são valores, então o resultado de um índice nunca pode
+// ser chamado e `x[...](` não tem outro significado. O ';' e as chaves encerram a
+// procura (não aparecem entre os tipos).
+bool Parser::checkGenericCall() const {
+    if (!check(TokenType::LBRACKET)) return false;
+    int nivel = 0;
+    for (size_t i = current; i < tokens.size(); ++i) {
+        switch (tokens[i].type) {
+            case TokenType::LBRACKET: ++nivel; break;
+            case TokenType::RBRACKET:
+                if (--nivel == 0)
+                    return i + 1 < tokens.size() && tokens[i + 1].type == TokenType::LPAREN;
+                break;
+            case TokenType::SEMICOLON: case TokenType::LBRACE: case TokenType::RBRACE:
+            case TokenType::END_OF_FILE:
+                return false;
+            default: break;
+        }
+    }
+    return false;
+}
+
+// N1: f[tipo, tipo](argumentos), com o '[' como token atual
+ExprPtr Parser::parseGenericCall(const Token& name_token) {
+    Token abre = advance();   // '['
+    if (check(TokenType::RBRACKET)) {
+        error("Esperado ao menos um tipo entre os colchetes da chamada genérica, ex.: " +
+              name_token.lexeme + "[i32](...)", peek());
+        throw ParseError("chamada genérica sem tipos", peek());
+    }
+    // O conteúdo precisa ser uma lista de tipos. Se não for (l[0](2)), é um índice
+    // chamado como função: um erro só, com a explicação, em vez do "esperado tipo".
+    const size_t inicio = current;
+    const bool silencioso_antes = silencioso, erros_antes = has_errors;
+    silencioso = true;
+    std::vector<TypePtr> tipos;
+    bool sao_tipos = true;
+    try {
+        do { tipos.push_back(parseType()); } while (match(TokenType::COMMA));
+        sao_tipos = check(TokenType::RBRACKET);
+    } catch (const ParseError&) {
+        sao_tipos = false;
+    }
+    silencioso = silencioso_antes;
+    has_errors = erros_antes;
+    if (!sao_tipos) {
+        current = inicio;
+        error("O resultado de um índice não pode ser chamado: funções não são valores. "
+              "Entre colchetes, antes de '(', só podem vir tipos (chamada genérica, ex.: " +
+              name_token.lexeme + "[i32](...))", abre);
+        throw ParseError("índice chamado como função", abre);
+    }
+    advance();   // ']'
+    consume(TokenType::LPAREN, "Esperado '(' após os tipos da chamada genérica");
+    std::vector<ExprPtr> arguments;
+    if (!check(TokenType::RPAREN)) {
+        do {
+            arguments.push_back(parseExpression());
+        } while (match(TokenType::COMMA));
+    }
+    consume(TokenType::RPAREN, "Esperado ')' após argumentos");
+    auto call = std::make_unique<CallExpr>(name_token, name_token.lexeme, std::move(arguments));
+    call->type_args = std::move(tipos);
+    return call;
+}
+
+// N1: fn f[T, U] — só nomes, pelo menos um
+std::vector<Token> Parser::parseTypeParams() {
+    advance();   // '['
+    std::vector<Token> params;
+    if (check(TokenType::RBRACKET)) {
+        error("Esperado ao menos um parâmetro de tipo entre os colchetes, ex.: fn nome[T](T x)",
+              peek());
+        throw ParseError("lista de parâmetros de tipo vazia", peek());
+    }
+    do {
+        params.push_back(consume(TokenType::IDENTIFIER,
+            "Esperado o nome de um parâmetro de tipo (um identificador, ex.: T): entre os "
+            "colchetes da declaração só vêm nomes; os tipos concretos vêm na chamada"));
+    } while (match(TokenType::COMMA));
+    consume(TokenType::RBRACKET, "Esperado ']' após os parâmetros de tipo");
+    return params;
+}
+
+// N1: struct Par[A, B], class Pilha[T]...: só funções do nível superior são genéricas.
+// Relata e pula a lista, para a análise seguir sem erros em cascata.
+void Parser::recusaParametrosTipo(const std::string& oque) {
+    if (!check(TokenType::LBRACKET)) return;
+    error(oque + " não aceita parâmetros de tipo: só funções do nível superior podem ser "
+          "genéricas (fn nome[T](...))", peek());
+    int nivel = 0;
+    do {
+        if (check(TokenType::LBRACKET)) ++nivel;
+        else if (check(TokenType::RBRACKET)) --nivel;
+        advance();
+    } while (nivel > 0 && !isAtEnd());
 }
 
 // r: NewExpr(class: Pessoa, args: ["Jose", 22, 3.4])
@@ -1110,12 +1212,25 @@ StmtPtr Parser::parseBlockStatement() {
 }
 
 // r: fn fname([parameters]) -> type : default -> void
-StmtPtr Parser::parseFunctionDeclaration() {
+StmtPtr Parser::parseFunctionDeclaration(bool metodo) {
+    const size_t inicio = current;   // N1: a declaração genérica guarda os próprios tokens
     Token fn_token = advance(); // consome 'fn'
-    
+
     Token name_token = consume(TokenType::IDENTIFIER, "Esperado nome da função");
     std::string func_name = name_token.lexeme;
-    
+
+    // N1: fn nome[T, U](...)
+    std::vector<Token> type_params;
+    if (check(TokenType::LBRACKET)) {
+        if (metodo) {
+            error("Métodos não podem ser genéricos: só funções do nível superior "
+                  "(fn nome[T](...)). Use uma função genérica que recebe o objeto.", peek());
+            parseTypeParams();   // lida e descartada: a análise segue
+        } else {
+            type_params = parseTypeParams();
+        }
+    }
+
     consume(TokenType::LPAREN, "Esperado '(' após nome da função");
     
     std::vector<Parameter> parameters = parseParameterList();
@@ -1143,9 +1258,15 @@ StmtPtr Parser::parseFunctionDeclaration() {
     
     // Corpo da função
     StmtPtr body = parseBlockStatement();
-    
-    return std::make_unique<FunctionDecl>(fn_token, func_name, std::move(parameters),
-                                          std::move(return_type), std::move(body));
+
+    auto fn = std::make_unique<FunctionDecl>(fn_token, func_name, std::move(parameters),
+                                             std::move(return_type), std::move(body));
+    if (!type_params.empty()) {
+        fn->type_params = std::move(type_params);
+        fn->fonte.assign(tokens.begin() + static_cast<std::ptrdiff_t>(inicio),
+                         tokens.begin() + static_cast<std::ptrdiff_t>(current));
+    }
+    return fn;
 }
 
 // r: [Parameter{type, name, token, is_const}, ...]
@@ -1211,6 +1332,7 @@ StmtPtr Parser::parseClassDeclaration() {
     Token name_token = consume(TokenType::IDENTIFIER,
                                 "Esperado nome da classe após 'class'");
     std::string class_name = name_token.lexeme;
+    recusaParametrosTipo("class");   // N1
 
     // class X : Forma, Desenhavel — interfaces cumpridas
     std::vector<std::string> interfaces;
@@ -1246,7 +1368,7 @@ StmtPtr Parser::parseClassDeclaration() {
 
                 while (!check(TokenType::RBRACE) && !isAtEnd()) {
                     if (check(TokenType::KW_FN)) {
-                        pub_methods.push_back(parseFunctionDeclaration());
+                        pub_methods.push_back(parseFunctionDeclaration(true));
 
                     // ── construtor: NomeClasse(params) { body } ──────────
                     //    IDENTIFIER seguido de '(' dentro do pub{} onde
@@ -1263,6 +1385,11 @@ StmtPtr Parser::parseClassDeclaration() {
                             }
 
                             advance(); // consome o nome da classe
+                            if (check(TokenType::LBRACKET)) {   // N1
+                                error("Construtores não podem ser genéricos: só funções do "
+                                      "nível superior (fn nome[T](...))", peek());
+                                parseTypeParams();
+                            }
                             consume(TokenType::LPAREN,
                                     "Esperado '(' após nome do construtor");
 
@@ -1294,7 +1421,7 @@ StmtPtr Parser::parseClassDeclaration() {
 
             // ── método privado: fn fora do pub{} ─────────────────────────
             } else if (check(TokenType::KW_FN)) {
-                priv_methods.push_back(parseFunctionDeclaration());
+                priv_methods.push_back(parseFunctionDeclaration(true));
 
             // ── campo da classe: tipo nome; ou tipo nome = expr; ──────────
             //    O tipo pode ser primitivo, composto, ou customizado (IDENTIFIER)
@@ -1400,6 +1527,7 @@ StmtPtr Parser::parseInterfaceDeclaration() {
     Token iface_token = advance();   // consome 'interface'
     Token name_token  = consume(TokenType::IDENTIFIER,
                                 "Esperado o nome da interface, ex.: interface Forma { ... }");
+    recusaParametrosTipo("interface");   // N1
     consume(TokenType::LBRACE, "Esperado '{' após o nome da interface");
     DepthGuard guard{brace_depth};
     std::vector<InterfaceDecl::Method> metodos;
@@ -1412,6 +1540,11 @@ StmtPtr Parser::parseInterfaceDeclaration() {
         InterfaceDecl::Method m;
         m.token = advance();   // 'fn'
         m.name  = consume(TokenType::IDENTIFIER, "Esperado o nome do método").lexeme;
+        if (check(TokenType::LBRACKET)) {   // N1
+            error("Métodos não podem ser genéricos: só funções do nível superior "
+                  "(fn nome[T](...))", peek());
+            parseTypeParams();
+        }
         consume(TokenType::LPAREN, "Esperado '(' após o nome do método");
         m.parameters = parseParameterList();
         consume(TokenType::RPAREN, "Esperado ')' após os parâmetros");
@@ -1434,6 +1567,7 @@ StmtPtr Parser::parseEnumDeclaration() {
     Token enum_token = advance();   // consome 'enum'
     Token name_token = consume(TokenType::IDENTIFIER,
                                "Esperado o nome do enum, ex.: enum Cor { Vermelho, Verde }");
+    recusaParametrosTipo("enum");   // N1
     consume(TokenType::LBRACE, "Esperado '{' após o nome do enum");
     std::vector<std::string> membros;
     std::vector<Token>       tokens_membros;
@@ -1456,6 +1590,7 @@ StmtPtr Parser::parseErrorDeclaration() {
     Token error_token = advance();   // consome 'error'
     Token name_token  = consume(TokenType::IDENTIFIER,
                                 "Esperado o nome do tipo de erro, ex.: error SaldoInsuficiente;");
+    recusaParametrosTipo("error");   // N1
     consume(TokenType::SEMICOLON, "Esperado ';' após a declaração de erro");
     return std::make_unique<ErrorDecl>(error_token, name_token.lexeme);
 }
@@ -1506,6 +1641,7 @@ StmtPtr Parser::parseStructDeclaration() {
 
     Token name_token = consume(TokenType::IDENTIFIER,
                                "Esperado nome do struct após 'struct'");
+    recusaParametrosTipo("struct");   // N1
 
     consume(TokenType::LBRACE, "Esperado '{' após nome do struct");
     DepthGuard struct_brace_guard{brace_depth};   // A9

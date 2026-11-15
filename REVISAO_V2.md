@@ -1333,6 +1333,86 @@ linguagem CINZA, vai contra a filosofia da linguagem, isso deve gerar erro e nã
   > quando o `cast` faria a conversão (números entre si e com `string`; `bool` não). Testes `n_*`.
   > 483/483, limpo sob ASan/UBSan.
 
+## N. Funções genéricas (2026-11-15)
+
+Decisões do autor (revê "A Cinza não terá genéricos", D, 2026-09-30), depois de comparar
+monomorfização, apagamento de tipo e dicionários, e o modelo "confere no uso" (C++/Zig) com o de
+contrato declarado (Rust/Go):
+
+1. **Monomorfização**: cada combinação de tipos usada vira uma função comum. Execução sem custo;
+   a CVM não muda (nenhuma instrução nova), e o LLVM futuro recebe só tipos concretos.
+2. **Conferência no uso, como no Zig**: o corpo só é analisado com o tipo concreto; `T` aceita os
+   campos, métodos e operadores que o tipo real tiver, sem restrições declaradas. Genérico não
+   usado só passa pelo parser.
+3. **Inferência + explícito opcional**: os tipos saem dos argumentos (literal se adapta, promoção
+   dentro da família, coleções invariantes); `f[i32](x)` sempre vale e é obrigatório quando `T` não
+   aparece nos parâmetros.
+4. **Colchetes são a sintaxe da função genérica, e só dela**: `fn f[T, U](...)` traz apenas os
+   parâmetros de tipo e `f[i32, string](...)`, apenas os tipos; `list<T>`, `dict<K, V>`,
+   `pair<A, B>` e `cast<T>` continuam com `<>`. Proposta do autor: elimina a ambiguidade do `<`
+   (com `<`, `f(a < b, c > (d))` viraria chamada genérica). Com `[`, não há exceção: funções não
+   são valores, então `x[...](` nunca teve outro significado.
+5. **Erros com rastro** (`em f[i32], usada em main.cinza:9`) e limite de 64 cópias encadeadas.
+
+Especificação: capítulo 8 (`spec/08-genericos.md`), escrito antes do código; os exemplos dele são
+o alvo das etapas e só passam quando a N3 terminar. Até lá o capítulo traz a linha
+`<!-- exemplos-pendentes: ... -->`, que o `run_tests.py` respeita (avisa com `PEND` e não roda os
+exemplos); ela sai na N3. Testes com prefixo `gen_`.
+
+**Etapas** (cada uma com a suíte verde e um commit):
+
+- [x] N1. Parser e AST. — feito em 2026-11-15
+  - `FunctionDecl` ganha os parâmetros de tipo e a faixa de tokens da declaração (para gerar as
+    cópias); `CallExpr` e a chamada de função de módulo ganham os argumentos de tipo.
+  - Na declaração, `fn nome[` abre os parâmetros de tipo. Na chamada, depois de `nome` ou
+    `apelido.nome`, procurar o `]` que fecha o `[` (contando aninhamento): se o token seguinte é
+    `(`, o conteúdo é lido como `tipo {, tipo}`; senão é índice ou fatia, como hoje.
+  - Erros de declaração: parâmetros de tipo em método, construtor, assinatura de interface,
+    `struct`, `class`, `enum` e `error` ("métodos não podem ser genéricos", "struct não aceita
+    parâmetros de tipo"...).
+  - O semântico ainda recusa toda função genérica com um erro único, para a suíte ficar verde.
+  > Nota: `FunctionDecl::type_params`/`fonte` (os tokens de `fn` ao `}`, só na genérica) e
+  > `CallExpr::type_args`. No parser, `parseTypeParams`, `checkGenericCall` (procura o `]`
+  > correspondente; `;`, `{`, `}` e o fim encerram a procura), `parseGenericCall` e
+  > `recusaParametrosTipo`. O conteúdo dos colchetes é lido como tipos em modo silencioso: se não
+  > for (`l[0](2)`), um erro só, "O resultado de um índice não pode ser chamado: funções não são
+  > valores...", em vez de "Esperado tipo". `fn f[]`, `f[](x)` e `fn f[i32]` têm mensagem própria.
+  > Método, construtor e assinatura de interface: "Métodos/Construtores não podem ser genéricos";
+  > `struct`/`class`/`enum`/`interface`/`error`: "X não aceita parâmetros de tipo". Os dois casos
+  > leem e descartam a lista, sem cascata. Semântico: "Funções genéricas ainda não estão
+  > implementadas" na declaração (provisório, sai na N2) e "'f' não é uma função genérica" na
+  > chamada com colchetes. 18 testes `gen_*` (um deles, `gen_indices_intactos`, confere índices,
+  > fatias, chaves e índices dentro do `printf`). 501/501, limpo sob ASan/UBSan.
+- [ ] N2. Semântico: declaração, dedução e cópias.
+  - Regras da 8.1: nomes distintos, sem colidir com tipos do módulo, `main` não genérica, sem
+    sobrecarga. O corpo de uma genérica não é analisado.
+  - Dedução (8.3): unificação dos tipos dos parâmetros com os dos argumentos, reaproveitando a das
+    variáveis de tipo das nativas (`TypeChecker::widens`, literais pela regra de `coerceInPlace`);
+    erros "Não é possível deduzir o tipo 'T'" e "tipos conflitantes para 'T'". Com tipos
+    explícitos, o número precisa bater e os argumentos seguem as regras normais.
+  - Cópia: chave (declaração, tipos concretos) num cache. A cópia nasce reparseando a faixa de
+    tokens da declaração (cada cópia tem a própria AST, onde o semântico grava os tipos), com o nome
+    `f[i32]` e os parâmetros de tipo ligados aos tipos concretos na resolução de tipos. A
+    assinatura concreta tipa a chamada na hora; o corpo entra numa fila e é analisado depois da
+    função atual, no escopo do módulo da declaração.
+  - Rastro (8.4): cada cópia guarda o uso que a criou (posição e cópia de origem). Um erro durante
+    a análise do corpo ganha as linhas "em f[i32], usada em ...", abreviadas como o stack trace.
+    Profundidade acima de 64 é erro. `x[...](...)` com `x` que não é função genérica: "'x' não é
+    uma função genérica".
+- [ ] N3. CVM: as cópias são compiladas como funções comuns do módulo da declaração, com o nome
+  `f[i32]` na tabela de funções, no stack trace e no `--disasm`. DESENHO.md: nota de que os
+  genéricos não chegam à VM (nem ao LLVM). Os exemplos do capítulo 8 passam.
+- [ ] N4. Varredura e acabamento: genéricos entre módulos (`pub`, apelido, tipo do módulo de quem
+  usa), recursão com e sem crescimento de tipo, interface como `T`, `const`, `var`, `printf`/
+  `format` no corpo, coleções aninhadas, colchetes de tipo ao lado de índices e fatias
+  (`f[i32](l[0])`, `l[f[i32](x)]`); ASan/UBSan. Extensão do VS Code (`fn nome[T]` e chamadas com
+  tipos explícitos). Spec versão 4.
+
+**Fora desta seção** (em discussão com o autor): `struct` e `class` genéricas — falta decidir como
+um campo de tipo genérico recebe valor inicial (proposta: sem valor inicial, quem cria fornece;
+na classe, o construtor atribui) —, métodos genéricos, interfaces genéricas, restrições opcionais
+(`T: Forma`) e especialização.
+
 ---
 
 ## Registro de decisões
@@ -1374,6 +1454,7 @@ linguagem CINZA, vai contra a filosofia da linguagem, isso deve gerar erro e nã
 | 2026-10-04 | J2 | `Files.read_bytes(caminho) -> list<int>` e `Files.write_bytes(caminho, list<int>)`, bytes de 0 a 255 (fora disso, `ValueError`). | Decisão do autor da linguagem; formatos binários sem passar por texto UTF-8. |
 | 2026-10-03 | I4 | `menor_int % -1` dá `0` (revê A5); `-0.0` continua `-0` no `print`; decimais extremos continuam em notação científica. | Decisão do autor da linguagem; `x % -1` cabe sempre em `int`. |
 | 2026-10-03 | H3 | `exit([código])`: padrão 0, de 0 a 255; roda os `finally` pendentes e nenhum `except` o captura; encerra o caminho na análise de fluxo. | Decisão do autor da linguagem; 0–255 dá o mesmo resultado em todo sistema. |
+| 2026-11-15 | N | Funções genéricas (revê "A Cinza não terá genéricos", D): monomorfização; corpo conferido só no uso, com o tipo concreto, sem restrições declaradas (modelo do Zig); genérico não usado não é conferido; tipos deduzidos dos argumentos, explícitos opcionais e obrigatórios quando não dedutíveis; colchetes como sintaxe exclusiva da função genérica (`fn f[T]`, `f[i32](x)`), com `list<T>`/`cast<T>` mantidos; erros com rastro dos usos e limite de 64 cópias encadeadas. `struct`/`class` genéricas ficam para depois. | Decisão do autor: genéricos simples e leves, sem custo na execução, "deixando à mercê do usuário criar um bom programa". |
 | 2026-11-14 | M | Infinito e NaN não existem na Cinza: divisão por zero de ponto flutuante é `ZeroDivisionError`, estouro é `OverflowError`, fora do domínio é `ValueError` (revê o "IEEE em tudo" da seção K). `TypeError` fica para os genéricos. | Decisão do autor: inf e NaN vão contra a filosofia da linguagem. |
 | 2026-11-14 | L | Só a CVM (o interpretador de referência sai; o próximo backend é LLVM) e nenhuma compatibilidade com versões antigas da linguagem: o que muda, muda de vez. | Decisão do autor: a linguagem está em desenvolvimento e não tem programas de terceiros. |
 | 2026-11-14 | K | Quatro tipos numéricos em duas famílias (`i32`/`i64`, `f32`/`f64`) no lugar de `int`/`decimal`, sem apelidos; promoção só dentro da família; entre famílias, `cast<T>(valor)`; literal com ponto exige sufixo (`f`/`ff`); `%` só entre inteiros; ponto flutuante IEEE em tudo (revê A5, G2 e a revisão I); tamanhos e posições `i32`; `op<...>` removido (revê D). | Especificação do autor: "simplicidade na utilização, rigor na implementação e previsibilidade no comportamento". |

@@ -1,0 +1,3 @@
+enum Cor[T] { Vermelho, Verde }
+fn main() {}
+// expect-error: enum não aceita parâmetros de tipo

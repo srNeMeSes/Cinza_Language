@@ -1,0 +1,5 @@
+fn dobro(i32 x) -> i32 { return x * 2; }
+fn main() {
+  print(dobro[i32](2));
+}
+// expect-error: 'dobro' não é uma função genérica

@@ -1,0 +1,4 @@
+// entre os colchetes da declaração só vêm nomes
+fn f[i32](i32 x) {}
+fn main() {}
+// expect-error: Esperado o nome de um parâmetro de tipo

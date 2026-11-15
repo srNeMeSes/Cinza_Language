@@ -1,0 +1,4 @@
+// N1: struct genérico fica fora desta versão
+struct Par[A, B] { A primeiro; B segundo; }
+fn main() {}
+// expect-error: struct não aceita parâmetros de tipo

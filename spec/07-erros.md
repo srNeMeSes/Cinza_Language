@@ -91,7 +91,11 @@ prog.cinza:2:36: IndexError: índice 5 fora dos limites (tamanho: 1)
 ```
 
 Pilhas muito fundas mostram as 10 chamadas mais internas, uma linha `... (N chamadas omitidas)` e
-a mais externa. Métodos aparecem como `Classe.metodo`, construtores como `new Classe`.
+a mais externa. Métodos aparecem como `Classe.metodo`, construtores como `new Classe` e cópias
+de funções genéricas com os tipos, como `maior[i32]`.
+
+Um erro de compilação dentro de uma função genérica vem seguido do **rastro dos usos**
+(`em f[i32], usada em prog.cinza:9`), com a mesma regra de abreviação (seção 8.4).
 
 ```cinza
 fn f(list<i64> l) -> i64 { return l[5]; }

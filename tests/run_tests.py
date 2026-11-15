@@ -16,7 +16,9 @@ Cada tests/*.cinza declara a saída esperada em comentários:
 
 Também roda os exemplos executáveis da especificação (spec/*.md): todo bloco
 ```cinza que tenha `// expect:` ou `// expect-error:` é extraído para
-tests/spec_exemplos/ e conferido com as mesmas regras. Blocos sem essas linhas
+tests/spec_exemplos/ e conferido com as mesmas regras. Um capítulo com a linha `<!-- exemplos-pendentes: motivo -->` é escrito antes do
+código: seus exemplos são o alvo de uma etapa em andamento e ficam de fora (a suíte
+avisa quantos). Blocos sem essas linhas
 são só ilustrativos.
 
 Sem expect-error: o programa deve sair com código 0 (ou o de `expect-exit`) e o
@@ -37,6 +39,7 @@ DIR_TESTES = RAIZ / "tests"
 DIR_SPEC = RAIZ / "spec"
 DIR_EXEMPLOS = DIR_TESTES / "spec_exemplos"   # gerado a cada execução (fora do git)
 RE_BLOCO = re.compile(r"^```cinza[ \t]*\r?\n(.*?)^```", re.M | re.S)
+RE_PENDENTES = re.compile(r"<!--\s*exemplos-pendentes:\s*(.*?)\s*-->")
 # Folgado para o build com sanitizers (-O0 + ASan é dezenas de vezes mais lento:
 # o exemplo da rede neural passava dos 10 s); um laço infinito continua sendo pego
 TIMEOUT_S = 30
@@ -179,6 +182,11 @@ def exemplos_da_spec(filtro):
     exemplos = []
     for md in sorted(DIR_SPEC.glob("*.md")):
         texto = md.read_text(encoding="utf-8")
+        pendente = RE_PENDENTES.search(texto)
+        if pendente:
+            n = len(RE_BLOCO.findall(texto))
+            print(f"PEND  spec/{md.name}: {n} exemplos fora da suíte ({pendente.group(1)})")
+            continue
         for m in RE_BLOCO.finditer(texto):
             codigo = m.group(1)
             if not (RE_EXPECT.search(codigo) or RE_EXPECT_ERROR.search(codigo) or

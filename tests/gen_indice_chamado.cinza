@@ -1,0 +1,7 @@
+// funções não são valores: o resultado de um índice nunca pode ser chamado
+fn main() {
+  list<i32> l = [1];
+  print(l[0](2));
+}
+// expect-error: O resultado de um índice não pode ser chamado
+// expect-not: Esperado tipo

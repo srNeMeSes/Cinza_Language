@@ -1,0 +1,8 @@
+// N1: construtor com parâmetros de tipo
+class Caixa {
+  pub {
+    Caixa[T](T x) {}
+  }
+}
+fn main() {}
+// expect-error: Construtores não podem ser genéricos

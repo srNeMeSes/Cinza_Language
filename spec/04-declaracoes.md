@@ -85,6 +85,7 @@ fn nome(tipo1 p1, tipo2 p2) -> tipoRetorno { ... }
   ser reatribuído (nem alterado, se for um recipiente).
 - Não há sobrecarga: dois itens do nível superior com o mesmo nome são erro.
 - Funções **não são valores**: o nome de uma função só pode ser usado numa chamada.
+- Uma função do nível superior pode ser **genérica** (`fn maior[T](T a, T b) -> T`): capítulo 8.
 - Uma função do programa com o nome de uma embutida (`print`, `range`...) tem precedência sobre
   ela.
 

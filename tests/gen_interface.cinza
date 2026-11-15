@@ -1,0 +1,3 @@
+interface Forma[T] { fn area() -> f64; }
+fn main() {}
+// expect-error: interface não aceita parâmetros de tipo

@@ -19,7 +19,9 @@ declaracao    = [ "pub" ] ( funcao | classe | struct | enum | interface | erro |
 constGlobal   = "const" tipo nome "=" expressao ";" ;
                 (* no nível superior só há const: não existem variáveis globais mutáveis *)
 
-funcao        = "fn" nome "(" [ parametros ] ")" [ "->" tipo ] bloco ;
+funcao        = "fn" nome [ paramsTipo ] "(" [ parametros ] ")" [ "->" tipo ] bloco ;
+                (* paramsTipo só em função do nível superior: capítulo 8 *)
+paramsTipo    = "[" nome { "," nome } "]" ;
 parametros    = parametro { "," parametro } ;
 parametro     = [ "const" ] tipo nome ;
 
@@ -54,7 +56,7 @@ tipo          = "i32" | "i64" | "f32" | "f64" | "string" | "str" | "bool"
               | "pair" "<" tipo "," tipo ">"
               | nomeTipo ;
 
-nomeTipo      = nome                                     (* class, struct, enum, interface, erro *)
+nomeTipo      = nome                    (* class, struct, enum, interface, erro, parâmetro de tipo *)
               | nome "." nome ;                          (* apelido de módulo . nome *)
 ```
 
@@ -115,8 +117,8 @@ posfixo       = primario { "." nome [ argumentos ] | "[" expressao "]" | fatia }
 fatia         = "[" [ expressao ] ":" [ expressao ] [ ":" [ expressao ] ] "]" ;   (* só string *)
 
 primario      = literal
-              | nome [ argumentos ]                      (* variável ou chamada *)
-              | nome "." nome [ argumentos ]             (* nome de módulo importado *)
+              | nome [ [ argsTipo ] argumentos ]         (* variável ou chamada *)
+              | nome "." nome [ [ argsTipo ] argumentos ] (* nome de módulo importado *)
               | "self"
               | "new" nomeTipo argumentos
               | "cast" "<" tipo ">" "(" expressao ")"   (* i32, i64, f32, f64 ou string; seção 3.1 *)
@@ -125,6 +127,8 @@ primario      = literal
               | lista | par | dicionario ;
 
 argumentos    = "(" [ expressao { "," expressao } ] ")" ;
+argsTipo      = "[" tipo { "," tipo } "]" ;
+                (* só quando o "]" é seguido de "(": senão é índice ou fatia; seção 8.3 *)
 lista         = "[" expressao { "," expressao } "]" ;    (* não há "[]" vazio *)
 par           = "{" expressao "," expressao "}" ;
 dicionario    = "{" entrada { "," entrada } "}" ;        (* não há "{}" vazio *)

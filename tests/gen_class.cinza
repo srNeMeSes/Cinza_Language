@@ -1,0 +1,6 @@
+// N1: class genérica fica fora desta versão
+class Pilha[T] {
+  list<T> itens;
+}
+fn main() {}
+// expect-error: class não aceita parâmetros de tipo

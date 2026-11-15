@@ -1,0 +1,8 @@
+// N1: método público com parâmetros de tipo
+class Caixa {
+  pub {
+    fn guarda[T](T x) {}
+  }
+}
+fn main() {}
+// expect-error: Métodos não podem ser genéricos

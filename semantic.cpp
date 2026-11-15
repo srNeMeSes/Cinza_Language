@@ -525,6 +525,11 @@ void SemanticAnalyzer::checkStructCycles() {
 
 // Registra uma função no escopo global como Symbol::Kind::FUNCTION.
 void SemanticAnalyzer::registerFunction(const FunctionDecl& fn) {
+    // N1: o parser já lê as funções genéricas; a análise (cópias por tipo) vem na N2
+    if (!fn.type_params.empty()) {
+        throwError("Funções genéricas ainda não estão implementadas ('" + fn.name + "')",
+                   fn.token);
+    }
     Symbol sym;
     sym.name          = fn.name;
     sym.kind          = Symbol::Kind::FUNCTION;
@@ -2002,6 +2007,13 @@ TypeRef SemanticAnalyzer::analyzeUnary(UnaryExpr* expr) {
 //     nativa do prelude (print, range)
 //   - Verifica existência, aridade e tipos dos argumentos
 TypeRef SemanticAnalyzer::analyzeCall(CallExpr* expr) {
+    // N1: f[i32](...) com algo que não é função genérica (na N1, nada é: as
+    // declarações genéricas são recusadas antes)
+    if (!expr->type_args.empty()) {
+        throwError("'" + expr->function_name + "' não é uma função genérica: os colchetes "
+                   "antes de '(' informam os tipos de uma função declarada com "
+                   "fn nome[T](...)", expr->token);
+    }
     // ── Função declarada pelo usuário ─────────────────────────────────────
     std::string full_name;
     const Symbol* sym = lookup(expr->function_name, expr->token, full_name);

@@ -1,0 +1,3 @@
+fn f[]() {}
+fn main() {}
+// expect-error: Esperado ao menos um parâmetro de tipo entre os colchetes

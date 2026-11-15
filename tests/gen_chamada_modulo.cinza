@@ -1,0 +1,5 @@
+import Math;
+fn main() {
+  print(Math.abs[i32](-2));
+}
+// expect-error: 'Math.abs' não é uma função genérica
