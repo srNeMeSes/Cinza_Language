@@ -7,7 +7,7 @@ fn main() {
   // f64 ↔ f32
   print(cast<f32>(0.1ff), cast<f64>(0.1f), type(cast<f32>(0.1ff)));
   // texto ↔ número
-  print(cast<i32>("-42"), cast<i64>("+9000000000"), cast<f64>("2.5"), cast<f32>("1e3"), cast<f64>("-inf"));
+  print(cast<i32>("-42"), cast<i64>("+9000000000"), cast<f64>("2.5"), cast<f32>("1e3"), cast<f64>("-1.5e-3"));
   print(cast<string>(42) + "!", cast<string>(0.5f), cast<string>("x"), type(cast<string>(1)));
   // dentro da família, com o mesmo tipo: não faz nada
   i64 n = 3;
@@ -16,6 +16,6 @@ fn main() {
 // expect: 5 7 2 -2 0
 // expect: 7 16777216 9007199254740992 1.5
 // expect: 0.1 0.10000000149011612 f32
-// expect: -42 9000000000 2.5 1000 -inf
+// expect: -42 9000000000 2.5 1000 -0.0015
 // expect: 42! 0.5 x string
 // expect: 3 1.5

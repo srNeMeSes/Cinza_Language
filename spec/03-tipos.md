@@ -36,17 +36,20 @@ implementação e previsibilidade no comportamento.
 - `%` só existe entre inteiros.
 - Inteiros: estouro, divisão por zero e `menor / -1` são erros de runtime (seção 5.3), em 32 e em 64
   bits.
-- Ponto flutuante segue o IEEE 754: `inf`, `-inf`, `nan` e `-0` são valores; nenhuma conta lança
-  erro.
+- Ponto flutuante: **infinito e NaN não existem** na Cinza. Divisão por zero (inclusive `0 / 0`)
+  lança `ZeroDivisionError`; um resultado além do maior valor finito do tipo lança `OverflowError`
+  (em `f64` e em `f32`). O que é pequeno demais vira `0`, e `-0` existe (`print(-0.ff)` mostra `-0`).
 
 ```cinza
 fn main() {
   i32 a = 2000000000;
   i64 b = 2000000000;
   f32 x = 0.5f;
-  print(a + b, type(a + b), x * 2.f, type(x + 0.25ff), 1.ff / 0.ff);
+  print(a + b, type(a + b), x * 2.f, type(x + 0.25ff));
+  try { print(1.ff / 0.ff); } except (ZeroDivisionError e) { print(e.message); }
 }
-// expect: 4000000000 i64 1 f64 inf
+// expect: 4000000000 i64 1 f64
+// expect: divisão por zero
 ```
 
 ```cinza
@@ -67,13 +70,13 @@ mistura famílias), `cast<f32>(2) + 3.f` vale.
 | De → para                | Regra |
 |--------------------------|-------|
 | inteiro → inteiro        | precisa caber na faixa do destino; senão `OverflowError` |
-| ponto flutuante → inteiro | trunca em direção a zero (`cast<i32>(-2.9ff)` é `-2`); `nan` e infinito lançam `ValueError`; fora da faixa, `OverflowError` |
-| inteiro → ponto flutuante | o valor mais próximo (IEEE): `cast<f32>(16777217)` é `16777216` |
-| `f64` → `f32`             | o valor mais próximo (IEEE); grande demais vira `inf` |
+| ponto flutuante → inteiro | trunca em direção a zero (`cast<i32>(-2.9ff)` é `-2`); fora da faixa, `OverflowError` |
+| inteiro → ponto flutuante | o valor mais próximo: `cast<f32>(16777217)` é `16777216` |
+| `f64` → `f32`             | o valor mais próximo; grande demais para `f32`, `OverflowError` |
 | `f32` → `f64`             | exato |
 | número → `string`         | o mesmo texto do `print` |
 | `string` → inteiro        | sinal opcional (`+`/`-`) e dígitos, sem espaços; outro texto lança `ValueError`; fora da faixa, `OverflowError` |
-| `string` → ponto flutuante | `[sinal] dígitos [. dígitos] [e [sinal] dígitos]`, ou `inf`, `-inf`, `nan`; outro texto lança `ValueError`; grande demais, `OverflowError`; pequeno demais vira 0 |
+| `string` → ponto flutuante | `[sinal] dígitos [. dígitos] [e [sinal] dígitos]`; outro texto (inclusive `"inf"` e `"nan"`) lança `ValueError`; grande demais, `OverflowError`; pequeno demais vira 0 |
 
 ```cinza
 fn main() {

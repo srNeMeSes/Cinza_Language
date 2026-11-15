@@ -1,11 +1,14 @@
-// Fase 7 / seção K: a Math segue o IEEE — fora do domínio dá nan, polo dá -inf,
-// grande demais dá inf; o que não cabe num inteiro continua erro.
+// Fase 7: erros de runtime em Math.
 import Math;
 fn main() {
-  print(Math.sqrt(-1.0ff), Math.log(0.0ff), Math.pow(10.0ff, 400.0ff));
+  try { print(Math.sqrt(-1.0ff)); } except (ValueError e) { print(e.kind, e.message); }
+  try { print(Math.log(0.0ff)); } except (ValueError e) { print(e.kind); }
   try { print(Math.floor(100000000000000000000.0ff)); } except (OverflowError e) { print(e.kind, e.message); }
   try { print(Math.abs(-9223372036854775807 - 1)); } except (OverflowError e) { print(e.kind); }
+  try { print(Math.pow(10.0ff, 400.0ff)); } except (OverflowError e) { print(e.kind); }
 }
-// expect: nan -inf inf
+// expect: ValueError 'sqrt' de número negativo
+// expect: ValueError
 // expect: OverflowError resultado de 'floor' fora do intervalo de i64
+// expect: OverflowError
 // expect: OverflowError

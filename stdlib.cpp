@@ -62,18 +62,20 @@ double numero(const Value& v) { return v.asNumber(); }
 // lista chega a 2^31 elementos)
 Value i32Valor(std::int64_t v) { return Value::i32(static_cast<std::int32_t>(v)); }
 
-// Resultado de ponto flutuante na largura do argumento: f32 entra e sai f32
-// (a conta é feita em double e arredondada uma vez); IEEE, sem erro
-Value naLargura(const Value& arg, double r) {
-    return arg.kind() == Value::Kind::F32 ? Value::f32(doubleToF32(r)) : Value(r);
+// Resultado de ponto flutuante de uma função (seção M: infinito e NaN não
+// existem): sem resultado real → ValueError; grande demais → OverflowError. Na
+// largura do argumento: f32 entra e sai f32 (conta em double, arredondada uma
+// vez), e precisa caber em f32.
+Value naLargura(const Value& arg, double r, const char* fn) {
+    if (r != r) falha(std::string("ValueError: '") + fn + "' sem resultado real");
+    if (std::isinf(r)) falha(std::string("OverflowError: resultado de '") + fn + "' grande demais");
+    if (arg.kind() != Value::Kind::F32) return Value(r);
+    if (!cabeEmF32(r)) falha(std::string("OverflowError: resultado de '") + fn + "' não cabe em f32");
+    return Value::f32(doubleToF32(r));
 }
 
-// ponto flutuante → i64 (floor, ceil, round, trunc): NaN e infinito não têm
-// valor inteiro (ValueError); fora da faixa, OverflowError
+// ponto flutuante → i64 (floor, ceil, round, trunc): fora da faixa, OverflowError
 Value flutuanteParaInt(double d, const char* fn) {
-    if (d != d) falha(std::string("ValueError: '") + fn + "' de nan não tem valor inteiro");
-    if (std::isinf(d))
-        falha(std::string("ValueError: '") + fn + "' de " + (d > 0 ? "inf" : "-inf") + " não tem valor inteiro");
     // 2^63 é o primeiro double fora da faixa (i64 vai até 2^63 - 1)
     if (d < -9223372036854775808.0 || d >= 9223372036854775808.0)
         falha(std::string("OverflowError: resultado de '") + fn + "' fora do intervalo de i64");
@@ -700,12 +702,18 @@ Value filesAbsolute(Args a) {
 // Math
 // ============================================================================
 
-// Seção K: ponto flutuante segue o IEEE 754 em toda a Math — fora do domínio dá
-// nan (sqrt(-1), log(-1), asin(2)), polo dá ±inf (log(0), pow(0, -1)) e o que
-// passa da faixa dá inf. Nenhuma lança erro. O resultado tem a largura do
-// argumento (naLargura).
-Value mathSqrt(Args a) { return naLargura(a[0], std::sqrt(a[0].asFloat())); }
-Value mathPow(Args a)  { return naLargura(a[0], std::pow(a[0].asFloat(), a[1].asFloat())); }
+// Seção M: infinito e NaN não existem na Cinza. Fora do domínio lança
+// ValueError (sqrt de negativo, log de 0, asin(2)) e o que passa da faixa lança
+// OverflowError (exp(1000)). O resultado tem a largura do argumento (naLargura).
+Value mathSqrt(Args a) {
+    if (a[0].asFloat() < 0) falha("ValueError: 'sqrt' de número negativo");
+    return naLargura(a[0], std::sqrt(a[0].asFloat()), "sqrt");
+}
+Value mathPow(Args a) {
+    if (a[0].asFloat() == 0 && a[1].asFloat() < 0)
+        falha("ZeroDivisionError: 'pow' de 0 com expoente negativo (divisão por zero)");
+    return naLargura(a[0], std::pow(a[0].asFloat(), a[1].asFloat()), "pow");
+}
 
 // abs: o resultado tem o tipo do argumento (seção K)
 Value mathAbs(Args a) {
@@ -732,51 +740,49 @@ Value mathCeil (Args a) { return flutuanteParaInt(std::ceil (a[0].asFloat()), "c
 // round: metade se afasta do zero (2.5 → 3, -2.5 → -3)
 Value mathRound(Args a) { return flutuanteParaInt(std::round(a[0].asFloat()), "round"); }
 
-// min/max: com nan em qualquer lado o resultado é nan (antes dependia da ordem
-// dos argumentos: min(nan, 1) dava nan e min(1, nan) dava 1)
-bool ehNan(const Value& v) { return v.isFloat() && v.asFloat() != v.asFloat(); }
-Value mathMin(Args a) {
-    if (ehNan(a[0])) return a[0];
-    if (ehNan(a[1])) return a[1];
-    return numero(a[1]) < numero(a[0]) ? a[1] : a[0];
-}
-Value mathMax(Args a) {
-    if (ehNan(a[0])) return a[0];
-    if (ehNan(a[1])) return a[1];
-    return numero(a[1]) > numero(a[0]) ? a[1] : a[0];
-}
+Value mathMin(Args a) { return numero(a[1]) < numero(a[0]) ? a[1] : a[0]; }
+Value mathMax(Args a) { return numero(a[1]) > numero(a[0]) ? a[1] : a[0]; }
 
-Value mathSin(Args a)   { return naLargura(a[0], std::sin(a[0].asFloat())); }
-Value mathCos(Args a)   { return naLargura(a[0], std::cos(a[0].asFloat())); }
-Value mathTan(Args a)   { return naLargura(a[0], std::tan(a[0].asFloat())); }
-Value mathAsin(Args a)  { return naLargura(a[0], std::asin(a[0].asFloat())); }
-Value mathAcos(Args a)  { return naLargura(a[0], std::acos(a[0].asFloat())); }
-Value mathAtan(Args a)  { return naLargura(a[0], std::atan(a[0].asFloat())); }
-Value mathAtan2(Args a) { return naLargura(a[0], std::atan2(a[0].asFloat(), a[1].asFloat())); }
+Value mathSin(Args a)   { return naLargura(a[0], std::sin(a[0].asFloat()), "sin"); }
+Value mathCos(Args a)   { return naLargura(a[0], std::cos(a[0].asFloat()), "cos"); }
+Value mathTan(Args a)   { return naLargura(a[0], std::tan(a[0].asFloat()), "tan"); }
+// asin/acos: só de -1 a 1
+Value mathAsin(Args a) {
+    if (a[0].asFloat() < -1 || a[0].asFloat() > 1) falha("ValueError: 'asin' só é definido de -1 a 1");
+    return naLargura(a[0], std::asin(a[0].asFloat()), "asin");
+}
+Value mathAcos(Args a) {
+    if (a[0].asFloat() < -1 || a[0].asFloat() > 1) falha("ValueError: 'acos' só é definido de -1 a 1");
+    return naLargura(a[0], std::acos(a[0].asFloat()), "acos");
+}
+Value mathAtan(Args a)  { return naLargura(a[0], std::atan(a[0].asFloat()), "atan"); }
+Value mathAtan2(Args a) { return naLargura(a[0], std::atan2(a[0].asFloat(), a[1].asFloat()), "atan2"); }
 
 constexpr double PI = 3.14159265358979323846;
-Value mathDegrees(Args a) { return naLargura(a[0], a[0].asFloat() * (180.0 / PI)); }
-Value mathRadians(Args a) { return naLargura(a[0], a[0].asFloat() * (PI / 180.0)); }
+Value mathDegrees(Args a) { return naLargura(a[0], a[0].asFloat() * (180.0 / PI), "degrees"); }
+Value mathRadians(Args a) { return naLargura(a[0], a[0].asFloat() * (PI / 180.0), "radians"); }
 
-Value mathSinh(Args a)  { return naLargura(a[0], std::sinh(a[0].asFloat())); }
-Value mathCosh(Args a)  { return naLargura(a[0], std::cosh(a[0].asFloat())); }
-Value mathTanh(Args a)  { return naLargura(a[0], std::tanh(a[0].asFloat())); }
-Value mathCbrt(Args a)  { return naLargura(a[0], std::cbrt(a[0].asFloat())); }
-Value mathExp(Args a)   { return naLargura(a[0], std::exp(a[0].asFloat())); }
-Value mathHypot(Args a) { return naLargura(a[0], std::hypot(a[0].asFloat(), a[1].asFloat())); }
+Value mathSinh(Args a)  { return naLargura(a[0], std::sinh(a[0].asFloat()), "sinh"); }
+Value mathCosh(Args a)  { return naLargura(a[0], std::cosh(a[0].asFloat()), "cosh"); }
+Value mathTanh(Args a)  { return naLargura(a[0], std::tanh(a[0].asFloat()), "tanh"); }
+Value mathCbrt(Args a)  { return naLargura(a[0], std::cbrt(a[0].asFloat()), "cbrt"); }
+Value mathExp(Args a)   { return naLargura(a[0], std::exp(a[0].asFloat()), "exp"); }
+Value mathHypot(Args a) { return naLargura(a[0], std::hypot(a[0].asFloat(), a[1].asFloat()), "hypot"); }
 
-// log, log10, log2: log(0) = -inf; negativo dá nan
-Value mathLog(Args a)   { return naLargura(a[0], std::log(a[0].asFloat())); }
-Value mathLog10(Args a) { return naLargura(a[0], std::log10(a[0].asFloat())); }
-Value mathLog2(Args a)  { return naLargura(a[0], std::log2(a[0].asFloat())); }
-// log_base(x, base) = log(x) / log(base): base 1 dá ±inf (ou nan com x = 1)
-Value mathLogBase(Args a) {
-    return naLargura(a[0], std::log(a[0].asFloat()) / std::log(a[1].asFloat()));
+// log, log10, log2: só para positivos
+Value positivo(const Value& x, const char* fn) {
+    if (x.asFloat() <= 0) falha(std::string("ValueError: '") + fn + "' só é definido para números positivos");
+    return x;
 }
-
-// is_nan / is_inf (inf ou -inf)
-Value mathIsNan(Args a) { const double x = a[0].asFloat(); return Value(x != x); }
-Value mathIsInf(Args a) { return Value(std::isinf(a[0].asFloat())); }
+Value mathLog(Args a)   { return naLargura(a[0], std::log(positivo(a[0], "log").asFloat()), "log"); }
+Value mathLog10(Args a) { return naLargura(a[0], std::log10(positivo(a[0], "log10").asFloat()), "log10"); }
+Value mathLog2(Args a)  { return naLargura(a[0], std::log2(positivo(a[0], "log2").asFloat()), "log2"); }
+// log_base(x, base): logaritmo de x na base dada
+Value mathLogBase(Args a) {
+    const double x = positivo(a[0], "log_base").asFloat(), base = a[1].asFloat();
+    if (base <= 0 || base == 1) falha("ValueError: a base de 'log_base' precisa ser positiva e diferente de 1");
+    return naLargura(a[0], std::log(x) / std::log(base), "log_base");
+}
 
 // trunc: corta as casas, em direção ao zero
 Value mathTrunc(Args a) { return flutuanteParaInt(std::trunc(a[0].asFloat()), "trunc"); }
@@ -813,19 +819,18 @@ std::string arredondaTexto(double x, std::int64_t casas, bool f32 = false) {
     return r;
 }
 
-// f32 arredonda a forma decimal do float (round_to(2.675f, 2) = 2.68f); nan e
-// infinito voltam como estão
+// f32 arredonda a forma decimal do float (round_to(2.675f, 2) = 2.68f)
 Value mathRoundTo(Args a) {
     const double x = a[0].asFloat();
     const std::int64_t casas = a[1].asInt();
     if (casas < 0) falha("ValueError: o número de casas de 'round_to' não pode ser negativo");
-    if (!std::isfinite(x) || casas > 400) return a[0];   // além de 400 nenhum número tem casas para cortar
+    if (casas > 400) return a[0];   // além de 400 nenhum número tem casas para cortar
     const bool f32 = a[0].kind() == Value::Kind::F32;
     const std::string r = arredondaTexto(x, casas, f32);
     double v = 0;
     std::from_chars(r.data(), r.data() + r.size(), v);
-    if (v == 0) return naLargura(a[0], 0.0);   // sem -0
-    return naLargura(a[0], x < 0 ? -v : v);
+    if (v == 0) return naLargura(a[0], 0.0, "round_to");   // sem -0
+    return naLargura(a[0], x < 0 ? -v : v, "round_to");
 }
 
 // Magnitude de um i64 como unsigned (|menor i64| não cabe em i64)
@@ -867,7 +872,7 @@ Value mathLcm(Args a) {
 Value mathIsEven(Args a) { return Value(a[0].asInt() % 2 == 0); }
 Value mathIsOdd(Args a)  { return Value(a[0].asInt() % 2 != 0); }
 
-// sign: -1, 0 ou 1 (i32); sign(nan) é 0
+// sign: -1, 0 ou 1 (i32)
 Value mathSign(Args a) {
     const double x = numero(a[0]);
     return i32Valor(x > 0 ? 1 : (x < 0 ? -1 : 0));
@@ -1047,7 +1052,9 @@ Value randGauss(Args a) {
     const double media = a[0].asFloat(), desvio = a[1].asFloat();
     if (desvio < 0) falha("ValueError: o desvio de 'gauss' não pode ser negativo");
     if (desvio == 0) return Value(media);
-    return Value(std::normal_distribution<double>(media, desvio)(gerador()));
+    const double r = std::normal_distribution<double>(media, desvio)(gerador());
+    if (!std::isfinite(r)) falha("OverflowError: resultado de 'gauss' grande demais");
+    return Value(r);
 }
 
 // ============================================================================
@@ -1139,17 +1146,10 @@ Value convFromBase(Args a) {
 // Lists
 // ============================================================================
 
-// Ordem de valores comparáveis (números ou strings; a lista é homogênea). Ponto
-// flutuante: nan fica depois de todos (inclusive de inf), para a ordem ser total
-// — com o < do IEEE, nan não é menor nem maior que nada e a ordenação quebra
+// Ordem de valores comparáveis (números ou strings; a lista é homogênea)
 bool menor(const Value& x, const Value& y) {
     if (x.kind() == Value::Kind::STRING) return x.asString() < y.asString();
-    if (x.isFloat()) {
-        const double a = x.asFloat(), b = y.asFloat();
-        if (a != a) return false;   // nan não é menor que nada
-        if (b != b) return true;    // tudo é menor que nan
-        return a < b;
-    }
+    if (x.isFloat()) return x.asFloat() < y.asFloat();
     return x.asInt() < y.asInt();
 }
 
@@ -1188,9 +1188,9 @@ Value listSlice(Args a) {
     return makeList(std::vector<Value>(elems.begin() + ini, elems.begin() + fim));
 }
 
-// Soma/produto de lista com o tipo dos elementos (seção K): ponto flutuante
-// segue o IEEE (pode dar inf/nan; f32 conta em float); i32 conta em 64 bits e
-// o total precisa caber em i32. Lista vazia → o
+// Soma/produto de lista com o tipo dos elementos (seções K e M): ponto
+// flutuante que passa da faixa lança OverflowError (f32 conta em float); i32
+// conta em 64 bits e o total precisa caber em i32. Lista vazia → o
 // neutro como inteiro de 64 bits, que a CVM ajusta ao tipo estático da chamada
 // (CONV depois do CALLNATIVE de uma nativa genérica)
 static Value foldNumeros(Args a, bool soma, const char* nome) {
@@ -1200,10 +1200,12 @@ static Value foldNumeros(Args a, bool soma, const char* nome) {
         if (elems[0].kind() == Value::Kind::F32) {
             float total = soma ? 0.0f : 1.0f;
             for (const auto& v : elems) total = soma ? total + v.asF32() : total * v.asF32();
+            if (!std::isfinite(total)) falha("OverflowError: " + oque + nome + "' excede a faixa de f32");
             return Value::f32(total);
         }
         double total = soma ? 0.0 : 1.0;
         for (const auto& v : elems) total = soma ? total + v.asFloat() : total * v.asFloat();
+        if (!std::isfinite(total)) falha("OverflowError: " + oque + nome + "' excede a faixa de f64");
         return Value(total);
     }
     const bool i32 = !elems.empty() && elems[0].kind() == Value::Kind::I32;
@@ -1268,25 +1270,27 @@ const std::vector<Value>& naoVazia(Args a, const char* fn) {
     return elems;
 }
 
-// min/max: com algum nan, o resultado é nan (como Math.min/max)
 Value listMin(Args a) {
     const auto& elems = naoVazia(a, "min");
-    for (const auto& v : elems) if (ehNan(v)) return v;
     return *std::min_element(elems.begin(), elems.end(), menor);
 }
 Value listMax(Args a) {
     const auto& elems = naoVazia(a, "max");
-    for (const auto& v : elems) if (ehNan(v)) return v;
     // o primeiro dos maiores, como min
     return *std::max_element(elems.begin(), elems.end(), menor);
 }
 
-// average: sempre f64
+// average: sempre f64. A soma é acumulada em long double (faixa bem maior que a
+// do double no g++/clang), então só a média final precisa caber em f64:
+// average([1e308, 1e308]) é 1e308, não um estouro da soma intermediária
 Value listAverage(Args a) {
     const auto& elems = naoVazia(a, "average");
-    double total = 0;
-    for (const auto& v : elems) total += numero(v);
-    return Value(total / static_cast<double>(elems.size()));   // IEEE
+    long double total = 0;
+    for (const auto& v : elems) total += static_cast<long double>(numero(v));
+    const long double media = total / static_cast<long double>(elems.size());
+    if (!std::isfinite(media) || std::fabs(media) > static_cast<long double>(std::numeric_limits<double>::max()))
+        falha("OverflowError: a média de 'average' excede a faixa de f64");
+    return Value(static_cast<double>(media));
 }
 
 // product: lista vazia dá 1; estouro lança OverflowError
@@ -1381,11 +1385,9 @@ Value listConcat(Args a) {
 }
 
 // Valores em que operator< é uma ordem total, coerente com == (os demais são
-// comparados com ==). nan não entra: nan != nan, mas o std::set o trataria como
-// equivalente a tudo (unique([nan, 1.ff]) perdia o 1)
+// comparados com ==)
 bool ordenavel(const Value& v) {
-    if (v.isInteger()) return true;
-    if (v.isFloat()) return !ehNan(v);
+    if (v.isNumber()) return true;
     switch (v.kind()) {
         case Value::Kind::STRING: case Value::Kind::BOOL: case Value::Kind::ENUM:
             return true;
@@ -1808,14 +1810,10 @@ std::vector<NativeModule> criaModulos() {
         {"factorial", {I},       I, mathFactorial},
         {"is_prime",  {I},       B, mathIsPrime},
         {"is_close",  {F, F},    B, mathIsClose},
-        {"is_nan",    {F},       B, mathIsNan},
-        {"is_inf",    {F},       B, mathIsInf},
     }, {
         {"pi",  D, Value(PI)},
         {"e",   D, Value(2.71828182845904523536)},
         {"tau", D, Value(2 * PI)},
-        {"inf", D, Value(std::numeric_limits<double>::infinity())},
-        {"nan", D, Value(std::numeric_limits<double>::quiet_NaN())},
     }});
 
     m.push_back({"Random", {
@@ -1926,8 +1924,6 @@ std::vector<NativeModule> criaModulos() {
 
 // sem "-0.00": um resultado que arredonda para zero não leva sinal
 std::string fixedText(double x, std::int64_t casas, bool f32) {
-    if (x != x) return "nan";                      // IEEE: não há casas a fixar
-    if (std::isinf(x)) return x < 0 ? "-inf" : "inf";
     std::string r = arredondaTexto(x, casas, f32);
     const bool zero = r.find_first_not_of("0.") == std::string::npos;
     return x < 0 && !zero ? "-" + r : r;

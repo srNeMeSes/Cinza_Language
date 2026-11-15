@@ -1,0 +1,15 @@
+// Seção M: cast<f32> de um f64 grande demais e texto "inf"/"nan" são erros
+// (infinito e NaN não existem); o valor perto do limite arredonda para o maior f32.
+fn main() {
+  f64 grande = 1000000000000000000000000000000000000000000000000000000000000.ff;
+  try { print(cast<f32>(grande)); } except (OverflowError e) { print(e.message); }
+  try { print(cast<f64>("inf")); } except (ValueError e) { print(e.message); }
+  try { print(cast<f32>("nan")); } except (ValueError e) { print(e.message); }
+  try { print(cast<f64>("-inf")); } except (ValueError e) { print(e.message); }
+  print(cast<f32>(340282350000000000000000000000000000000.ff), cast<f32>(0.1ff));
+}
+// expect: cast<f32>(1e+60): o valor não cabe em f32
+// expect: cast<f64>("inf"): não é um número (ex.: 2.5, -3, 1e10)
+// expect: cast<f32>("nan"): não é um número (ex.: 2.5, -3, 1e10)
+// expect: cast<f64>("-inf"): não é um número (ex.: 2.5, -3, 1e10)
+// expect: 3.4028235e+38 0.1

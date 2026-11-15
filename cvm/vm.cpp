@@ -161,15 +161,26 @@ Value VM::dispatch(std::size_t entrada) {
                     break;
                 }
 
-                // ── ponto flutuante: IEEE 754, sem exceção (inf, nan, -0) ──
-                case Op::ADD_F64: R[in.a] = Value(R[in.b].asFloat() + R[in.c].asFloat()); break;
-                case Op::SUB_F64: R[in.a] = Value(R[in.b].asFloat() - R[in.c].asFloat()); break;
-                case Op::MUL_F64: R[in.a] = Value(R[in.b].asFloat() * R[in.c].asFloat()); break;
-                case Op::DIV_F64: R[in.a] = Value(R[in.b].asFloat() / R[in.c].asFloat()); break;
-                case Op::ADD_F32: R[in.a] = Value::f32(R[in.b].asF32() + R[in.c].asF32()); break;
-                case Op::SUB_F32: R[in.a] = Value::f32(R[in.b].asF32() - R[in.c].asF32()); break;
-                case Op::MUL_F32: R[in.a] = Value::f32(R[in.b].asF32() * R[in.c].asF32()); break;
-                case Op::DIV_F32: R[in.a] = Value::f32(R[in.b].asF32() / R[in.c].asF32()); break;
+                // ── ponto flutuante (seção M): infinito e NaN não existem — divisão
+                //    por zero e resultado além da faixa: a regra comum lança ──
+#define CVM_CONTA_F(OPC, TIPO, LER, FAZ, EXPR, TOK)                               \
+                case Op::OPC: {                                                   \
+                    const TIPO x = R[in.b].LER(), y = R[in.c].LER();              \
+                    const TIPO r = EXPR;                                          \
+                    if (!std::isfinite(r) || (TOK == TokenType::OP_DIVIDE && y == 0)) \
+                        applyBinaryOp(TOK, R[in.b], R[in.c]);                     \
+                    R[in.a] = FAZ(r);                                             \
+                    break;                                                        \
+                }
+                CVM_CONTA_F(ADD_F64, double, asFloat, Value, x + y, TokenType::OP_PLUS)
+                CVM_CONTA_F(SUB_F64, double, asFloat, Value, x - y, TokenType::OP_MINUS)
+                CVM_CONTA_F(MUL_F64, double, asFloat, Value, x * y, TokenType::OP_MULTIPLY)
+                CVM_CONTA_F(DIV_F64, double, asFloat, Value, y == 0 ? 0.0 : x / y, TokenType::OP_DIVIDE)
+                CVM_CONTA_F(ADD_F32, float, asF32, Value::f32, x + y, TokenType::OP_PLUS)
+                CVM_CONTA_F(SUB_F32, float, asF32, Value::f32, x - y, TokenType::OP_MINUS)
+                CVM_CONTA_F(MUL_F32, float, asF32, Value::f32, x * y, TokenType::OP_MULTIPLY)
+                CVM_CONTA_F(DIV_F32, float, asF32, Value::f32, y == 0 ? 0.0f : x / y, TokenType::OP_DIVIDE)
+#undef CVM_CONTA_F
                 case Op::NEG_I64: case Op::NEG_I32:
                     R[in.a] = negateOp(R[in.b]);   // o menor valor não tem negativo: a regra lança
                     break;

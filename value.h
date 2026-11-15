@@ -342,7 +342,7 @@ inline bool Value::operator==(const Value& other) const {
     switch (kind()) {
         case Kind::VOID_VAL:  return true;
         case Kind::I64: case Kind::I32: return asInt()   == other.asInt();
-        case Kind::F64: case Kind::F32: return asFloat() == other.asFloat();   // IEEE: NaN != NaN
+        case Kind::F64: case Kind::F32: return asFloat() == other.asFloat();
         case Kind::STRING:    return asString()  == other.asString();
         case Kind::BOOL:      return asBool()    == other.asBool();
         case Kind::LIST: {
@@ -410,9 +410,8 @@ inline std::string Value::toString() const {
         case Kind::F64: case Kind::F32: {
             // A menor forma que volta ao mesmo número, na precisão do próprio
             // tipo (0.1f sai 0.1, não 0.10000000149011612). Valor inteiro sai
-            // sem ".0" (4.0 → 4). IEEE: inf, -inf e nan.
+            // sem ".0" (4.0 → 4). Infinito e NaN não existem (seção M).
             const double d = asFloat();
-            if (d != d) return "nan";
             char buf[64];
             auto [fim, ec] = kind() == Kind::F32
                 ? std::to_chars(buf, buf + sizeof buf, asF32())

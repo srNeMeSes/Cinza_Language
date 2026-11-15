@@ -1,17 +1,28 @@
-// Seção K: ponto flutuante segue o IEEE 754: estourar dá inf (e inf - inf dá
-// nan), sem erro (antes, a revisão I lançava OverflowError). Inteiro continua
-// com OverflowError.
+// Seção M (revê a revisão I e a seção K): ponto flutuante que estoura lança
+// OverflowError, como inteiro — infinito e NaN não existem na Cinza. Vale para
+// f64 e f32, nas contas e em Lists.sum/product.
 import Lists;
 fn main() {
   f64 d = 10.0ff;
-  for (i64 i in range(0, 400)) { d = d * 10.0ff; }
-  print(d, -d, d - d);
+  try {
+    for (i64 i in range(0, 400)) { d = d * 10.0ff; }
+  } except (OverflowError e) {
+    print(e.kind, e.message);
+  }
   f32 f = 10.0f;
-  for (i64 i in range(0, 40)) { f = f * 10.0f; }
-  print(f, type(f));
+  try {
+    for (i64 i in range(0, 40)) { f = f * 10.0f; }
+  } except (OverflowError e) {
+    print(e.kind, e.message);
+  }
   list<f64> grandes = [100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0ff, 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0ff];
-  print(Lists.sum(grandes), Lists.product(grandes));
+  try { print(Lists.sum(grandes)); } except (OverflowError e) { print(e.message); }
+  try { print(Lists.product(grandes)); } except (OverflowError e) { print(e.message); }
+  list<f32> g32 = [300000000000000000000000000000000000000.f, 300000000000000000000000000000000000000.f];
+  try { print(Lists.sum(g32)); } except (OverflowError e) { print(e.message); }
 }
-// expect: inf -inf nan
-// expect: inf f32
-// expect: inf inf
+// expect: OverflowError 9.999999999999998e+307 * 10 excede a faixa de f64
+// expect: OverflowError 1.0000001e+38 * 10 excede a faixa de f32
+// expect: a soma de 'sum' excede a faixa de f64
+// expect: o produto de 'product' excede a faixa de f64
+// expect: a soma de 'sum' excede a faixa de f32

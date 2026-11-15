@@ -24,7 +24,7 @@ namespace cinza {
 // semântico garante); + concatena quando um lado é string
 Value applyBinaryOp(TokenType op, const Value& left, const Value& right);
 
-// -x (inteiro com OverflowError no menor valor da largura; ponto flutuante IEEE)
+// -x (inteiro com OverflowError no menor valor da largura; ponto flutuante nunca falha)
 Value negateOp(const Value& v);
 
 // ── Coleções ──────────────────────────────────────────────────────────────
@@ -67,14 +67,15 @@ Value       callBuiltin(Builtin b, Value& obj, std::span<const Value> args);
 
 // cast<T>(v) e as promoções implícitas inseridas pelo semântico (i32 → i64,
 // f32 → f64). T é i32, i64, f32, f64 ou string. Inteiro de destino: fora da
-// faixa → OverflowError; NaN/infinito → ValueError; flutuante trunca em direção
-// a zero. f64 → f32 segue o IEEE (pode dar infinito). Texto → número: o formato
-// estrito ([sinal] dígitos [. dígitos [e [sinal] dígitos]], ou inf/nan para
-// flutuante); inválido → ValueError, fora da faixa → OverflowError.
+// faixa → OverflowError; flutuante trunca em direção a zero. f64 → f32 arredonda
+// para o mais próximo (grande demais → OverflowError: infinito e NaN não existem
+// na Cinza). Texto → número: o formato estrito ([sinal] dígitos [. dígitos
+// [e [sinal] dígitos]]); inválido → ValueError, fora da faixa → OverflowError.
 Value convertValue(const Value& v, TypeRef to);
 
-// double → float pelo IEEE (arredonda para o mais próximo; além de FLT_MAX +
-// meia unidade vira infinito), sem o comportamento indefinido do static_cast
+// double → float (o mais próximo). doubleToF32 exige cabeEmF32(d): além de
+// FLT_MAX + meia unidade o resultado seria infinito (e o static_cast, indefinido)
+bool  cabeEmF32(double d);
 float doubleToF32(double d);
 
 // Valor de um literal numérico/texto/bool, na largura que o semântico decidiu

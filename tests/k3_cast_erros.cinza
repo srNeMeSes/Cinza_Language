@@ -12,9 +12,6 @@ fn main() {
   tenta_i32(2147483647.9ff);
   tenta_i32(2147483648.ff);
   tenta_i32(-2147483649.ff);
-  f64 zero = 0.ff;
-  tenta_i32(zero / zero);
-  tenta_i32(1.ff / zero);
   i64 grande = 3000000000;
   try { print(cast<i32>(grande)); } except (OverflowError e) { print(e.message); }
   try { print(cast<i64>(10000000000000000000.ff)); } except (OverflowError e) { print(e.message); }
@@ -25,13 +22,11 @@ fn main() {
   tenta_texto("99999999999999999999");
   try { print(cast<f64>("abc")); } except (ValueError e) { print(e.message); }
   try { print(cast<f32>("1e39")); } except (OverflowError e) { print(e.message); }
-  print(cast<f32>("1e-50"), cast<f64>("nan"));
+  print(cast<f32>("1e-50"), cast<f64>("1e-400"));
 }
 // expect: 2147483647
 // expect: cast<i32>(2147483648): o valor não cabe em i32
 // expect: cast<i32>(-2147483649): o valor não cabe em i32
-// expect: cast<i32>(nan): NaN não tem valor inteiro
-// expect: cast<i32>(inf): infinito não tem valor inteiro
 // expect: cast<i32>(3000000000): o valor não cabe em i32
 // expect: cast<i64>(1e+19): o valor não cabe em i64
 // expect: cast<i64>("12a"): não é um número inteiro (só sinal e dígitos)
@@ -39,6 +34,6 @@ fn main() {
 // expect: cast<i64>("1.5"): não é um número inteiro (só sinal e dígitos)
 // expect: cast<i64>(""): não é um número inteiro (só sinal e dígitos)
 // expect: cast<i64>("99999999999999999999"): o valor não cabe em i64
-// expect: cast<f64>("abc"): não é um número (ex.: 2.5, -3, 1e10, inf, nan)
+// expect: cast<f64>("abc"): não é um número (ex.: 2.5, -3, 1e10)
 // expect: cast<f32>("1e39"): o valor não cabe em f32
-// expect: 0 nan
+// expect: 0 0

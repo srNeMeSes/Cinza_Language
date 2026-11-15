@@ -1,0 +1,4 @@
+// Seção M: Math.inf e Math.nan não existem (infinito e NaN não fazem parte da Cinza).
+import Math;
+fn main() { print(Math.inf); }
+// expect-error: 'inf' não existe no módulo 'Math'

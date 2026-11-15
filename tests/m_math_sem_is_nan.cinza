@@ -1,0 +1,4 @@
+// Seção M: Math.is_nan e Math.is_inf não existem.
+import Math;
+fn main() { print(Math.is_nan(1.ff)); }
+// expect-error: 'is_nan' não existe no módulo 'Math'

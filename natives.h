@@ -47,7 +47,7 @@ struct NativeFn {
 
 // x com exatamente `casas` casas decimais, arredondado como Math.round_to
 // (Strings.fixed e o {x:.2f} do printf)
-// `f32`: arredonda a forma decimal do float (2.675f sai 2.68, não 2.67); não finito: inf/nan
+// `f32`: arredonda a forma decimal do float (2.675f sai 2.68, não 2.67)
 std::string fixedText(double x, std::int64_t casas, bool f32 = false);
 
 // Constante de um módulo nativo (Math.pi)

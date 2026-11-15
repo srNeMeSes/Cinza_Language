@@ -62,29 +62,32 @@ static Value contaInteira(TokenType op, std::int64_t a, std::int64_t b, bool i64
     return Value::i32(static_cast<std::int32_t>(r));
 }
 
-// Conta de ponto flutuante: IEEE 754 sem exceção (inf, -inf, NaN e -0 são
-// valores). f32 é calculado em float, sem passar por double.
+// Conta de ponto flutuante (seção M): infinito e NaN não existem na Cinza.
+// Divisão por zero (inclusive 0 / 0) lança ZeroDivisionError e um resultado
+// além do maior valor finito do tipo lança OverflowError. Resultado pequeno
+// demais vira 0 (ou um subnormal), e -0 continua existindo (I4). f32 é
+// calculado em float, sem passar por double.
 static Value contaFlutuante(TokenType op, const Value& left, const Value& right, bool f64) {
+    const char* simbolo = op == TokenType::OP_PLUS ? "+" : op == TokenType::OP_MINUS ? "-" :
+                          op == TokenType::OP_MULTIPLY ? "*" : "/";
+    if (op == TokenType::OP_MODULO)
+        throw RuntimeError("Erro interno: '%' entre ponto flutuante (o semântico só aceita inteiros)");
+    if (op == TokenType::OP_DIVIDE && right.asFloat() == 0.0)
+        throw RuntimeError("ZeroDivisionError: divisão por zero");
+    double r;
     if (f64) {
         const double a = left.asFloat(), b = right.asFloat();
-        switch (op) {
-            case TokenType::OP_PLUS:     return Value(a + b);
-            case TokenType::OP_MINUS:    return Value(a - b);
-            case TokenType::OP_MULTIPLY: return Value(a * b);
-            case TokenType::OP_DIVIDE:   return Value(a / b);
-            default: break;
-        }
+        r = op == TokenType::OP_PLUS ? a + b : op == TokenType::OP_MINUS ? a - b :
+            op == TokenType::OP_MULTIPLY ? a * b : a / b;
     } else {
         const float a = left.asF32(), b = right.asF32();
-        switch (op) {
-            case TokenType::OP_PLUS:     return Value::f32(a + b);
-            case TokenType::OP_MINUS:    return Value::f32(a - b);
-            case TokenType::OP_MULTIPLY: return Value::f32(a * b);
-            case TokenType::OP_DIVIDE:   return Value::f32(a / b);
-            default: break;
-        }
+        r = op == TokenType::OP_PLUS ? a + b : op == TokenType::OP_MINUS ? a - b :
+            op == TokenType::OP_MULTIPLY ? a * b : a / b;
     }
-    throw RuntimeError("Erro interno: '%' entre ponto flutuante (o semântico só aceita inteiros)");
+    if (!std::isfinite(r))
+        throw RuntimeError("OverflowError: " + left.toString() + " " + simbolo + " " + right.toString() +
+                           " excede a faixa de " + (f64 ? "f64" : "f32"));
+    return f64 ? Value(r) : Value::f32(static_cast<float>(r));
 }
 
 Value applyBinaryOp(TokenType op, const Value& left, const Value& right) {
@@ -112,8 +115,8 @@ Value applyBinaryOp(TokenType op, const Value& left, const Value& right) {
             throw RuntimeError("Erro interno: operação aritmética entre '" + left.toString() + "' e '" +
                                right.toString() + "' (o semântico deveria ter recusado)");
 
-        // comparações: na mesma família, pelo valor (f32 → f64 é exato; NaN
-        // compara falso, como no IEEE); strings, pela ordem dos bytes
+        // comparações: na mesma família, pelo valor (f32 → f64 é exato);
+        // strings, pela ordem dos bytes
         case TokenType::OP_LESS:
             if (inteiros)   return Value(left.asInt()   <  right.asInt());
             if (flutuantes) return Value(left.asFloat() <  right.asFloat());
@@ -159,9 +162,6 @@ static bool lerInteiro(const std::string& s, std::int64_t& v, bool& fora) {
 // float: decimal → double → float arredondaria duas vezes)
 static bool lerFlutuante(const std::string& s, bool f32, double& v, bool& fora) {
     fora = false;
-    if (s == "inf" || s == "+inf") { v = std::numeric_limits<double>::infinity();  return true; }
-    if (s == "-inf")               { v = -std::numeric_limits<double>::infinity(); return true; }
-    if (s == "nan")                { v = std::numeric_limits<double>::quiet_NaN(); return true; }
     size_t i = 0;
     auto digitos = [&]() { const size_t a = i; while (i < s.size() && s[i] >= '0' && s[i] <= '9') ++i; return i > a; };
     if (i < s.size() && (s[i] == '+' || s[i] == '-')) ++i;
@@ -194,16 +194,15 @@ static bool lerFlutuante(const std::string& s, bool f32, double& v, bool& fora) 
     return true;
 }
 
-// double → float pelo IEEE: arredonda para o mais próximo, e só vira infinito a
-// partir de FLT_MAX + meia unidade (2^103). Em C++, converter um double fora da
-// faixa do float é comportamento indefinido, então a borda é tratada aqui.
-float doubleToF32(double d) {
+// double → float arredonda para o mais próximo; só não cabe a partir de FLT_MAX
+// + meia unidade (2^103), onde o arredondamento daria infinito. Em C++,
+// converter um double fora da faixa do float é comportamento indefinido, então
+// quem chama confere antes com cabeEmF32.
+bool cabeEmF32(double d) {
     static const double limite = static_cast<double>(std::numeric_limits<float>::max()) + std::ldexp(1.0, 103);
-    if (d != d)        return std::numeric_limits<float>::quiet_NaN();
-    if (d >= limite)   return std::numeric_limits<float>::infinity();
-    if (d <= -limite)  return -std::numeric_limits<float>::infinity();
-    return static_cast<float>(d);
+    return d > -limite && d < limite;
 }
+float doubleToF32(double d) { return static_cast<float>(d); }
 
 Value literalValue(const std::variant<std::int64_t, double, std::string, bool>& v, TypeRef t) {
     using K = TypeInfo::Kind;
@@ -230,12 +229,7 @@ Value convertValue(const Value& v, TypeRef to) {
         if (v.isInteger()) {
             r = v.asInt();
         } else if (v.isFloat()) {
-            const double d = v.asFloat();
-            if (d != d) throw RuntimeError("ValueError: cast<" + alvo + ">(nan): NaN não tem valor inteiro");
-            if (std::isinf(d))
-                throw RuntimeError("ValueError: cast<" + alvo + ">(" + v.toString() + "): infinito não tem "
-                                   "valor inteiro");
-            const double t = std::trunc(d);   // em direção a zero
+            const double t = std::trunc(v.asFloat());   // em direção a zero
             // 2^63 é o primeiro double fora de i64: conferir antes de converter (UB)
             if (t < -9223372036854775808.0 || t >= 9223372036854775808.0) naoCabe();
             r = static_cast<std::int64_t>(t);
@@ -266,11 +260,12 @@ Value convertValue(const Value& v, TypeRef to) {
             if (!lerFlutuante(v.asString(), f32, d, fora)) {
                 if (fora) naoCabe();
                 throw RuntimeError("ValueError: cast<" + alvo + ">(\"" + v.asString() + "\"): não é um "
-                                   "número (ex.: 2.5, -3, 1e10, inf, nan)");
+                                   "número (ex.: 2.5, -3, 1e10)");
             }
         } else {
             throw RuntimeError("Erro interno: cast<" + alvo + "> de um valor que não é número nem texto");
         }
+        if (f32 && !cabeEmF32(d)) naoCabe();   // f64 → f32 grande demais
         return f32 ? Value::f32(doubleToF32(d)) : Value(d);
     }
 

@@ -171,7 +171,7 @@ O trecho procurado por `replace`, `replace_first` e `remove` não pode ser vazio
 | `pad_left(string s, i64 largura[, string p]) -> string` | completa à esquerda com `p` (padrão: espaço) até `largura` caracteres; texto já maior fica como está; largura acima de 2²⁸ (1 GiB) lança `ValueError` |
 | `pad_right(string s, i64 largura[, string p]) -> string` | idem, à direita |
 | `center(string s, i64 largura[, string p]) -> string` | idem, dos dois lados (a sobra ímpar fica à direita) |
-| `fixed(flutuante x, i64 casas) -> string` | o número com **exatamente** `casas` casas decimais (`fixed(2.5ff, 2)` → `"2.50"`); arredonda como `Math.round_to`; `casas` de 0 a 100 (senão `ValueError`); `nan` e infinito saem `nan`, `inf`, `-inf` |
+| `fixed(flutuante x, i64 casas) -> string` | o número com **exatamente** `casas` casas decimais (`fixed(2.5ff, 2)` → `"2.50"`); arredonda como `Math.round_to`; `casas` de 0 a 100 (senão `ValueError`) |
 
 O preenchimento `p` precisa ter exatamente 1 caractere (senão `ValueError`).
 
@@ -295,34 +295,36 @@ fn main() {
 
 ### `Math`
 
-As funções de ponto flutuante seguem o **IEEE 754** e a **largura do argumento**: `sqrt(2.f)` é
-`f32`, `sqrt(2.ff)` é `f64` (a conta é feita em `f64` e arredondada uma vez para `f32`). Nenhuma
-lança erro: fora do domínio dá `nan` (`sqrt(-1.ff)`, `log(-1.ff)`, `asin(2.ff)`), um polo dá `±inf`
-(`log(0.ff)` é `-inf`, `pow(0.ff, -1.ff)` é `inf`) e o que passa do maior valor dá `inf`
-(`exp(1000.ff)`). Inteiro não entra onde se espera ponto flutuante: `sqrt(2)` é erro de compilação
-(escreva `sqrt(2.ff)` ou `sqrt(cast<f64>(n))`).
+As funções de ponto flutuante seguem a **largura do argumento**: `sqrt(2.f)` é `f32`, `sqrt(2.ff)`
+é `f64` (a conta é feita em `f64` e arredondada uma vez para `f32`). Nenhuma produz infinito nem
+NaN (seção 3.1): fora do domínio lança `ValueError` (`sqrt(-1.ff)`, `log(0.ff)`, `asin(2.ff)`) e o
+que passa do maior valor do tipo lança `OverflowError` (`exp(1000.ff)`, ou `exp(100.f)` em `f32`).
+Inteiro não entra onde se espera ponto flutuante: `sqrt(2)` é erro de compilação (escreva
+`sqrt(2.ff)` ou `sqrt(cast<f64>(n))`).
 
-**Constantes** (`f64`): `pi` (π), `e`, `tau` (2π), `inf` (infinito) e `nan`.
+**Constantes** (`f64`): `pi` (π), `e`, `tau` (2π).
 
 **Potências, raízes e logaritmos**
 
 | Função | Descrição |
 |--------|-----------|
-| `sqrt(flutuante x) -> flutuante` | raiz quadrada (`nan` para negativo) |
+| `sqrt(flutuante x) -> flutuante` | raiz quadrada; `x` negativo lança `ValueError` |
 | `cbrt(flutuante x) -> flutuante` | raiz cúbica (aceita negativos: `cbrt(-8.ff)` = `-2`) |
-| `pow(flutuante b, flutuante x) -> flutuante` | `b` elevado a `x` (`nan` sem resultado real) |
+| `pow(flutuante b, flutuante x) -> flutuante` | `b` elevado a `x`; sem resultado real lança `ValueError`; `pow(0, negativo)` lança `ZeroDivisionError` |
 | `exp(flutuante x) -> flutuante` | *e* elevado a `x` |
-| `log(flutuante x) -> flutuante` | logaritmo natural (`log(0)` = `-inf`, negativo dá `nan`) |
+| `log(flutuante x) -> flutuante` | logaritmo natural |
 | `log10(flutuante x) -> flutuante`, `log2(...)` | logaritmo na base 10 / na base 2 |
-| `log_base(flutuante x, flutuante base) -> flutuante` | `log(x) / log(base)` |
+| `log_base(flutuante x, flutuante base) -> flutuante` | logaritmo na base dada; a base precisa ser positiva e diferente de 1 (senão `ValueError`) |
 | `hypot(flutuante x, flutuante y) -> flutuante` | √(x² + y²), sem estourar no meio do cálculo |
+
+Os logaritmos lançam `ValueError` para `x` ≤ 0.
 
 **Trigonometria** (ângulos em radianos)
 
 | Função | Descrição |
 |--------|-----------|
 | `sin`, `cos`, `tan(flutuante x) -> flutuante` | seno, cosseno, tangente |
-| `asin`, `acos(flutuante x) -> flutuante` | arco seno e arco cosseno (`nan` fora de -1 a 1) |
+| `asin`, `acos(flutuante x) -> flutuante` | arco seno e arco cosseno; `x` fora de -1 a 1 lança `ValueError` |
 | `atan(flutuante x) -> flutuante` | arco tangente |
 | `atan2(flutuante y, flutuante x) -> flutuante` | ângulo do ponto (x, y), de -π a π (note a ordem: `y` primeiro) |
 | `sinh`, `cosh`, `tanh(flutuante x) -> flutuante` | funções hiperbólicas |
@@ -336,10 +338,9 @@ lança erro: fora do domínio dá `nan` (`sqrt(-1.ff)`, `log(-1.ff)`, `asin(2.ff
 | `ceil(flutuante x) -> i64` | menor inteiro ≥ `x` |
 | `round(flutuante x) -> i64` | inteiro mais próximo; metade se afasta do zero (`2.5` → `3`, `-2.5` → `-3`) |
 | `trunc(flutuante x) -> i64` | corta as casas, em direção ao zero (`-2.7` → `-2`) |
-| `round_to(flutuante x, i64 casas) -> flutuante` | arredonda para `casas` casas decimais (metade se afasta do zero); `casas` negativo lança `ValueError`; `nan` e infinito voltam como estão |
+| `round_to(flutuante x, i64 casas) -> flutuante` | arredonda para `casas` casas decimais (metade se afasta do zero); `casas` negativo lança `ValueError` |
 
-`floor`, `ceil`, `round` e `trunc` lançam `ValueError` para `nan` e infinito (não têm valor
-inteiro) e `OverflowError` se o resultado não couber em `i64`.
+`floor`, `ceil`, `round` e `trunc` lançam `OverflowError` se o resultado não couber em `i64`.
 
 `round_to` arredonda o número **como ele é escrito** (a forma da seção 5.4, no próprio tipo), não a
 sua representação binária: `round_to(2.675ff, 2)` é `2.68`, embora `2.675` não seja exato em
@@ -350,8 +351,8 @@ binário. O resultado é mostrado pela forma da seção 5.4: `round_to(2.5ff, 2)
 | Função | Descrição |
 |--------|-----------|
 | `abs(número x) -> número` | valor absoluto; `abs` do menor `i32`/`i64` lança `OverflowError` |
-| `sign(número x) -> i32` | `-1`, `0` ou `1` (`sign(nan)` é `0`) |
-| `min(número a, número b) -> número`, `max(...)` | o menor / o maior (para uma lista, `Lists`); com `nan` em qualquer lado, `nan` |
+| `sign(número x) -> i32` | `-1`, `0` ou `1` |
+| `min(número a, número b) -> número`, `max(...)` | o menor / o maior (para uma lista, `Lists`) |
 | `clamp(número x, número min, número max) -> número` | `x` limitado ao intervalo; `min > max` lança `ValueError` |
 | `gcd(inteiro a, inteiro b) -> inteiro`, `lcm(...)` | máximo divisor comum / mínimo múltiplo comum, sempre ≥ 0; `gcd(0, 0)` = `0`, `lcm` com zero = `0`; resultado que não cabe no tipo lança `OverflowError` |
 | `is_even(inteiro n) -> bool`, `is_odd(...)` | par / ímpar |
@@ -363,8 +364,6 @@ binário. O resultado é mostrado pela forma da seção 5.4: `round_to(2.5ff, 2)
 | Função | Descrição |
 |--------|-----------|
 | `is_close(flutuante a, flutuante b) -> bool` | iguais a menos de erro de arredondamento: em `f64`, diferença relativa até 10⁻⁹ ou absoluta até 10⁻¹² (perto de zero); em `f32`, relativa até 10⁻⁵ ou absoluta até 10⁻⁷. `0.1ff + 0.2ff == 0.3ff` é `false`; `is_close(0.1ff + 0.2ff, 0.3ff)` é `true` |
-| `is_nan(flutuante x) -> bool` | `true` se `x` é `nan` (o único valor diferente de si mesmo) |
-| `is_inf(flutuante x) -> bool` | `true` se `x` é `inf` ou `-inf` |
 
 ```cinza
 import Math;
@@ -375,7 +374,8 @@ fn main() {
   print(Math.round_to(2.675ff, 2), Math.trunc(-2.7ff), Math.hypot(3.ff, 4.ff), Math.log_base(8.ff, 2.ff));
   print(Math.gcd(12, 18), Math.lcm(4, 6), Math.factorial(5), Math.is_prime(97), Math.clamp(15, 0, 10));
   print(0.1ff + 0.2ff == 0.3ff, Math.is_close(0.1ff + 0.2ff, 0.3ff));
-  print(Math.sqrt(2.f), type(Math.sqrt(2.f)), Math.sqrt(-1.ff), Math.log(0.ff), Math.is_nan(Math.nan));
+  print(Math.sqrt(2.f), type(Math.sqrt(2.f)), Math.sqrt(2.ff));
+  try { print(Math.log(0.ff)); } except (ValueError e) { print(e.message); }
 }
 // expect: 4 1024 3 2.5
 // expect: 2 3 3 -3 3
@@ -383,7 +383,8 @@ fn main() {
 // expect: 2.68 -2 5 3
 // expect: 6 12 120 true 10
 // expect: false true
-// expect: 1.4142135 f32 nan -inf true
+// expect: 1.4142135 f32 1.4142135623730951
+// expect: 'log' só é definido para números positivos
 ```
 
 ### `Random`
@@ -464,7 +465,7 @@ fn main() {
 
 | Função | Descrição |
 |--------|-----------|
-| `sort(list<comparável> l)` | ordena `l` no lugar, em ordem crescente (com ponto flutuante, `nan` fica depois de todos, inclusive de `inf`) |
+| `sort(list<comparável> l)` | ordena `l` no lugar, em ordem crescente |
 | `sort_desc(list<comparável> l)` | idem, em ordem decrescente |
 | `sort_by(list<T> l, list<comparável> chaves)` | ordena `l` no lugar pela chave da **mesma posição**; as chaves são reorganizadas junto; tamanhos diferentes lançam `ValueError` |
 | `sorted(list<comparável> l) -> list<comparável>` | **nova** lista ordenada; `l` não muda |
@@ -477,10 +478,10 @@ fn main() {
 
 | Função | Descrição |
 |--------|-----------|
-| `sum(list<número> l) -> número` | soma, no tipo dos elementos; lista vazia dá `0`; estouro de inteiro lança `OverflowError` (ponto flutuante segue o IEEE) |
+| `sum(list<número> l) -> número` | soma, no tipo dos elementos; lista vazia dá `0`; estouro lança `OverflowError` |
 | `product(list<número> l) -> número` | produto; lista vazia dá `1`; idem |
 | `average(list<número> l) -> f64` | média |
-| `min(list<comparável> l) -> comparável`, `max(...)` | o menor / o maior (o primeiro, se houver empate); com algum `nan`, `nan` |
+| `min(list<comparável> l) -> comparável`, `max(...)` | o menor / o maior (o primeiro, se houver empate) |
 
 `average`, `min` e `max` de uma lista vazia lançam `ValueError`.
 

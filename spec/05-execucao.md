@@ -85,8 +85,9 @@ fn main() {
 - Divisão ou resto por zero entre inteiros lança `ZeroDivisionError`.
 - Resultado inteiro fora da faixa do tipo (`i32` ou `i64`; inclusive `-x` e `x / -1` com o
   menor valor) lança `OverflowError`. Já `x % -1` é sempre `0`, que cabe na faixa.
-- Ponto flutuante segue o IEEE 754 e não lança: `1.ff / 0.ff` é `inf`, `0.ff / 0.ff` é `nan`, e
-  o que passa do maior valor vira `inf`. `%` só existe entre inteiros.
+- Ponto flutuante: divisão por zero (inclusive `0.ff / 0.ff`) lança `ZeroDivisionError`, e um
+  resultado além do maior valor finito do tipo lança `OverflowError` — infinito e NaN não existem
+  na Cinza (seção 3.1). Resultado pequeno demais vira `0`. `%` só existe entre inteiros.
 - `-` unário vale para números; `+` também concatena textos (abaixo).
 
 A divisão entre inteiros é inteira: `cast<f64>(7 / 2)` dá `3`; para a divisão real, converta
@@ -125,12 +126,12 @@ fn main() {
 
 Entre números da mesma família (seção 3.1; `i32` com `i64` vale, inteiro com ponto flutuante não)
 ou entre textos (ordem lexicográfica dos bytes UTF-8, ou seja, dos code points). Outros tipos não
-se comparam por ordem. Com `nan`, toda comparação de ordem é `false` (IEEE 754).
+se comparam por ordem.
 
 ### Igualdade: `== !=`
 
 Os dois lados precisam ser do mesmo tipo, ou números da mesma família (`1 == cast<i64>(1)` é
-`true`; `1 == 1.ff` é erro de compilação). `nan == nan` é `false` e `-0.ff == 0.ff` é `true` (IEEE).
+`true`; `1 == 1.ff` é erro de compilação). `-0.ff == 0.ff` é `true`.
 
 | Tipo                                  | Igualdade                                  |
 |---------------------------------------|--------------------------------------------|
@@ -154,7 +155,7 @@ Só sobre `bool`.
 | Valor          | Forma                                                                  |
 |----------------|------------------------------------------------------------------------|
 | `i32`, `i64`   | dígitos decimais: `-42`                                                |
-| `f32`, `f64`   | a menor forma que volta ao mesmo número **no próprio tipo**: `3.14`, `0.1` (`0.1f` também sai `0.1`); valor inteiro sem `.0` (`4`); muito grande ou muito pequeno em notação científica (`1e+24`); `inf`, `-inf`, `nan`, `-0` |
+| `f32`, `f64`   | a menor forma que volta ao mesmo número **no próprio tipo**: `3.14`, `0.1` (`0.1f` também sai `0.1`); valor inteiro sem `.0` (`4`); muito grande ou muito pequeno em notação científica (`1e+24`); `-0` |
 | `string`       | o próprio texto (dentro de coleções, entre aspas)                     |
 | `bool`         | `true`, `false`                                                        |
 | `list`         | `[1, 2]`, `["a", "b"]`                                                 |

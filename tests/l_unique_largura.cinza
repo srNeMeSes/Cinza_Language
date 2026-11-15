@@ -1,0 +1,9 @@
+// Varredura L: unique compara com == e usa o caminho rápido (ordenado) para
+// todos os números, inclusive i32 e f32 (antes só i64 e f64).
+import Lists;
+fn main() {
+  print(Lists.unique([1, 1, 2]), Lists.unique([0.5f, 0.5f, 1.f]), Lists.unique([-0.ff, 0.ff, 1.ff]));
+  print(Lists.unique([cast<i64>(3), 3, 1]), Lists.unique(["a", "a"]), Lists.unique([true, false, true]));
+}
+// expect: [1, 2] [0.5, 1] [-0, 1]
+// expect: [3, 1] ["a"] [true, false]

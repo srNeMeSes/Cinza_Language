@@ -103,8 +103,9 @@ registrador da janela, `K[x]` uma constante do protótipo, `G[x]` um slot global
 Seção K do REVISAO_V2.md: quatro tipos numéricos em duas famílias. O semântico já promoveu os dois
 lados de cada operação ao mesmo tipo (`i32 + i64` chega como `i64 + i64`, com um `CONV` no lado
 `i32`), então cada instrução tem um tipo só. As inteiras conferem overflow na largura (o `i32`
-conta em 64 bits e confere a faixa de 32) e divisão por zero; as de ponto flutuante seguem o IEEE
-754 sem exceção (`inf`, `nan`, `-0`; `f32` conta em `float`). Os casos de borda inteiros passam
+conta em 64 bits e confere a faixa de 32) e divisão por zero; as de ponto flutuante conferem
+divisão por zero e resultado não finito (infinito e NaN não existem na Cinza, seção M do
+REVISAO_V2.md; `f32` conta em `float`). Os casos de borda passam
 pela regra comum (`applyBinaryOp`, `operacoes.cpp`), que lança o erro com a mensagem da spec 5.3.
 
 | Instrução                                   | Efeito |
@@ -121,7 +122,7 @@ pela regra comum (`applyBinaryOp`, `operacoes.cpp`), que lança o erro com a men
 | `CONCAT a b c`                              | `R[a] = texto(R[b]) + texto(R[c])` (spec 5.4) |
 | `FMT a b c`                                 | `R[a] =` `R[b]` como texto com o formato de `printf`/`format` (`K[c]` = largura × 1000 + casas + 1) |
 | `SLICE a b`                                 | `R[a] = R[b][R[b+1]:R[b+2]:R[b+3]]`, fatia de string (parte omitida = vazio) |
-| `LT_I a b c`, `LE_I`, `LT_F`, `LE_F`, `LT_S`, `LE_S` | `R[a] = R[b] < R[c]` (ou `<=`) entre inteiros, ponto flutuante (NaN compara falso) ou textos; `>` e `>=` trocam os **registradores** na instrução final (`a > b` vira `LT r, rb, ra`) — os operandos continuam sendo avaliados na ordem do fonte |
+| `LT_I a b c`, `LE_I`, `LT_F`, `LE_F`, `LT_S`, `LE_S` | `R[a] = R[b] < R[c]` (ou `<=`) entre inteiros, ponto flutuante ou textos; `>` e `>=` trocam os **registradores** na instrução final (`a > b` vira `LT r, rb, ra`) — os operandos continuam sendo avaliados na ordem do fonte |
 | `EQ a b c`, `NE a b c`                      | igualdade da spec 5.3 (valor, estrutural ou identidade) |
 | `NOT a b`                                   | `R[a] = !R[b]` |
 
@@ -379,15 +380,15 @@ O backend LLVM partirá da mesma AST analisada (tipos já resolvidos e promoçõ
 | `f32`, `f64`                 | `float`, `double` |
 | `+ - *` inteiros             | `llvm.sadd/ssub/smul.with.overflow.*` + salto para o `OverflowError` (sem `nsw`/`nuw`: o estouro é erro definido, não comportamento indefinido) |
 | `/ %` inteiros               | teste de divisor 0 (`ZeroDivisionError`) e de `menor / -1` (`OverflowError`; `x % -1` dá 0) antes do `sdiv`/`srem` |
-| `+ - * /` ponto flutuante    | `fadd`/`fsub`/`fmul`/`fdiv`, sem *fast-math* (IEEE estrito: `nan`, `inf`, `-0`) |
-| comparações                  | `icmp slt/sle/eq/ne` e `fcmp olt/ole/oeq` (NaN compara falso; `!=` é `une`) |
+| `+ - * /` ponto flutuante    | teste de divisor 0 (`ZeroDivisionError`) antes do `fdiv`; `fadd`/`fsub`/`fmul`/`fdiv` e teste de resultado não finito (`OverflowError`: infinito e NaN não existem), sem *fast-math* (o `-0` e o arredondamento continuam os do IEEE) |
+| comparações                  | `icmp slt/sle/eq/ne` e `fcmp olt/ole/oeq/one` (sem NaN, ordenado e não ordenado coincidem) |
 | `-x`                         | inteiro: teste do menor valor + `sub 0, x`; ponto flutuante: `fneg` |
 | `i32` → `i64`                | `sext` |
 | `f32` → `f64`                | `fpext` |
 | `cast<i32>(i64)`             | teste de faixa + `trunc` |
-| `cast<inteiro>(flutuante)`   | teste de NaN/infinito (`ValueError`) e de faixa (`OverflowError`) + `fptosi` (trunca em direção a zero) |
+| `cast<inteiro>(flutuante)`   | teste de faixa (`OverflowError`) + `fptosi` (trunca em direção a zero) |
 | `cast<flutuante>(inteiro)`   | `sitofp` |
-| `cast<f32>(f64)`             | `fptrunc` (IEEE: pode dar infinito) |
+| `cast<f32>(f64)`             | teste de faixa do `f32` (`OverflowError`) + `fptrunc` |
 | `cast<T>(string)` e para `string` | chamada ao runtime (`convertValue`) |
 
 O runtime (coleções, strings, coleta de ciclos, biblioteca padrão, erros e stack trace) continua

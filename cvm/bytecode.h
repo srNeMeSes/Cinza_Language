@@ -33,7 +33,7 @@ namespace cinza::cvm {
     /* aritmética por tipo (seção K: os dois operandos já têm o tipo da conta) */ \
     X(ADD_I64) X(SUB_I64) X(MUL_I64) X(DIV_I64) X(MOD_I64) /* R[a] = R[b] op R[c] */ \
     X(ADD_I32) X(SUB_I32) X(MUL_I32) X(DIV_I32) X(MOD_I32)                      \
-    X(ADD_F64) X(SUB_F64) X(MUL_F64) X(DIV_F64)            /* IEEE 754 */       \
+    X(ADD_F64) X(SUB_F64) X(MUL_F64) X(DIV_F64)  /* /0 e estouro: erro */     \
     X(ADD_F32) X(SUB_F32) X(MUL_F32) X(DIV_F32)                                 \
     X(NEG_I64) X(NEG_I32) X(NEG_F64) X(NEG_F32)            /* R[a] = -R[b] */   \
     X(CONV)       /* R[a] = cast<T>(R[b]), T pelo código c (ConvAlvo) */        \

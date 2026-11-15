@@ -1,0 +1,32 @@
+// Seção M: infinito e NaN não existem na Cinza. Divisão de ponto flutuante por
+// zero (inclusive 0 / 0) lança ZeroDivisionError; resultado além da faixa lança
+// OverflowError, em f64 e f32, com e sem variáveis. -0 continua existindo e o
+// que é pequeno demais vira 0.
+fn divide(f64 a, f64 b) -> f64 { return a / b; }
+fn main() {
+  f64 zero = 0.ff;
+  f32 z32 = 0.f;
+  try { print(1.ff / zero); } except (ZeroDivisionError e) { print(e.message); }
+  try { print(zero / zero); } except (ZeroDivisionError e) { print(e.message); }
+  try { print(divide(-1.ff, -0.ff)); } except (ZeroDivisionError e) { print(e.message); }
+  try { print(1.f / z32); } except (ZeroDivisionError e) { print(e.message); }
+  f64 grande = 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0ff;
+  try { print(grande * grande); } except (OverflowError e) { print(e.message); }
+  try { print(-grande - grande * 2.ff); } except (OverflowError e) { print(e.kind); }
+  f32 g32 = 300000000000000000000000000000000000000.f;
+  try { print(g32 + g32); } except (OverflowError e) { print(e.message); }
+  try { g32 *= 2.f; } except (OverflowError e) { print(e.message); }
+  try { print(g32 / 0.001f); } except (OverflowError e) { print(e.message); }
+  f64 minimo = 0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001ff;
+  print(minimo * minimo, -0.ff, -zero, 0.ff == -0.ff, type(-z32));
+}
+// expect: divisão por zero
+// expect: divisão por zero
+// expect: divisão por zero
+// expect: divisão por zero
+// expect: 1e+308 * 1e+308 excede a faixa de f64
+// expect: OverflowError
+// expect: 3e+38 + 3e+38 excede a faixa de f32
+// expect: 3e+38 * 2 excede a faixa de f32
+// expect: 3e+38 / 0.001 excede a faixa de f32
+// expect: 0 -0 -0 true f32

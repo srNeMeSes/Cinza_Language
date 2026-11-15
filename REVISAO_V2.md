@@ -1294,6 +1294,33 @@ ela") e fazer uma varredura completa atrás de bugs e inconsistências.
   > Limpeza: `nativeResult` (só o interpretador usava) saiu; comentários e testes ainda citavam
   > `int`/`decimal`, o interpretador ou "os dois modos". 476/476.
 
+## M. Sem infinito nem NaN (2026-11-14)
+
+Decisão do autor, revendo a resposta "IEEE em tudo" da seção K: "nan e inf não devem existir na
+linguagem CINZA, vai contra a filosofia da linguagem, isso deve gerar erro e não permitir".
+`TypeError` continua embutido (para os genéricos do futuro).
+
+- [x] M1. Toda conta que produziria infinito ou NaN é erro. — feito em 2026-11-14
+  > Regras (as de antes da seção K, agora nos quatro tipos): divisão de ponto flutuante por zero,
+  > inclusive `0 / 0`, lança `ZeroDivisionError`; resultado além do maior valor finito do tipo
+  > (`f64` ou `f32`) lança `OverflowError`; fora do domínio (`sqrt` de negativo, `log` de 0, `asin(2)`,
+  > `pow` sem resultado real) lança `ValueError`, e `pow(0, negativo)`, `ZeroDivisionError`. O que é
+  > pequeno demais vira 0 (ou subnormal) e `-0` continua existindo (I4).
+  > Nota: `contaFlutuante` (operacoes.cpp) e as instruções `ADD_F64`…`DIV_F32` da CVM conferem
+  > divisor zero e resultado não finito; `cast<f32>` de um `f64` grande demais e de texto acima da
+  > faixa lançam `OverflowError`; `"inf"`/`"nan"` deixam de ser texto numérico (`ValueError`; `is_f64`
+  > dá `false`). Na `Math` voltam as mensagens de domínio da G2 e `naLargura` confere o resultado
+  > (inclusive "não cabe em f32"); `Lists.sum`/`product` voltam a lançar `OverflowError` em ponto
+  > flutuante; `average` soma em `long double`, então só a média precisa caber. Saem `Math.inf`,
+  > `Math.nan`, `Math.is_nan`, `Math.is_inf`, o texto `nan`/`inf` do `print`/`fixed` e todo o
+  > tratamento de NaN da varredura L2 (ordem total no `sort`, propagação em `min`/`max`, exceção no
+  > `unique`), que perdeu o motivo. Spec 3.1, 5.3, 5.4, 6 (`Math`, `Lists`) e 7, e o DESENHO (5.2 e o
+  > mapeamento para LLVM: teste de divisor e de resultado não finito depois de cada conta).
+  > Testes: saem `k3_ieee`, `k5_math_ieee`, `l_nan_ordenacao`, `l_unique_nan`; voltam `math_erros`,
+  > `f7_math_erros`, `stdlib_revisao` e `rev_decimal_overflow` no formato de erro (com f32); novos
+  > `m_sem_infinito`, `m_cast_sem_infinito`, `m_math_sem_constantes`, `m_math_sem_is_nan`,
+  > `m_average_sem_estouro`, `l_unique_largura`.
+
 ---
 
 ## Registro de decisões
@@ -1335,5 +1362,6 @@ ela") e fazer uma varredura completa atrás de bugs e inconsistências.
 | 2026-10-04 | J2 | `Files.read_bytes(caminho) -> list<int>` e `Files.write_bytes(caminho, list<int>)`, bytes de 0 a 255 (fora disso, `ValueError`). | Decisão do autor da linguagem; formatos binários sem passar por texto UTF-8. |
 | 2026-10-03 | I4 | `menor_int % -1` dá `0` (revê A5); `-0.0` continua `-0` no `print`; decimais extremos continuam em notação científica. | Decisão do autor da linguagem; `x % -1` cabe sempre em `int`. |
 | 2026-10-03 | H3 | `exit([código])`: padrão 0, de 0 a 255; roda os `finally` pendentes e nenhum `except` o captura; encerra o caminho na análise de fluxo. | Decisão do autor da linguagem; 0–255 dá o mesmo resultado em todo sistema. |
+| 2026-11-14 | M | Infinito e NaN não existem na Cinza: divisão por zero de ponto flutuante é `ZeroDivisionError`, estouro é `OverflowError`, fora do domínio é `ValueError` (revê o "IEEE em tudo" da seção K). `TypeError` fica para os genéricos. | Decisão do autor: inf e NaN vão contra a filosofia da linguagem. |
 | 2026-11-14 | L | Só a CVM (o interpretador de referência sai; o próximo backend é LLVM) e nenhuma compatibilidade com versões antigas da linguagem: o que muda, muda de vez. | Decisão do autor: a linguagem está em desenvolvimento e não tem programas de terceiros. |
 | 2026-11-14 | K | Quatro tipos numéricos em duas famílias (`i32`/`i64`, `f32`/`f64`) no lugar de `int`/`decimal`, sem apelidos; promoção só dentro da família; entre famílias, `cast<T>(valor)`; literal com ponto exige sufixo (`f`/`ff`); `%` só entre inteiros; ponto flutuante IEEE em tudo (revê A5, G2 e a revisão I); tamanhos e posições `i32`; `op<...>` removido (revê D). | Especificação do autor: "simplicidade na utilização, rigor na implementação e previsibilidade no comportamento". |
