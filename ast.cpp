@@ -344,8 +344,11 @@ std::string NewExpr::toString(int indent_level) const {
     oss << indent(indent_level) << "NewExpr(\n";
     oss << indent(indent_level + 1) << "class: " << class_name << "\n";
     oss << indent(indent_level + 1) << "arguments: [\n";
-    for (const auto& arg : arguments) {
-        oss << arg->toString(indent_level + 2) << "\n";
+    for (size_t i = 0; i < arguments.size(); ++i) {
+        // N5: criação pelo nome, campo: valor
+        if (i < arg_names.size() && !arg_names[i].empty())
+            oss << indent(indent_level + 2) << arg_names[i] << ":\n";
+        oss << arguments[i]->toString(indent_level + 2) << "\n";
     }
     oss << indent(indent_level + 1) << "]\n";
     oss << indent(indent_level) << ")";
@@ -473,6 +476,12 @@ std::string StructDecl::toString(int indent_level) const {
     std::ostringstream oss;
     oss << indent(indent_level) << "StructDecl(\n";
     oss << indent(indent_level + 1) << "name: " << name << "\n";
+    if (!type_params.empty()) {   // N5: struct genérico
+        oss << indent(indent_level + 1) << "type_params: [";
+        for (size_t i = 0; i < type_params.size(); ++i)
+            oss << (i ? ", " : "") << type_params[i].lexeme;
+        oss << "]\n";
+    }
     oss << indent(indent_level + 1) << "fields: [\n";
     for (const auto& f : fields) {
         oss << indent(indent_level + 2) << f.type->toString() << " " << f.name;

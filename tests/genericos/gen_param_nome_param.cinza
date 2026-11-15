@@ -1,0 +1,4 @@
+// 8.1: um parâmetro não pode ter o nome de um parâmetro de tipo
+fn f[T](T T) -> T { return T; }
+fn main() {}
+// expect-error: Em 'f', o parâmetro 'T' tem o nome de um parâmetro de tipo

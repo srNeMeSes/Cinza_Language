@@ -1,0 +1,18 @@
+// 8.6: struct genérico escrito como valor, para comparar com type(); com um nome só entre
+// os colchetes, é tipo quando o nome é de struct genérico (senão, índice)
+struct Caixa[T] { T valor; }
+struct Par[A, B] { A a; B b; }
+fn main() {
+  Caixa[i32] c = new Caixa[i32](valor: 1);
+  Par[i32, string] p = new Par[i32, string](1, "x");
+  print(type(c) == Caixa[i32], type(c) == Caixa[i64], type(p) == Par[i32, string]);
+  print(Caixa[Caixa[i32]], type(c) == type(new Caixa[i32](valor: 2)));
+  list<i32> l = [1, 2];
+  i32 i = 1;
+  dict<string, i32> d = {{"k", 3}};
+  string k = "k";
+  print(l[i], d[k]);
+}
+// expect: true false true
+// expect: Caixa[Caixa[i32]] true
+// expect: 2 3

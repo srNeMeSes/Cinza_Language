@@ -1,0 +1,8 @@
+// 8.6: uma variável local com o nome do struct genérico é a variável (índice)
+struct Caixa[T] { T valor; }
+fn main() {
+  list<i32> Caixa = [5, 6];
+  i32 i = 1;
+  print(Caixa[i]);
+}
+// expect: 6

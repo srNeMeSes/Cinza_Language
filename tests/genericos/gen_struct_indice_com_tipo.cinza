@@ -1,0 +1,6 @@
+// 8.6: [tipos] depois de uma variável não é índice
+fn main() {
+  list<i32> l = [5, 6];
+  print(l[i32]);
+}
+// expect-error: 'l' não é um struct genérico: depois de um nome, [tipos] só vale para struct genérico

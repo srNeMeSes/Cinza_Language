@@ -1,6 +1,7 @@
 #include "module_loader.h"
 #include "parser.h"
 #include "source_files.h"
+#include "plataforma.h"   // caminhos em UTF-8
 #include <algorithm>
 #include <cstdlib>
 #include <filesystem>
@@ -26,14 +27,14 @@ bool lerArquivo(const fs::path& path, std::string& out) {
 std::string canonico(const fs::path& path) {
     std::error_code ec;
     fs::path c = fs::weakly_canonical(path, ec);
-    return (ec ? fs::absolute(path) : c).generic_string();
+    return textoCaminho(ec ? fs::absolute(path) : c);
 }
 
 // Pastas de CINZA_PATH, na ordem
 std::vector<fs::path> pastasCinzaPath() {
     std::vector<fs::path> pastas;
-    const char* env = std::getenv("CINZA_PATH");
-    if (!env) return pastas;
+    std::string env;
+    if (!ambienteUtf8("CINZA_PATH", env)) return pastas;
 #ifdef _WIN32
     const char sep = ';';
 #else
@@ -42,7 +43,7 @@ std::vector<fs::path> pastasCinzaPath() {
     std::string item;
     std::istringstream in(env);
     while (std::getline(in, item, sep))
-        if (!item.empty()) pastas.emplace_back(item);
+        if (!item.empty()) pastas.push_back(caminhoUtf8(item));
     return pastas;
 }
 
@@ -77,7 +78,7 @@ bool ModuleLoader::load(const std::string& main_path, const std::string& main_co
 // mostrarem "tests/modulos/geom.cinza" como antes.
 std::string ModuleLoader::projectRoot(const std::string& main_path) {
     std::error_code ec;
-    const fs::path principal(main_path);
+    const fs::path principal = caminhoUtf8(main_path);
     fs::path pasta = fs::absolute(principal, ec).parent_path();
     fs::path achada;
     for (fs::path p = pasta; !p.empty(); p = p.parent_path()) {
@@ -87,9 +88,9 @@ std::string ModuleLoader::projectRoot(const std::string& main_path) {
     if (achada.empty()) achada = pasta;
     if (principal.is_relative()) {
         fs::path rel = achada.lexically_relative(fs::current_path(ec));
-        if (!rel.empty()) return rel.generic_string();
+        if (!rel.empty()) return textoCaminho(rel);
     }
-    return achada.generic_string();
+    return textoCaminho(achada);
 }
 
 std::vector<std::string> ModuleLoader::resolve(const ImportDecl& imp,
@@ -98,21 +99,22 @@ std::vector<std::string> ModuleLoader::resolve(const ImportDecl& imp,
     for (const auto& parte : imp.path) rel /= parte;
     rel += ".cinza";
 
-    std::vector<fs::path> bases{fs::path(raiz.empty() ? "." : raiz)};
+    std::vector<fs::path> bases{caminhoUtf8(raiz.empty() ? "." : raiz)};
     for (auto& p : pastasCinzaPath()) bases.push_back(std::move(p));
 
     std::vector<std::string> achados, canonicos;
     for (const auto& base : bases) {
         fs::path cand = (base / rel).lexically_normal();
-        if (std::find(tentados.begin(), tentados.end(), cand.generic_string()) != tentados.end())
+        const std::string texto = textoCaminho(cand);
+        if (std::find(tentados.begin(), tentados.end(), texto) != tentados.end())
             continue;   // a raiz repetida no CINZA_PATH
-        tentados.push_back(cand.generic_string());
+        tentados.push_back(texto);
         std::error_code ec;
         if (!fs::is_regular_file(cand, ec)) continue;
         const std::string c = canonico(cand);   // a raiz também pode estar no CINZA_PATH
         if (std::find(canonicos.begin(), canonicos.end(), c) != canonicos.end()) continue;
         canonicos.push_back(c);
-        achados.push_back(cand.generic_string());
+        achados.push_back(texto);
     }
     return achados;
 }
@@ -120,7 +122,7 @@ std::vector<std::string> ModuleLoader::resolve(const ImportDecl& imp,
 long ModuleLoader::visit(const std::string& path, const std::string& display,
                          const std::string* code, const std::string& prefix,
                          const Token* import_tok) {
-    const std::string canon = canonico(path);
+    const std::string canon = canonico(caminhoUtf8(path));
 
     auto est = estados.find(canon);
     if (est != estados.end()) {
@@ -147,7 +149,7 @@ long ModuleLoader::visit(const std::string& path, const std::string& display,
     }
 
     // Fase 7: arquivo do usuário com o nome de um módulo nativo é erro
-    const std::string stem = fs::path(path).stem().string();
+    const std::string stem = textoCaminho(caminhoUtf8(path).stem());
     if (findNativeModule(stem)) {
         const std::string msg = "o arquivo '" + display + "' tem o nome do módulo nativo '" +
                                 stem + "'; renomeie o arquivo";
@@ -158,7 +160,7 @@ long ModuleLoader::visit(const std::string& path, const std::string& display,
 
     std::string lido;
     if (!code) {
-        if (!lerArquivo(path, lido)) {
+        if (!lerArquivo(caminhoUtf8(path), lido)) {
             importError("não foi possível ler o módulo '" + display + "'", *import_tok);
             return -1;
         }

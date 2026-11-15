@@ -1476,6 +1476,41 @@ exemplos); ela saiu na N3. Testes com prefixo `gen_`.
   > versão 5. Módulo de teste `tests/modulos/structs_genericos.cinza`; 27 testes `gen_struct*`
   > (um deles, `gen_struct`, reescrito: antes conferia o erro "struct não aceita parâmetros de
   > tipo") e 14 `n5_*` em `structs/`. 627/627.
+- [x] N6. Varredura dos structs genéricos. — feito em 2026-11-15
+  > ~50 programas de sondagem (struct genérico em interface, campo de classe, coleções e
+  > structs aninhados, `enum`/interface/erro como `T`, `const`, `var`, módulos com `T` do
+  > principal, `new T(campo: v)` numa genérica, tipos explícitos com `Par[i32, string]` entre os
+  > colchetes, recursão mútua por `list`, `--bytecode`, aninhamento profundo). **Corrigido**:
+  > (1) ciclo por valor entre cópias (`A[T] { B[T] b; }` e `B[T] { A[T] a; }`) só aparecia como
+  > erro de construtor no uso — agora `checkStructCycles` roda quando a cópia de fora termina de
+  > nascer; (2) campo ou parâmetro com o nome de um parâmetro de tipo (`struct S[T] { T T; }`,
+  > `fn f[T](T T)`) dava "Esperado nome do campo" na cópia — agora erro na declaração;
+  > (3) faltava escrever o struct genérico como valor (`type(p) == Par[i32, string]`, que vale
+  > para `Ponto` e `list<i64>`): o parser lê `Nome[tipos]` numa expressão como tipo quando há mais
+  > de um tipo ou um tipo que não é nome, e guarda as duas leituras de `Caixa[Ponto]`
+  > (`IndexAccessExpr::como_tipo`), que o semântico escolhe pelo que o nome é (struct genérico, e
+  > não variável local); `l[i32]` numa lista tem mensagem própria; (4) a leitura especulativa
+  > do parser preserva o primeiro erro guardado (numa cópia genérica, um erro posterior saía com a
+  > mensagem da especulação); (5) "class não aceita parâmetros de tipo" dizia que só funções são
+  > genéricas, e `struct S[]` sugeria `fn nome[T]`; (6) `--ast` mostra os parâmetros de tipo e
+  > os nomes dos campos no `new`. Extensão do VS Code 0.6.0: `struct Nome[T, U]` com os
+  > parâmetros destacados e `campo:` na criação pelo nome (só depois de `(` ou `,`; fatias não
+  > mudam). 10 testes `gen_*` novos.
+
+**Correções gerais da mesma varredura** (testes `rev_*`):
+- Nome de arquivo com acento derrubava o `cinza.exe` (`std::filesystem::filesystem_error` sem
+  captura, processo preso no relatório de erro do Windows) e argumentos com acento chegavam a
+  `main(args)` como bytes inválidos: no Windows o `argv` vem na página de código do sistema.
+  Agora `argumentosUtf8` (linha de comando em UTF-16, convertida) e `caminhoUtf8`/`textoCaminho`
+  (`plataforma.h`) em todo caminho do `main.cpp` e do `ModuleLoader`, também no `CINZA_PATH`
+  (`ambienteUtf8`). Teste `rev_nome_com_acentuação` (com `// args: ação ñ`).
+- O arquivo principal era lido em modo texto (o Windows tira o `\r`) e os módulos em binário: um
+  texto de várias linhas num arquivo `\r\n` saía `"a\nb"` no principal e `"a\r\nb"` num módulo.
+  Pela spec 1.1, `\r\n` é um fim de linha só: o léxico agora o grava como `\n` dentro do texto, e
+  o principal também é lido em binário. Teste `rev_texto_crlf` (ele e o módulo em CRLF).
+- A sugestão do `KeyError` (`d[k] = v` com chave nova) punha a chave sempre entre aspas
+  (`.add({"Cor.G", valor})`); agora só texto vai entre aspas. Teste `rev_keyerror_sugestao`.
+  640/640.
 
 **Fora desta seção** (em discussão com o autor, continua aberto): `class` genérica — falta
 decidir como o construtor garante o campo `T` (proposta: atribuição obrigatória no nível de cima

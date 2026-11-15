@@ -444,10 +444,14 @@ Value* indexPlace(Value& obj, const Value& key) {
         // v2.00: `d[k] = v` só ATUALIZA chaves existentes; para inserir, use .add
         auto& entries = obj.asDict()->entries;
         auto it = entries.find(key);
-        if (it == entries.end())
+        if (it == entries.end()) {
+            // a chave como se escreve no código: só texto vai entre aspas (5, true, Cor.Verde)
+            const std::string escrita = key.kind() == Value::Kind::STRING
+                                        ? "\"" + key.asString() + "\"" : key.toString();
             throw RuntimeError("KeyError: chave '" + key.toString() + "' não existe no dicionário. "
-                               "Use .add({\"" + key.toString() + "\", valor}) para inserir "
+                               "Use .add({" + escrita + ", valor}) para inserir "
                                "novas entradas.");
+        }
         return &it->second;
     }
     throw RuntimeError("Operador '[]' em tipo inválido");

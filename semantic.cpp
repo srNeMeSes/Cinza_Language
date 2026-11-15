@@ -839,9 +839,15 @@ TypeRef SemanticAnalyzer::typeOf(Type* type) {
                 t->type_params.clear();
                 return;
             }
-            if (!t->type_params.empty())
-                throwError("'" + stripModulePrefixes(t->name) + "' não é um struct genérico e não "
-                           "aceita tipos entre colchetes", t->token);
+            if (!t->type_params.empty()) {
+                const std::string n = stripModulePrefixes(t->name);
+                if (!isKnownType(t->name))   // l[i32] com l uma lista: índice com um tipo
+                    throwError("'" + n + "' não é um struct genérico: depois de um nome, [tipos] só "
+                               "vale para struct genérico (Caixa[i32]); um índice é um valor, "
+                               "como " + n + "[0]", t->token);
+                throwError("'" + n + "' não é um struct genérico e não aceita tipos entre "
+                           "colchetes", t->token);
+            }
         }
         for (auto& p : t->type_params) qualifica(p.get());
     };
@@ -2639,6 +2645,16 @@ TypeRef SemanticAnalyzer::analyzeMemberAccess(MemberAccessExpr* expr) {
 //   - list<T>[inteiro]  → T
 //   - dict<K,V>[K]  → V
 TypeRef SemanticAnalyzer::analyzeIndexAccess(IndexAccessExpr* expr) {
+    // N5: Caixa[Ponto] com Caixa struct genérico (e não uma variável local com esse nome)
+    // é o tipo escrito como valor
+    if (expr->como_tipo && expr->object->node_kind == NodeKind::Identifier) {
+        const std::string& nome = static_cast<IdentifierExpr*>(expr->object.get())->name;
+        if (!symbol_table.resolveLocal(nome) && structs_genericos.count(qualifyName(nome, expr->token))) {
+            expr->eh_tipo = true;
+            analyzeExpr(expr->como_tipo.get());
+            return expr->resolved_type = types.typeType();
+        }
+    }
     TypeRef obj_type = analyzeExpr(expr->object.get());
     TypeRef idx_type = analyzeExpr(expr->index.get());
 
@@ -3407,6 +3423,10 @@ void SemanticAnalyzer::checkGenericDecl(FunctionDecl* fn) {
         throwError("A função 'main' não pode ser genérica: ela é o ponto de entrada do "
                    "programa, chamada sem tipos.", fn->token);
     confereParametrosTipo(fn->type_params, nome);
+    for (const auto& p : fn->parameters)
+        if (indiceParametro(fn->type_params, p.name) >= 0)
+            throwError("Em '" + nome + "', o parâmetro '" + p.name + "' tem o nome de um "
+                       "parâmetro de tipo; escolha outro nome", p.token);
 }
 
 void SemanticAnalyzer::confereParametrosTipo(const std::vector<Token>& params,
@@ -3701,6 +3721,9 @@ void SemanticAnalyzer::checkGenericStructDecl(StructDecl* st) {
     confereParametrosTipo(st->type_params, nome);
     for (const auto& f : st->fields) {
         const Type* t = f.type.get();
+        if (indiceParametro(st->type_params, f.name) >= 0)
+            throwError("Em '" + nome + "', o campo '" + f.name + "' tem o nome de um parâmetro "
+                       "de tipo; escolha outro nome", f.token);
         if (f.initializer && t->kind == Type::Kind::CUSTOM && t->type_params.empty() &&
             indiceParametro(st->type_params, t->name) >= 0)
             throwError("Em '" + nome + "', o campo '" + f.name + "' é do tipo '" + t->name +
@@ -3807,6 +3830,16 @@ TypeRef SemanticAnalyzer::instanciaStruct(const StructGenerico& g, const std::ve
     --structs_abertos;
     current_module = salvo;
     fila_structs.push_back(r);
+    // Com as cópias que esta criou já registradas: struct que contém a si mesmo por valor
+    // (A[T] { B[T] b; } e B[T] { A[T] a; }) é erro já, antes de algum uso da cópia
+    if (structs_abertos == 0) {
+        try {
+            checkStructCycles();
+        } catch (SemanticError& e) {
+            if (e.notes.empty()) e.notes = rastro(nome, uso, instancia_atual);
+            throw;
+        }
+    }
     return types.structType(nome);
 }
 

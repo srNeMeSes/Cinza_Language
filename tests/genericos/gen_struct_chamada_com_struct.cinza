@@ -1,0 +1,12 @@
+// 8.3 + 8.6: struct genérico entre os tipos explícitos de uma chamada genérica
+struct Par[A, B] { A a; B b; }
+fn primeiro[T](T x) -> T { return x; }
+fn main() {
+  Par[i32, string] p = new Par[i32, string](1, "x");
+  print(primeiro[Par[i32, string]](p).b);
+  primeiro[Par[i32, string]](p);
+  list<Par[i32, string]> l = [p];
+  print(l[0].a, primeiro(l)[0].b);
+}
+// expect: x
+// expect: 1 x

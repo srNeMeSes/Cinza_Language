@@ -1,0 +1,4 @@
+// 8.6: um campo não pode ter o nome de um parâmetro de tipo (no struct, o nome seria trocado)
+struct S[T] { T T; }
+fn main() {}
+// expect-error: Em 'S', o campo 'T' tem o nome de um parâmetro de tipo

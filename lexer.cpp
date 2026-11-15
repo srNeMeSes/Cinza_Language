@@ -307,11 +307,13 @@ Token Lexer::string() {
                         break;
                 }
             }
+        } else if (peek() == '\r' && peekNext() == '\n') {
+            advance();   // spec 1.1: \r\n é um fim de linha só; no texto vira \n
         } else {
             str_value += advance();     // armazenando a string
         }
     }
-    
+
     if (isAtEnd()) {
         return Token(TokenType::UNKNOWN, "String não terminada", start_line, start_column);
     }

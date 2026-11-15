@@ -271,7 +271,12 @@ class IndexAccessExpr : public Expr {
 public:
     ExprPtr object;
     ExprPtr index;   // pode ser inteiro (lista) ou string (dict)
-    
+    // N5: `Caixa[Ponto]` também se lê como tipo escrito como valor (type(x) == Caixa[Ponto]);
+    // o parser guarda essa leitura (um TypeLiteralExpr) e o semântico escolhe: se `object`
+    // é um struct genérico, `eh_tipo` e a expressão vale `como_tipo`
+    ExprPtr como_tipo;
+    bool    eh_tipo = false;
+
     IndexAccessExpr(const Token& tok, ExprPtr obj, ExprPtr idx)
         : Expr(NodeKind::IndexAccess, tok), object(std::move(obj)), index(std::move(idx)) {}
     

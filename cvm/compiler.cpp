@@ -324,6 +324,10 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
         }
         case NodeKind::IndexAccess: {
             auto* ix = static_cast<const IndexAccessExpr*>(e);
+            if (ix->eh_tipo) {   // N5: Caixa[Ponto] escrito como valor
+                expr(ix->como_tipo.get(), dst);
+                break;
+            }
             const std::uint16_t o = exprReg(ix->object.get());
             const std::uint16_t k = exprReg(ix->index.get());
             emit(Op::GETINDEX, dst, o, k, e->token);

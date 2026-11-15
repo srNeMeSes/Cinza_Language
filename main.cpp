@@ -5,6 +5,7 @@
 #include "module_loader.h"
 #include "cvm/compiler.h"
 #include "cvm/vm.h"
+#include "plataforma.h"
 #include <filesystem>
 #include <iostream>
 #include <fstream>
@@ -22,8 +23,9 @@ extern "C" {
 using namespace cinza;
 
 // Função para ler arquivo
+// Binário, como os módulos (o léxico trata \r\n), e com o nome em UTF-8
 std::string readFile(const std::string& filename) {
-    std::ifstream file(filename);
+    std::ifstream file(caminhoUtf8(filename), std::ios::binary);
     if (!file.is_open()) {
         throw std::runtime_error("Erro ao abrir arquivo: " + filename);
     }
@@ -232,8 +234,10 @@ int main(int argc, char* argv[]) {
     // O programa roda na CVM (cvm/DESENHO.md); --bytecode mostra o bytecode antes
     bool show_bytecode = false;
 
-    for (int i = 1; i < argc; i++) {
-        std::string arg = argv[i];
+    // Em UTF-8 também no Windows: o nome do arquivo e o que vai para main(args)
+    const std::vector<std::string> argumentos = argumentosUtf8(argc, argv);
+    for (size_t i = 1; i < argumentos.size(); i++) {
+        const std::string& arg = argumentos[i];
         if (!filename.empty()) {
             program_args.push_back(arg);
             continue;
@@ -264,7 +268,7 @@ int main(int argc, char* argv[]) {
     
     // B6: o arquivo principal aparece nos diagnósticos como foi informado,
     // com '/' como separador (igual aos módulos)
-    filename = std::filesystem::path(filename).generic_string();
+    filename = textoCaminho(caminhoUtf8(filename));
     setMainFile(filename);
 
     // Arquivo inexistente é erro do usuário, não erro interno (A10)

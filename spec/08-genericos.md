@@ -328,7 +328,8 @@ Cada combinação de tipos usada vira um **struct comum** (monomorfização), co
 na seção 8.2: um struct genérico que nunca é usado só passa pela análise sintática e pelas regras
 da declaração. Um erro numa cópia vem com o rastro dos usos (seção 8.4). `Par[string, i32]` e
 `Par[string, i64]` são tipos diferentes, e nenhum se atribui ao outro (invariância, seção 3.5).
-No `print` e no `type()`, o nome aparece com os tipos.
+No `print` e no `type()`, o nome aparece com os tipos, e o tipo também se escreve como valor
+(`type(p) == Par[string, i32]`).
 
 ```cinza
 struct Indice[K] { dict<K, i32> posicoes; }
@@ -387,4 +388,7 @@ fn main() {
 **Leitura dos colchetes.** `Nome[tipos]` é um tipo onde se espera um tipo (declaração de
 variável, campo, parâmetro, retorno, `list<...>`, `cast<...>`) e depois de `new`. No começo de
 uma instrução, `Nome[...]` seguido de um nome é uma declaração de variável (`Caixa[i32] c = ...`);
-seguido de qualquer outra coisa, é um índice, como sempre (`l[0] = 5;`).
+seguido de qualquer outra coisa, é um índice, como sempre (`l[0] = 5;`). Numa expressão,
+`Nome[...]` é o tipo escrito como valor quando `Nome` é um struct genérico (e não uma variável
+local com esse nome); senão, é índice. Com mais de um tipo, ou um tipo que não é um nome
+(`l[i32]`), só pode ser tipo: depois de uma variável, é erro.

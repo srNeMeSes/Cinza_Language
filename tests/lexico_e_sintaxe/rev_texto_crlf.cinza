@@ -1,0 +1,10 @@
+// Revisão: texto de várias linhas num arquivo com fins de linha \r\n (spec 1.1: um fim
+// de linha só, que vira \n no texto). O principal era lido em modo texto e os módulos
+// em binário: o mesmo texto saía diferente num módulo. Este arquivo e o módulo são CRLF.
+import modulos.texto_crlf as t;
+fn main() {
+  string s = "a
+b";
+  print(s == t.DUAS, s.size(), t.DUAS.size(), s == "a\nb");
+}
+// expect: true 3 3 true

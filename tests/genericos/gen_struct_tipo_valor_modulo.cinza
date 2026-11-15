@@ -1,0 +1,7 @@
+// 8.6 + 4.11: struct genérico de módulo escrito como valor
+import modulos.structs_genericos as sg;
+fn main() {
+  sg.Conta[i32] c = sg.abre(7);
+  print(type(c) == sg.Conta[i32], type(c) == sg.Conta[string]);
+}
+// expect: true false

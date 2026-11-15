@@ -1,0 +1,10 @@
+// Revisão: a sugestão do KeyError escreve a chave como no código (só texto entre aspas)
+enum Cor { R, G }
+fn main() {
+  dict<i32, string> n = {{1, "um"}};
+  try { n[2] = "dois"; } except (KeyError e) { print(e.message); }
+  dict<Cor, string> d = {{Cor.R, "r"}};
+  d[Cor.G] = "g";
+}
+// expect: chave '2' não existe no dicionário. Use .add({2, valor}) para inserir novas entradas.
+// expect-error: Use .add({Cor.G, valor}) para inserir novas entradas

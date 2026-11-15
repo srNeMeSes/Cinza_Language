@@ -1,0 +1,10 @@
+// 8.6: recursão entre structs genéricos por list vale
+struct A[T] { list<B[T]> bs; T v; }
+struct B[T] { list<A[T]> aa; }
+fn main() {
+  A[i32] a = new A[i32](v: 1);
+  a.bs.add(new B[i32]());
+  a.bs[0].aa.add(new A[i32](v: 2));
+  print(a);
+}
+// expect: A[i32]{bs: [B[i32]{aa: [A[i32]{bs: [], v: 2}]}], v: 1}

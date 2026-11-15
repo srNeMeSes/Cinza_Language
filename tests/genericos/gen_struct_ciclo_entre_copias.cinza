@@ -1,0 +1,7 @@
+// 8.6 + 4.7: ciclo por valor entre cópias de structs genéricos, conferido quando a cópia nasce
+struct A[T] { B[T] b; }
+struct B[T] { A[T] a; }
+fn main() {
+  A[i32] x = new A[i32](b: new B[i32]());
+}
+// expect-error: Struct 'A[i32]' contém a si mesmo por valor (A[i32] → B[i32] → A[i32])

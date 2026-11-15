@@ -684,12 +684,12 @@ ExprPtr Parser::parseGenericCall(const Token& name_token) {
 }
 
 // N1: fn f[T, U] — só nomes, pelo menos um
-std::vector<Token> Parser::parseTypeParams() {
+std::vector<Token> Parser::parseTypeParams(bool em_struct) {
     advance();   // '['
     std::vector<Token> params;
     if (check(TokenType::RBRACKET)) {
-        error("Esperado ao menos um parâmetro de tipo entre os colchetes, ex.: fn nome[T](T x)",
-              peek());
+        error(std::string("Esperado ao menos um parâmetro de tipo entre os colchetes, ex.: ") +
+              (em_struct ? "struct Nome[T] { T valor; }" : "fn nome[T](T x)"), peek());
         throw ParseError("lista de parâmetros de tipo vazia", peek());
     }
     do {
@@ -701,12 +701,12 @@ std::vector<Token> Parser::parseTypeParams() {
     return params;
 }
 
-// N1: struct Par[A, B], class Pilha[T]...: só funções do nível superior são genéricas.
-// Relata e pula a lista, para a análise seguir sem erros em cascata.
+// N1: class Pilha[T], enum, interface, error: só funções do nível superior e (N5) structs
+// são genéricos. Relata e pula a lista, para a análise seguir sem erros em cascata.
 void Parser::recusaParametrosTipo(const std::string& oque) {
     if (!check(TokenType::LBRACKET)) return;
-    error(oque + " não aceita parâmetros de tipo: só funções do nível superior podem ser "
-          "genéricas (fn nome[T](...))", peek());
+    error(oque + " não aceita parâmetros de tipo: só funções do nível superior e structs podem "
+          "ser genéricos (fn nome[T](...), struct Nome[T] { ... })", peek());
     int nivel = 0;
     do {
         if (check(TokenType::LBRACKET)) ++nivel;
@@ -809,6 +809,43 @@ ExprPtr Parser::parsePostfixExpr(ExprPtr expr) {
             // Acesso por índice ou chave: lista[0] ou dict["chave"]; com ':' é
             // fatia de string: s[ini:fim:passo], cada parte opcional
             Token bracket_token = previous();
+            // N5: depois de um nome, o conteúdo pode ser uma lista de tipos: struct genérico
+            // escrito como valor (type(x) == Par[i32, string]). Com mais de um tipo, ou um
+            // que não começa por nome (i32, list<T>), só pode ser tipo; com um nome só
+            // (Caixa[Ponto], l[i]), o semântico decide pelo que o nome é
+            TypePtr como_tipo;
+            if (expr->node_kind == NodeKind::Identifier) {
+                const size_t inicio = current;
+                const bool silencioso_antes = silencioso, erros_antes = has_errors;
+                const std::string erro_antes = primeiro_erro;
+                const Token erro_tok_antes = primeiro_erro_tok;
+                silencioso = true;
+                std::vector<TypePtr> tipos;
+                bool sao_tipos = true;
+                try {
+                    do { tipos.push_back(parseType()); } while (match(TokenType::COMMA));
+                    sao_tipos = check(TokenType::RBRACKET);
+                } catch (const ParseError&) {
+                    sao_tipos = false;
+                }
+                silencioso        = silencioso_antes;
+                has_errors        = erros_antes;
+                primeiro_erro     = erro_antes;
+                primeiro_erro_tok = erro_tok_antes;
+                if (sao_tipos) {
+                    auto* id = static_cast<IdentifierExpr*>(expr.get());
+                    auto t = std::make_unique<Type>(Type::Kind::CUSTOM, id->name);
+                    t->token       = id->token;
+                    t->type_params = std::move(tipos);
+                    if (t->type_params.size() > 1 || tokens[inicio].type != TokenType::IDENTIFIER) {
+                        advance();   // ']'
+                        expr = std::make_unique<TypeLiteralExpr>(id->token, std::move(t));
+                        continue;
+                    }
+                    como_tipo = std::move(t);
+                }
+                current = inicio;
+            }
             ExprPtr index;
             if (!check(TokenType::COLON)) index = parseExpression();
             if (match(TokenType::COLON)) {
@@ -822,8 +859,12 @@ ExprPtr Parser::parsePostfixExpr(ExprPtr expr) {
             }
             consume(TokenType::RBRACKET, "Esperado ']' após índice/chave");
 
-            expr = std::make_unique<IndexAccessExpr>(bracket_token, std::move(expr),
-                                                     std::move(index));
+            Token nome_tok = expr->token;
+            auto acesso = std::make_unique<IndexAccessExpr>(bracket_token, std::move(expr),
+                                                            std::move(index));
+            if (como_tipo)
+                acesso->como_tipo = std::make_unique<TypeLiteralExpr>(nome_tok, std::move(como_tipo));
+            expr = std::move(acesso);
         } else {
             break;
         }
@@ -1698,7 +1739,7 @@ StmtPtr Parser::parseStructDeclaration() {
     Token name_token = consume(TokenType::IDENTIFIER,
                                "Esperado nome do struct após 'struct'");
     std::vector<Token> type_params;   // N5: struct Par[A, B]
-    if (check(TokenType::LBRACKET)) type_params = parseTypeParams();
+    if (check(TokenType::LBRACKET)) type_params = parseTypeParams(true);
 
     consume(TokenType::LBRACE, "Esperado '{' após nome do struct");
     DepthGuard struct_brace_guard{brace_depth};   // A9

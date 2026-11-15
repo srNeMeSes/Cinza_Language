@@ -1,0 +1,4 @@
+// 8.6: ao menos um parâmetro de tipo; o exemplo da mensagem é de struct
+struct S[] { i32 x = 0; }
+fn main() {}
+// expect-error: Esperado ao menos um parâmetro de tipo entre os colchetes, ex.: struct Nome[T] { T valor; }

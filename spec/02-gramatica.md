@@ -139,7 +139,8 @@ par           = "{" expressao "," expressao "}" ;
 dicionario    = "{" entrada { "," entrada } "}" ;        (* não há "{}" vazio *)
 entrada       = "{" expressao "," expressao "}" ;
 tipoValor     = ( "i32" | "i64" | "f32" | "f64" | "string" | "str" | "bool"
-                | "list" | "dict" | "pair" ) … ;         (* um tipo escrito como valor *)
+                | "list" | "dict" | "pair" ) …           (* um tipo escrito como valor *)
+              | ( nome | nome "." nome ) argsTipo ;      (* struct genérico: seção 8.6 *)
 literal       = inteiro | flutuante | texto | "true" | "false" ;   (* flutuante: 1.5f, 1.5ff *)
 ```
 
