@@ -385,7 +385,7 @@ void SemanticAnalyzer::registerInterface(const InterfaceDecl& in) {
     symbol_table.declare(sym, in.token);
 }
 
-// Assinatura de um método para mensagens: area() -> decimal
+// Assinatura de um método para mensagens: area() -> f64
 static std::string assinatura(const std::string& nome, const MethodInfo& mi) {
     std::string s = nome + "(";
     for (size_t i = 0; i < mi.param_types.size(); ++i)
@@ -979,7 +979,7 @@ static bool containsVoid(const Type* type) {
 }
 
 // A10: primeira chave de dict inválida na árvore do tipo (nullptr se todas forem
-// int/string/bool). decimal é proibido: comparação exata de ponto flutuante.
+// inteiros/string/bool/enum). Ponto flutuante é proibido: comparação exata não é confiável.
 static TypeRef invalidDictKey(TypeRef type) {
     if (type->is(TK::Dict)) {
         TypeRef k = type->key();
@@ -1048,7 +1048,7 @@ void SemanticAnalyzer::analyzeVarDecl(VarDeclStmt* stmt) {
             stmt->token);
     }
 
-    // A10: chaves de dict (inclusive aninhados) só int, string ou bool
+    // A10: chaves de dict (inclusive aninhados) só inteiros, string, bool ou enum
     if (TypeRef bad = invalidDictKey(declared_type))
         throwError(dictKeyMessage(bad), stmt->token);
 
@@ -1125,7 +1125,7 @@ void SemanticAnalyzer::analyzeVarDecl(VarDeclStmt* stmt) {
             stmt->token);
     }
 
-    // B2: o slot vem depois do inicializador (`int x = x;` não enxerga o novo x)
+    // B2: o slot vem depois do inicializador (`i64 x = x;` não enxerga o novo x)
     sym.res   = (symbol_table.depth() == 1) ? newGlobal() : newLocal();
     stmt->res = sym.res;
     symbol_table.declare(sym, stmt->token);
@@ -1276,7 +1276,7 @@ void SemanticAnalyzer::analyzeAssign(AssignStmt* stmt) {
     TypeRef target_type = analyzeLValue(stmt->target.get());
 
     // C1: a op= b — o resultado de `a op b` precisa caber no tipo de `a`
-    // (int x = 1; x += 1.5; é erro: int + decimal dá decimal)
+    // (i32 x = 1; x += g; com g i64 é erro: i32 + i64 dá i64)
     if (stmt->op != TokenType::OP_ASSIGN) {
         TypeRef val_type = analyzeExpr(stmt->value.get());
         if (target_type->isFloat() && val_type->isInteger())
@@ -1845,7 +1845,7 @@ TypeRef SemanticAnalyzer::analyzeExpr(Expr* expr, TypeRef expected) {
         case NodeKind::ListLiteral:  return analyzeListLiteral (static_cast<ListLiteralExpr*>(expr), expected);
         case NodeKind::DictLiteral:  return analyzeDictLiteral (static_cast<DictLiteralExpr*>(expr), expected);
         case NodeKind::PairLiteral:  return analyzePairLiteral (static_cast<PairLiteralExpr*>(expr), expected);
-        case NodeKind::TypeLiteral: {   // tipo escrito como valor: type(x) == int
+        case NodeKind::TypeLiteral: {   // tipo escrito como valor: type(x) == i64
             auto* e  = static_cast<TypeLiteralExpr*>(expr);
             e->value = typeOf(e->type.get());
             return e->resolved_type = types.typeType();
@@ -2522,8 +2522,8 @@ TypeRef SemanticAnalyzer::analyzeMemberAccess(MemberAccessExpr* expr) {
     // ── Classe definida pelo usuário ──────────────────────────────────────
     auto it = obj_type->is(TK::Class) ? class_table.find(obj_type->name) : class_table.end();
     if (it == class_table.end()) {
-        throwError("Tipo '" + obj_type->str() + "' não possui campos (não é uma classe conhecida)",
-                   expr->token);
+        throwError("Tipo '" + obj_type->str() + "' não possui campos" +
+                   (obj_type->isPrimitive() ? std::string() : " (não é uma classe conhecida)"), expr->token);
     }
 
     const ClassInfo& cls_info = it->second;
@@ -2546,7 +2546,7 @@ TypeRef SemanticAnalyzer::analyzeMemberAccess(MemberAccessExpr* expr) {
 }
 
 // Acesso por índice:  objeto[idx]
-//   - list<T>[int]  → T
+//   - list<T>[inteiro]  → T
 //   - dict<K,V>[K]  → V
 TypeRef SemanticAnalyzer::analyzeIndexAccess(IndexAccessExpr* expr) {
     TypeRef obj_type = analyzeExpr(expr->object.get());
@@ -2697,7 +2697,7 @@ TypeRef SemanticAnalyzer::analyzeInterpolation(CallExpr* expr) {
     return expr->resolved_type = types.stringType();
 }
 
-// s[ini:fim:passo]: fatia de string; as partes presentes são int
+// s[ini:fim:passo]: fatia de string; as partes presentes são inteiros
 TypeRef SemanticAnalyzer::analyzeSlice(SliceExpr* expr) {
     TypeRef obj_type = analyzeExpr(expr->object.get());
     if (!obj_type->is(TK::String)) {
@@ -2793,7 +2793,7 @@ TypeRef SemanticAnalyzer::analyzeNew(NewExpr* expr) {
 // v2.00 #20: Tipo inferido pelo conjunto inteiro, não só pelo primeiro elemento
 // v2.00 #19: Promoção numérica centralizada
 // A3: com tipo esperado list<T>, cada elemento é checado contra T e o literal
-//     assume o tipo esperado (`list<decimal> l = [1, 2];` continua válido).
+//     assume o tipo esperado (`list<i64> l = [1, 2];` alarga os elementos).
 //     Sem tipo esperado, ou se algum elemento não couber, o tipo é inferido
 //     pelo conteúdo e o chamador reporta a incompatibilidade.
 TypeRef SemanticAnalyzer::analyzeListLiteral(ListLiteralExpr* expr, TypeRef expected) {
@@ -2842,7 +2842,7 @@ TypeRef SemanticAnalyzer::analyzeListLiteral(ListLiteralExpr* expr, TypeRef expe
         }
     }
 
-    // A2: [1, 2.5] vira list<decimal> com o 1 convertido de fato
+    // A2: [1.f, 2.5ff] vira list<f64> com o 1.f alargado de fato
     for (auto& elem : expr->elements) coerceInPlace(elem, unified);
 
     return expr->resolved_type = types.list(unified);
@@ -2881,7 +2881,7 @@ TypeRef SemanticAnalyzer::analyzeDictLiteral(DictLiteralExpr* expr, TypeRef expe
         TypeRef kt = analyzeExpr(expr->pairs[i].first.get(),  K);
         TypeRef vt = analyzeExpr(expr->pairs[i].second.get(), V);
 
-        // v2.00 #13 / A10: chaves só int, string, bool ou enum
+        // v2.00 #13 / A10: chaves só inteiros, string, bool ou enum
         if (!kt->isInteger() && !kt->is(TK::String) && !kt->is(TK::Bool) && !kt->is(TK::Enum)) {
             throwError("Chave " + std::to_string(i + 1) + " do literal: " + dictKeyMessage(kt),
                        expr->token);
@@ -2952,7 +2952,7 @@ TypeRef SemanticAnalyzer::analyzeDictLiteral(DictLiteralExpr* expr, TypeRef expe
         }
     }
 
-    // A2: chaves e valores int convertidos quando o tipo unificado é decimal
+    // A2: chaves e valores alargados (i32 → i64, f32 → f64) até o tipo unificado
     for (auto& [key, val] : expr->pairs) {
         coerceInPlace(key, key_type);
         coerceInPlace(val, val_type);
@@ -3026,7 +3026,7 @@ void SemanticAnalyzer::coerceInPlace(ExprPtr& slot, TypeRef target) {
             return;
         }
         default:
-            // Demais casos (ex.: variável list<int> em list<decimal>) não têm
+            // Demais casos (ex.: variável list<i32> em list<i64>) não têm
             // conversão possível sem copiar a coleção; A3 passa a rejeitá-los.
             return;
     }

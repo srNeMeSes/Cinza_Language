@@ -1,0 +1,13 @@
+// Varredura L: unique compara com == (spec 6.2, Lists): nan nunca é igual a
+// nada, então cada nan fica (antes o std::set tratava nan como igual a tudo e
+// unique([nan, 1.ff]) perdia o 1). i32 e f32 também usam o caminho rápido.
+import Lists;
+import Math;
+fn main() {
+  print(Lists.unique([Math.nan, 1.ff, Math.nan, 1.ff]), Lists.unique([1.ff, Math.nan]), Lists.unique([-0.ff, 0.ff]));
+  print(Lists.unique([1, 1, 2]), Lists.unique([0.5f, 0.5f, 1.f]), Lists.unique(["a", "a"]));
+  print(Lists.contains([Math.nan], Math.nan), Lists.index_of([Math.nan], Math.nan), Lists.count([1.ff, Math.nan], Math.nan));
+}
+// expect: [nan, 1, nan] [1, nan] [-0]
+// expect: [1, 2] [0.5, 1] ["a"]
+// expect: false -1 0

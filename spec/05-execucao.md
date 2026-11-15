@@ -4,7 +4,7 @@
 
 | Tipo                                              | Na atribuição, argumento e retorno |
 |---------------------------------------------------|------------------------------------|
-| `i64`, `f64`, `string`, `bool`, enum, `type`  | copiado                            |
+| números, `string`, `bool`, enum, `type`  | copiado                            |
 | `pair<A, B>`                                      | copiado (e imutável)               |
 | `struct`                                          | copiado — **cópia rasa**           |
 | `list<T>`, `dict<K, V>`                           | compartilhado (mesma coleção)      |
@@ -77,11 +77,11 @@ fn main() {
 
 ### Aritméticos: `+ - * / %`
 
-- `i64` com `i64` dá `i64`; se algum lado é `f64`, o outro é convertido e o resultado é
-  `f64`.
+- Os dois lados são da mesma família (seção 3.1): o mais estreito é promovido antes da conta e
+  o resultado tem o tipo mais largo (`i32 + i64` é `i64`). Inteiro com ponto flutuante é erro de
+  compilação.
 - `/` entre inteiros **trunca em direção a zero** (`-7 / 2` é `-3`); o sinal de `%` segue o
-  dividendo (`-7 % 2` é `-1`). Entre decimais, `%` é o resto de ponto flutuante (`7.5 % 2` é
-  `1.5`).
+  dividendo (`-7 % 2` é `-1`).
 - Divisão ou resto por zero entre inteiros lança `ZeroDivisionError`.
 - Resultado inteiro fora da faixa do tipo (`i32` ou `i64`; inclusive `-x` e `x / -1` com o
   menor valor) lança `OverflowError`. Já `x % -1` é sempre `0`, que cabe na faixa.
@@ -123,12 +123,14 @@ fn main() {
 
 ### Comparação: `< <= > >=`
 
-Entre números (`i64` e `f64` podem se misturar) ou entre textos (ordem lexicográfica dos
-bytes UTF-8, ou seja, dos code points). Outros tipos não se comparam por ordem.
+Entre números da mesma família (seção 3.1; `i32` com `i64` vale, inteiro com ponto flutuante não)
+ou entre textos (ordem lexicográfica dos bytes UTF-8, ou seja, dos code points). Outros tipos não
+se comparam por ordem. Com `nan`, toda comparação de ordem é `false` (IEEE 754).
 
 ### Igualdade: `== !=`
 
-Os dois lados precisam ser do mesmo tipo, ou ambos numéricos (`1 == 1.0` é `true`).
+Os dois lados precisam ser do mesmo tipo, ou números da mesma família (`1 == cast<i64>(1)` é
+`true`; `1 == 1.ff` é erro de compilação). `nan == nan` é `false` e `-0.ff == 0.ff` é `true` (IEEE).
 
 | Tipo                                  | Igualdade                                  |
 |---------------------------------------|--------------------------------------------|
@@ -143,16 +145,16 @@ Só sobre `bool`.
 ### Atribuição composta: `+= -= *= /= %=`
 
 `a op= b` equivale a `a = a op b` com `a` avaliado uma vez. O resultado precisa caber no tipo de
-`a`: `i64 x; x += 1.5;` é erro, porque `i64 + f64` dá `f64`.
+`a`: com `i32 x` e `i64 y`, `x += y;` é erro, porque `i32 + i64` dá `i64`.
 
 ## 5.4 Forma textual dos valores
 
-É a forma usada por `print`, pela concatenação e por `Convert.to_string`.
+É a forma usada por `print`, pela concatenação, por `format` e por `cast<string>`.
 
 | Valor          | Forma                                                                  |
 |----------------|------------------------------------------------------------------------|
-| `i64`          | dígitos decimais: `-42`                                                |
-| `f64`      | a menor forma que volta ao mesmo número: `3.14`, `0.1`; valor inteiro sem `.0` (`4`); muito grande ou muito pequeno em notação científica (`1e+24`) |
+| `i32`, `i64`   | dígitos decimais: `-42`                                                |
+| `f32`, `f64`   | a menor forma que volta ao mesmo número **no próprio tipo**: `3.14`, `0.1` (`0.1f` também sai `0.1`); valor inteiro sem `.0` (`4`); muito grande ou muito pequeno em notação científica (`1e+24`); `inf`, `-inf`, `nan`, `-0` |
 | `string`       | o próprio texto (dentro de coleções, entre aspas)                     |
 | `bool`         | `true`, `false`                                                        |
 | `list`         | `[1, 2]`, `["a", "b"]`                                                 |
@@ -195,8 +197,8 @@ for (tipo nome in iteravel) { ... }
 | `string`       | um caractere (code point UTF-8), como `string`      |
 
 Os elementos são **copiados no início** do laço: alterar a coleção dentro do corpo não muda as
-voltas. O tipo do iterador precisa aceitar o elemento (ou ser `var`); `for (decimal x in
-list_de_int)` converte cada elemento.
+voltas. O tipo do iterador precisa aceitar o elemento (ou ser `var`); `for (i64 x in
+lista_de_i32)` alarga cada elemento.
 
 ```cinza
 fn main() {
@@ -288,7 +290,7 @@ fn main() {
 
 ### Campos de um erro
 
-`e.kind` (tipo, `string`), `e.message` (`string`), `e.line` e `e.column` (`i64`, a posição onde
+`e.kind` (tipo, `string`), `e.message` (`string`), `e.line` e `e.column` (`i32`, a posição onde
 o erro surgiu). São somente leitura.
 
 ### Erro não capturado
@@ -298,7 +300,8 @@ Termina o programa com código 1 e mostra o erro no formato do capítulo 7, segu
 
 ## 5.7 Coleções em execução
 
-- Índice de `list` é `i64`. Um literal negativo como índice é erro de compilação; um índice
+- Índice de `list` é um inteiro (`i32` ou `i64`; ponto flutuante é erro de compilação). Um literal
+  negativo como índice é erro de compilação; um índice
   negativo ou além do fim, em runtime, lança `IndexError`.
 - Ler `d[k]` com uma chave que não existe lança `KeyError`. `d[k] = v` **só atualiza** uma chave
   existente (com chave nova, `KeyError`); para inserir, use `d.add({k, v})`, que também substitui
@@ -306,14 +309,14 @@ Termina o programa com código 1 e mostra o erro no formato do capítulo 7, segu
 
 | `list<T>`          | Efeito                                                      |
 |--------------------|-------------------------------------------------------------|
-| `l.size()`         | número de elementos (`i64`)                                 |
+| `l.size()`         | número de elementos (`i32`)                                 |
 | `l.add(x)`         | acrescenta `x` ao fim                                       |
 | `l.remove(i)`      | remove o elemento do índice `i` (`IndexError` se inválido)  |
 | `l.has(i)`         | `true` se `i` é um índice válido                            |
 
 | `dict<K, V>`       | Efeito                                                      |
 |--------------------|-------------------------------------------------------------|
-| `d.size()`         | número de entradas                                          |
+| `d.size()`         | número de entradas (`i32`)                                  |
 | `d.add({k, v})`    | insere ou substitui                                         |
 | `d.remove(k)`      | remove a chave (`KeyError` se não existir)                  |
 | `d.has(k)`         | `true` se a chave existe                                    |
@@ -322,7 +325,7 @@ Termina o programa com código 1 e mostra o erro no formato do capítulo 7, segu
 
 | `string`           | Efeito                                                      |
 |--------------------|-------------------------------------------------------------|
-| `s.size()`         | número de caracteres (code points UTF-8), não de bytes      |
+| `s.size()`         | número de caracteres (code points UTF-8), não de bytes (`i32`) |
 | `s[i]`             | o caractere do índice `i`, como `string`; `i` negativo conta do fim (`s[-1]` é o último); fora do tamanho, `IndexError` |
 | `s[ini:fim]`       | o trecho de `ini` até `fim` (exclusive); `ini` omitido é `0`, `fim` omitido é o tamanho |
 | `s[ini:fim:passo]` | de `passo` em `passo`; passo negativo anda para trás (`s[::-1]` inverte); passo `0` lança `ValueError` |

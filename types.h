@@ -14,7 +14,7 @@ namespace cinza {
 // ============================================================================
 // TIPOS COMO ESTRUTURA (B1)
 //
-// Antes, o semântico representava tipos como strings ("dict<string, int>") e
+// Antes, o semântico representava tipos como strings ("dict<string, i64>") e
 // os desmontava com extractTypeParams/substr/trim. Agora cada tipo é um
 // TypeInfo imutável, criado uma única vez pelo TypeContext (hash-consing):
 //

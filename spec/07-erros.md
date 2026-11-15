@@ -8,11 +8,11 @@ Os tipos embutidos:
 | Tipo                 | Quando a linguagem o lança |
 |----------------------|----------------------------|
 | `Error`              | raiz; erros sem categoria própria |
-| `ValueError`         | valor inválido para a operação: `range` com passo 0, `Convert` com texto inválido, `Strings.split`/`replace` com separador vazio, `Math.sqrt`/`log`/`pow` fora do domínio, `Random.int(a, b)` com `a > b` |
+| `ValueError`         | valor inválido para a operação: `range` com passo 0, `cast<T>` de texto inválido ou de `nan`/infinito para inteiro, `Strings.split`/`replace` com separador vazio, `Math.floor`/`round` de `nan`, `Random.i32(a, b)` com `a > b` |
 | `IndexError`         | índice de lista negativo ou além do fim, `remove` inválido, `Strings.substr` e `Lists.slice` fora dos limites, `Random.choice` de lista vazia |
 | `KeyError`           | leitura ou atualização (`d[k] = v`) de chave inexistente, `remove` de chave inexistente |
-| `ZeroDivisionError`  | `/` ou `%` por zero (`i64` ou `f64`) |
-| `OverflowError`      | resultado de `i64` fora da faixa; resultado de `f64` infinito; `Math.abs` do menor `i64`; `floor`/`ceil`/`round` fora de `i64`; `Math.pow` infinito; `Lists.sum` que estoura |
+| `ZeroDivisionError`  | `/` ou `%` por zero entre inteiros (ponto flutuante segue o IEEE: `1.ff / 0.ff` é `inf`) |
+| `OverflowError`      | resultado inteiro fora da faixa do tipo (`i32` ou `i64`); `cast<T>` para um tipo em que o valor não cabe; `Math.abs` do menor inteiro; `floor`/`ceil`/`round` fora de `i64`; `Lists.sum` de inteiros que estoura (ponto flutuante não lança: vira `inf`) |
 | `IOError`            | fim da entrada em `input`; falha ao abrir, ler ou gravar em `Files` |
 | `StackOverflowError` | mais de 2000 chamadas aninhadas |
 | `TypeError`          | não é lançado pela linguagem (toda conferência de tipo é na compilação); existe para uso com `throw` |

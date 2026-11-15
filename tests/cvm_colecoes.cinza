@@ -1,5 +1,5 @@
 // CVM etapa 4: literais, índices aninhados, atribuição composta em índice, métodos embutidos,
-// coleções vazias, pair e cópia no for (iguais nos dois modos).
+// coleções vazias, pair e cópia no for.
 fn adiciona(list<i64> l, i64 x) { l.add(x); }
 fn main() {
   list<list<i64>> m = [[1, 2], [3]];

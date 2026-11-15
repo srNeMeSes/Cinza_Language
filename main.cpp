@@ -10,6 +10,7 @@
 #include <fstream>
 #include <sstream>
 #include <iomanip>
+#include <new>
 
 #ifdef _WIN32
 extern "C" {
@@ -353,6 +354,11 @@ int main(int argc, char* argv[]) {
         //std::cout << std::string(80, '-') << "\n";
         //std::cout << "✓ Execução concluída.\n\n";
         
+    } catch (const std::bad_alloc&) {
+        // memória esgotada não é bug do compilador: o programa pediu mais do que há
+        std::cout.flush();
+        std::cerr << "Erro fatal: memória insuficiente para continuar o programa\n";
+        return 1;
     } catch (const std::exception& e) {
         // A10: erros da linguagem (léxico, sintaxe, semântica, runtime) já foram
         // tratados acima; qualquer outra exceção C++ (bad_variant_access,

@@ -158,7 +158,7 @@ TypePtr Parser::parseTypeInner() {
     Token type_token = peek();
     Type::Kind kind;
 
-    // const dentro de parâmetros de tipo é proibido: list<const int>, dict<const str, V>
+    // const dentro de parâmetros de tipo é proibido: list<const i64>, dict<const str, V>
     if (check(TokenType::KW_CONST)) {
         error("'const' não pode ser usado dentro de parâmetros de tipo como "
               "list<const T>, dict<const K, V>. "
@@ -450,7 +450,7 @@ ExprPtr Parser::parsePrimaryExpr() {
     }
 
     // Tipo usado como valor, para comparar com type(x):
-    //   type(n) == int    type(l) == list<int>
+    //   type(n) == i64    type(l) == list<i64>
     if (check(TokenType::TYPE_I32) || check(TokenType::TYPE_I64) || check(TokenType::TYPE_F32)|| check(TokenType::TYPE_F64) ||
         check(TokenType::TYPE_STRING) || check(TokenType::TYPE_BOOL) ||
         check(TokenType::TYPE_LIST) || check(TokenType::TYPE_DICT) ||
@@ -504,8 +504,8 @@ ExprPtr Parser::parsePrimaryExpr() {
     //   - pair literal: {a, b}   -> dois valores separados por virgula
     //
     // '{}' vazio e PROIBIDO: para declarar sem valor, omita o inicializador.
-    //   CORRETO: dict<str, int> d;
-    //   ERRADO:  dict<str, int> d = {};
+    //   CORRETO: dict<str, i64> d;
+    //   ERRADO:  dict<str, i64> d = {};
     if (check(TokenType::LBRACE)) {
         size_t saved_pos = current;
         advance(); // consome '{'
@@ -719,7 +719,7 @@ ExprPtr Parser::parsePairLiteral() {
     return std::make_unique<PairLiteralExpr>(brace_token, std::move(first), std::move(second));
 }
 
-// r: DictLiteralExpr<str, int>{{...}, {...}}
+// r: DictLiteralExpr<str, i64>{{...}, {...}}
 ExprPtr Parser::parseDictLiteral() {
     Token brace_token = advance(); // consome primeiro '{'
     
@@ -1026,7 +1026,7 @@ StmtPtr Parser::parseForStatement() {
     
     consume(TokenType::LPAREN, "Esperado '(' após 'for'");
     
-    // Aceita tipo explícito (int, string, etc), 'var' ou identificador direto
+    // Aceita tipo explícito (i64, string, etc), 'var' ou identificador direto
     std::string iterator_name;
     TypePtr type;
     
@@ -1088,7 +1088,7 @@ StmtPtr Parser::parseReturnStatement() {
 
 // r: {...}
 StmtPtr Parser::parseBlockStatement() {
-    // A9: consume em vez de advance — antes, 'fn f() -> int return 1;'
+    // A9: consume em vez de advance — antes, 'fn f() -> i64 return 1;'
     // engolia o 'return' como se fosse '{'
     Token brace_token = consume(TokenType::LBRACE, "Esperado '{' para abrir o bloco");
 
@@ -1154,7 +1154,7 @@ std::vector<Parameter> Parser::parseParameterList() {
     
     if (!check(TokenType::RPAREN)) {
         do {
-            // Parâmetro const: const int x
+            // Parâmetro const: const i64 x
             bool param_const = false;
             if (match(TokenType::KW_CONST)) {
                 param_const = true;
@@ -1195,12 +1195,12 @@ std::vector<Parameter> Parser::parseParameterList() {
 //
 // Exemplos:
 //   class Pilha {
-//       int topo = 0;               ← campo privado (inicializador obrigatório)
-//       list<int> dados;            ← campo privado (nasce vazio implicitamente)
+//       i64 topo = 0;               ← campo privado (inicializador obrigatório)
+//       list<i64> dados;            ← campo privado (nasce vazio implicitamente)
 //
 //       pub {
-//           fn push(int x) -> void { ... }
-//           fn pop()       -> int  { ... }
+//           fn push(i64 x) -> void { ... }
+//           fn pop()       -> i64  { ... }
 //       }
 //   }
 // ============================================================================
@@ -1348,7 +1348,7 @@ ClassDecl::Field Parser::parseFieldDeclaration() {
     // A7: 'var' só em declaração local e no iterador do for
     if (containsVar(field_type.get())) {
         error("'var' não é permitido no campo '" + field_name.lexeme +
-              "'. Declare o tipo explicitamente, ex.: 'int " +
+              "'. Declare o tipo explicitamente, ex.: 'i32 " +
               field_name.lexeme + " = 0;'.", field_tok);
         throw ParseError("'var' inválido em campo", field_tok);
     }
@@ -1395,7 +1395,7 @@ ClassDecl::Field Parser::parseFieldDeclaration() {
                             std::move(initializer), field_tok);
 }
 
-// interface Forma { fn area() -> decimal; fn escala(decimal f); }
+// interface Forma { fn area() -> f64; fn escala(f64 f); }
 StmtPtr Parser::parseInterfaceDeclaration() {
     Token iface_token = advance();   // consome 'interface'
     Token name_token  = consume(TokenType::IDENTIFIER,
@@ -1642,7 +1642,7 @@ bool Parser::checkQualified() const {
            isWord(tokens[current + 2]);
 }
 
-// C6: depois de `apelido.` vale também palavra-chave (Random.int, Random.decimal):
+// C6: depois de `apelido.` vale também palavra-chave (Random.i32, Random.f64):
 // ali não há ambiguidade, só pode ser um nome do módulo
 bool Parser::isWord(const Token& tok) {
     if (tok.type == TokenType::IDENTIFIER) return true;

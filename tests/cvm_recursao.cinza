@@ -1,4 +1,4 @@
-// CVM etapa 3: recursão funda e StackOverflowError com o mesmo trace do interpretador.
+// CVM etapa 3: recursão funda e StackOverflowError com o trace da spec 7.
 fn soma(i64 n) -> i64 {
   if (n == 0) { return 0; }
   return n + soma(n - 1);

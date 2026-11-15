@@ -48,17 +48,14 @@ Palavras-chave:
 fn  return  if  else  while  for  in  true  false
 struct  class  pub  new  const  self  enum  interface  error
 break  continue  try  except  finally  throw  import  as
-and  or  not
+and  or  not  cast
 ```
 
 Nomes de tipo, também reservados:
 
 ```
-i64  f64  string  str  bool  void  var  list  dict  pair
+i32  i64  f32  f64  string  str  bool  void  var  list  dict  pair
 ```
-
-`op` também é reservada: era um tipo (`op<T1, T2>`), removido da linguagem; usá-lo é erro de
-compilação com essa explicação.
 
 `and`, `or` e `not` são sinônimos exatos de `&&`, `||` e `!`; `str` é sinônimo exato de
 `string`.
@@ -67,7 +64,7 @@ compilação com essa explicação.
 (capítulo 6), e uma função do programa com o mesmo nome tem precedência sobre elas.
 
 Logo depois de `apelido.` (nome qualificado de um módulo importado, seção 4.11), uma palavra
-reservada é aceita como nome — é o que permite `Random.int(1, 6)`.
+reservada é aceita como nome — é o que permite `Random.i32(1, 6)` e `Random.f64()`.
 
 ## 1.5 Literais
 
@@ -76,25 +73,49 @@ reservada é aceita como nome — é o que permite `Random.int(1, 6)`.
 Uma sequência de dígitos decimais: `0`, `42`, `9223372036854775807`. Não há prefixos de base
 (hexadecimal, binário) nem separadores.
 
-O valor precisa caber em `i64` (64 bits com sinal). O literal `9223372036854775808` só é aceito
-logo depois de um `-` unário, formando o menor `i64`, `-9223372036854775808`. Fora da faixa é
-erro de compilação.
+O tipo do literal é `i32` se o valor couber em 32 bits com sinal (-2147483648 a 2147483647) e
+`i64` se não couber. O valor precisa caber em `i64`: o literal `9223372036854775808` só é aceito
+logo depois de um `-` unário, formando o menor `i64`, `-9223372036854775808`; fora da faixa é erro
+de compilação. Onde se espera `i64`, um literal `i32` é alargado (seção 3.5).
 
 ```cinza
 fn main() {
   i64 maior = 9223372036854775807;
   i64 menor = -9223372036854775808;
-  print(maior, menor);
+  print(maior, menor, type(5), type(3000000000), type(-2147483648));
 }
-// expect: 9223372036854775807 -9223372036854775808
+// expect: 9223372036854775807 -9223372036854775808 i32 i64 i32
 ```
 
-### Decimal
+### Ponto flutuante
 
-Dígitos, um ponto e dígitos: `3.14`, `0.5`, `10.0`. Os dois lados do ponto são obrigatórios
-(`1.` e `.5` não são literais). **Não há notação com expoente** (`1e10` não é literal).
+Dígitos, um ponto, dígitos opcionais e o **sufixo de precisão**, obrigatório: `f` para `f32` e
+`ff` para `f64`.
 
-Um literal que não cabe em `f64` (ponto flutuante de 64 bits) é erro léxico.
+| Literal              | Tipo  |
+|----------------------|-------|
+| `1.5f`, `1.f`, `0.25f` | `f32` |
+| `1.5ff`, `1.ff`, `0.25ff` | `f64` |
+
+Um literal com ponto e sem sufixo (`1.5`) é erro de compilação, assim como o sufixo sem ponto
+(`1f`) e qualquer outro sufixo (`1.5fff`). `.5` não é literal (falta o dígito antes do ponto) e
+**não há notação com expoente** (`1e10` não é literal). Um literal `f32` é lido direto na precisão
+de 32 bits (o valor mais próximo em `float`, sem passar por `f64`).
+
+Um literal que não cabe no seu tipo (`f32` vai até cerca de 3.4e38, `f64` até cerca de 1.8e308) é
+erro léxico.
+
+```cinza
+fn main() {
+  print(1.5f, 1.ff, type(1.5f), type(1.5ff), 0.1f + 0.2f, 0.1ff + 0.2ff);
+}
+// expect: 1.5 1 f32 f64 0.3 0.30000000000000004
+```
+
+```cinza
+fn main() { print(1.5); }
+// expect-error: Literal '1.5' sem a precisão: escreva 1.5f (f32) ou 1.5ff (f64)
+```
 
 ### Texto (string)
 

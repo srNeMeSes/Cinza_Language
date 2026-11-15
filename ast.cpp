@@ -58,7 +58,7 @@ bool Type::isComparable() const {
 // EXPRESSION IMPLEMENTATIONS
 // ============================================================================
 
-// r: TypeLiteral(list<int>)
+// r: TypeLiteral(list<i64>)
 std::string TypeLiteralExpr::toString(int indent_level) const {
     (void)indent_level;
     return "TypeLiteral(" + type->toString() + ")";
@@ -211,7 +211,7 @@ std::string MethodCallExpr::toString(int indent_level) const {
 // STATEMENT IMPLEMENTATIONS
 // ============================================================================
 
-// r: VarDecl(type: string, name: ola, initializer: Literal("Ola mundo!")), VarDecl(type: int, name: num)
+// r: VarDecl(type: string, name: ola, initializer: Literal("Ola mundo!")), VarDecl(type: i64, name: num)
 std::string VarDeclStmt::toString(int indent_level) const {
     std::ostringstream oss;
     oss << indent(indent_level) << "VarDecl(\n";
@@ -281,7 +281,7 @@ std::string WhileStmt::toString(int indent_level) const {
     return oss.str();
 }
 
-// r: ForStmt(type: int, iterator: ovo, iterable: cartela, body: Block {...})
+// r: ForStmt(type: i64, iterator: ovo, iterable: cartela, body: Block {...})
 std::string ForStmt::toString(int indent_level) const {
     std::ostringstream oss;
     oss << indent(indent_level) << "ForStmt(\n";
@@ -304,7 +304,7 @@ std::string ReturnStmt::toString(int indent_level) const {
     return oss.str();
 }
 
-// r: FunctionDecl(name: fname, parameters: [int a, int b], return_type: int, body: Block {...})
+// r: FunctionDecl(name: fname, parameters: [i64 a, i64 b], return_type: i64, body: Block {...})
 std::string FunctionDecl::toString(int indent_level) const {
     std::ostringstream oss;
     oss << indent(indent_level) << "FunctionDecl(\n";
@@ -334,7 +334,7 @@ std::string NewExpr::toString(int indent_level) const {
     return oss.str();
 }
 
-// r: CastExpr(to: decimal, Literal(5))
+// r: CastExpr(to: f64, Literal(5))
 std::string CastExpr::toString(int indent_level) const {
     std::ostringstream oss;
     oss << indent(indent_level) << "CastExpr(\n";

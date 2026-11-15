@@ -1,7 +1,7 @@
 # 2. Gramática
 
 A sintaxe completa da Cinza, em EBNF (convenções no [README](README.md)). `nome` é um
-identificador (seção 1.3); `inteiro`, `f64` e `texto` são os literais da seção 1.5.
+identificador (seção 1.3); `inteiro`, `flutuante` e `texto` são os literais da seção 1.5.
 
 Regras que a gramática sozinha não expressa estão nos comentários `(* ... *)` e são detalhadas
 nos capítulos seguintes.
@@ -46,7 +46,7 @@ erro          = "error" nome ";" ;
 ## 2.2 Tipos
 
 ```ebnf
-tipo          = "i64" | "f64" | "string" | "str" | "bool"
+tipo          = "i32" | "i64" | "f32" | "f64" | "string" | "str" | "bool"
               | "void"                                   (* só como tipo de retorno *)
               | "var"                                    (* só em variável local e no for *)
               | "list" "<" tipo ">"
@@ -119,6 +119,7 @@ primario      = literal
               | nome "." nome [ argumentos ]             (* nome de módulo importado *)
               | "self"
               | "new" nomeTipo argumentos
+              | "cast" "<" tipo ">" "(" expressao ")"   (* i32, i64, f32, f64 ou string; seção 3.1 *)
               | tipoValor
               | "(" expressao ")"
               | lista | par | dicionario ;
@@ -128,9 +129,9 @@ lista         = "[" expressao { "," expressao } "]" ;    (* não há "[]" vazio 
 par           = "{" expressao "," expressao "}" ;
 dicionario    = "{" entrada { "," entrada } "}" ;        (* não há "{}" vazio *)
 entrada       = "{" expressao "," expressao "}" ;
-tipoValor     = ( "i64" | "f64" | "string" | "str" | "bool"
+tipoValor     = ( "i32" | "i64" | "f32" | "f64" | "string" | "str" | "bool"
                 | "list" | "dict" | "pair" ) … ;         (* um tipo escrito como valor *)
-literal       = inteiro | f64 | texto | "true" | "false" ;
+literal       = inteiro | flutuante | texto | "true" | "false" ;   (* flutuante: 1.5f, 1.5ff *)
 ```
 
 | Precedência | Operadores                       |

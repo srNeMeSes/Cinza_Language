@@ -1,0 +1,7 @@
+// Varredura L: acesso a campo num tipo primitivo não fala em "classe conhecida".
+fn main() {
+  i32 n = 1;
+  print(n.x);
+}
+// expect-error: Tipo 'i32' não possui campos
+// expect-not: classe conhecida

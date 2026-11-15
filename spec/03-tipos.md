@@ -7,8 +7,10 @@ deste capítulo são conferidas antes de executar.
 
 | Tipo      | Valores                                                                 |
 |-----------|-------------------------------------------------------------------------|
+| `i32`     | inteiro de 32 bits com sinal: -2147483648 a 2147483647                   |
 | `i64`     | inteiro de 64 bits com sinal: -9223372036854775808 a 9223372036854775807 |
-| `f64` | ponto flutuante de 64 bits (IEEE 754, precisão dupla)                    |
+| `f32`     | ponto flutuante de 32 bits (IEEE 754, precisão simples)                  |
+| `f64`     | ponto flutuante de 64 bits (IEEE 754, precisão dupla)                    |
 | `string`  | texto em UTF-8 (sinônimo: `str`)                                         |
 | `bool`    | `true` ou `false`                                                        |
 
@@ -17,6 +19,72 @@ elemento de coleção pode ser `void`, e uma expressão `void` não é um valor 
 atribuída nem passada como argumento).
 
 Não existe `null`: toda variável tem sempre um valor do seu tipo.
+
+### Números: duas famílias
+
+Os quatro tipos numéricos formam duas **famílias que não se misturam**: os inteiros (`i32`,
+`i64`) e os de ponto flutuante (`f32`, `f64`). Princípio: simplicidade no uso, rigor na
+implementação e previsibilidade no comportamento.
+
+- **Dentro da família**, o mais estreito é promovido ao mais largo **antes** da operação e o
+  resultado tem o tipo mais largo: `i32 + i64` é `i64`, `f32 * f64` é `f64`; `i32 + i32` continua
+  `i32` (e pode estourar em 32 bits). A mesma promoção vale em atribuição, argumento e retorno
+  (seção 3.5): `i32` → `i64` e `f32` → `f64`.
+- **Entre famílias**, nada é implícito: `i32 + f64` é erro de compilação, inclusive em comparações
+  (`n < x`) e com literais (`x * 2` com `x` de ponto flutuante: escreva `x * 2.ff`). A conversão é
+  explícita, com `cast<T>`.
+- `%` só existe entre inteiros.
+- Inteiros: estouro, divisão por zero e `menor / -1` são erros de runtime (seção 5.3), em 32 e em 64
+  bits.
+- Ponto flutuante segue o IEEE 754: `inf`, `-inf`, `nan` e `-0` são valores; nenhuma conta lança
+  erro.
+
+```cinza
+fn main() {
+  i32 a = 2000000000;
+  i64 b = 2000000000;
+  f32 x = 0.5f;
+  print(a + b, type(a + b), x * 2.f, type(x + 0.25ff), 1.ff / 0.ff);
+}
+// expect: 4000000000 i64 1 f64 inf
+```
+
+```cinza
+fn main() {
+  i32 n = 2;
+  f64 x = 1.5ff;
+  print(n + x);
+}
+// expect-error: Operador '+' entre 'i32' e 'f64': inteiro e ponto flutuante não se misturam
+```
+
+### `cast<T>(valor)`
+
+`cast<T>(valor)` converte entre `i32`, `i64`, `f32`, `f64` e `string` (`bool` e coleções não
+convertem). O valor é convertido **depois** de calculado: `cast<f32>(2 + 3.f)` é erro (a conta
+mistura famílias), `cast<f32>(2) + 3.f` vale.
+
+| De → para                | Regra |
+|--------------------------|-------|
+| inteiro → inteiro        | precisa caber na faixa do destino; senão `OverflowError` |
+| ponto flutuante → inteiro | trunca em direção a zero (`cast<i32>(-2.9ff)` é `-2`); `nan` e infinito lançam `ValueError`; fora da faixa, `OverflowError` |
+| inteiro → ponto flutuante | o valor mais próximo (IEEE): `cast<f32>(16777217)` é `16777216` |
+| `f64` → `f32`             | o valor mais próximo (IEEE); grande demais vira `inf` |
+| `f32` → `f64`             | exato |
+| número → `string`         | o mesmo texto do `print` |
+| `string` → inteiro        | sinal opcional (`+`/`-`) e dígitos, sem espaços; outro texto lança `ValueError`; fora da faixa, `OverflowError` |
+| `string` → ponto flutuante | `[sinal] dígitos [. dígitos] [e [sinal] dígitos]`, ou `inf`, `-inf`, `nan`; outro texto lança `ValueError`; grande demais, `OverflowError`; pequeno demais vira 0 |
+
+```cinza
+fn main() {
+  print(cast<i32>(2.9ff), cast<i64>("-42"), cast<f32>(0.1ff), cast<f64>(0.1f), cast<string>(7) + "!");
+  try { print(cast<i32>(3000000000)); } except (OverflowError e) { print(e.message); }
+  try { print(cast<i64>("12a")); } except (ValueError e) { print(e.message); }
+}
+// expect: 2 -42 0.1 0.10000000149011612 7!
+// expect: cast<i32>(3000000000): o valor não cabe em i32
+// expect: cast<i64>("12a"): não é um número inteiro (só sinal e dígitos)
+```
 
 ## 3.2 Inferência com `var`
 
@@ -51,8 +119,8 @@ parâmetros, retornos, campos nem dentro de `list<>`, `dict<>` ou `pair<>`.
 | `dict<K, V>`   | associação de chaves `K` a valores `V`, ordenada pela chave            |
 | `pair<A, B>`   | par imutável com os campos `first` (tipo `A`) e `second` (tipo `B`)    |
 
-A chave de um `dict` só pode ser `i64`, `string`, `bool` ou um `enum`. `f64` é proibido
-(comparação exata de ponto flutuante não é confiável), assim como coleções e objetos.
+A chave de um `dict` só pode ser `i32`, `i64`, `string`, `bool` ou um `enum`. `f32` e `f64` são
+proibidos (comparação exata de ponto flutuante não é confiável), assim como coleções e objetos.
 
 Uma variável ou campo `list` ou `dict` declarado sem valor inicial nasce vazio.
 
@@ -70,13 +138,13 @@ Um valor do tipo `V` pode ser usado onde se espera o tipo `T` (atribuição, ini
 argumento, retorno, elemento de coleção) quando:
 
 1. `V` e `T` são o mesmo tipo; ou
-2. `V` é `i32` e `T` é `i64`, ou `V` é `f32` e `T` é `f64` — o valor é alargado (seção 3.2); ou
+2. `V` é `i32` e `T` é `i64`, ou `V` é `f32` e `T` é `f64` — o valor é alargado (seção 3.1); ou
 3. `T` é `Error` e `V` é qualquer tipo de erro (`Error` é a raiz dos erros); ou
 4. `T` é uma interface e `V` é uma classe que declara cumpri-la (seção 3.7).
 
 Nenhuma outra conversão é implícita: inteiro não vira ponto flutuante (nem o contrário), o
 mais largo não vira o mais estreito, número não vira `string`, `bool` não vira número. Para
-essas, `cast<T>(valor)` (seção 3.2).
+essas, `cast<T>(valor)` (seção 3.1).
 
 ```cinza
 fn metade(f64 x) -> f64 { return x / 2.ff; }

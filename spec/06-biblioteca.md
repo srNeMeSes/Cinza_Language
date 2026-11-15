@@ -11,10 +11,10 @@ precedência.
 | `printf("texto")`                             | escreve o texto com as expressões `{...}` substituídas (abaixo) e pula linha, como `print` |
 | `format("texto") -> string`                   | o mesmo texto do `printf`, devolvido em vez de escrito |
 | `input(string prompt) -> string`              | escreve `prompt` sem pular linha e lê uma linha da entrada, sem o fim de linha. Fim da entrada lança `IOError`. |
-| `range(i64 ini, i64 fim) -> list<i64>`        | os inteiros de `ini` (inclusive) até `fim` (exclusive). |
-| `range(i64 ini, i64 fim, i64 passo) -> list<i64>` | idem, de `passo` em `passo`; passo negativo conta para baixo; passo `0` lança `ValueError`. |
+| `range(inteiro ini, inteiro fim) -> list<inteiro>` | os inteiros de `ini` (inclusive) até `fim` (exclusive), no tipo dos argumentos: `range(0, 10)` é `list<i32>`; com um `i64`, `list<i64>`. |
+| `range(inteiro ini, inteiro fim, inteiro passo) -> list<inteiro>` | idem, de `passo` em `passo`; passo negativo conta para baixo; passo `0` lança `ValueError`. Como lista, no máximo 100 milhões de elementos (senão `ValueError`); no `for` a lista não é criada e não há limite. |
 | `type(x) -> type`                             | o tipo real de `x` (seção 3.8). |
-| `exit([i64 codigo])`                          | encerra o programa com o código de saída (padrão `0`, sucesso; de `0` a `255`, senão `ValueError`), depois de rodar os `finally` pendentes (abaixo). |
+| `exit([inteiro codigo])`                      | encerra o programa com o código de saída (padrão `0`, sucesso; de `0` a `255`, senão `ValueError`), depois de rodar os `finally` pendentes (abaixo). |
 
 Uma expressão `void` não pode ser argumento de nenhuma delas.
 
@@ -73,7 +73,7 @@ Depois da expressão, um formato opcional após `:`:
 
 | Formato | Efeito |
 |---------|--------|
-| `{x:.2f}` | exatamente 2 casas decimais, arredondando como `Math.round_to`; só para `i64` e `f64` (outro tipo é erro de compilação) |
+| `{x:.2f}` | exatamente 2 casas decimais, arredondando como `Math.round_to`; só para números (outro tipo é erro de compilação); `f32` arredonda a forma decimal do próprio `f32` |
 | `{x:8}` | largura mínima de 8 caracteres: números alinham à direita, o resto à esquerda; texto mais longo fica inteiro |
 | `{x:8.2f}` | os dois |
 
@@ -108,9 +108,14 @@ import Math;
 import Strings as st;
 ```
 
-Nas assinaturas abaixo, **`número`** é `i64` ou `f64`, **`comparável`** é `i64`, `f64` ou
-`string`, e **`T`** é qualquer tipo. Quando o mesmo nome aparece mais de uma vez numa assinatura,
-os argumentos precisam ser do mesmo tipo (o primeiro fixa o tipo) e o retorno tem esse tipo.
+Nas assinaturas abaixo, **`número`** é qualquer tipo numérico, **`inteiro`** é `i32` ou `i64`,
+**`flutuante`** é `f32` ou `f64`, **`comparável`** é um número ou `string`, e **`T`** é qualquer
+tipo. Quando o mesmo nome aparece mais de uma vez numa assinatura, os argumentos precisam ser da
+mesma família e o mais estreito é alargado (`Math.max(i32, i64)` é `i64`); o retorno tem esse
+tipo. Um parâmetro `i64` aceita `i32` (seção 3.5); `f64` aceita `f32`.
+
+Posições, tamanhos e contagens (`find`, `count`, `index_of`, `ord`, `compare`, `size()`...) são
+`i32`; grandezas que pedem 64 bits (`Files.size`, os instantes de `Time`) são `i64`.
 
 Índices e tamanhos de texto contam **caracteres** (code points UTF-8), não bytes.
 
@@ -126,10 +131,10 @@ quebras de linha (`\t \n \r \f \v`).
 |--------|-----------|
 | `contains(string s, string trecho) -> bool` | `true` se `trecho` aparece em `s` |
 | `starts_with(string s, string prefixo) -> bool`, `ends_with(...)` | `true` se `s` começa / termina com o trecho |
-| `find(string s, string trecho) -> i64` | índice da primeira ocorrência, ou `-1` |
-| `find_last(string s, string trecho) -> i64` | índice da última ocorrência, ou `-1` |
-| `find_from(string s, string trecho, i64 inicio) -> i64` | como `find`, a partir do índice `inicio` (de `0` ao tamanho; senão `IndexError`) |
-| `count(string s, string trecho) -> i64` | ocorrências sem sobreposição (`count("aaaa", "aa")` = `2`); trecho vazio lança `ValueError` |
+| `find(string s, string trecho) -> i32` | índice da primeira ocorrência, ou `-1` |
+| `find_last(string s, string trecho) -> i32` | índice da última ocorrência, ou `-1` |
+| `find_from(string s, string trecho, i64 inicio) -> i32` | como `find`, a partir do índice `inicio` (de `0` ao tamanho; senão `IndexError`) |
+| `count(string s, string trecho) -> i32` | ocorrências sem sobreposição (`count("aaaa", "aa")` = `2`); trecho vazio lança `ValueError` |
 
 **Partes**
 
@@ -163,10 +168,10 @@ O trecho procurado por `replace`, `replace_first` e `remove` não pode ser vazio
 | `join(list<string> partes, string sep) -> string` | as partes unidas por `sep` |
 | `repeat(string s, i64 n) -> string` | `s` repetido `n` vezes; `n` negativo, ou resultado acima de 1 GiB, lança `ValueError` |
 | `reverse(string s) -> string` | os caracteres em ordem inversa |
-| `pad_left(string s, i64 largura[, string p]) -> string` | completa à esquerda com `p` (padrão: espaço) até `largura` caracteres; texto já maior fica como está |
+| `pad_left(string s, i64 largura[, string p]) -> string` | completa à esquerda com `p` (padrão: espaço) até `largura` caracteres; texto já maior fica como está; largura acima de 2²⁸ (1 GiB) lança `ValueError` |
 | `pad_right(string s, i64 largura[, string p]) -> string` | idem, à direita |
 | `center(string s, i64 largura[, string p]) -> string` | idem, dos dois lados (a sobra ímpar fica à direita) |
-| `fixed(f64 x, i64 casas) -> string` | o número com **exatamente** `casas` casas decimais (`fixed(2.5, 2)` → `"2.50"`); arredonda como `Math.round_to`; `casas` de 0 a 100 (senão `ValueError`) |
+| `fixed(flutuante x, i64 casas) -> string` | o número com **exatamente** `casas` casas decimais (`fixed(2.5ff, 2)` → `"2.50"`); arredonda como `Math.round_to`; `casas` de 0 a 100 (senão `ValueError`); `nan` e infinito saem `nan`, `inf`, `-inf` |
 
 O preenchimento `p` precisa ter exatamente 1 caractere (senão `ValueError`).
 
@@ -192,10 +197,10 @@ O preenchimento `p` precisa ter exatamente 1 caractere (senão `ValueError`).
 
 | Função | Descrição |
 |--------|-----------|
-| `ord(string c) -> i64` | o código Unicode de um único caractere (`ord("A")` = `65`); outro tamanho lança `ValueError` |
+| `ord(string c) -> i32` | o código Unicode de um único caractere (`ord("A")` = `65`); outro tamanho lança `ValueError` |
 | `chr(i64 n) -> string` | o caractere do código Unicode `n`; código inválido lança `ValueError` |
 | `equals_ignore_case(string a, string b) -> bool` | iguais sem diferenciar maiúsculas de minúsculas |
-| `compare(string a, string b) -> i64` | `-1`, `0` ou `1`, na ordem de `<` entre strings |
+| `compare(string a, string b) -> i32` | `-1`, `0` ou `1`, na ordem de `<` entre strings |
 
 ```cinza
 import Strings as st;
@@ -230,8 +235,8 @@ algo existente sem pedir ou apagar uma pasta com conteúdo pela função errada 
 | `append(string caminho, string conteudo)` | acrescenta ao fim; cria o arquivo se não existir |
 | `write_lines(string caminho, list<string> linhas)` | grava cada linha seguida de `\n`, substituindo o conteúdo anterior |
 | `append_line(string caminho, string linha)` | acrescenta a linha seguida de `\n`; cria o arquivo se não existir |
-| `read_bytes(string caminho) -> list<i64>` | o conteúdo como bytes, cada um de `0` a `255` (sem interpretar como texto) — para formatos binários |
-| `write_bytes(string caminho, list<i64> bytes)` | grava os bytes, substituindo o conteúdo anterior; valor fora de `0` a `255` lança `ValueError` |
+| `read_bytes(string caminho) -> list<i32>` | o conteúdo como bytes, cada um de `0` a `255` (sem interpretar como texto) — para formatos binários |
+| `write_bytes(string caminho, list<inteiro> bytes)` | grava os bytes, substituindo o conteúdo anterior; valor fora de `0` a `255` lança `ValueError` |
 
 **Consultar**
 
@@ -290,71 +295,76 @@ fn main() {
 
 ### `Math`
 
-Nenhuma função produz infinito nem NaN: fora do domínio lança `ValueError`; resultado grande
-demais lança `OverflowError`. Argumentos `i64` em parâmetros `f64` são convertidos.
+As funções de ponto flutuante seguem o **IEEE 754** e a **largura do argumento**: `sqrt(2.f)` é
+`f32`, `sqrt(2.ff)` é `f64` (a conta é feita em `f64` e arredondada uma vez para `f32`). Nenhuma
+lança erro: fora do domínio dá `nan` (`sqrt(-1.ff)`, `log(-1.ff)`, `asin(2.ff)`), um polo dá `±inf`
+(`log(0.ff)` é `-inf`, `pow(0.ff, -1.ff)` é `inf`) e o que passa do maior valor dá `inf`
+(`exp(1000.ff)`). Inteiro não entra onde se espera ponto flutuante: `sqrt(2)` é erro de compilação
+(escreva `sqrt(2.ff)` ou `sqrt(cast<f64>(n))`).
 
-**Constantes** (`f64`): `pi` (π), `e`, `tau` (2π).
+**Constantes** (`f64`): `pi` (π), `e`, `tau` (2π), `inf` (infinito) e `nan`.
 
 **Potências, raízes e logaritmos**
 
 | Função | Descrição |
 |--------|-----------|
-| `sqrt(f64 x) -> f64` | raiz quadrada; `x` negativo lança `ValueError` |
-| `cbrt(f64 x) -> f64` | raiz cúbica (aceita negativos: `cbrt(-8)` = `-2`) |
-| `pow(f64 b, f64 x) -> f64` | `b` elevado a `x`; sem resultado real lança `ValueError` |
-| `exp(f64 x) -> f64` | *e* elevado a `x` |
-| `log(f64 x) -> f64` | logaritmo natural |
-| `log10(f64 x) -> f64`, `log2(...)` | logaritmo na base 10 / na base 2 |
-| `log_base(f64 x, f64 base) -> f64` | logaritmo na base dada; a base precisa ser positiva e diferente de 1 |
-| `hypot(f64 x, f64 y) -> f64` | √(x² + y²), sem estourar no meio do cálculo |
-
-Os logaritmos lançam `ValueError` para `x` ≤ 0.
+| `sqrt(flutuante x) -> flutuante` | raiz quadrada (`nan` para negativo) |
+| `cbrt(flutuante x) -> flutuante` | raiz cúbica (aceita negativos: `cbrt(-8.ff)` = `-2`) |
+| `pow(flutuante b, flutuante x) -> flutuante` | `b` elevado a `x` (`nan` sem resultado real) |
+| `exp(flutuante x) -> flutuante` | *e* elevado a `x` |
+| `log(flutuante x) -> flutuante` | logaritmo natural (`log(0)` = `-inf`, negativo dá `nan`) |
+| `log10(flutuante x) -> flutuante`, `log2(...)` | logaritmo na base 10 / na base 2 |
+| `log_base(flutuante x, flutuante base) -> flutuante` | `log(x) / log(base)` |
+| `hypot(flutuante x, flutuante y) -> flutuante` | √(x² + y²), sem estourar no meio do cálculo |
 
 **Trigonometria** (ângulos em radianos)
 
 | Função | Descrição |
 |--------|-----------|
-| `sin`, `cos`, `tan(f64 x) -> f64` | seno, cosseno, tangente |
-| `asin`, `acos(f64 x) -> f64` | arco seno e arco cosseno; `x` fora de -1 a 1 lança `ValueError` |
-| `atan(f64 x) -> f64` | arco tangente |
-| `atan2(f64 y, f64 x) -> f64` | ângulo do ponto (x, y), de -π a π (note a ordem: `y` primeiro) |
-| `sinh`, `cosh`, `tanh(f64 x) -> f64` | funções hiperbólicas |
-| `degrees(f64 rad) -> f64`, `radians(f64 graus)` | conversão entre radianos e graus |
+| `sin`, `cos`, `tan(flutuante x) -> flutuante` | seno, cosseno, tangente |
+| `asin`, `acos(flutuante x) -> flutuante` | arco seno e arco cosseno (`nan` fora de -1 a 1) |
+| `atan(flutuante x) -> flutuante` | arco tangente |
+| `atan2(flutuante y, flutuante x) -> flutuante` | ângulo do ponto (x, y), de -π a π (note a ordem: `y` primeiro) |
+| `sinh`, `cosh`, `tanh(flutuante x) -> flutuante` | funções hiperbólicas |
+| `degrees(flutuante rad) -> flutuante`, `radians(flutuante graus)` | conversão entre radianos e graus |
 
 **Arredondamento**
 
 | Função | Descrição |
 |--------|-----------|
-| `floor(f64 x) -> i64` | maior inteiro ≤ `x` |
-| `ceil(f64 x) -> i64` | menor inteiro ≥ `x` |
-| `round(f64 x) -> i64` | inteiro mais próximo; metade se afasta do zero (`2.5` → `3`, `-2.5` → `-3`) |
-| `trunc(f64 x) -> i64` | corta as casas, em direção ao zero (`-2.7` → `-2`) |
-| `round_to(f64 x, i64 casas) -> f64` | arredonda para `casas` casas decimais (metade se afasta do zero); `casas` negativo lança `ValueError` |
+| `floor(flutuante x) -> i64` | maior inteiro ≤ `x` |
+| `ceil(flutuante x) -> i64` | menor inteiro ≥ `x` |
+| `round(flutuante x) -> i64` | inteiro mais próximo; metade se afasta do zero (`2.5` → `3`, `-2.5` → `-3`) |
+| `trunc(flutuante x) -> i64` | corta as casas, em direção ao zero (`-2.7` → `-2`) |
+| `round_to(flutuante x, i64 casas) -> flutuante` | arredonda para `casas` casas decimais (metade se afasta do zero); `casas` negativo lança `ValueError`; `nan` e infinito voltam como estão |
 
-`floor`, `ceil`, `round` e `trunc` lançam `OverflowError` se o resultado não couber em `i64`.
+`floor`, `ceil`, `round` e `trunc` lançam `ValueError` para `nan` e infinito (não têm valor
+inteiro) e `OverflowError` se o resultado não couber em `i64`.
 
-`round_to` arredonda o número **como ele é escrito** (a forma da seção 5.4), não a sua representação
-binária: `round_to(2.675, 2)` é `2.68`, embora `2.675` não seja exato em binário. O resultado é um
-`f64`, mostrado pela forma da seção 5.4: `round_to(2.5, 2)` é `2.5`, não `2.50`.
+`round_to` arredonda o número **como ele é escrito** (a forma da seção 5.4, no próprio tipo), não a
+sua representação binária: `round_to(2.675ff, 2)` é `2.68`, embora `2.675` não seja exato em
+binário. O resultado é mostrado pela forma da seção 5.4: `round_to(2.5ff, 2)` é `2.5`, não `2.50`.
 
 **Inteiros e sinais**
 
 | Função | Descrição |
 |--------|-----------|
-| `abs(número x) -> número` | valor absoluto; `abs` do menor `i64` lança `OverflowError` |
-| `sign(número x) -> i64` | `-1`, `0` ou `1` |
-| `min(número a, número b) -> número`, `max(...)` | o menor / o maior (para uma lista, `Lists`) |
+| `abs(número x) -> número` | valor absoluto; `abs` do menor `i32`/`i64` lança `OverflowError` |
+| `sign(número x) -> i32` | `-1`, `0` ou `1` (`sign(nan)` é `0`) |
+| `min(número a, número b) -> número`, `max(...)` | o menor / o maior (para uma lista, `Lists`); com `nan` em qualquer lado, `nan` |
 | `clamp(número x, número min, número max) -> número` | `x` limitado ao intervalo; `min > max` lança `ValueError` |
-| `gcd(i64 a, i64 b) -> i64`, `lcm(...)` | máximo divisor comum / mínimo múltiplo comum, sempre ≥ 0; `gcd(0, 0)` = `0`, `lcm` com zero = `0` |
-| `is_even(i64 n) -> bool`, `is_odd(...)` | par / ímpar |
+| `gcd(inteiro a, inteiro b) -> inteiro`, `lcm(...)` | máximo divisor comum / mínimo múltiplo comum, sempre ≥ 0; `gcd(0, 0)` = `0`, `lcm` com zero = `0`; resultado que não cabe no tipo lança `OverflowError` |
+| `is_even(inteiro n) -> bool`, `is_odd(...)` | par / ímpar |
 | `factorial(i64 n) -> i64` | n!; negativo lança `ValueError`; acima de `20` não cabe em `i64` (`OverflowError`) |
 | `is_prime(i64 n) -> bool` | `true` se `n` é primo (exato em toda a faixa de `i64`; menores que 2 não são) |
 
-**Comparar decimais**
+**Ponto flutuante**
 
 | Função | Descrição |
 |--------|-----------|
-| `is_close(f64 a, f64 b) -> bool` | iguais a menos de erro de arredondamento: diferença relativa até 10⁻⁹, ou absoluta até 10⁻¹² (perto de zero). `0.1 + 0.2 == 0.3` é `false`; `is_close(0.1 + 0.2, 0.3)` é `true` |
+| `is_close(flutuante a, flutuante b) -> bool` | iguais a menos de erro de arredondamento: em `f64`, diferença relativa até 10⁻⁹ ou absoluta até 10⁻¹² (perto de zero); em `f32`, relativa até 10⁻⁵ ou absoluta até 10⁻⁷. `0.1ff + 0.2ff == 0.3ff` é `false`; `is_close(0.1ff + 0.2ff, 0.3ff)` é `true` |
+| `is_nan(flutuante x) -> bool` | `true` se `x` é `nan` (o único valor diferente de si mesmo) |
+| `is_inf(flutuante x) -> bool` | `true` se `x` é `inf` ou `-inf` |
 
 ```cinza
 import Math;
@@ -365,6 +375,7 @@ fn main() {
   print(Math.round_to(2.675ff, 2), Math.trunc(-2.7ff), Math.hypot(3.ff, 4.ff), Math.log_base(8.ff, 2.ff));
   print(Math.gcd(12, 18), Math.lcm(4, 6), Math.factorial(5), Math.is_prime(97), Math.clamp(15, 0, 10));
   print(0.1ff + 0.2ff == 0.3ff, Math.is_close(0.1ff + 0.2ff, 0.3ff));
+  print(Math.sqrt(2.f), type(Math.sqrt(2.f)), Math.sqrt(-1.ff), Math.log(0.ff), Math.is_nan(Math.nan));
 }
 // expect: 4 1024 3 2.5
 // expect: 2 3 3 -3 3
@@ -372,6 +383,7 @@ fn main() {
 // expect: 2.68 -2 5 3
 // expect: 6 12 120 true 10
 // expect: false true
+// expect: 1.4142135 f32 nan -inf true
 ```
 
 ### `Random`
@@ -379,9 +391,10 @@ fn main() {
 | Função | Descrição |
 |--------|-----------|
 | `seed(i64 s)` | reinicia o gerador; a mesma semente produz a mesma sequência (na mesma implementação) |
-| `int(i64 a, i64 b) -> i64` | inteiro de `a` até `b`, **os dois inclusive**; `a > b` lança `ValueError` |
-| `decimal() -> f64` | de `0.0` (inclusive) até `1.0` (exclusive) |
-| `decimal_range(f64 a, f64 b) -> f64` | de `a` (inclusive) até `b` (exclusive); `a` ≥ `b` lança `ValueError` |
+| `i32(i32 a, i32 b) -> i32` | inteiro de `a` até `b`, **os dois inclusive**; `a > b` lança `ValueError` |
+| `i64(i64 a, i64 b) -> i64` | idem, em `i64` |
+| `f64() -> f64` | de `0.0` (inclusive) até `1.0` (exclusive) |
+| `f64_range(f64 a, f64 b) -> f64` | de `a` (inclusive) até `b` (exclusive); `a` ≥ `b` lança `ValueError` |
 | `bool() -> bool` | `true` ou `false`, com a mesma chance |
 | `chance(f64 p) -> bool` | `true` com probabilidade `p`, de `0` (nunca) a `1` (sempre); fora disso, `ValueError` |
 | `gauss(f64 media, f64 desvio) -> f64` | distribuição normal; desvio `0` devolve a média; desvio negativo lança `ValueError` |
@@ -406,27 +419,19 @@ fn main() {
 
 ### `Convert`
 
-**Converter texto** — estrito: nada de espaços, vírgula decimal ou prefixos
+Texto ↔ número é `cast<T>` (seção 3.1): `cast<i64>("42")`, `cast<f64>("2.5")`, `cast<string>(7)`.
+O `Convert` fica com o que o `cast` não faz: `bool`, validação, conversão com padrão e bases.
 
 | Função | Descrição |
 |--------|-----------|
-| `to_int(string s) -> i64` | sinal opcional (`+` ou `-`) seguido de dígitos; texto inválido ou fora da faixa de `i64` lança `ValueError` |
-| `to_decimal(string s) -> f64` | `[sinal] dígitos [. dígitos] [e [sinal] dígitos]`; texto inválido ou grande demais para `f64` lança `ValueError`; pequeno demais vira `0` |
 | `to_bool(string s) -> bool` | só `"true"` ou `"false"`; outro texto lança `ValueError` |
-| `to_string(T x) -> string` | a forma textual da seção 5.4 |
-
-`to_decimal` aceita expoente (`"1e2"`), embora os literais da linguagem não aceitem. Para aceitar
-vírgula decimal, troque-a antes: `to_decimal(Strings.replace(s, ",", "."))`.
-
-**Validar e converter com padrão** — aceitam exatamente os mesmos textos que `to_int`,
-`to_decimal` e `to_bool`, sem lançar erro
-
-| Função | Descrição |
-|--------|-----------|
-| `is_int(string s) -> bool`, `is_decimal(...)`, `is_bool(...)` | `true` se o `to_*` correspondente aceitaria o texto |
-| `to_int_or(string s, i64 padrao) -> i64` | o valor convertido, ou `padrao` se o texto não for aceito |
-| `to_decimal_or(string s, f64 padrao) -> f64` | idem |
+| `is_i32(string s) -> bool`, `is_i64(...)`, `is_f32(...)`, `is_f64(...)` | `true` se `cast<T>(s)` aceitaria o texto (formato e faixa) |
+| `is_bool(string s) -> bool` | `true` se `to_bool` aceitaria o texto |
+| `to_i32_or(string s, i32 padrao) -> i32`, `to_i64_or(string s, i64 padrao) -> i64` | o valor convertido como no `cast`, ou `padrao` se o texto não for aceito |
+| `to_f32_or(string s, f32 padrao) -> f32`, `to_f64_or(string s, f64 padrao) -> f64` | idem |
 | `to_bool_or(string s, bool padrao) -> bool` | idem |
+
+Para aceitar vírgula decimal, troque-a antes: `cast<f64>(Strings.replace(s, ",", "."))`.
 
 **Bases numéricas** — dígitos `0`–`9` e `a`–`z`, sem prefixo (`0x`, `0b`); negativo com `-`
 
@@ -434,7 +439,7 @@ vírgula decimal, troque-a antes: `to_decimal(Strings.replace(s, ",", "."))`.
 |--------|-----------|
 | `to_base(i64 n, i64 base) -> string` | `n` na base dada, de 2 a 36 (senão `ValueError`), em minúsculas |
 | `to_hex(i64 n) -> string`, `to_binary(...)`, `to_octal(...)` | atalhos para as bases 16, 2 e 8 |
-| `from_base(string s, i64 base) -> i64` | o inverso: sinal opcional e dígitos da base (maiúsculas ou minúsculas); dígito inválido ou fora da faixa de `i64` lança `ValueError` |
+| `from_base(string s, i64 base) -> i64` | o inverso: sinal opcional e dígitos da base (maiúsculas ou minúsculas); dígito inválido lança `ValueError`; fora da faixa de `i64`, `OverflowError` |
 
 ```cinza
 import Convert as cv;
@@ -459,7 +464,7 @@ fn main() {
 
 | Função | Descrição |
 |--------|-----------|
-| `sort(list<comparável> l)` | ordena `l` no lugar, em ordem crescente |
+| `sort(list<comparável> l)` | ordena `l` no lugar, em ordem crescente (com ponto flutuante, `nan` fica depois de todos, inclusive de `inf`) |
 | `sort_desc(list<comparável> l)` | idem, em ordem decrescente |
 | `sort_by(list<T> l, list<comparável> chaves)` | ordena `l` no lugar pela chave da **mesma posição**; as chaves são reorganizadas junto; tamanhos diferentes lançam `ValueError` |
 | `sorted(list<comparável> l) -> list<comparável>` | **nova** lista ordenada; `l` não muda |
@@ -472,10 +477,10 @@ fn main() {
 
 | Função | Descrição |
 |--------|-----------|
-| `sum(list<número> l) -> número` | soma; lista vazia dá `0`; estouro lança `OverflowError` |
-| `product(list<número> l) -> número` | produto; lista vazia dá `1`; estouro lança `OverflowError` |
+| `sum(list<número> l) -> número` | soma, no tipo dos elementos; lista vazia dá `0`; estouro de inteiro lança `OverflowError` (ponto flutuante segue o IEEE) |
+| `product(list<número> l) -> número` | produto; lista vazia dá `1`; idem |
 | `average(list<número> l) -> f64` | média |
-| `min(list<comparável> l) -> comparável`, `max(...)` | o menor / o maior (o primeiro, se houver empate) |
+| `min(list<comparável> l) -> comparável`, `max(...)` | o menor / o maior (o primeiro, se houver empate); com algum `nan`, `nan` |
 
 `average`, `min` e `max` de uma lista vazia lançam `ValueError`.
 
@@ -484,9 +489,9 @@ fn main() {
 | Função | Descrição |
 |--------|-----------|
 | `contains(list<T> l, T x) -> bool` | `true` se algum elemento é igual a `x` |
-| `index_of(list<T> l, T x) -> i64` | índice do primeiro elemento igual a `x`, ou `-1` |
-| `last_index_of(list<T> l, T x) -> i64` | índice do último, ou `-1` |
-| `count(list<T> l, T x) -> i64` | quantos elementos são iguais a `x` |
+| `index_of(list<T> l, T x) -> i32` | índice do primeiro elemento igual a `x`, ou `-1` |
+| `last_index_of(list<T> l, T x) -> i32` | índice do último, ou `-1` |
+| `count(list<T> l, T x) -> i32` | quantos elementos são iguais a `x` |
 | `first(list<T> l) -> T`, `last(...)` | o primeiro / o último elemento; lista vazia lança `IndexError` |
 | `is_empty(list<T> l) -> bool` | `true` se não tem elementos |
 

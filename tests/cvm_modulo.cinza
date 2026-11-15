@@ -1,4 +1,4 @@
-// CVM etapa 8: módulos encadeados com const, struct, enum, interface e classe (iguais nos dois modos).
+// CVM etapa 8: módulos encadeados com const, struct, enum, interface e classe.
 import modulos.cvm_base as b;
 import modulos.cvm_usa as usa;
 fn main() {

@@ -98,7 +98,7 @@ private:
     std::size_t rotulo = SIZE_MAX;   // último alvo de salto: não fundir instruções através dele
 
     // Salto tomado quando a condição, já no temporário c, é falsa. Se ela acabou
-    // de sair de uma comparação int, a comparação vira compara-e-salta: um
+    // de sair de uma comparação inteira, a comparação vira compara-e-salta: um
     // despacho em vez de dois, sem o bool intermediário (desenho seção 11).
     // Não funde se algum salto chega logo depois da comparação (a && x < y).
     std::size_t jumpIfFalse(std::uint16_t c, const Token& tok) {
@@ -150,7 +150,7 @@ private:
     void          binary(const BinaryExpr* e, std::uint16_t dst);
     void          arith(TokenType op, TypeRef lt, std::uint16_t l, TypeRef rt, std::uint16_t r,
                         std::uint16_t dst, const Token& tok);
-    // a op k com k literal int pequeno: instrução com a constante embutida
+    // a op k com k literal inteiro pequeno: instrução com a constante embutida
     bool          arithK(TokenType op, TypeRef lt, std::uint16_t l, const Expr* direita,
                          std::uint16_t dst, const Token& tok);
     void          call(const CallExpr* e, std::uint16_t dst);
@@ -385,7 +385,7 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
         case NodeKind::New:
             newExpr(static_cast<const NewExpr*>(e), dst);
             break;
-        case NodeKind::TypeLiteral:   // int, list<int>... escrito como valor
+        case NodeKind::TypeLiteral:   // i64, list<i64>... escrito como valor
             loadK(dst, Value(static_cast<const TypeLiteralExpr*>(e)->value), e->token);
             break;
         default:
@@ -694,7 +694,7 @@ void Compiler::stmt(const Stmt* s) {
 
         case NodeKind::For: {
             auto* f = static_cast<const ForStmt*>(s);
-            // for (int i in range(...)) com o range embutido: conta direto, sem
+            // for (i64 i in range(...)) com o range embutido: conta direto, sem
             // criar a lista — o resultado é o mesmo, a lista não é observável
             if (f->iterable->node_kind == NodeKind::Call &&
                 static_cast<const CallExpr*>(f->iterable.get())->native == findPrelude("range")) {

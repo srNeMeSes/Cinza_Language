@@ -580,13 +580,13 @@ public:
 //
 //  Sintaxe:
 //    class Pilha {
-//        int topo = 0;          ← campo privado (inicializador obrigatório)
-//        list<int> dados;       ← campo privado (list/dict nascem vazios implicitamente)
+//        i64 topo = 0;          ← campo privado (inicializador obrigatório)
+//        list<i64> dados;       ← campo privado (list/dict nascem vazios implicitamente)
 //
 //        pub {                                   ← bloco público
-//            Pilha(list<int> d) { dados = d; }   ← construtor
-//            fn push(int x) -> void { ... }      ← metodo publico
-//            fn pop()       -> int  { ... }      ← metodo publico
+//            Pilha(list<i64> d) { dados = d; }   ← construtor
+//            fn push(i64 x) -> void { ... }      ← metodo publico
+//            fn pop()       -> i64  { ... }      ← metodo publico
 //        }
 //    }
 //
@@ -619,7 +619,7 @@ public:
 
     // Construtor da classe (opcional)
     //   Sintaxe dentro de pub{} — sem 'fn', sem '-> void':
-    //     Pessoa(str n, int i, decimal s) { nome = n; ... }
+    //     Pessoa(str n, i64 i, f64 s) { nome = n; ... }
     //
     //   Regras (verificadas pelo semântico):
     //     - Mesmo nome da classe
@@ -671,7 +671,7 @@ public:
 
 
 // C3: struct — tipo por valor, só com campos públicos (sem métodos, sem pub).
-//   struct Ponto { int x = 0; int y = 0; }
+//   struct Ponto { i64 x = 0; i64 y = 0; }
 //   Ponto p = new Ponto();       // valores padrão
 //   Ponto q = new Ponto(1, 2);   // todos os campos, em ordem
 // Atribuir ou passar um struct o copia (cópia rasa: list/dict/objetos dentro
@@ -688,7 +688,7 @@ public:
 };
 
 
-// interface Forma { fn area() -> decimal; }  — no nível superior. Só
+// interface Forma { fn area() -> f64; }  — no nível superior. Só
 // assinaturas de métodos: sem código e sem campos (não é herança).
 class InterfaceDecl : public Stmt {
 public:
@@ -708,7 +708,7 @@ public:
 };
 
 // enum Cor { Vermelho, Verde, Azul }  — no nível superior. Os valores são só
-// nomes (sem int por trás) e se escrevem sempre qualificados: Cor.Verde.
+// nomes (sem i64 por trás) e se escrevem sempre qualificados: Cor.Verde.
 class EnumDecl : public Stmt {
 public:
     std::string              name;

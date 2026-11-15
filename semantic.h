@@ -188,7 +188,7 @@ public:
 // Regra de inicialização (reforçada em conjunto com o parser):
 //   - list<T> e dict<K,V> podem omitir inicializador: nascem como coleções
 //     vazias implicitamente, tanto em variáveis locais quanto em campos de classe.
-//   - Todos os demais tipos (int, decimal, string, bool, var, pair<>, CUSTOM)
+//   - Todos os demais tipos (i64, f64, string, bool, var, pair<>, CUSTOM)
 //     exigem inicializador explícito — o parser rejeita a declaração antes do
 //     semântico ser chamado. O semântico adiciona uma blindagem defensiva para
 //     detectar inconsistências na pipeline caso essa invariante seja violada.
@@ -345,7 +345,7 @@ private:
 
     // ── Coerção implícita (A2) ────────────────────────────────────────────
     // Chamada depois de isAssignable(target, slot->resolved_type) aprovar.
-    // Materializa a promoção int → decimal envolvendo o slot num CastExpr.
+    // Materializa a promoção i32 → i64 envolvendo o slot num CastExpr.
     // Em literais de list/dict/pair desce nos elementos e reanota o literal
     // com o tipo alvo. Nos demais casos não altera nada.
     void coerceInPlace(ExprPtr& slot, TypeRef target);

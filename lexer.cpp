@@ -392,7 +392,7 @@ Token Lexer::nextToken() {
         return identifier();
     }
     
-    // Identifica números (int ou decimal)
+    // Identifica números (i64 ou f64)
     if (isAsciiDigit(c)) {
         current--;
         column--;

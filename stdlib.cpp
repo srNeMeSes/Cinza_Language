@@ -341,26 +341,30 @@ char32_t preenchimento(Args a, const char* fn) {
     return p[0];
 }
 
-// Quantos caracteres faltam para a largura (0 se já tem)
-size_t falta(const std::u32string& s, std::int64_t largura) {
+// Quantos caracteres faltam para a largura (0 se já tem). Largura absurda é
+// ValueError, como em repeat (antes esgotava a memória: erro interno)
+size_t falta(const std::u32string& s, std::int64_t largura, const char* fn) {
+    if (largura > (std::int64_t{1} << 28))   // 2^28 caracteres: até 1 GiB em UTF-8
+        falha(std::string("ValueError: a largura de '") + fn + "' passaria de 1 GiB (recebeu " +
+              std::to_string(largura) + ")");
     return largura > static_cast<std::int64_t>(s.size()) ? static_cast<size_t>(largura) - s.size() : 0;
 }
 
 Value strPadLeft(Args a) {
     const char32_t p = preenchimento(a, "pad_left");
     const std::u32string s = decodifica(a[0].asString());
-    return Value(codifica(std::u32string(falta(s, a[1].asInt()), p) + s));
+    return Value(codifica(std::u32string(falta(s, a[1].asInt(), "pad_left"), p) + s));
 }
 Value strPadRight(Args a) {
     const char32_t p = preenchimento(a, "pad_right");
     const std::u32string s = decodifica(a[0].asString());
-    return Value(codifica(s + std::u32string(falta(s, a[1].asInt()), p)));
+    return Value(codifica(s + std::u32string(falta(s, a[1].asInt(), "pad_right"), p)));
 }
 // center: a sobra ímpar fica à direita
 Value strCenter(Args a) {
     const char32_t p = preenchimento(a, "center");
     const std::u32string s = decodifica(a[0].asString());
-    const size_t f = falta(s, a[1].asInt());
+    const size_t f = falta(s, a[1].asInt(), "center");
     return Value(codifica(std::u32string(f / 2, p) + s + std::u32string(f - f / 2, p)));
 }
 
@@ -728,8 +732,19 @@ Value mathCeil (Args a) { return flutuanteParaInt(std::ceil (a[0].asFloat()), "c
 // round: metade se afasta do zero (2.5 → 3, -2.5 → -3)
 Value mathRound(Args a) { return flutuanteParaInt(std::round(a[0].asFloat()), "round"); }
 
-Value mathMin(Args a) { return numero(a[1]) < numero(a[0]) ? a[1] : a[0]; }
-Value mathMax(Args a) { return numero(a[1]) > numero(a[0]) ? a[1] : a[0]; }
+// min/max: com nan em qualquer lado o resultado é nan (antes dependia da ordem
+// dos argumentos: min(nan, 1) dava nan e min(1, nan) dava 1)
+bool ehNan(const Value& v) { return v.isFloat() && v.asFloat() != v.asFloat(); }
+Value mathMin(Args a) {
+    if (ehNan(a[0])) return a[0];
+    if (ehNan(a[1])) return a[1];
+    return numero(a[1]) < numero(a[0]) ? a[1] : a[0];
+}
+Value mathMax(Args a) {
+    if (ehNan(a[0])) return a[0];
+    if (ehNan(a[1])) return a[1];
+    return numero(a[1]) > numero(a[0]) ? a[1] : a[0];
+}
 
 Value mathSin(Args a)   { return naLargura(a[0], std::sin(a[0].asFloat())); }
 Value mathCos(Args a)   { return naLargura(a[0], std::cos(a[0].asFloat())); }
@@ -813,7 +828,7 @@ Value mathRoundTo(Args a) {
     return naLargura(a[0], x < 0 ? -v : v);
 }
 
-// Magnitude de um int como unsigned (|menor int| não cabe em int)
+// Magnitude de um i64 como unsigned (|menor i64| não cabe em i64)
 std::uint64_t magnitude(std::int64_t v) {
     return v < 0 ? std::uint64_t{0} - static_cast<std::uint64_t>(v) : static_cast<std::uint64_t>(v);
 }
@@ -867,7 +882,7 @@ Value mathClamp(Args a) {
     return a[0];
 }
 
-// factorial(n): até 20! (o maior que cabe em int)
+// factorial(n): até 20! (o maior que cabe em i64)
 Value mathFactorial(Args a) {
     const std::int64_t n = a[0].asInt();
     if (n < 0)  falha("ValueError: 'factorial' de número negativo");
@@ -1115,7 +1130,7 @@ Value convFromBase(Args a) {
         else falha(invalido);
         if (d >= base) falha(invalido);
         if (__builtin_mul_overflow(m, base, &m) || __builtin_add_overflow(m, d, &m) || m > limite)
-            falha("ValueError: '" + s + "' está fora do intervalo de i64");
+            falha("OverflowError: '" + s + "' na base " + std::to_string(base) + " não cabe em i64");
     }
     return Value(negativo ? static_cast<std::int64_t>(std::uint64_t{0} - m) : static_cast<std::int64_t>(m));
 }
@@ -1124,10 +1139,18 @@ Value convFromBase(Args a) {
 // Lists
 // ============================================================================
 
-// Ordem de valores comparáveis (int, decimal ou string; a lista é homogênea)
+// Ordem de valores comparáveis (números ou strings; a lista é homogênea). Ponto
+// flutuante: nan fica depois de todos (inclusive de inf), para a ordem ser total
+// — com o < do IEEE, nan não é menor nem maior que nada e a ordenação quebra
 bool menor(const Value& x, const Value& y) {
     if (x.kind() == Value::Kind::STRING) return x.asString() < y.asString();
-    return numero(x) < numero(y);
+    if (x.isFloat()) {
+        const double a = x.asFloat(), b = y.asFloat();
+        if (a != a) return false;   // nan não é menor que nada
+        if (b != b) return true;    // tudo é menor que nan
+        return a < b;
+    }
+    return x.asInt() < y.asInt();
 }
 
 Value listSort(Args a) {
@@ -1168,8 +1191,8 @@ Value listSlice(Args a) {
 // Soma/produto de lista com o tipo dos elementos (seção K): ponto flutuante
 // segue o IEEE (pode dar inf/nan; f32 conta em float); i32 conta em 64 bits e
 // o total precisa caber em i32. Lista vazia → o
-// neutro como inteiro de 64 bits, que a chamada ajusta ao tipo estático
-// (nativeResult, operacoes.h)
+// neutro como inteiro de 64 bits, que a CVM ajusta ao tipo estático da chamada
+// (CONV depois do CALLNATIVE de uma nativa genérica)
 static Value foldNumeros(Args a, bool soma, const char* nome) {
     const auto& elems = a[0].asList()->elements;
     const std::string oque = soma ? "a soma de '" : "o produto de '";
@@ -1245,17 +1268,20 @@ const std::vector<Value>& naoVazia(Args a, const char* fn) {
     return elems;
 }
 
+// min/max: com algum nan, o resultado é nan (como Math.min/max)
 Value listMin(Args a) {
     const auto& elems = naoVazia(a, "min");
+    for (const auto& v : elems) if (ehNan(v)) return v;
     return *std::min_element(elems.begin(), elems.end(), menor);
 }
 Value listMax(Args a) {
     const auto& elems = naoVazia(a, "max");
+    for (const auto& v : elems) if (ehNan(v)) return v;
     // o primeiro dos maiores, como min
     return *std::max_element(elems.begin(), elems.end(), menor);
 }
 
-// average: sempre decimal
+// average: sempre f64
 Value listAverage(Args a) {
     const auto& elems = naoVazia(a, "average");
     double total = 0;
@@ -1354,11 +1380,14 @@ Value listConcat(Args a) {
     return makeList(std::move(out));
 }
 
-// Tipos em que operator< é uma ordem total (os demais são comparados com ==)
+// Valores em que operator< é uma ordem total, coerente com == (os demais são
+// comparados com ==). nan não entra: nan != nan, mas o std::set o trataria como
+// equivalente a tudo (unique([nan, 1.ff]) perdia o 1)
 bool ordenavel(const Value& v) {
+    if (v.isInteger()) return true;
+    if (v.isFloat()) return !ehNan(v);
     switch (v.kind()) {
-        case Value::Kind::I64: case Value::Kind::F64: case Value::Kind::STRING:
-        case Value::Kind::BOOL: case Value::Kind::ENUM:
+        case Value::Kind::STRING: case Value::Kind::BOOL: case Value::Kind::ENUM:
             return true;
         default:
             return false;
@@ -1390,7 +1419,7 @@ Value listRepeat(Args a) {
 Value listCopy(Args a) { return makeList(std::vector<Value>(a[0].asList()->elements)); }
 
 // ============================================================================
-// Time — uma data/hora é um int: segundos desde 1970-01-01 00:00 UTC. As partes,
+// Time — uma data/hora é um i64: segundos desde 1970-01-01 00:00 UTC. As partes,
 // make, format e parse usam o horário local; as variantes _utc, o UTC. O
 // calendário é calculado aqui (algoritmos civis de H. Hinnant, exatos em toda a
 // faixa); do sistema só vem o deslocamento do fuso local.

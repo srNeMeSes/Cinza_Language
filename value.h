@@ -29,7 +29,7 @@ struct CinzaDict;
 struct CinzaPair;
 struct ClassInstance;
 
-// Valor de enum: a declaração e o índice do valor. Não há int visível na
+// Valor de enum: a declaração e o índice do valor. Não há i64 visível na
 // linguagem: o índice só serve para comparar e ordenar chaves de dict.
 struct EnumValue {
     const EnumDecl* decl  = nullptr;
@@ -67,7 +67,7 @@ struct Value {
         INSTANCE,
         STRUCT,      // C3
         ERROR,       // C4: erro capturado em except / criado com Tipo("msg")
-        TYPE,        // valor de type() e literal de tipo (int, list<int>, Pessoa)
+        TYPE,        // valor de type() e literal de tipo (i64, list<i64>, Pessoa)
         ENUM,        // valor de enum (Cor.Verde): a declaração e o índice do valor
         I32,         // inteiro de 32 bits (int32_t) — no fim, para não mudar a ordem dos demais
         F32,         // ponto flutuante de 32 bits (float, IEEE 754)
@@ -132,7 +132,7 @@ struct Value {
     Value(Value&&) noexcept            = default;
     Value& operator=(Value&&) noexcept = default;
 
-    // Os tipos de 32 bits têm fábrica com nome: o construtor Value(int) é i64
+    // Os tipos de 32 bits têm fábrica com nome: o construtor Value(int) do C++ é i64
     static Value i32(std::int32_t v) { Value r; r.data = v; return r; }
     static Value f32(float v)        { Value r; r.data = v; return r; }
 

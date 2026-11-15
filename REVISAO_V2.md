@@ -1244,7 +1244,13 @@ comuns ao interpretador e à CVM):
   > (`convertValue`). Os nomes antigos de `Random`/`Convert` têm erro que aponta o substituto. Testes
   > migrados por script (nomes) e à mão (mensagens: `Math` agora devolve nan/inf; texto que não cabe é
   > `OverflowError`, como no `cast`). 12 testes novos `k5_*`. 472/472/472.
-- [ ] 6. Spec, desenho da CVM e o mapeamento para LLVM.
+- [x] 6. Spec, desenho da CVM e o mapeamento para LLVM. — feito em 2026-11-14 (com L1 e L2)
+  > Nota: o DESENHO foi atualizado em L1 (instruções da seção K e seção 12, LLVM). Spec: 1.4/1.5
+  > (palavras `cast`, `i32`, `f32`; literais inteiros i32/i64 e de ponto flutuante com sufixo), 2
+  > (gramática com `cast<T>(...)` e os tipos novos), 3.1 (os quatro tipos, as famílias e a tabela do
+  > `cast<T>`), 3.3/3.5, 5.3 (aritmética, comparação e igualdade por família; IEEE), 5.4 (forma
+  > textual de f32/f64), 5.6/5.7 (tamanhos e posições i32), 6 (variáveis de tipo `inteiro` e
+  > `flutuante`, `range`, `Math` IEEE, `Random`, `Convert`, ordem com nan em `Lists`) e 7. Versão 3.
 
 ## L. Só a CVM, sem compatibilidade antiga, e varredura (2026-11-14)
 
@@ -1264,6 +1270,29 @@ ela") e fazer uma varredura completa atrás de bugs e inconsistências.
   > Extensão do VS Code (`C:\cinza-vscode`, 0.3.0): tipos `i32`/`i64`/`f32`/`f64`, `cast`, literais
   > `1.5f`/`1.5ff` (com ponto e sem sufixo aparece como inválido), módulo `Time`, `printf`/`format`/
   > `exit`, diretivas de teste; saem `int`, `decimal` e `op`. 466/466.
+- [x] L2. Varredura: ~90 programas de sondagem (números e `cast` em todos os pontos de passagem,
+  campos, `const`, interfaces, módulos, exceções e `finally`, coleções, strings Unicode, fatias,
+  `Time`, `Convert`, limites da CVM) e revisão textual do código. — feito em 2026-11-14
+  > Corrigido (cada um com teste `l_*`):
+  > - **nan quebrava a ordenação** (`Lists.sort`/`sorted`/`sort_desc`/`sort_by`): o `<` do IEEE não é
+  >   uma ordem válida, e a lista saía fora de ordem (`sorted([2, nan, 1])` voltava igual; no C++ é
+  >   comportamento indefinido). Agora a ordem é total, com nan depois de todos (inclusive de inf).
+  > - **`Math.min`/`max` com nan dependiam da ordem**: `min(nan, 1)` dava nan e `min(1, nan)` dava 1.
+  >   Agora nan se propaga dos dois lados; `Lists.min`/`max` também.
+  > - **`Lists.unique` perdia elementos com nan**: o `std::set` tratava nan como igual a tudo
+  >   (`unique([nan, 1.ff])` dava `[nan]`). nan agora usa o caminho do `==` (cada nan fica); `i32`/`f32`
+  >   passaram a usar o caminho rápido.
+  > - **`Strings.pad_left`/`pad_right`/`center` com largura enorme** esgotavam a memória com "erro
+  >   interno do compilador"; agora `ValueError` acima de 2²⁸ caracteres, como `repeat`.
+  > - **`range` enorme como lista** (`range(0, 1000000000)`) esgotava a memória; agora `ValueError`
+  >   acima de 100 milhões de elementos, como `Lists.repeat` (o `for` sobre `range` não cria a lista e
+  >   continua sem limite). E memória esgotada em geral sai como "memória insuficiente", não como bug.
+  > - **`Convert.from_base` fora da faixa** lançava `ValueError`; agora `OverflowError`, como o `cast`
+  >   e a regra da seção K.
+  > - A mensagem de `var` em campo sugeria `'int x = 0;'` (tipo que não existe mais); agora `i32`.
+  >   Acesso a campo num primitivo não fala mais em "classe conhecida".
+  > Limpeza: `nativeResult` (só o interpretador usava) saiu; comentários e testes ainda citavam
+  > `int`/`decimal`, o interpretador ou "os dois modos". 476/476.
 
 ---
 

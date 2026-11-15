@@ -1,0 +1,13 @@
+// Varredura L: pad_left/pad_right/center com largura absurda lançam ValueError
+// (antes esgotavam a memória com "erro interno do compilador").
+import Strings as st;
+fn main() {
+  try { print(st.pad_left("a", 9000000000000)); } except (ValueError e) { print(e.message); }
+  try { print(st.pad_right("a", 300000000, "-")); } except (ValueError e) { print(e.message); }
+  try { print(st.center("a", 9000000000000)); } except (ValueError e) { print(e.message); }
+  print(st.pad_left("a", 3, "0"), st.center("a", -5), st.pad_right("ab", 1));
+}
+// expect: a largura de 'pad_left' passaria de 1 GiB (recebeu 9000000000000)
+// expect: a largura de 'pad_right' passaria de 1 GiB (recebeu 300000000)
+// expect: a largura de 'center' passaria de 1 GiB (recebeu 9000000000000)
+// expect: 00a a ab

@@ -30,6 +30,13 @@ static Value nativeRange(std::span<const Value> args) {
 
     if (passo == 0)
         throw RuntimeError("ValueError: o passo de 'range' não pode ser 0");
+    // a lista inteira na memória: o mesmo limite de Lists.repeat (antes, um range
+    // enorme esgotava a memória com erro interno). O for sobre range não cria a
+    // lista e não tem limite.
+    const long double qtd = (static_cast<long double>(fim) - inicio) / passo;
+    if (qtd > 100'000'000.0L)
+        throw RuntimeError("ValueError: 'range' de mais de 100 milhões de elementos (use-o direto no "
+                           "for, que não cria a lista)");
 
     std::vector<Value> elems;
     for (std::int64_t i = inicio; passo > 0 ? i < fim : i > fim;) {
@@ -50,7 +57,7 @@ static Value nativeInput(std::span<const Value> args) {
     return Value(std::move(linha));
 }
 
-// exit([int código]) -> void: encerra o programa com o código (padrão 0, de 0
+// exit([i64 código]) -> void: encerra o programa com o código (padrão 0, de 0
 // a 255), depois de rodar os finally pendentes (EXIT_KIND, runtime_error.h)
 static Value nativeExit(std::span<const Value> args) {
     const std::int64_t codigo = args.empty() ? 0 : args[0].asInt();

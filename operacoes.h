@@ -81,18 +81,6 @@ float doubleToF32(double d);
 // (resolved_type: i32/i64, f32/f64)
 Value literalValue(const std::variant<std::int64_t, double, std::string, bool>& v, TypeRef t);
 
-// Nativa genérica (Lists.sum de lista vazia devolve 0 inteiro de 64 bits): o
-// resultado ganha a largura do tipo estático `t` da chamada
-inline Value nativeResult(Value r, TypeRef t) {
-    if (t && t->isNumeric() && r.isNumber() && (r.isInteger() != t->isInteger() ||
-                                                 r.kind() != (t->is(TypeInfo::Kind::I32) ? Value::Kind::I32 :
-                                                              t->is(TypeInfo::Kind::I64) ? Value::Kind::I64 :
-                                                              t->is(TypeInfo::Kind::F32) ? Value::Kind::F32 :
-                                                                                           Value::Kind::F64)))
-        return convertValue(r, t);
-    return r;
-}
-
 // ── interfaces e type() ──────────────────────────────────────────────────
 
 // Tipo real de um valor cujo tipo estático é `st` (spec 3.8): a classe de um
