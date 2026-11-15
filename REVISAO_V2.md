@@ -1448,10 +1448,39 @@ exemplos); ela saiu na N3. Testes com prefixo `gen_`.
   > função (só quando o `]` é seguido de `(`; índices e fatias não mudam). Spec versão 4.
   > 16 testes `gen_*` novos. 569/569, limpo sob ASan/UBSan.
 
-**Fora desta seção** (em discussão com o autor): `struct` e `class` genéricas — falta decidir como
+**Fora desta seção** (em discussão com o autor, continua aberto): `struct` e `class` genéricas — falta decidir como
 um campo de tipo genérico recebe valor inicial (proposta: sem valor inicial, quem cria fornece;
 na classe, o construtor atribui) —, métodos genéricos, interfaces genéricas, restrições opcionais
 (`T: Forma`) e especialização.
+
+## O. Imports a partir da raiz do projeto (2026-11-15)
+
+Problema apontado pelo autor: um projeto organizado em pastas não conseguia importar entre
+pastas irmãs. O `import a.b;` procurava primeiro na pasta do arquivo que importa (e depois no
+`CINZA_PATH`), sem como subir uma pasta: `servicos/cadastro.cinza` não achava
+`modelos/usuario.cinza`. Também dava ao mesmo arquivo nomes diferentes conforme quem importava
+(`usuario` para o vizinho, `modelos.usuario` para o principal), ruim para os nomes de símbolo
+estáveis que o backend LLVM vai precisar (compilação separada, cópias de genéricos).
+
+Decisão do autor: **híbrido com o marcador `czm.mod` (vazio)**. A raiz do projeto é a pasta do
+`czm.mod` mais próximo (na pasta do arquivo principal ou acima); sem ele, a pasta do principal.
+O import parte sempre da raiz, depois do `CINZA_PATH` (bibliotecas fora do projeto); sai a busca
+na pasta de quem importa (sem import relativo nem `..`).
+
+- [x] O1. Raiz do projeto, busca raiz + `CINZA_PATH`, ambiguidade. — feito em 2026-11-15
+  > Nota: `ModuleLoader::projectRoot` sobe as pastas atrás do `czm.mod` (raiz relativa à pasta
+  > atual quando o caminho do principal é relativo, para as mensagens continuarem
+  > `tests/modulos/geom.cinza`); `resolve` devolve todos os arquivos achados, sem repetir o mesmo
+  > arquivo (a raiz também pode estar no `CINZA_PATH`). Mais de um é `ImportError` ("o módulo
+  > 'x' existe em mais de um lugar: A e B"). "Não encontrado" explica que o caminho parte da raiz.
+  > O conteúdo do `czm.mod` é ignorado por enquanto (lugar futuro da configuração de build).
+  > Spec 4.11 (raiz, exemplo de projeto, ambiguidade) e 7.2. `tests/czm.mod` faz de `tests/` um
+  > projeto: o `run_tests.py` deixa de passar `CINZA_PATH=tests`, e os módulos de apoio que
+  > importavam vizinhos (`usa_geom`, `cvm_usa`, `ciclo_a`/`ciclo_b`) usam o caminho a partir da
+  > raiz. `exemplos/rede_neural/czm.mod` marca o exemplo como projeto. Testes `o_pasta_irma`,
+  > `o_sem_busca_relativa`, `o_mesmo_caminho_em_dois_lugares`, `o_raiz_no_cinza_path`; sem
+  > `czm.mod` (raiz na pasta do principal) e rodar um arquivo de subpasta conferidos à mão, num
+  > projeto temporário (a suíte inteira vive sob `tests/czm.mod`). 573/573, limpo sob ASan/UBSan.
 
 ---
 
@@ -1494,6 +1523,7 @@ na classe, o construtor atribui) —, métodos genéricos, interfaces genéricas
 | 2026-10-04 | J2 | `Files.read_bytes(caminho) -> list<int>` e `Files.write_bytes(caminho, list<int>)`, bytes de 0 a 255 (fora disso, `ValueError`). | Decisão do autor da linguagem; formatos binários sem passar por texto UTF-8. |
 | 2026-10-03 | I4 | `menor_int % -1` dá `0` (revê A5); `-0.0` continua `-0` no `print`; decimais extremos continuam em notação científica. | Decisão do autor da linguagem; `x % -1` cabe sempre em `int`. |
 | 2026-10-03 | H3 | `exit([código])`: padrão 0, de 0 a 255; roda os `finally` pendentes e nenhum `except` o captura; encerra o caminho na análise de fluxo. | Decisão do autor da linguagem; 0–255 dá o mesmo resultado em todo sistema. |
+| 2026-11-15 | O | Imports a partir da raiz do projeto: a pasta do `czm.mod` mais próximo (marcador, vazio por enquanto) ou, sem ele, a do arquivo principal; depois `CINZA_PATH`. Sai a busca na pasta de quem importa (sem import relativo); o mesmo caminho em dois lugares é erro. | Decisão do autor: projetos em pastas importam entre pastas irmãs, cada módulo tem um nome só (estável para o LLVM) e o projeto não depende de configuração da máquina. |
 | 2026-11-15 | N | Funções genéricas (revê "A Cinza não terá genéricos", D): monomorfização; corpo conferido só no uso, com o tipo concreto, sem restrições declaradas (modelo do Zig); genérico não usado não é conferido; tipos deduzidos dos argumentos, explícitos opcionais e obrigatórios quando não dedutíveis; colchetes como sintaxe exclusiva da função genérica (`fn f[T]`, `f[i32](x)`), com `list<T>`/`cast<T>` mantidos; erros com rastro dos usos e limite de 64 cópias encadeadas. `struct`/`class` genéricas ficam para depois. | Decisão do autor: genéricos simples e leves, sem custo na execução, "deixando à mercê do usuário criar um bom programa". |
 | 2026-11-14 | M | Infinito e NaN não existem na Cinza: divisão por zero de ponto flutuante é `ZeroDivisionError`, estouro é `OverflowError`, fora do domínio é `ValueError` (revê o "IEEE em tudo" da seção K). `TypeError` fica para os genéricos. | Decisão do autor: inf e NaN vão contra a filosofia da linguagem. |
 | 2026-11-14 | L | Só a CVM (o interpretador de referência sai; o próximo backend é LLVM) e nenhuma compatibilidade com versões antigas da linguagem: o que muda, muda de vez. | Decisão do autor: a linguagem está em desenvolvimento e não tem programas de terceiros. |

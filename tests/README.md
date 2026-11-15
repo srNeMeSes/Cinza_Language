@@ -38,12 +38,12 @@ O prefixo do nome (`a5_`, `k3_`, `gen_`...) é o item do `REVISAO_V2.md` que cri
 
 ## Módulos de apoio
 
-`modulos/` não tem testes: são os módulos importados por eles (`import modulos.geom;`). Como os
-testes ficam em subpastas, o `run_tests.py` roda cada um com `CINZA_PATH=tests` (um teste pode
-trocar com `// env:`). Para rodar um desses testes à mão, da raiz do projeto:
+`modulos/` não tem testes: são os módulos importados por eles (`import modulos.geom;`). O arquivo
+`tests/czm.mod` (vazio) faz de `tests/` a raiz do projeto (spec 4.11), então o mesmo import vale
+em qualquer subpasta, também ao rodar um teste à mão:
 
 ```
-$env:CINZA_PATH = "tests"; ./cinza.exe tests/genericos/gen_modulo.cinza
+./cinza.exe tests/genericos/gen_modulo.cinza
 ```
 
 `spec_exemplos/` é gerada a cada execução (fora do git); `tests_adm/` é local e não entra na

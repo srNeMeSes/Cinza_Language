@@ -1,0 +1,3 @@
+// Módulo auxiliar (o_sem_busca_relativa): o nome do vizinho sem o caminho da raiz
+import cadastro;
+pub fn nada() {}

@@ -16,10 +16,14 @@ namespace cinza {
 // ============================================================================
 // CARREGADOR DE MÓDULOS (C5)
 //
-// `import util.texto;` procura "util/texto.cinza" primeiro na pasta do
-// arquivo que importa e depois em cada pasta de CINZA_PATH (separadas por
-// ';' no Windows e ':' nos demais). Cada arquivo é lido e analisado uma só
-// vez (cache pelo caminho canônico), mesmo que vários módulos o importem.
+// Raiz do projeto: a pasta do czm.mod mais próximo (na pasta do arquivo
+// principal ou acima dela); sem czm.mod, a pasta do arquivo principal.
+// `import util.texto;` procura "util/texto.cinza" a partir da raiz, em
+// qualquer arquivo do programa (não depende de onde está quem importa), e
+// depois em cada pasta de CINZA_PATH (separadas por ';' no Windows e ':' nos
+// demais). Achar o mesmo caminho em mais de um desses lugares é erro. Cada
+// arquivo é lido e analisado uma só vez (cache pelo caminho canônico), mesmo
+// que vários módulos o importem.
 // Import circular é erro, com a cadeia completa ("a → b → a").
 //
 // A ordem final põe as dependências antes de quem as importa e o arquivo
@@ -50,6 +54,9 @@ public:
     // Módulos em ordem topológica, principal por último
     std::vector<Module>& ordered() { return modules; }
 
+    // Raiz do projeto do arquivo principal (relativa, se o caminho dele for relativo)
+    static std::string projectRoot(const std::string& main_path);
+
 private:
     enum class Estado { Visitando, Pronto };
 
@@ -58,6 +65,7 @@ private:
     std::unordered_map<std::string, size_t>   indices;    // canônico → índice em modules
     std::vector<std::pair<std::string, std::string>> pilha;   // (canônico, display) em visita
     std::unordered_map<std::string, std::string> prefixos_usados;   // prefixo → canônico
+    std::string raiz;   // raiz do projeto (ver projectRoot)
 
     // Carrega um arquivo e (recursivamente) seus imports; devolve o índice
     // em modules, ou -1 em caso de erro. `code` só vem pronto no principal;
@@ -66,10 +74,11 @@ private:
                const std::string* code, const std::string& prefix,
                const Token* import_tok);
 
-    // Caminho do arquivo do import, ou "" se não existir; `tentados` recebe
-    // os locais procurados
-    std::string resolve(const ImportDecl& imp, const std::string& importer_dir,
-                        std::vector<std::string>& tentados) const;
+    // Arquivos do import na raiz e em cada pasta de CINZA_PATH (sem repetir o
+    // mesmo arquivo): vazio se não existir; mais de um é ambiguidade.
+    // `tentados` recebe os locais procurados.
+    std::vector<std::string> resolve(const ImportDecl& imp,
+                                     std::vector<std::string>& tentados) const;
 
     static void importError(const std::string& msg, const Token& tok);
     // Índice do módulo nativo em modules (criado na primeira vez)

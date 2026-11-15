@@ -74,10 +74,9 @@ def ler_entrada(caminho):
 
 def ler_ambiente(caminho):
     """Ambiente do processo: o atual mais as variáveis de `// env: NOME=valor`.
-    CINZA_PATH=tests por padrão: os testes ficam em subpastas por assunto e importam
-    os módulos de apoio de tests/modulos/ (import modulos.geom)."""
+    (tests/czm.mod faz de tests/ a raiz do projeto: `import modulos.geom;` vale em
+    qualquer subpasta, sem CINZA_PATH.)"""
     env = dict(os.environ)
-    env["CINZA_PATH"] = "tests"   # relativo à raiz (cwd): as mensagens mostram tests/modulos/...
     for linha in caminho.read_text(encoding="utf-8-sig").splitlines():
         m = RE_ENV.search(linha)
         if m:

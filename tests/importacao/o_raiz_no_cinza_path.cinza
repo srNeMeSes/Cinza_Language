@@ -1,0 +1,5 @@
+// O: a raiz repetida no CINZA_PATH é o mesmo lugar, não ambiguidade
+// env: CINZA_PATH=tests
+import modulos.geom;
+fn main() { print(geom.area(3)); }
+// expect: 9

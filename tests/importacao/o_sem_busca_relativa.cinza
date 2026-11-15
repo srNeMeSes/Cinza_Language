@@ -1,0 +1,5 @@
+// O: a pasta de quem importa não é mais procurada (só a raiz e o CINZA_PATH)
+import modulos.servicos.relativo;
+fn main() {}
+// expect-error: módulo 'cadastro' não encontrado (procurado em: tests/cadastro.cinza)
+// expect-error: não da pasta de quem importa

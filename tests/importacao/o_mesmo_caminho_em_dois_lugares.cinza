@@ -1,0 +1,5 @@
+// O: o mesmo caminho na raiz e no CINZA_PATH é erro (nenhum encobre o outro)
+// env: CINZA_PATH=tests/modulos/dup
+import modulos.geom;
+fn main() {}
+// expect-error: o módulo 'modulos.geom' existe em mais de um lugar: tests/modulos/geom.cinza e tests/modulos/dup/modulos/geom.cinza

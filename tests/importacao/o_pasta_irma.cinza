@@ -1,0 +1,10 @@
+// O: o import parte da raiz do projeto (tests/czm.mod), em qualquer arquivo;
+// servicos/cadastro.cinza importa modelos/usuario.cinza, pasta irmã. O principal
+// importa o mesmo módulo pelo mesmo nome: um módulo, um nome, carregado uma vez
+import modulos.servicos.cadastro;
+import modulos.modelos.usuario;
+fn main() {
+  usuario.Usuario x = cadastro.cadastra("ana");
+  print(x, cadastro.descreve(x), cadastro.descreve(usuario.novo("bia", 2)));
+}
+// expect: Usuario{nome: "ana", id: 1} ana#1 bia#2

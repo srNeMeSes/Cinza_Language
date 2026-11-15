@@ -51,7 +51,7 @@ fn main() {
 |-----------------|------|--------|
 | `LexicalError`  | léxico: caractere inválido, string sem fim, escape desconhecido, literal fora da faixa, identificador com acento | todos os do arquivo, juntos |
 | `SyntaxError`   | gramática | o analisador se recupera e relata os erros que encontrar |
-| `ImportError`   | módulos: arquivo não encontrado, importação circular, nome reservado | o primeiro |
+| `ImportError`   | módulos: arquivo não encontrado, o mesmo caminho em dois lugares, importação circular, nome reservado | o primeiro |
 | `SemanticError` | tipos, nomes, regras das declarações | o primeiro |
 
 Se houver erro de compilação, nada do programa é executado.

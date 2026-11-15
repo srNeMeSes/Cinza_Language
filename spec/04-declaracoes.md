@@ -288,10 +288,29 @@ import util.texto;          // apelido: texto
 import util.texto as tx;    // apelido: tx
 ```
 
-`import a.b.c;` procura o arquivo `a/b/c.cinza`, primeiro na pasta do arquivo que importa e
-depois em cada pasta da variável de ambiente `CINZA_PATH` (separadas por `;` no Windows e `:` nos
-demais sistemas). Cada arquivo é carregado uma só vez, mesmo que vários módulos o importem.
+`import a.b.c;` procura o arquivo `a/b/c.cinza` **a partir da raiz do projeto**, e depois em cada
+pasta da variável de ambiente `CINZA_PATH` (separadas por `;` no Windows e `:` nos demais
+sistemas), que serve para bibliotecas fora do projeto. O caminho é o mesmo em qualquer arquivo
+do programa: não depende da pasta de quem importa, e não há import relativo nem `..`. Assim um
+módulo tem um nome só. Cada arquivo é carregado uma só vez, mesmo que vários módulos o importem.
 
+A **raiz do projeto** é a pasta do arquivo `czm.mod` mais próximo: o compilador procura esse
+arquivo na pasta do arquivo principal e, se não achar, em cada pasta acima dela. Sem `czm.mod`,
+a raiz é a pasta do arquivo principal, então um programa de um arquivo só (ou com os módulos ao
+lado) não precisa de configuração. O `czm.mod` só marca o projeto; por enquanto o conteúdo dele
+é ignorado.
+
+```
+projeto/
+  czm.mod
+  main.cinza                 import servicos.cadastro;
+  modelos/usuario.cinza
+  servicos/cadastro.cinza    import modelos.usuario;
+  servicos/teste.cinza       import modelos.usuario;   (rodado direto: a raiz continua projeto/)
+```
+
+- Achar o mesmo caminho em mais de um lugar (na raiz e numa pasta de `CINZA_PATH`, ou em duas
+  delas) é `ImportError`: nenhum módulo encobre outro em silêncio.
 - Os `import` vêm antes de qualquer declaração; um `import` depois é erro.
 - Dois imports com o mesmo apelido são erro (use `as`).
 - Importação circular (`a` importa `b`, que importa `a`) é erro, com a cadeia completa.

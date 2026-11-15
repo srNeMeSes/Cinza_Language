@@ -1,6 +1,7 @@
 #include "module_loader.h"
 #include "parser.h"
 #include "source_files.h"
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -66,25 +67,54 @@ size_t ModuleLoader::nativeIndex(const NativeModule& nm) {
 }
 
 bool ModuleLoader::load(const std::string& main_path, const std::string& main_code) {
+    raiz = projectRoot(main_path);
     return visit(main_path, main_path, &main_code, "", nullptr) >= 0;
 }
 
-std::string ModuleLoader::resolve(const ImportDecl& imp, const std::string& importer_dir,
-                                  std::vector<std::string>& tentados) const {
+// Sobe a partir da pasta do arquivo principal até achar um czm.mod (o marcador
+// do projeto, por enquanto vazio). Sem marcador, a raiz é a pasta do principal.
+// Caminho principal relativo dá raiz relativa à pasta atual, para as mensagens
+// mostrarem "tests/modulos/geom.cinza" como antes.
+std::string ModuleLoader::projectRoot(const std::string& main_path) {
+    std::error_code ec;
+    const fs::path principal(main_path);
+    fs::path pasta = fs::absolute(principal, ec).parent_path();
+    fs::path achada;
+    for (fs::path p = pasta; !p.empty(); p = p.parent_path()) {
+        if (fs::is_regular_file(p / "czm.mod", ec)) { achada = p; break; }
+        if (p == p.parent_path()) break;   // chegou à raiz do disco
+    }
+    if (achada.empty()) achada = pasta;
+    if (principal.is_relative()) {
+        fs::path rel = achada.lexically_relative(fs::current_path(ec));
+        if (!rel.empty()) return rel.generic_string();
+    }
+    return achada.generic_string();
+}
+
+std::vector<std::string> ModuleLoader::resolve(const ImportDecl& imp,
+                                               std::vector<std::string>& tentados) const {
     fs::path rel;
     for (const auto& parte : imp.path) rel /= parte;
     rel += ".cinza";
 
-    std::vector<fs::path> bases{fs::path(importer_dir)};
+    std::vector<fs::path> bases{fs::path(raiz.empty() ? "." : raiz)};
     for (auto& p : pastasCinzaPath()) bases.push_back(std::move(p));
 
+    std::vector<std::string> achados, canonicos;
     for (const auto& base : bases) {
         fs::path cand = (base / rel).lexically_normal();
+        if (std::find(tentados.begin(), tentados.end(), cand.generic_string()) != tentados.end())
+            continue;   // a raiz repetida no CINZA_PATH
         tentados.push_back(cand.generic_string());
         std::error_code ec;
-        if (fs::is_regular_file(cand, ec)) return cand.generic_string();
+        if (!fs::is_regular_file(cand, ec)) continue;
+        const std::string c = canonico(cand);   // a raiz também pode estar no CINZA_PATH
+        if (std::find(canonicos.begin(), canonicos.end(), c) != canonicos.end()) continue;
+        canonicos.push_back(c);
+        achados.push_back(cand.generic_string());
     }
-    return "";
+    return achados;
 }
 
 long ModuleLoader::visit(const std::string& path, const std::string& display,
@@ -162,13 +192,13 @@ long ModuleLoader::visit(const std::string& path, const std::string& display,
     // Imports, em profundidade
     estados[canon] = Estado::Visitando;
     pilha.emplace_back(canon, display);
-    const std::string dir = fs::path(path).parent_path().generic_string();
     for (const auto& imp : mod.program->imports) {
         std::string nome;
         for (const auto& parte : imp.path) nome += (nome.empty() ? "" : ".") + parte;
 
         std::vector<std::string> tentados;
-        const std::string achado = resolve(imp, dir.empty() ? "." : dir, tentados);
+        const std::vector<std::string> achados = resolve(imp, tentados);
+        const std::string achado = achados.empty() ? "" : achados.front();
 
         // Fase 7: módulo nativo (import Math;). Um arquivo do usuário com o
         // mesmo nome no caminho de busca é erro, sem ambiguidade.
@@ -186,8 +216,18 @@ long ModuleLoader::visit(const std::string& path, const std::string& display,
         if (achado.empty()) {
             std::string lista;
             for (const auto& t : tentados) lista += (lista.empty() ? "" : ", ") + t;
-            importError("módulo '" + nome + "' não encontrado (procurado em: " + lista + ")",
-                        imp.token);
+            importError("módulo '" + nome + "' não encontrado (procurado em: " + lista + "). "
+                        "O caminho do import parte da raiz do projeto (a pasta do czm.mod, ou "
+                        "a do arquivo principal), não da pasta de quem importa", imp.token);
+            return -1;
+        }
+        // O mesmo caminho na raiz e numa pasta de CINZA_PATH (ou em duas delas):
+        // nenhum encobre o outro em silêncio
+        if (achados.size() > 1) {
+            std::string lista;
+            for (const auto& a : achados) lista += (lista.empty() ? "" : " e ") + a;
+            importError("o módulo '" + nome + "' existe em mais de um lugar: " + lista +
+                        "; renomeie ou remova um deles", imp.token);
             return -1;
         }
         const long idx = visit(achado, achado, nullptr, nome, &imp.token);
