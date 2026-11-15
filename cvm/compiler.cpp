@@ -1062,6 +1062,7 @@ Image Compiler::run() {
         for (const auto& s : prog->statements) {
             if (s->node_kind == NodeKind::FunctionDecl) {
                 auto* fn = static_cast<const FunctionDecl*>(s.get());
+                if (!fn->type_params.empty()) continue;   // N2: só as cópias são compiladas
                 proto_of[fn] = newProto(fn->trace_name, fn->token);
             } else if (s->node_kind == NodeKind::ClassDecl) {
                 auto* c = static_cast<const ClassDecl*>(s.get());
@@ -1081,6 +1082,13 @@ Image Compiler::run() {
                 struct_of[st->name] = img.structs.size();
                 img.structs.push_back(st);
             }
+        }
+
+    // N2: cópias das funções genéricas (maior[i32]...), funções comuns
+    for (const auto* prog : programs)
+        for (const auto& s : prog->instancias) {
+            auto* fn = static_cast<const FunctionDecl*>(s.get());
+            proto_of[fn] = newProto(fn->trace_name, fn->token);
         }
 
     // tabelas de interface: para cada interface cumprida, os protótipos na ordem
@@ -1114,6 +1122,7 @@ Image Compiler::run() {
         for (const auto& s : prog->statements) {
             if (s->node_kind == NodeKind::FunctionDecl) {
                 auto* fn = static_cast<const FunctionDecl*>(s.get());
+                if (!fn->type_params.empty()) continue;   // N2
                 body(&img.protos[proto_of.at(fn)], fn->num_slots, fn->parameters.size(), false,
                      fn->body.get(), fn->token, fn->return_type->kind == Type::Kind::VOID);
             } else if (s->node_kind == NodeKind::ClassDecl) {
@@ -1128,6 +1137,13 @@ Image Compiler::run() {
                          c->constructor->token, true);
                 if (ref.init != ClassRef::none) classInit(c, ref.init);
             }
+        }
+
+    for (const auto* prog : programs)   // N2: as cópias das genéricas
+        for (const auto& s : prog->instancias) {
+            auto* fn = static_cast<const FunctionDecl*>(s.get());
+            body(&img.protos[proto_of.at(fn)], fn->num_slots, fn->parameters.size(), false,
+                 fn->body.get(), fn->token, fn->return_type->kind == Type::Kind::VOID);
         }
 
     // 4. a main do principal (o semântico garante que existe)

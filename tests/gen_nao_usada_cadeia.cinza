@@ -1,0 +1,5 @@
+// genérica usada só por outra que nunca é usada: nenhuma é conferida
+fn quebrada[T](T x) -> i32 { return x.nada; }
+fn tambem_nao_usada[T](T x) -> i32 { return quebrada(x); }
+fn main() { print("ok"); }
+// expect: ok

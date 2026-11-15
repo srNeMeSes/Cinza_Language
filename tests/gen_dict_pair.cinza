@@ -1,0 +1,12 @@
+// dedução dentro de dict e pair; tipo de retorno com os parâmetros de tipo
+fn chaves[K, V](dict<K, V> d) -> list<K> {
+  list<K> r;
+  for (pair<K, V> p in d) { r.add(p.first); }
+  return r;
+}
+fn troca[A, B](pair<A, B> p) -> pair<B, A> { return {p.second, p.first}; }
+fn main() {
+  dict<string, i32> d = {{"b", 2}, {"a", 1}};
+  print(chaves(d), troca({1, "x"}));
+}
+// expect: ["a", "b"] {"x", 1}

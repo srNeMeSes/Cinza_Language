@@ -1,0 +1,7 @@
+// 8.3: dentro de coleções o tipo é exato (invariância): T = i64 não aceita list<i32>
+fn f[T](T a, list<T> l) -> i32 { return l.size(); }
+fn main() {
+  i64 g = 5;
+  print(f(g, [1, 2]));
+}
+// expect-error: tipos conflitantes para 'T' em 'f': 'i64' e 'i32'

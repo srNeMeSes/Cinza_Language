@@ -1,0 +1,3 @@
+fn f[T, T](T a) {}
+fn main() {}
+// expect-error: Parâmetro de tipo 'T' repetido em 'f'

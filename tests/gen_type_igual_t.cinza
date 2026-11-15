@@ -1,0 +1,5 @@
+// type(x) == T compara com o tipo concreto da cópia
+fn mesmo[T](T x) -> bool { return type(x) == T; }
+fn e_texto[T](T x) -> bool { return T == string; }
+fn main() { print(mesmo(1), mesmo([1.5f]), e_texto("a"), e_texto(2)); }
+// expect: true true true false

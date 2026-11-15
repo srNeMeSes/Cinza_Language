@@ -1,0 +1,6 @@
+fn vazia[T]() -> list<T> {
+  list<T> l;
+  return l;
+}
+fn main() { var x = vazia[Nada](); }
+// expect-error: Tipo desconhecido 'Nada'

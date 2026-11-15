@@ -1,0 +1,8 @@
+// 8.2: T aceita o que o tipo real aceitar, inclusive new
+struct Ponto { i32 x = 3; }
+class Caixa { i32 v = 1; pub { fn valor() -> i32 { return v; } } }
+fn cria[T]() -> T { return new T(); }
+fn main() {
+  print(cria[Ponto](), cria[Caixa]().valor());
+}
+// expect: Ponto{x: 3} 1

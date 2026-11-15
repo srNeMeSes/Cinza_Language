@@ -1,0 +1,9 @@
+// 8.3: list<i64> fixa T = i64, e o i32 de fora é promovido
+fn f[T](T a, list<T> l) -> T { return a + l[0]; }
+fn main() {
+  i32 x = 1;
+  list<i64> l = [5000000000];
+  var r = f(x, l);
+  print(r, type(r));
+}
+// expect: 5000000001 i64

@@ -1,0 +1,3 @@
+fn f[T](T x) {}
+fn main() { var g = f; }
+// expect-error: 'f' é uma função

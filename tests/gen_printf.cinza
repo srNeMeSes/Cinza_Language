@@ -1,0 +1,12 @@
+// printf no corpo e chamada genérica dentro da interpolação
+fn maior[T](T a, T b) -> T {
+  if (a > b) { return a; }
+  return b;
+}
+fn mostra[T](T x) { printf("valor: {x} ({type(x)})"); }
+fn main() {
+  mostra(maior(2, 9));
+  printf("{maior[f64](1.5ff, 0.5ff):.2f}");
+}
+// expect: valor: 9 (i32)
+// expect: 1.50

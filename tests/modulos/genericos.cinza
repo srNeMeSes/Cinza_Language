@@ -1,0 +1,9 @@
+// N2: funções genéricas exportadas por um módulo (testes gen_modulo*)
+struct Ponto { string nome = "do módulo"; }
+pub fn primeiro[T](list<T> l) -> T { return l[0]; }
+pub fn nome_de[T](T x) -> string { return x.nome; }
+pub fn cria[T]() -> T { return new T(); }
+pub fn local() -> string { return nome_de(new Ponto()); }
+fn ajuda(i32 n) -> i32 { return n * 10; }
+pub fn vezes_dez[T](T x) -> i32 { return ajuda(cast<i32>(x)); }
+fn secreta[T](T x) -> T { return x; }

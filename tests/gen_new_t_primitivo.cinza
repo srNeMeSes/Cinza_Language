@@ -1,0 +1,5 @@
+// com T = i32, 'new T()' deixa de ser sintaxe válida: erro com o rastro
+fn cria[T]() -> T { return new T(); }
+fn main() { print(cria[i32]()); }
+// expect-error: Com T = i32, o corpo de 'cria' não é válido
+// expect-error:     em cria[i32], usada em

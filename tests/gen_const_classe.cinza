@@ -1,0 +1,6 @@
+// a regra do const vale na cópia (const não se aplica a objeto de classe)
+class C { i32 v = 0; }
+fn f[T](const T x) {}
+fn main() { f(new C()); }
+// expect-error: 'const' não pode ser usado em objeto de classe
+// expect-error:     em f[C], usada em

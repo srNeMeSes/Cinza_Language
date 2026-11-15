@@ -1,0 +1,11 @@
+// genéricas que se chamam: cada combinação é uma cópia só (cache)
+fn par[T](T x, i32 n) -> bool {
+  if (n == 0) { return true; }
+  return impar(x, n - 1);
+}
+fn impar[T](T x, i32 n) -> bool {
+  if (n == 0) { return false; }
+  return par(x, n - 1);
+}
+fn main() { print(par("a", 10), impar(1.5ff, 7)); }
+// expect: true true

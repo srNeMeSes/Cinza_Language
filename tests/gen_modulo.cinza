@@ -1,0 +1,12 @@
+// 8.1: genérica pub de outro módulo; o corpo resolve nomes no módulo dela
+// (ajuda e o Ponto de lá), os tipos vêm de quem usa (o Ponto daqui)
+import modulos.genericos as g;
+struct Ponto { string nome = "do principal"; }
+fn main() {
+  print(g.primeiro([3, 4]), g.primeiro[string](["a"]));
+  print(g.nome_de(new Ponto()), g.cria[Ponto]().nome, g.local());
+  print(g.vezes_dez(4));
+}
+// expect: 3 a
+// expect: do principal do principal do módulo
+// expect: 40

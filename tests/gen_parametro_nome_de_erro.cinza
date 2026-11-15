@@ -1,0 +1,4 @@
+// os tipos de erro embutidos também são nomes de tipo
+fn f[ValueError](i32 a) {}
+fn main() {}
+// expect-error: o parâmetro de tipo 'ValueError' tem o nome de um tipo

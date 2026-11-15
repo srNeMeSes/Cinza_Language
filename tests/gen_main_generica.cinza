@@ -1,0 +1,2 @@
+fn main[T]() {}
+// expect-error: A função 'main' não pode ser genérica

@@ -1,0 +1,12 @@
+// 8.2: com T struct o parâmetro é uma cópia (5.1); campos lidos e alterados
+struct P { i32 v = 0; }
+fn zera[T](T x) -> T {
+  x.v = 0;
+  return x;
+}
+fn main() {
+  P a = new P(7);
+  P b = zera(a);
+  print(a, b);
+}
+// expect: P{v: 7} P{v: 0}

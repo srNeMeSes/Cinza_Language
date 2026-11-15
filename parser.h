@@ -29,7 +29,10 @@ private:
     size_t current;
     bool has_errors;
     bool silencioso = false;   // não relata erros (expressão dentro de um texto)
-    // Profundidade da árvore em construção: parênteses, unários, cada operador de
+    // N2: com silencioso, o primeiro erro fica guardado para quem chamou relatar
+    std::string primeiro_erro;
+    Token       primeiro_erro_tok;
+// Profundidade da árvore em construção: parênteses, unários, cada operador de
     // uma cadeia (a + b + c... cresce para a esquerda) e instruções aninhadas.
     // Acima do limite é erro de sintaxe, antes que as etapas recursivas (parser,
     // semântico, compilador da CVM) estourem a pilha do C++.
@@ -186,6 +189,13 @@ public:
     static ExprPtr parseEmbedded(const std::string& codigo, const Token& origem, int coluna,
                                  const std::set<std::string>& apelidos);
     
+    // N2: uma cópia de função genérica — os tokens da declaração com os tipos
+    // concretos no lugar dos parâmetros de tipo. Devolve a FunctionDecl, ou nulo
+    // com o primeiro erro de sintaxe em `erro`/`erro_tok`.
+    static StmtPtr parseGenericCopy(std::vector<Token> tokens,
+                                    const std::set<std::string>& apelidos,
+                                    std::string& erro, Token& erro_tok);
+
     // Verifica se houve erros
     bool hasErrors() const { return has_errors; }
     

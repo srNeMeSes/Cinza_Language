@@ -299,6 +299,11 @@ Cada módulo ganha um protótipo de inicialização com os `const` globais (`SET
 os de todos os módulos na ordem topológica (spec 4.2) e depois chama a `main`, com `args` em `r0`
 se ela tiver o parâmetro. As constantes dos módulos nativos (`Math.pi`) já começam nos seus slots.
 
+**Funções genéricas** (spec, capítulo 8) não chegam à VM: o semântico cria uma cópia por
+combinação de tipos usada (`Program::instancias` do módulo da declaração), já com os tipos
+concretos, e o compilador as trata como funções comuns, com o nome `maior[i32]` no protótipo
+(e no stack trace). A declaração genérica em si não gera protótipo. Nenhuma instrução nova.
+
 ## 9. Coleta de ciclos
 
 Os registradores guardam `Value`, então os objetos que eles seguram contam como referências
@@ -392,4 +397,5 @@ O backend LLVM partirá da mesma AST analisada (tipos já resolvidos e promoçõ
 | `cast<T>(string)` e para `string` | chamada ao runtime (`convertValue`) |
 
 O runtime (coleções, strings, coleta de ciclos, biblioteca padrão, erros e stack trace) continua
-em C++ e seria chamado pelo código gerado.
+em C++ e seria chamado pelo código gerado. As funções genéricas chegam como as cópias concretas
+(seção 8): o LLVM nunca vê um parâmetro de tipo.

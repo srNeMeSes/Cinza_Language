@@ -307,7 +307,7 @@ int main(int argc, char* argv[]) {
         try {
             analyzer.analyze(units);
         } catch (const SemanticError& e) {
-            diagnostics().report("SemanticError", e.message, e.loc);   // B6
+            diagnostics().report("SemanticError", e.message, e.loc, e.notes);   // B6, N2
             diagnostics().flush(std::cerr);
             return 1;
         }

@@ -1,0 +1,4 @@
+// T aparece em list<T>, mas o argumento não é uma lista
+fn soma[T](list<T> l) -> i32 { return l.size(); }
+fn main() { print(soma(5)); }
+// expect-error: Argumento 1 de 'soma': esperado 'list<T>', mas recebeu 'i32'

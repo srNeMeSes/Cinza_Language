@@ -1,7 +1,0 @@
-// N1: o parser lê fn nome[T](...) (com o corpo); a análise das cópias vem na N2
-fn maior[T, U](T a, T b) -> T {
-  if (a > b) { return a; }
-  return b;
-}
-fn main() {}
-// expect-error: Funções genéricas ainda não estão implementadas ('maior')

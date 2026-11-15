@@ -525,12 +525,21 @@ void SemanticAnalyzer::checkStructCycles() {
 
 // Registra uma função no escopo global como Symbol::Kind::FUNCTION.
 void SemanticAnalyzer::registerFunction(const FunctionDecl& fn) {
-    // N1: o parser já lê as funções genéricas; a análise (cópias por tipo) vem na N2
+    // N2: função genérica — só o nome; a assinatura concreta nasce em cada cópia
     if (!fn.type_params.empty()) {
-        throwError("Funções genéricas ainda não estão implementadas ('" + fn.name + "')",
-                   fn.token);
+        Symbol sym;
+        sym.name          = fn.name;
+        sym.kind          = Symbol::Kind::FUNCTION;
+        sym.return_type   = types.voidType();
+        sym.resolved_type = sym.return_type;
+        sym.line          = fn.token.line;
+        sym.column        = fn.token.column;
+        sym.module        = current_module;
+        sym.fn_decl       = &fn;
+        symbol_table.declare(sym, fn.token);
+        return;
     }
-    Symbol sym;
+Symbol sym;
     sym.name          = fn.name;
     sym.kind          = Symbol::Kind::FUNCTION;
 
@@ -637,6 +646,9 @@ void SemanticAnalyzer::analyze(Program& program) {
 // por último.
 void SemanticAnalyzer::analyze(std::vector<ModuleUnit>& units) {
     // Embutidos (tipos de erro), visíveis em todos os módulos
+    programas.clear();   // N2: onde guardar as cópias das genéricas de cada módulo
+    for (const auto& u : units) programas.push_back(u.native ? nullptr : u.program);
+
     current_module = -1;
     for (const auto& k : builtinErrorKinds())
         registerErrorType(k, Token());
@@ -721,6 +733,7 @@ void SemanticAnalyzer::analyze(std::vector<ModuleUnit>& units) {
         // Passo 2: analisar cada statement na ordem.
         for (const auto& stmt : program.statements) {
             analyzeStmt(stmt.get());
+            analisaInstancias();   // N2: cópias genéricas criadas por esta declaração
         }
 
         // Passo 3 (Fase 2.5): o programa começa em main (só no principal)
@@ -733,6 +746,9 @@ void SemanticAnalyzer::analyze(std::vector<ModuleUnit>& units) {
 // ============================================================================
 
 std::string SemanticAnalyzer::qualifyName(const std::string& name, const Token& tok) const {
+    // N2: "::Ponto" é um tipo do principal escrito numa cópia genérica de outro
+    // módulo: já é o nome completo (o principal não tem prefixo)
+    if (name.rfind("::", 0) == 0) return name.substr(2);
     if (current_module < 0) return name;
     if (name.find("::") != std::string::npos) return name;   // já é nome completo
 
@@ -774,6 +790,7 @@ const Symbol* SemanticAnalyzer::lookup(const std::string& name, const Token& tok
 }
 
 const Symbol* SemanticAnalyzer::findSymbol(const std::string& name) const {
+    if (name.rfind("::", 0) == 0) return symbol_table.resolveGlobal(name.substr(2));   // N2
     if (name.find("::") != std::string::npos) return symbol_table.resolveGlobal(name);
     if (const Symbol* s = symbol_table.resolveLocal(name)) return s;
     std::string full = name;
@@ -902,7 +919,12 @@ void SemanticAnalyzer::analyzeStmt(Stmt* stmt) {
             }
             return;
         }
-        case NodeKind::FunctionDecl:    analyzeFunctionDecl   (static_cast<FunctionDecl*>(stmt));        return;
+        case NodeKind::FunctionDecl: {
+            auto* fn = static_cast<FunctionDecl*>(stmt);
+            if (!fn->type_params.empty()) checkGenericDecl(fn);   // N2: o corpo não é analisado
+            else analyzeFunctionDecl(fn);
+            return;
+        }
         case NodeKind::ClassDecl:       analyzeClassDecl      (static_cast<ClassDecl*>(stmt));           return;
         case NodeKind::StructDecl:      analyzeStructDecl     (static_cast<StructDecl*>(stmt));          return;
         default:                        break;
@@ -2007,16 +2029,18 @@ TypeRef SemanticAnalyzer::analyzeUnary(UnaryExpr* expr) {
 //     nativa do prelude (print, range)
 //   - Verifica existência, aridade e tipos dos argumentos
 TypeRef SemanticAnalyzer::analyzeCall(CallExpr* expr) {
-    // N1: f[i32](...) com algo que não é função genérica (na N1, nada é: as
-    // declarações genéricas são recusadas antes)
-    if (!expr->type_args.empty()) {
+    // ── Função declarada pelo usuário ─────────────────────────────────────
+    std::string full_name;
+    const Symbol* sym = lookup(expr->function_name, expr->token, full_name);
+
+    // N2: f[i32](...) só vale para uma função genérica
+    const bool generica = sym && sym->kind == Symbol::Kind::FUNCTION && sym->fn_decl &&
+                          !sym->fn_decl->type_params.empty();
+    if (!expr->type_args.empty() && !generica) {
         throwError("'" + expr->function_name + "' não é uma função genérica: os colchetes "
                    "antes de '(' informam os tipos de uma função declarada com "
                    "fn nome[T](...)", expr->token);
     }
-    // ── Função declarada pelo usuário ─────────────────────────────────────
-    std::string full_name;
-    const Symbol* sym = lookup(expr->function_name, expr->token, full_name);
 
     // ── Chamada implícita a método da própria classe ──────────────────────
     // Dentro de um método, nome() sem objeto refere-se a this.nome().
@@ -2055,6 +2079,7 @@ TypeRef SemanticAnalyzer::analyzeCall(CallExpr* expr) {
     }
 
     if (sym) expr->function_name = full_name;   // C5: função/erro de módulo
+    if (generica) return analyzeGenericCall(expr, *sym);   // N2
 
     // Fase 7: função de módulo nativo (Math.sqrt, st.upper)
     if (sym) {
@@ -3135,6 +3160,348 @@ bool SemanticAnalyzer::allPathsReturn(const Stmt* stmt) const {
         default:
             return false;
     }
+}
+
+// ============================================================================
+// N2 — FUNÇÕES GENÉRICAS (spec, capítulo 8)
+// Cada combinação de tipos usada vira uma cópia comum da função (monomorfização).
+// A cópia nasce dos tokens da declaração (FunctionDecl::fonte), sem a lista
+// [T, U] e com cada parâmetro de tipo trocado pelos tokens do tipo concreto,
+// reparseados: cada cópia tem a própria AST, analisada e compilada como uma
+// função escrita à mão. O corpo da genérica em si nunca é analisado — genérico
+// não usado não é conferido.
+// ============================================================================
+
+namespace {
+
+constexpr int MAX_COPIAS_ENCADEADAS = 64;
+
+// maior[i32], junta[f64, A, bool] (nomes completos; as mensagens tiram os prefixos)
+std::string nomeCopia(const std::string& base, const std::vector<TypeRef>& tipos) {
+    std::string s = base + "[";
+    for (size_t i = 0; i < tipos.size(); ++i) s += (i ? ", " : "") + tipos[i]->str();
+    return s + "]";
+}
+
+// Nome de cópia para mensagens: sem prefixos de módulo e encurtado quando os tipos
+// crescem demais (cresce[list<list<...>>]); identificadores são ASCII (1.3)
+std::string nomeParaMensagem(const std::string& nome) {
+    std::string s = stripModulePrefixes(nome);
+    if (s.size() > 60) s = s.substr(0, 56) + "...]";
+    return s;
+}
+
+int indiceParametro(const FunctionDecl& g, const std::string& nome) {
+    for (size_t i = 0; i < g.type_params.size(); ++i)
+        if (g.type_params[i].lexeme == nome) return static_cast<int>(i);
+    return -1;
+}
+
+// O parâmetro de tipo T aparece no tipo escrito t?
+bool menciona(const Type* t, const std::string& T) {
+    if (!t) return false;
+    if (t->kind == Type::Kind::CUSTOM && t->name == T) return true;
+    for (const auto& q : t->type_params)
+        if (menciona(q.get(), T)) return true;
+    return false;
+}
+
+// Algum parâmetro de tipo aparece no tipo escrito t (sozinho ou dentro de list/dict/pair)?
+bool mencionaParametro(const Type* t, const FunctionDecl& g) {
+    if (!t) return false;
+    if (t->kind == Type::Kind::CUSTOM && indiceParametro(g, t->name) >= 0) return true;
+    for (const auto& q : t->type_params)
+        if (mencionaParametro(q.get(), g)) return true;
+    return false;
+}
+
+// Os tokens que escrevem o tipo t, na posição do parâmetro de tipo trocado.
+// `marca_principal`: a genérica é de um módulo importado, e um tipo do principal
+// (sem prefixo) vai como "::Nome", para não ser qualificado no módulo dela.
+void tokensDoTipo(TypeRef t, const Token& pos, bool marca_principal, std::vector<Token>& out) {
+    auto tk = [&](TokenType ty, const std::string& lx) {
+        Token x = pos;
+        x.type   = ty;
+        x.lexeme = lx;
+        out.push_back(x);
+    };
+    auto params = [&](TokenType ty, const std::string& lx) {
+        tk(ty, lx);
+        tk(TokenType::OP_LESS, "<");
+        for (size_t i = 0; i < t->params.size(); ++i) {
+            if (i) tk(TokenType::COMMA, ",");
+            tokensDoTipo(t->params[i], pos, marca_principal, out);
+        }
+        tk(TokenType::OP_GREATER, ">");
+    };
+    switch (t->kind) {
+        case TK::I32:    tk(TokenType::TYPE_I32, "i32");       return;
+        case TK::I64:    tk(TokenType::TYPE_I64, "i64");       return;
+        case TK::F32:    tk(TokenType::TYPE_F32, "f32");       return;
+        case TK::F64:    tk(TokenType::TYPE_F64, "f64");       return;
+        case TK::String: tk(TokenType::TYPE_STRING, "string"); return;
+        case TK::Bool:   tk(TokenType::TYPE_BOOL, "bool");     return;
+        case TK::List:   params(TokenType::TYPE_LIST, "list"); return;
+        case TK::Dict:   params(TokenType::TYPE_DICT, "dict"); return;
+        case TK::Pair:   params(TokenType::TYPE_PAIR, "pair"); return;
+        default: {   // class, struct, enum, interface, erro
+            const bool completo = t->name.find("::") != std::string::npos;
+            tk(TokenType::IDENTIFIER, !completo && marca_principal ? "::" + t->name : t->name);
+            return;
+        }
+    }
+}
+
+}  // namespace
+
+void SemanticAnalyzer::checkGenericDecl(FunctionDecl* fn) {
+    const std::string nome = stripModulePrefixes(fn->name);
+    if (nome == "main")
+        throwError("A função 'main' não pode ser genérica: ela é o ponto de entrada do "
+                   "programa, chamada sem tipos.", fn->token);
+    for (size_t i = 0; i < fn->type_params.size(); ++i) {
+        const Token& p = fn->type_params[i];
+        for (size_t j = 0; j < i; ++j)
+            if (fn->type_params[j].lexeme == p.lexeme)
+                throwError("Parâmetro de tipo '" + p.lexeme + "' repetido em '" + nome + "'", p);
+        if (isKnownType(qualifyName(p.lexeme, p)))
+            throwError("Em '" + nome + "', o parâmetro de tipo '" + p.lexeme + "' tem o nome de "
+                       "um tipo declarado; escolha outro nome (ex.: T)", p);
+        checkNotAlias(p.lexeme, p);
+    }
+}
+
+// Um argumento de tipo é um tipo de valor conhecido: nem void, nem var, nem o
+// tipo 'type' (de type(x)); class/struct/... precisam existir
+void SemanticAnalyzer::confereArgumentoDeTipo(TypeRef t, const std::string& param,
+                                              const std::string& fn, const Token& tok) {
+    std::function<void(TypeRef)> visita = [&](TypeRef x) {
+        if (x->is(TK::Void) || x->is(TK::Var) || x->is(TK::Type) || x->is(TK::TypeVar))
+            throwError("'" + x->str() + "' não pode ser o tipo de '" + param + "' em '" + fn +
+                       "': um argumento de tipo é um tipo de valor (i32, string, list<i32>, "
+                       "uma struct...)", tok);
+        if (x->is(TK::Class) && !class_table.count(x->name))
+            throwError("Tipo desconhecido '" + x->str() + "'", tok);
+        for (TypeRef q : x->params) visita(q);
+    };
+    visita(t);
+}
+
+TypeRef SemanticAnalyzer::analyzeGenericCall(CallExpr* expr, const Symbol& sym) {
+    const FunctionDecl& g = *sym.fn_decl;
+    const std::string nome = stripModulePrefixes(expr->function_name);
+    const size_t n = g.type_params.size();
+
+    if (expr->arguments.size() != g.parameters.size()) {
+        throwError("Aridade incorreta em '" + nome + "': esperados " +
+                   std::to_string(g.parameters.size()) + " argumento(s), mas recebeu " +
+                   std::to_string(expr->arguments.size()), expr->token);
+    }
+
+    std::vector<TypeRef> tipos(n, nullptr);
+    std::vector<TypeRef> analisados(expr->arguments.size(), nullptr);
+
+    if (!expr->type_args.empty()) {
+        // f[i32, string](...): todos os parâmetros de tipo, na ordem
+        if (expr->type_args.size() != n) {
+            std::string lista;
+            for (size_t k = 0; k < n; ++k) lista += (k ? ", " : "") + g.type_params[k].lexeme;
+            throwError("'" + nome + "' tem " + std::to_string(n) + " parâmetro(s) de tipo (" +
+                       lista + "), mas a chamada informa " +
+                       std::to_string(expr->type_args.size()), expr->token);
+        }
+        for (size_t k = 0; k < n; ++k) tipos[k] = typeOf(expr->type_args[k].get());
+    } else {
+        // 8.3: dedução pelos argumentos em que o parâmetro de tipo aparece. Fora de
+        // coleções, números da mesma família combinam no mais largo; dentro, o tipo
+        // é exato (invariância) e fixa a ligação.
+        struct Ligacao { TypeRef tipo = nullptr; bool fixo = false; };
+        std::vector<Ligacao> lig(n);
+        auto liga = [&](int k, TypeRef a, bool dentro) {
+            Ligacao& l = lig[static_cast<size_t>(k)];
+            if (!l.tipo) { l.tipo = a; l.fixo = dentro; return; }
+            if (l.tipo == a) { l.fixo = l.fixo || dentro; return; }
+            if (!dentro && !l.fixo) {
+                if (TypeRef w = TypeChecker::numericResult(l.tipo, a)) { l.tipo = w; return; }
+            } else if (!dentro) {
+                if (TypeChecker::widens(l.tipo, a)) return;
+            } else if (!l.fixo && TypeChecker::widens(a, l.tipo)) {
+                l.tipo = a; l.fixo = true; return;
+            }
+            throwError("tipos conflitantes para '" + g.type_params[static_cast<size_t>(k)].lexeme +
+                       "' em '" + nome + "': '" + l.tipo->str() + "' e '" + a->str() + "'" +
+                       dicaCast(l.tipo, a), expr->token);
+        };
+        std::function<void(const Type*, TypeRef, bool)> deduz =
+            [&](const Type* p, TypeRef a, bool dentro) {
+                if (!p || !a || a->is(TK::Var)) return;
+                if (p->kind == Type::Kind::CUSTOM) {
+                    if (int k = indiceParametro(g, p->name); k >= 0) liga(k, a, dentro);
+                    return;
+                }
+                const bool mesma_forma = (p->kind == Type::Kind::LIST && a->is(TK::List)) ||
+                                         (p->kind == Type::Kind::DICT && a->is(TK::Dict)) ||
+                                         (p->kind == Type::Kind::PAIR && a->is(TK::Pair));
+                if (!mesma_forma) return;
+                for (size_t i = 0; i < p->type_params.size() && i < a->params.size(); ++i)
+                    deduz(p->type_params[i].get(), a->params[i], true);
+            };
+        for (size_t i = 0; i < expr->arguments.size(); ++i) {
+            const Type* p = g.parameters[i].type.get();
+            if (!mencionaParametro(p, g)) continue;
+            analisados[i] = analyzeExpr(expr->arguments[i].get());
+            deduz(p, analisados[i], false);
+        }
+        for (size_t k = 0; k < n; ++k) {
+            if (lig[k].tipo) { tipos[k] = lig[k].tipo; continue; }
+            const std::string& T = g.type_params[k].lexeme;
+            // T aparece num parâmetro, mas o argumento não tem a forma dele (list<T> com i32)
+            for (size_t i = 0; i < expr->arguments.size(); ++i) {
+                const Type* p = g.parameters[i].type.get();
+                if (analisados[i] && menciona(p, T))
+                    throwError("Argumento " + std::to_string(i + 1) + " de '" + nome +
+                               "': esperado '" + p->toString() + "', mas recebeu '" +
+                               analisados[i]->str() + "'", expr->token);
+            }
+            std::string exemplo;
+            for (size_t j = 0; j < n; ++j) exemplo += j ? ", i32" : "i32";
+            throwError("Não é possível deduzir o tipo '" + T + "' de '" + nome + "' pelos "
+                       "argumentos (ele não aparece nos parâmetros): informe os tipos na chamada, "
+                       "ex.: " + nome + "[" + exemplo + "](...)", expr->token);
+        }
+    }
+    for (size_t k = 0; k < n; ++k)
+        confereArgumentoDeTipo(tipos[k], g.type_params[k].lexeme, nome, expr->token);
+
+    Instancia* inst = instancia(g, sym.module, tipos, expr->token);
+    const std::string copia = stripModulePrefixes(inst->fn->name);
+    for (size_t i = 0; i < expr->arguments.size(); ++i) {
+        TypeRef pt = inst->param_types[i];
+        TypeRef at = analisados[i] ? analisados[i] : analyzeExpr(expr->arguments[i].get(), pt);
+        if (!TypeChecker::isAssignable(pt, at)) {
+            throwError("Argumento " + std::to_string(i + 1) + " de '" + copia + "': esperado '" +
+                       pt->str() + "', mas recebeu '" + at->str() + "'" + dicaCast(pt, at),
+                       expr->token);
+        }
+        coerceInPlace(expr->arguments[i], pt);
+    }
+    expr->target = inst->fn;
+    return expr->resolved_type = inst->return_type;
+}
+
+SemanticAnalyzer::Instancia* SemanticAnalyzer::instancia(const FunctionDecl& g, int modulo,
+                                                         const std::vector<TypeRef>& tipos,
+                                                         const Token& uso) {
+    auto chave = std::make_pair(&g, tipos);
+    if (auto it = instancias.find(chave); it != instancias.end()) return it->second.get();
+
+    const std::string nome = nomeCopia(g.name, tipos);
+    const int profundidade = instancia_atual ? instancia_atual->profundidade + 1 : 1;
+    if (profundidade > MAX_COPIAS_ENCADEADAS) {
+        throwError("Instanciações genéricas encadeadas demais (mais de " +
+                   std::to_string(MAX_COPIAS_ENCADEADAS) + "): '" + stripModulePrefixes(g.name) +
+                   "' gera uma cópia nova a cada chamada, com tipos que só crescem (como T → "
+                   "list<T>); isso nunca termina na compilação, qualquer que seja o valor na "
+                   "execução.", uso);
+    }
+
+    // Tokens da cópia: "fn nome" + o resto depois do ']' dos parâmetros de tipo,
+    // com cada T (que não seja nome de membro, x.T) trocado pelo tipo concreto
+    const std::vector<Token>& F = g.fonte;
+    std::vector<Token> toks{F[0], F[1]};
+    size_t k = 2;
+    while (k < F.size() && F[k].type != TokenType::RBRACKET) ++k;
+    const bool marca = !modules[static_cast<size_t>(modulo)].prefix.empty();
+    for (++k; k < F.size(); ++k) {
+        const Token& t = F[k];
+        const int idx = t.type == TokenType::IDENTIFIER && F[k - 1].type != TokenType::DOT
+                        ? indiceParametro(g, t.lexeme) : -1;
+        if (idx >= 0) tokensDoTipo(tipos[static_cast<size_t>(idx)], t, marca, toks);
+        else toks.push_back(t);
+    }
+    Token fim = F.back();
+    fim.type   = TokenType::END_OF_FILE;
+    fim.lexeme = "";
+    toks.push_back(fim);
+
+    std::set<std::string> apelidos;
+    for (const auto& [apelido, _] : modules[static_cast<size_t>(modulo)].imports)
+        apelidos.insert(apelido);
+    std::string erro;
+    Token       erro_tok;
+    StmtPtr copia = Parser::parseGenericCopy(std::move(toks), apelidos, erro, erro_tok);
+    if (!copia) {
+        // ex.: new T() com T = i32: o corpo deixa de ser sintaxe válida
+        std::string ligacoes;
+        for (size_t j = 0; j < tipos.size(); ++j)
+            ligacoes += (j ? ", " : "") + g.type_params[j].lexeme + " = " + tipos[j]->str();
+        SemanticError e("Com " + ligacoes + ", o corpo de '" + stripModulePrefixes(g.name) +
+                        "' não é válido: " + erro, erro_tok);
+        e.notes = rastro(nome, uso, instancia_atual);
+        throw e;
+    }
+
+    auto* fn = static_cast<FunctionDecl*>(copia.get());
+    fn->name = nome;
+    auto inst = std::make_unique<Instancia>();
+    inst->origem       = &g;
+    inst->tipos        = tipos;
+    inst->fn           = fn;
+    inst->modulo       = modulo;
+    inst->uso          = uso;
+    inst->pai          = instancia_atual;
+    inst->profundidade = profundidade;
+    programas[static_cast<size_t>(modulo)]->instancias.push_back(std::move(copia));
+
+    // Assinatura concreta, resolvida no módulo da declaração
+    const int salvo = current_module;
+    current_module = modulo;
+    for (const auto& p : fn->parameters) inst->param_types.push_back(typeOf(p.type.get()));
+    inst->return_type = typeOf(fn->return_type.get());
+    current_module = salvo;
+
+    Instancia* r = inst.get();
+    instancias.emplace(std::move(chave), std::move(inst));
+    fila_instancias.push_back(r);
+    return r;
+}
+
+void SemanticAnalyzer::analisaInstancias() {
+    while (!fila_instancias.empty()) {
+        Instancia* inst = fila_instancias.front();
+        fila_instancias.pop_front();
+        const int        salvo_modulo = current_module;
+        const Instancia* salva_atual  = instancia_atual;
+        current_module  = inst->modulo;
+        instancia_atual = inst;
+        try {
+            analyzeFunctionDecl(inst->fn);
+        } catch (SemanticError& e) {
+            if (e.notes.empty()) e.notes = rastro(inst->fn->name, inst->uso, inst->pai);
+            throw;
+        }
+        current_module  = salvo_modulo;
+        instancia_atual = salva_atual;
+    }
+}
+
+std::vector<std::string> SemanticAnalyzer::rastro(const std::string& nome, const Token& uso,
+                                                  const Instancia* pai) const {
+    std::vector<std::string> linhas;
+    auto linha = [&](const std::string& n, const Token& u) {
+        linhas.push_back("em " + nomeParaMensagem(n) + ", usada em " + fileName(u.file_id) +
+                         ":" + std::to_string(u.line));
+    };
+    linha(nome, uso);
+    for (const Instancia* p = pai; p; p = p->pai) linha(p->fn->name, p->uso);
+    // como o stack trace (7.3): as 10 mais internas, quantas faltam e a mais externa
+    if (linhas.size() > 12) {
+        std::vector<std::string> curto(linhas.begin(), linhas.begin() + 10);
+        curto.push_back("... (" + std::to_string(linhas.size() - 11) + " usos omitidos)");
+        curto.push_back(linhas.back());
+        return curto;
+    }
+    return linhas;
 }
 
 } // namespace cinza

@@ -1,0 +1,4 @@
+fn nada() {}
+fn f[T](T x) {}
+fn main() { f(nada()); }
+// expect-error: 'void' não pode ser o tipo de 'T' em 'f'

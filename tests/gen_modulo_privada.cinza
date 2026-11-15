@@ -1,0 +1,3 @@
+import modulos.genericos as g;
+fn main() { print(g.secreta(1)); }
+// expect-error: 'secreta' é privado no módulo 'g'

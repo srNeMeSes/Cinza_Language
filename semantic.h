@@ -12,6 +12,8 @@
 #include <map>
 #include <set>
 #include <functional>
+#include <deque>
+#include <memory>
 
 namespace cinza {
 
@@ -24,6 +26,9 @@ class SemanticError : public std::runtime_error {
 public:
     std::string    message;   // sem os prefixos internos de módulo (C5)
     SourceLocation loc;
+    // N2: linhas extras do relato — o rastro dos usos de uma função genérica
+    // ("em f[i32], usada em prog.cinza:9")
+    std::vector<std::string> notes;
 
     SemanticError(const std::string& msg, int ln, int col, int file_id = 0)
         : SemanticError(stripModulePrefixes(msg), SourceLocation{file_id, ln, col}) {}
@@ -358,6 +363,42 @@ private:
     // Lança SemanticError com mensagem formatada (nunca retorna).
     [[noreturn]] void throwError(const std::string& msg, const Token& tok) const;
     [[noreturn]] void throwError(const std::string& msg, int line, int col) const;
+
+    // ── N2: funções genéricas (spec, capítulo 8) ──────────────────────────
+    // Cada combinação de tipos usada vira uma cópia: os tokens da declaração com
+    // cada parâmetro de tipo trocado pelo tipo concreto, reparseados (a cópia
+    // tem a própria AST, dona: Program::instancias do módulo da declaração).
+    struct Instancia {
+        const FunctionDecl*  origem = nullptr;   // a declaração genérica
+        std::vector<TypeRef> tipos;              // na ordem dos parâmetros de tipo
+        FunctionDecl*        fn     = nullptr;   // a cópia (nome "maior[i32]")
+        int                  modulo = -1;        // módulo da declaração
+        Token                uso;                // a chamada que a criou
+        const Instancia*     pai    = nullptr;   // cópia em cujo corpo está o uso
+        int                  profundidade = 1;   // cópias encadeadas até aqui
+        std::vector<TypeRef> param_types;        // assinatura concreta
+        TypeRef              return_type = nullptr;
+    };
+    std::map<std::pair<const FunctionDecl*, std::vector<TypeRef>>,
+             std::unique_ptr<Instancia>> instancias;
+    std::deque<Instancia*>  fila_instancias;    // corpos ainda não analisados
+    const Instancia*        instancia_atual = nullptr;   // corpo em análise
+    std::vector<Program*>   programas;          // por módulo (nullptr no nativo)
+
+    // 8.1: parâmetros de tipo distintos, sem nome de tipo, main não genérica
+    void       checkGenericDecl(FunctionDecl* fn);
+    // f(args) ou f[tipos](args): deduz os tipos, cria (ou reusa) a cópia e confere
+    // os argumentos contra a assinatura concreta
+    TypeRef    analyzeGenericCall(CallExpr* expr, const Symbol& sym);
+    void       confereArgumentoDeTipo(TypeRef t, const std::string& param,
+                                      const std::string& fn, const Token& tok);
+    Instancia* instancia(const FunctionDecl& g, int modulo, const std::vector<TypeRef>& tipos,
+                         const Token& uso);
+    // Analisa os corpos das cópias pendentes (no escopo global, entre declarações)
+    void       analisaInstancias();
+    // "em f[i32], usada em prog.cinza:9", da cópia mais interna para fora
+    std::vector<std::string> rastro(const std::string& nome, const Token& uso,
+                                    const Instancia* pai) const;
 
 public:
     SemanticAnalyzer() = default;

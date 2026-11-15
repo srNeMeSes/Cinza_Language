@@ -1357,7 +1357,7 @@ contrato declarado (Rust/Go):
 Especificação: capítulo 8 (`spec/08-genericos.md`), escrito antes do código; os exemplos dele são
 o alvo das etapas e só passam quando a N3 terminar. Até lá o capítulo traz a linha
 `<!-- exemplos-pendentes: ... -->`, que o `run_tests.py` respeita (avisa com `PEND` e não roda os
-exemplos); ela sai na N3. Testes com prefixo `gen_`.
+exemplos); ela saiu na N3. Testes com prefixo `gen_`.
 
 **Etapas** (cada uma com a suíte verde e um commit):
 
@@ -1383,7 +1383,7 @@ exemplos); ela sai na N3. Testes com prefixo `gen_`.
   > implementadas" na declaração (provisório, sai na N2) e "'f' não é uma função genérica" na
   > chamada com colchetes. 18 testes `gen_*` (um deles, `gen_indices_intactos`, confere índices,
   > fatias, chaves e índices dentro do `printf`). 501/501, limpo sob ASan/UBSan.
-- [ ] N2. Semântico: declaração, dedução e cópias.
+- [x] N2. Semântico: declaração, dedução e cópias. — feito em 2026-11-15, junto com a N3
   - Regras da 8.1: nomes distintos, sem colidir com tipos do módulo, `main` não genérica, sem
     sobrecarga. O corpo de uma genérica não é analisado.
   - Dedução (8.3): unificação dos tipos dos parâmetros com os dos argumentos, reaproveitando a das
@@ -1399,9 +1399,33 @@ exemplos); ela sai na N3. Testes com prefixo `gen_`.
     a análise do corpo ganha as linhas "em f[i32], usada em ...", abreviadas como o stack trace.
     Profundidade acima de 64 é erro. `x[...](...)` com `x` que não é função genérica: "'x' não é
     uma função genérica".
-- [ ] N3. CVM: as cópias são compiladas como funções comuns do módulo da declaração, com o nome
+  > Nota: a substituição é **nos tokens**, antes do reparse: cada `T` (que não venha depois de
+  > `.`) vira os tokens do tipo concreto (`list<i32>` vira `list`, `<`, `i32`, `>`). Assim todo
+  > lugar onde um tipo aparece — declaração, `cast<T>`, `new T()`, `type(x) == T`, `for (T x in
+  > ...)` — sai certo sem percorrer a AST, e um corpo que deixa de ser sintaxe válida (`new i32()`)
+  > vira "Com T = i32, o corpo de 'cria' não é válido: ..." com o rastro. Um tipo do principal
+  > usado por uma genérica de outro módulo vai como `::Nome` (`qualifyName`/`findSymbol` aceitam:
+  > o principal não tem prefixo), para não ser qualificado no módulo da genérica. Dedução por
+  > `Ligacao` (tipo, fixo): fora de coleções, números da mesma família combinam no mais largo;
+  > dentro, o tipo é exato e fixa a ligação (um `i32` de fora ainda é promovido a ele).
+  > Os argumentos usados na dedução são analisados uma vez, sem tipo esperado, e depois
+  > conferidos e convertidos (`coerceInPlace`) contra a assinatura concreta; os outros, com ela
+  > como tipo esperado. Fila de corpos (`analisaInstancias`) esvaziada depois de cada declaração
+  > do nível superior, no módulo da genérica; `SemanticError::notes` leva o rastro até o
+  > `main.cpp`. Nomes de cópia longos (tipos que crescem) são encurtados nas mensagens. Erros
+  > novos: argumento de tipo `void`/`type`/desconhecido, quantidade de tipos explícitos, forma
+  > errada (`list<T>` com `i32`), parâmetro de tipo repetido ou com nome de tipo, `main` genérica.
+- [x] N3. CVM: as cópias são compiladas como funções comuns do módulo da declaração, com o nome
   `f[i32]` na tabela de funções, no stack trace e no `--disasm`. DESENHO.md: nota de que os
-  genéricos não chegam à VM (nem ao LLVM). Os exemplos do capítulo 8 passam.
+  genéricos não chegam à VM (nem ao LLVM). Os exemplos do capítulo 8 passam. — feito em 2026-11-15
+  > Nota: feita junto com a N2 (sem ela, nenhum programa com genérica rodava, e os testes da N2
+  > precisavam rodar). `Program::instancias` guarda as cópias; o compilador pula a declaração
+  > genérica e compila as cópias como funções comuns (o `--bytecode` mostra `fn par[string]`).
+  > Sai a linha `exemplos-pendentes` do capítulo 8: os 17 exemplos passam. Testes: sai o
+  > provisório `gen_n1_declaracao_lida`; 36 novos `gen_*` (dedução, tipos explícitos, invariância,
+  > struct/classe/interface como `T`, `new T()`, `const`, `printf`, recursão e cache, rastro
+  > encadeado e abreviado, módulo com `pub`, privado e erro com rastro — módulo de teste
+  > `tests/modulos/genericos.cinza`). 553/553, limpo sob ASan/UBSan.
 - [ ] N4. Varredura e acabamento: genéricos entre módulos (`pub`, apelido, tipo do módulo de quem
   usa), recursão com e sem crescimento de tipo, interface como `T`, `const`, `var`, `printf`/
   `format` no corpo, coleções aninhadas, colchetes de tipo ao lado de índices e fatias

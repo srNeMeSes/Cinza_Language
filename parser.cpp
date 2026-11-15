@@ -95,7 +95,10 @@ void Parser::error(const std::string& message) {
 
 void Parser::error(const std::string& message, const Token& token) {
     has_errors = true;
-    if (silencioso) return;            // parseEmbedded: quem chamou relata o erro
+    if (silencioso) {                  // parseEmbedded/cópia genérica: quem chamou relata
+        if (primeiro_erro.empty()) { primeiro_erro = message; primeiro_erro_tok = token; }
+        return;
+    }
     if (aninhamento_excedido) return;  // já relatado uma vez; o resto é consequência
     // B6: vai para o motor único de diagnósticos (impresso por quem chamou)
     diagnostics().report("SyntaxError", message + " (token: '" + token.lexeme + "')",
@@ -1793,6 +1796,26 @@ std::string Parser::parseQualifiedName() {
     std::string alias = advance().lexeme;
     advance();   // '.'
     return alias + "." + advance().lexeme;
+}
+
+StmtPtr Parser::parseGenericCopy(std::vector<Token> tokens, const std::set<std::string>& apelidos,
+                                 std::string& erro, Token& erro_tok) {
+    Parser p(std::move(tokens));
+    p.module_aliases = apelidos;
+    p.silencioso     = true;
+    StmtPtr fn;
+    try {
+        fn = p.parseFunctionDeclaration(false);
+    } catch (const ParseError& e) {
+        if (p.primeiro_erro.empty()) { p.primeiro_erro = e.what(); p.primeiro_erro_tok = e.error_token; }
+    }
+    if (!fn || p.has_errors || !p.isAtEnd()) {
+        erro     = p.primeiro_erro.empty() ? "a declaração não termina no '}' do corpo"
+                                           : p.primeiro_erro;
+        erro_tok = p.primeiro_erro.empty() ? p.peek() : p.primeiro_erro_tok;
+        return nullptr;
+    }
+    return fn;
 }
 
 } // namespace cinza

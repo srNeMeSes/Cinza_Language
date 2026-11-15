@@ -1,7 +1,5 @@
 # 8. Genéricos
 
-<!-- exemplos-pendentes: alvo das etapas N1 a N3 do REVISAO_V2.md; esta linha sai na N3 -->
-
 Uma **função genérica** declara parâmetros de tipo entre colchetes, depois do nome:
 `fn maior[T](T a, T b) -> T`. Cada combinação de tipos com que ela é usada gera uma cópia comum
 da função para esses tipos (**monomorfização**): `maior[i32]` e `maior[string]` são duas funções,
@@ -128,6 +126,10 @@ fn zero[T](T exemplo) -> T {
 fn main() { print(zero(5), zero(1.5ff)); }
 // expect-error: em zero[f64], usada em
 ```
+
+O mesmo vale para a sintaxe: `new T()` vale com `T` struct ou classe, mas com `T = i32` o corpo
+da cópia (`new i32()`) não é válido, e o erro aponta o lugar no corpo, com o rastro dos usos
+(seção 8.4).
 
 Os parâmetros seguem a seção 5.1 com o tipo concreto: com `T` struct ou primitivo, o parâmetro é
 uma cópia; com `T` list, dict ou objeto, é compartilhado. `type(x) == T` compara com o tipo

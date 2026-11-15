@@ -1,0 +1,8 @@
+fn f[T](const list<T> l) -> i32 { return l.size(); }
+fn g[T](const list<T> l) { l.add(l[0]); }
+fn main() {
+  print(f([1, 2, 3]));
+  g(["a"]);
+}
+// expect-error: const
+// expect-error:     em g[string], usada em

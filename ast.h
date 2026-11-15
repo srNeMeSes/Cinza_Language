@@ -761,7 +761,10 @@ class Program {
 public:
     std::vector<StmtPtr>    statements; // funções e statements globais
     std::vector<ImportDecl> imports;    // C5
-    
+    // N2: cópias das funções genéricas declaradas neste arquivo (maior[i32]...),
+    // criadas pelo semântico; compiladas como funções comuns
+    std::vector<StmtPtr>    instancias;
+
     Program() = default;
     explicit Program(std::vector<StmtPtr> stmts) : statements(std::move(stmts)) {}
     

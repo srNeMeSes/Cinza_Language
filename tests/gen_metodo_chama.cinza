@@ -1,0 +1,8 @@
+// método de classe chamando uma genérica global
+fn maior[T](T a, T b) -> T {
+  if (a > b) { return a; }
+  return b;
+}
+class C { i32 v = 4; pub { fn m(i32 x) -> i32 { return maior(v, x); } } }
+fn main() { print(new C().m(9), new C().m(1)); }
+// expect: 9 4

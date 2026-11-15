@@ -1,0 +1,5 @@
+// x.T é nome de campo, não o parâmetro de tipo
+struct S { i32 T = 5; }
+fn f[T](S s) -> i32 { return s.T; }
+fn main() { print(f[string](new S())); }
+// expect: 5

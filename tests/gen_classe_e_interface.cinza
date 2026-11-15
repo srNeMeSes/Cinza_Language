@@ -1,0 +1,9 @@
+// T classe (métodos públicos) e T interface (explícito)
+interface Forma { fn area() -> f64; }
+class Q : Forma { f64 l = 2.ff; pub { fn area() -> f64 { return l * l; } } }
+fn area_de[T](T x) -> f64 { return x.area(); }
+fn main() {
+  Q q = new Q();
+  print(area_de(q), area_de[Forma](q));
+}
+// expect: 4 4

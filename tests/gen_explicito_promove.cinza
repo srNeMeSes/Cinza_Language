@@ -1,0 +1,11 @@
+// 8.3: com tipos explícitos os argumentos seguem a assinatura concreta
+fn maior[T](T a, T b) -> T {
+  if (a > b) { return a; }
+  return b;
+}
+fn main() {
+  i32 a = 2;
+  var m = maior[i64](a, 1);
+  print(m, type(m), maior[string]("a", "b"));
+}
+// expect: 2 i64 b

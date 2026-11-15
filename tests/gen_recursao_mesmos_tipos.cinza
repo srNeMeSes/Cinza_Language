@@ -1,0 +1,7 @@
+// recursão com os mesmos tipos usa a mesma cópia
+fn conta[T](list<T> l, i32 i) -> i32 {
+  if (i >= l.size()) { return 0; }
+  return 1 + conta(l, i + 1);
+}
+fn main() { print(conta(["a", "b", "c"], 0), conta([1.5ff], 0)); }
+// expect: 3 1

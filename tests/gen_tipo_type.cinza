@@ -1,0 +1,4 @@
+// o valor de type(x) não é um tipo de valor
+fn f[T](T x) {}
+fn main() { f(type(1)); }
+// expect-error: 'type' não pode ser o tipo de 'T' em 'f'

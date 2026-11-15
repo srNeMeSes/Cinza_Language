@@ -1,0 +1,5 @@
+// continua sem sobrecarga: genérica e comum com o mesmo nome
+fn f[T](T x) {}
+fn f(i32 x) {}
+fn main() {}
+// expect-error: Declaração duplicada: 'f'
