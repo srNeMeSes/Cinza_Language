@@ -1,0 +1,9 @@
+// 4.7: um campo de struct com obrigatórios é obrigatório, a menos que tenha valor inicial
+struct Pessoa { string nome; }
+struct Time { Pessoa capitao; Pessoa reserva = new Pessoa(nome: "ninguém"); }
+fn main() {
+  Time t = new Time(capitao: new Pessoa(nome: "ana"));
+  print(t);
+  Time u = new Time();
+}
+// expect-error: Construtor de 'Time': o campo 'capitao' não tem valor inicial

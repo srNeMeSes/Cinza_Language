@@ -319,6 +319,15 @@ class NewExpr : public Expr {
 public:
     std::string          class_name;
     std::vector<ExprPtr> arguments;
+    // N5: new Par[string, i32](...) — tipos de um struct genérico (vazio sem colchetes);
+    // o semântico troca class_name pelo nome da cópia ("Par[string, i32]")
+    std::vector<TypePtr> type_args;
+    bool                 tipos_resolvidos = false;
+    // N5: criação de struct pelo nome, new Ponto(y: 4): o nome de cada argumento (vazio
+    // na forma posicional) e, preenchido pelo semântico, o índice do campo de cada um
+    std::vector<std::string> arg_names;
+    std::vector<Token>       arg_name_tokens;
+    std::vector<int>         arg_fields;
 
     NewExpr(const Token& tok, const std::string& name, std::vector<ExprPtr> args)
         : Expr(NodeKind::New, tok), class_name(name), arguments(std::move(args)) {}
@@ -687,6 +696,16 @@ class StructDecl : public Stmt {
 public:
     std::string                   name;
     std::vector<ClassDecl::Field> fields;   // na ordem da declaração
+    // N5: struct genérico, struct Par[A, B] { ... }: como em FunctionDecl, os parâmetros de
+    // tipo e os tokens da declaração (de 'struct' ao '}'), reparseados em cada cópia
+    std::vector<Token>            type_params;
+    std::vector<Token>            fonte;
+
+    // N5: campo sem valor inicial que não é list nem dict — informado na criação
+    static bool obrigatorio(const ClassDecl::Field& f) {
+        return !f.initializer && f.type->kind != Type::Kind::LIST &&
+               f.type->kind != Type::Kind::DICT;
+    }
 
     StructDecl(const Token& tok, const std::string& n, std::vector<ClassDecl::Field> flds)
         : Stmt(NodeKind::StructDecl, tok), name(n), fields(std::move(flds)) {}
@@ -762,7 +781,8 @@ public:
     std::vector<StmtPtr>    statements; // funções e statements globais
     std::vector<ImportDecl> imports;    // C5
     // N2: cópias das funções genéricas declaradas neste arquivo (maior[i32]...),
-    // criadas pelo semântico; compiladas como funções comuns
+    // criadas pelo semântico; compiladas como funções comuns. N5: também as cópias
+    // dos structs genéricos (Par[i32, string]), structs comuns
     std::vector<StmtPtr>    instancias;
 
     Program() = default;

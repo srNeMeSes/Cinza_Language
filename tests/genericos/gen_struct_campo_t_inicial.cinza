@@ -1,0 +1,4 @@
+// 8.6: um campo do tipo T não tem valor inicial (conferido mesmo sem uso)
+struct Caixa[T] { T valor = 0; }
+fn main() {}
+// expect-error: Em 'Caixa', o campo 'valor' é do tipo 'T' e não pode ter valor inicial

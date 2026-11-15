@@ -1,0 +1,4 @@
+// 8.1 vale para struct: parâmetros de tipo sem repetir
+struct Par[T, T] { T a; }
+fn main() {}
+// expect-error: Parâmetro de tipo 'T' repetido em 'Par'

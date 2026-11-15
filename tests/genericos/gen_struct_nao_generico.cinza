@@ -1,0 +1,6 @@
+// 8.6: colchetes num tipo só para struct genérico
+struct Ponto { i32 x = 0; }
+fn main() {
+  Ponto[i32] p = new Ponto();
+}
+// expect-error: 'Ponto' não é um struct genérico e não aceita tipos entre colchetes

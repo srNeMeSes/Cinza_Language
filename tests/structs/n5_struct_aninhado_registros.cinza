@@ -1,0 +1,10 @@
+// 4.7 (CVM): new pelo nome dentro de outro, com expressões que usam registros temporários
+struct P { i32 x = 0; i32 y = 0; }
+struct Q { P p; string s = "q"; i32 n; }
+fn dobro(i32 v) -> i32 { return v * 2; }
+fn main() {
+  list<i32> l = [1, 2, 3];
+  Q q = new Q(n: dobro(l[2]) + l.size(), p: new P(y: dobro(l[0]), x: l[1] * 10));
+  print(q, new Q(new P(), "r", 1).p);
+}
+// expect: Q{p: P{x: 20, y: 2}, s: "q", n: 9} P{x: 0, y: 0}

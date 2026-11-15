@@ -1,0 +1,8 @@
+// 8.3 + 8.6: um struct genérico diferente não deduz nada
+struct Caixa[T] { T valor; }
+struct Saco[T] { T valor; }
+fn abre[T](Caixa[T] c) -> T { return c.valor; }
+fn main() {
+  print(abre(new Saco[i32](valor: 1)));
+}
+// expect-error: Argumento 1 de 'abre': esperado 'Caixa[T]', mas recebeu 'Saco[i32]'

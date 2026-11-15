@@ -1,0 +1,11 @@
+// 8.6: no começo da instrução, Nome[...] seguido de nome é declaração; senão, índice
+struct Caixa[T] { T valor; }
+fn main() {
+  list<i32> l = [1, 2];
+  l[0] = 5;
+  Caixa[i32] c = new Caixa[i32](valor: l[0]);
+  list<list<i32>> m = [[1]];
+  m[0][0] = 9;
+  print(l, c.valor, m);
+}
+// expect: [5, 2] 5 [[9]]

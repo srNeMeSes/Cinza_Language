@@ -1,0 +1,6 @@
+// 8.6: o tipo usado precisa existir (também dentro de uma coleção do struct)
+struct Caixa[T] { list<T> l; }
+fn main() {
+  Caixa[Fantasma] c = new Caixa[Fantasma]();
+}
+// expect-error: Tipo desconhecido 'Fantasma'

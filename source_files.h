@@ -36,13 +36,6 @@ inline const std::string& fileName(int file_id) {
     return sourceFiles()[static_cast<size_t>(file_id)];
 }
 
-// Nomes globais de módulos importados levam o prefixo do módulo
-// ("modulos.geom::Ponto"); para o usuário, só o nome declarado aparece.
-inline std::string displayName(const std::string& name) {
-    const auto p = name.rfind("::");
-    return p == std::string::npos ? name : name.substr(p + 2);
-}
-
 // Tira todos os prefixos de módulo de um texto gerado pelo compilador
 // ("esperado 'list<modulos.geom::Ponto>'" → "esperado 'list<Ponto>'")
 inline std::string stripModulePrefixes(const std::string& text) {
@@ -65,6 +58,14 @@ inline std::string stripModulePrefixes(const std::string& text) {
         out += text[i];
     }
     return out;
+}
+
+// Nomes globais de módulos importados levam o prefixo do módulo
+// ("modulos.geom::Ponto"); para o usuário, só o nome declarado aparece. N5: o nome
+// de uma cópia de struct genérico tem outros nomes dentro
+// ("m::Par[string, m::Conta[i32]]" → "Par[string, Conta[i32]]")
+inline std::string displayName(const std::string& name) {
+    return stripModulePrefixes(name);
 }
 
 } // namespace cinza

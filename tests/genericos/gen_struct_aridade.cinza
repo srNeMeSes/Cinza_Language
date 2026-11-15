@@ -1,0 +1,6 @@
+// 8.6: todos os parâmetros de tipo, na ordem
+struct Par[A, B] { A primeiro; B segundo; }
+fn main() {
+  Par[i32] p = new Par[i32](primeiro: 1);
+}
+// expect-error: 'Par' tem 2 parâmetro(s) de tipo (A, B), mas recebeu 1

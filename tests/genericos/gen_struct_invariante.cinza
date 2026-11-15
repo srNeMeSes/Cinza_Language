@@ -1,0 +1,7 @@
+// 8.6: Caixa[i32] e Caixa[i64] são tipos diferentes (invariância)
+struct Caixa[T] { T valor; }
+fn main() {
+  Caixa[i32] a = new Caixa[i32](valor: 1);
+  Caixa[i64] b = a;
+}
+// expect-error: Caixa[i64]

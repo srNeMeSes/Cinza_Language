@@ -1,0 +1,6 @@
+// 4.7: pelo nome, os obrigatórios não podem ser omitidos
+struct Contato { string nome; string telefone = ""; string email; }
+fn main() {
+  Contato c = new Contato(nome: "ana", telefone: "1");
+}
+// expect-error: Na criação de 'Contato', falta o campo obrigatório 'email'

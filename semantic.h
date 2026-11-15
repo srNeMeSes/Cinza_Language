@@ -282,7 +282,9 @@ private:
     void preRegisterDeclarations(const Program& program);
     void registerClass   (const ClassDecl&    cls);
     void registerFunction(const FunctionDecl& fn);
-    void registerStruct  (const StructDecl&   st);   // C3
+    // C3. N5: `simbolo` falso numa cópia de struct genérico (Par[i32, string]), que não é
+    // um nome escrito no código e pode nascer dentro de uma função
+    void registerStruct  (const StructDecl&   st, bool simbolo = true);
     // C3: struct que contém a si mesmo por valor (direta ou indiretamente)
     void checkStructCycles();
     // Nome de tipo definido pelo usuário (class ou struct) existe?
@@ -399,6 +401,38 @@ private:
     // "em f[i32], usada em prog.cinza:9", da cópia mais interna para fora
     std::vector<std::string> rastro(const std::string& nome, const Token& uso,
                                     const Instancia* pai) const;
+    // 8.1: parâmetros de tipo distintos e sem nome de tipo (funções e structs)
+    void       confereParametrosTipo(const std::vector<Token>& params, const std::string& nome);
+
+    // ── N5: structs genéricos (spec 8.6) ──────────────────────────────────
+    // Como as funções: cada combinação de tipos usada vira uma cópia, um struct comum
+    // ("Par[i32, string]"), com os campos registrados na hora (o tipo é preciso já) e
+    // os valores iniciais analisados depois, no escopo global (analisaInstancias).
+    struct StructGenerico {
+        const StructDecl* decl   = nullptr;
+        int               modulo = -1;
+    };
+    std::unordered_map<std::string, StructGenerico> structs_genericos;   // nome completo
+    struct InstanciaStruct {
+        const StructDecl*    origem = nullptr;
+        std::vector<TypeRef> tipos;
+        StructDecl*          decl   = nullptr;   // a cópia
+        int                  modulo = -1;
+        Token                uso;
+        const Instancia*     pai    = nullptr;   // cópia de função em cujo corpo está o uso
+    };
+    std::map<std::pair<const StructDecl*, std::vector<TypeRef>>,
+             std::unique_ptr<InstanciaStruct>> instancias_struct;
+    std::unordered_map<std::string, const InstanciaStruct*> copia_struct;   // nome → cópia
+    std::deque<InstanciaStruct*> fila_structs;    // valores iniciais ainda não analisados
+    int                          structs_abertos = 0;   // cópias montadas umas dentro das outras
+
+    void    checkGenericStructDecl(StructDecl* st);
+    // Par[tipos] escrito num tipo ou num new: confere os tipos e devolve a cópia
+    TypeRef usoStructGenerico(const StructGenerico& g, const std::vector<TypePtr>& args,
+                              const Token& tok);
+    TypeRef instanciaStruct(const StructGenerico& g, const std::vector<TypeRef>& tipos,
+                            const Token& uso);
 
 public:
     SemanticAnalyzer() = default;

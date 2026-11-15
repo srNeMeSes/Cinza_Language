@@ -1448,10 +1448,39 @@ exemplos); ela saiu na N3. Testes com prefixo `gen_`.
   > função (só quando o `]` é seguido de `(`; índices e fatias não mudam). Spec versão 4.
   > 16 testes `gen_*` novos. 569/569, limpo sob ASan/UBSan.
 
-**Fora desta seção** (em discussão com o autor, continua aberto): `struct` e `class` genéricas — falta decidir como
-um campo de tipo genérico recebe valor inicial (proposta: sem valor inicial, quem cria fornece;
-na classe, o construtor atribui) —, métodos genéricos, interfaces genéricas, restrições opcionais
-(`T: Forma`) e especialização.
+- [x] N5. Structs genéricos, campos obrigatórios e criação pelo nome (spec 4.7 e 8.6). — feito
+  em 2026-11-15
+  Decisões do autor: o problema era o campo `T` sem valor inicial possível. (1) Em **todos** os
+  structs, um campo pode ficar sem valor inicial: `list`/`dict` nascem vazios, os demais são
+  obrigatórios na criação (nenhum struct existe com campo sem valor). (2) Criação também pelo
+  nome, `new A[Ponto](ct: ponto)`, omitindo os campos com valor inicial. (3) No uso do struct
+  genérico os tipos são sempre escritos (`A[Ponto]`), sem inferência: com `A[T, K]` e campos
+  omitidos ela não teria de onde sair, e a verbosidade fica restrita aos genéricos.
+  > Nota: mesmo mecanismo das funções. `StructDecl::type_params`/`fonte`; no parser,
+  > `Nome[tipos]` num tipo (`Type::type_params` em `CUSTOM`), `checkCustomTypeDecl` (no começo
+  > de uma instrução, `Nome[...]` seguido de um nome é declaração; senão, índice), `new
+  > Nome[tipos](...)` e argumentos `campo: valor` (`NewExpr::arg_names`). No semântico, o
+  > genérico fica em `structs_genericos` (não é um tipo sozinho); `typeOf` e `analyzeNew` trocam
+  > `Par[i32, string]` pelo nome da cópia, um struct comum: `instanciaStruct` reparseia os tokens
+  > com os tipos trocados, registra os campos na hora (o tipo é preciso já, até no pré-registro;
+  > `list<No[T]>` dentro de `No[T]` acha a cópia, declarada antes dos campos) e deixa os valores
+  > iniciais e a conferência dos tipos para `analisaInstancias`, no escopo global. Erros da cópia
+  > com o rastro; mais de 64 cópias de struct encadeadas (`Cresce[list<T>]`) é erro. A dedução
+  > das funções genéricas entra em `Par[A, B]` com tipos exatos (`copia_struct`). `type(x) == T`
+  > com `T` = cópia de struct é o tipo da cópia. Um campo do tipo `T` não pode ter valor inicial
+  > (conferido mesmo sem uso). CVM: as cópias entram na tabela de structs; a criação pelo nome
+  > avalia os informados na ordem escrita direto no registro do campo, depois os valores
+  > iniciais dos omitidos (`NewExpr::arg_fields`). `displayName` passa a tirar todos os prefixos
+  > (`Par[string, Conta[i32]]`, com `Conta` de outro módulo, saía `Conta[i32]]`). Na classe nada
+  > muda: campo sem valor inicial continua erro (classes genéricas ainda em discussão). Spec
+  > versão 5. Módulo de teste `tests/modulos/structs_genericos.cinza`; 27 testes `gen_struct*`
+  > (um deles, `gen_struct`, reescrito: antes conferia o erro "struct não aceita parâmetros de
+  > tipo") e 14 `n5_*` em `structs/`. 627/627.
+
+**Fora desta seção** (em discussão com o autor, continua aberto): `class` genérica — falta
+decidir como o construtor garante o campo `T` (proposta: atribuição obrigatória no nível de cima
+do construtor) e se a classe inteira é conferida a cada tipo —, métodos genéricos, interfaces
+genéricas, restrições opcionais (`T: Forma`) e especialização.
 
 ## O. Imports a partir da raiz do projeto (2026-11-15)
 
@@ -1523,6 +1552,7 @@ na pasta de quem importa (sem import relativo nem `..`).
 | 2026-10-04 | J2 | `Files.read_bytes(caminho) -> list<int>` e `Files.write_bytes(caminho, list<int>)`, bytes de 0 a 255 (fora disso, `ValueError`). | Decisão do autor da linguagem; formatos binários sem passar por texto UTF-8. |
 | 2026-10-03 | I4 | `menor_int % -1` dá `0` (revê A5); `-0.0` continua `-0` no `print`; decimais extremos continuam em notação científica. | Decisão do autor da linguagem; `x % -1` cabe sempre em `int`. |
 | 2026-10-03 | H3 | `exit([código])`: padrão 0, de 0 a 255; roda os `finally` pendentes e nenhum `except` o captura; encerra o caminho na análise de fluxo. | Decisão do autor da linguagem; 0–255 dá o mesmo resultado em todo sistema. |
+| 2026-11-15 | N5 | Structs genéricos (`struct Par[A, B]`), usados sempre com os tipos escritos (`Par[i32, string]`, sem inferência). Em todo struct, campo sem valor inicial é obrigatório na criação (`list`/`dict` nascem vazios); criação também pelo nome, `new Ponto(y: 4)`, omitindo os campos com valor inicial. Um campo do tipo `T` não tem valor inicial. Classes continuam exigindo valor inicial. | Decisão do autor: resolve o campo `T` sem valor possível, mantendo "nenhum struct com campo sem valor"; sem repetir os padrões na criação. |
 | 2026-11-15 | O | Imports a partir da raiz do projeto: a pasta do `czm.mod` mais próximo (marcador, vazio por enquanto) ou, sem ele, a do arquivo principal; depois `CINZA_PATH`. Sai a busca na pasta de quem importa (sem import relativo); o mesmo caminho em dois lugares é erro. | Decisão do autor: projetos em pastas importam entre pastas irmãs, cada módulo tem um nome só (estável para o LLVM) e o projeto não depende de configuração da máquina. |
 | 2026-11-15 | N | Funções genéricas (revê "A Cinza não terá genéricos", D): monomorfização; corpo conferido só no uso, com o tipo concreto, sem restrições declaradas (modelo do Zig); genérico não usado não é conferido; tipos deduzidos dos argumentos, explícitos opcionais e obrigatórios quando não dedutíveis; colchetes como sintaxe exclusiva da função genérica (`fn f[T]`, `f[i32](x)`), com `list<T>`/`cast<T>` mantidos; erros com rastro dos usos e limite de 64 cópias encadeadas. `struct`/`class` genéricas ficam para depois. | Decisão do autor: genéricos simples e leves, sem custo na execução, "deixando à mercê do usuário criar um bom programa". |
 | 2026-11-14 | M | Infinito e NaN não existem na Cinza: divisão por zero de ponto flutuante é `ZeroDivisionError`, estouro é `OverflowError`, fora do domínio é `ValueError` (revê o "IEEE em tudo" da seção K). `TypeError` fica para os genéricos. | Decisão do autor: inf e NaN vão contra a filosofia da linguagem. |

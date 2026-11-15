@@ -1,0 +1,12 @@
+// 8.4 + 8.6: erro numa cópia de struct criada dentro de uma cópia de função
+struct Indice[K] { dict<K, i32> posicoes; }
+fn conta[K]() -> i32 {
+  Indice[K] i = new Indice[K]();
+  return i.posicoes.size();
+}
+fn main() {
+  print(conta[list<i32>]());
+}
+// expect-error: Chave de dict deve ser i32, i64, string, bool ou enum
+// expect-error:     em Indice[list<i32>], usada em tests/genericos/gen_struct_erro_rastro.cinza:4
+// expect-error:     em conta[list<i32>], usada em tests/genericos/gen_struct_erro_rastro.cinza:8

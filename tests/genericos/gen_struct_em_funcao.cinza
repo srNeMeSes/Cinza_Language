@@ -1,0 +1,13 @@
+// 8.6: função genérica que cria e recebe struct genérico com o T dela
+struct Ponto { i32 x = 0; }
+struct Caixa[T] { T valor; i32 usos = 0; }
+fn embrulha[T](T x) -> Caixa[T] { return new Caixa[T](valor: x); }
+fn abre[T](Caixa[T] c) -> T { return c.valor; }
+fn main() {
+  Caixa[i32] a = embrulha(5);
+  Caixa[string] b = embrulha("cinco");
+  Caixa[Ponto] c = embrulha(new Ponto(3));
+  var x = abre(a);
+  print(a, b.valor, c.valor.x, x, type(x), abre(b));
+}
+// expect: Caixa[i32]{valor: 5, usos: 0} cinco 3 5 i32 cinco

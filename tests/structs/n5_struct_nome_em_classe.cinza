@@ -1,0 +1,9 @@
+// 4.7: argumentos pelo nome só na criação de struct
+class Conta {
+  i32 saldo = 0;
+  pub { Conta(i32 s) { saldo = s; } }
+}
+fn main() {
+  Conta c = new Conta(saldo: 1);
+}
+// expect-error: Argumentos pelo nome (campo: valor) só existem na criação de struct; 'Conta' é uma classe

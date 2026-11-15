@@ -1,0 +1,20 @@
+// 8.6: struct genérico dentro de coleções, de outro struct genérico, em parâmetros,
+// retornos e no for
+struct Par[A, B] { A primeiro; B segundo; }
+struct Caixa[T] { T valor; }
+fn total(list<Par[string, i32]> l) -> i32 {
+  i32 s = 0;
+  for (Par[string, i32] p in l) { s += p.segundo; }
+  return s;
+}
+fn main() {
+  list<Par[string, i32]> pares = [new Par[string, i32]("a", 1), new Par[string, i32]("b", 2)];
+  pares.add(new Par[string, i32](segundo: 3, primeiro: "c"));
+  dict<string, Caixa[f64]> d = {{"pi", new Caixa[f64](valor: 3.14ff)}};
+  Caixa[Caixa[i32]] cc = new Caixa[Caixa[i32]](valor: new Caixa[i32](valor: 7));
+  Par[Caixa[i32], list<string>] misto = new Par[Caixa[i32], list<string>](cc.valor, ["x"]);
+  print(total(pares), d["pi"].valor, cc.valor.valor, misto);
+  print(type(cc), type(misto));
+}
+// expect: 6 3.14 7 Par[Caixa[i32], list<string>]{primeiro: Caixa[i32]{valor: 7}, segundo: ["x"]}
+// expect: Caixa[Caixa[i32]] Par[Caixa[i32], list<string>]

@@ -1,0 +1,6 @@
+// 4.7: pelo nome, só campos do struct
+struct Ponto { i32 x = 0; i32 y = 0; }
+fn main() {
+  Ponto p = new Ponto(z: 1);
+}
+// expect-error: 'z' não é campo do struct 'Ponto'

@@ -303,6 +303,11 @@ se ela tiver o parâmetro. As constantes dos módulos nativos (`Math.pi`) já co
 combinação de tipos usada (`Program::instancias` do módulo da declaração), já com os tipos
 concretos, e o compilador as trata como funções comuns, com o nome `maior[i32]` no protótipo
 (e no stack trace). A declaração genérica em si não gera protótipo. Nenhuma instrução nova.
+Os **structs genéricos** (spec 8.6) seguem o mesmo caminho: cada cópia (`Par[i32, string]`) está
+em `Program::instancias` e entra na tabela de structs como um struct comum; a declaração genérica
+fica de fora. A criação pelo nome (`new Ponto(y: 4)`, spec 4.7) continua um `NEWSTRUCT` com
+todos os campos em registros seguidos: o compilador avalia os valores informados, na ordem
+escrita, direto no registro de cada campo, e depois os valores iniciais dos omitidos.
 
 ## 9. Coleta de ciclos
 
@@ -397,5 +402,5 @@ O backend LLVM partirá da mesma AST analisada (tipos já resolvidos e promoçõ
 | `cast<T>(string)` e para `string` | chamada ao runtime (`convertValue`) |
 
 O runtime (coleções, strings, coleta de ciclos, biblioteca padrão, erros e stack trace) continua
-em C++ e seria chamado pelo código gerado. As funções genéricas chegam como as cópias concretas
-(seção 8): o LLVM nunca vê um parâmetro de tipo.
+em C++ e seria chamado pelo código gerado. As funções e os structs genéricos chegam como as cópias
+concretas (seção 8): o LLVM nunca vê um parâmetro de tipo.

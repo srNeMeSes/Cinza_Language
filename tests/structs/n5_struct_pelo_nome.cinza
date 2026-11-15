@@ -1,0 +1,18 @@
+// 4.7: criação pelo nome, em qualquer ordem; os omitidos ficam com o valor inicial;
+// list e dict sem valor inicial nascem vazios; literal e i32 alargam para i64
+struct Ficha {
+  string nome;
+  i64 pontos = 10;
+  list<string> tags;
+  dict<string, i32> extra;
+  bool ativo = true;
+}
+fn main() {
+  i32 p = 7;
+  Ficha a = new Ficha(nome: "ana");
+  Ficha b = new Ficha(pontos: p, ativo: false, nome: "bia", tags: ["x"]);
+  print(a);
+  print(b, type(b.pontos));
+}
+// expect: Ficha{nome: "ana", pontos: 10, tags: [], extra: {}, ativo: true}
+// expect: Ficha{nome: "bia", pontos: 7, tags: ["x"], extra: {}, ativo: false} i64

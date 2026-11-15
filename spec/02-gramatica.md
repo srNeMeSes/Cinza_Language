@@ -33,9 +33,10 @@ membroClasse  = campo
 construtor    = nome "(" [ parametros ] ")" bloco ;
                 (* nome igual ao da classe; no máximo um construtor *)
 campo         = tipo nome [ "=" expressao ] ";" ;
-                (* sem "=" só para list<T> e dict<K, V>, que nascem vazios *)
+                (* na classe, sem "=" só para list<T> e dict<K, V>, que nascem vazios; no
+                   struct, qualquer campo: sem "=" ele é informado na criação (seção 4.7) *)
 
-struct        = "struct" nome "{" { campo } "}" ;        (* só campos *)
+struct        = "struct" nome [ paramsTipo ] "{" { campo } "}" ;   (* só campos; capítulo 8 *)
 
 enum          = "enum" nome "{" nome { "," nome } "}" ;
 
@@ -57,7 +58,8 @@ tipo          = "i32" | "i64" | "f32" | "f64" | "string" | "str" | "bool"
               | nomeTipo ;
 
 nomeTipo      = nome                    (* class, struct, enum, interface, erro, parâmetro de tipo *)
-              | nome "." nome ;                          (* apelido de módulo . nome *)
+              | nome "." nome                            (* apelido de módulo . nome *)
+              | ( nome | nome "." nome ) argsTipo ;      (* struct genérico: Par[i32, string] *)
 ```
 
 ## 2.3 Instruções
@@ -120,15 +122,18 @@ primario      = literal
               | nome [ [ argsTipo ] argumentos ]         (* variável ou chamada *)
               | nome "." nome [ [ argsTipo ] argumentos ] (* nome de módulo importado *)
               | "self"
-              | "new" nomeTipo argumentos
+              | "new" nomeTipo ( argumentos | camposNomeados )
               | "cast" "<" tipo ">" "(" expressao ")"   (* i32, i64, f32, f64 ou string; seção 3.1 *)
               | tipoValor
               | "(" expressao ")"
               | lista | par | dicionario ;
 
 argumentos    = "(" [ expressao { "," expressao } ] ")" ;
+camposNomeados = "(" nome ":" expressao { "," nome ":" expressao } ")" ;
+                (* só na criação de struct: seção 4.7 *)
 argsTipo      = "[" tipo { "," tipo } "]" ;
-                (* só quando o "]" é seguido de "(": senão é índice ou fatia; seção 8.3 *)
+                (* numa expressão, só quando o "]" é seguido de "(": senão é índice ou
+                   fatia; seção 8.3 *)
 lista         = "[" expressao { "," expressao } "]" ;    (* não há "[]" vazio *)
 par           = "{" expressao "," expressao "}" ;
 dicionario    = "{" entrada { "," entrada } "}" ;        (* não há "{}" vazio *)

@@ -1,0 +1,6 @@
+// 4.7: posicional parcial; com campo obrigatório, "nenhum" não é opção
+struct Contato { string nome; string telefone = ""; i32 prioridade = 1; }
+fn main() {
+  Contato c = new Contato("ana", "1");
+}
+// expect-error: informe todos os 3 campos, em ordem, ou os campos pelo nome (campo: valor), mas recebeu 2

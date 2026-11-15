@@ -6,11 +6,12 @@ da função para esses tipos (**monomorfização**): `maior[i32]` e `maior[strin
 conferidas e compiladas como se tivessem sido escritas à mão. Na execução não há custo nem
 conferência de tipo a mais.
 
-Os colchetes são a sintaxe das funções genéricas, e só delas: na declaração trazem apenas os
-nomes dos parâmetros de tipo; na chamada, apenas os tipos. Os tipos parametrizados embutidos
+Os colchetes são a sintaxe dos genéricos declarados no programa: na declaração trazem apenas os
+nomes dos parâmetros de tipo; no uso, apenas os tipos. Os tipos parametrizados embutidos
 continuam com `<>` (`list<T>`, `dict<K, V>`, `pair<A, B>`, `cast<T>(...)`).
 
-Nesta versão só funções do nível superior podem ser genéricas.
+Nesta versão podem ser genéricas as funções do nível superior (seções 8.1 a 8.5) e os structs
+(seção 8.6).
 
 ## 8.1 Declaração
 
@@ -25,7 +26,7 @@ fn nome[T, U](parâmetros) -> tipo { ... }
   lugar onde se escreve um tipo: `T x`, `list<T>`, `dict<string, T>`, `pair<T, U>`, `cast<T>(...)`,
   `type(x) == T`, `new T()`, `except (T e)`, inclusive nas expressões `{...}` de `printf` e `format`.
   Depois de `.` o nome é de membro, não o parâmetro de tipo (`x.T` é o campo `T`).
-- Métodos, construtores, assinaturas de interface, `struct`, `class`, `enum` e `error` não aceitam
+- Métodos, construtores, assinaturas de interface, `class`, `enum` e `error` não aceitam
   parâmetros de tipo. A `main` não pode ser genérica.
 - Continua não havendo sobrecarga (seção 4.4): uma função genérica e outro item do nível superior
   com o mesmo nome são erro.
@@ -51,9 +52,9 @@ fn main() {}
 ```
 
 ```cinza
-struct Par[A, B] { A primeiro; B segundo; }
+class Caixa[T] { list<T> itens; }
 fn main() {}
-// expect-error: struct não aceita parâmetros de tipo
+// expect-error: class não aceita parâmetros de tipo
 ```
 
 ```cinza
@@ -271,3 +272,119 @@ fn main() {
 // expect-error: IndexError
 // expect-error:     em primeiro[string] (
 ```
+
+## 8.6 Structs genéricos
+
+```
+struct Nome[T, U] { campos }
+```
+
+Um struct também pode declarar parâmetros de tipo, com as mesmas regras da seção 8.1. Nos
+campos, um parâmetro de tipo vale onde se escreve um tipo: `T valor;`, `list<T>`,
+`dict<string, T>`, `pair<T, U>`, outro struct genérico (`Caixa[T]`).
+
+Um campo do tipo `T` não pode ter valor inicial, porque não há valor que sirva a todo `T`: ele é
+**obrigatório** e quem cria o struct o informa (seção 4.7). Os demais campos seguem a seção 4.7
+normalmente.
+
+**No uso, os tipos são sempre escritos**, sem inferência: `Par[string, i32] p`,
+`new Par[string, i32](...)`, `list<Par[string, i32]>`, `fn f(Caixa[i32] c)`. `Par` sozinho, sem os
+tipos, é erro. Os tipos vão na ordem dos parâmetros de tipo, todos, e qualquer tipo de valor vale
+como argumento (não `void` nem `var`).
+
+```cinza
+struct Ponto { i32 x = 0; i32 y = 0; }
+struct A[T] {
+  string nm = "nome";
+  T ct;
+  i32 valor = 1;
+}
+fn main() {
+  Ponto ponto = new Ponto(1, 2);
+  A[Ponto] a = new A[Ponto](ct: ponto);
+  A[i32] b = new A[i32]("outro", 7, 2);
+  print(a);
+  print(b, type(b));
+}
+// expect: A[Ponto]{nm: "nome", ct: Ponto{x: 1, y: 2}, valor: 1}
+// expect: A[i32]{nm: "outro", ct: 7, valor: 2} A[i32]
+```
+
+```cinza
+struct Caixa[T] { T valor; }
+fn main() {
+  Caixa c = new Caixa(valor: 1);
+}
+// expect-error: o struct genérico 'Caixa' precisa dos tipos
+```
+
+```cinza
+struct Caixa[T] { T valor = 0; }
+fn main() {}
+// expect-error: o campo 'valor' é do tipo 'T' e não pode ter valor inicial
+```
+
+Cada combinação de tipos usada vira um **struct comum** (monomorfização), conferido no uso como
+na seção 8.2: um struct genérico que nunca é usado só passa pela análise sintática e pelas regras
+da declaração. Um erro numa cópia vem com o rastro dos usos (seção 8.4). `Par[string, i32]` e
+`Par[string, i64]` são tipos diferentes, e nenhum se atribui ao outro (invariância, seção 3.5).
+No `print` e no `type()`, o nome aparece com os tipos.
+
+```cinza
+struct Indice[K] { dict<K, i32> posicoes; }
+fn main() {
+  Indice[string] ok = new Indice[string]();
+  Indice[list<i32>] ruim = new Indice[list<i32>]();
+}
+// expect-error: Chave de dict deve ser i32, i64, string, bool ou enum
+// expect-error:     em Indice[list<i32>], usada em
+```
+
+Uma função genérica pode receber structs genéricos. Na dedução (seção 8.3), os tipos dentro de
+`Par[A, B]` precisam ser exatos, como dentro de uma coleção:
+
+```cinza
+struct Par[A, B] { A primeiro; B segundo; }
+fn troca[A, B](Par[A, B] p) -> Par[B, A] {
+  return new Par[B, A](p.segundo, p.primeiro);
+}
+fn main() {
+  Par[string, i32] p = new Par[string, i32](primeiro: "ana", segundo: 30);
+  Par[i32, string] q = troca(p);
+  print(q);
+}
+// expect: Par[i32, string]{primeiro: 30, segundo: "ana"}
+```
+
+Um struct genérico segue a regra da seção 4.7: não contém a si mesmo por valor, mas pode conter
+uma `list` de si mesmo. Um struct que se usa com tipos que só crescem (`list<T>` dentro de
+`Cresce[T]` vira `Cresce[list<T>]`) passa do limite de 64 cópias encadeadas da seção 8.4.
+
+```cinza
+struct No[T] { T valor; list<No[T]> filhos; }
+fn soma(No[i32] n) -> i32 {
+  i32 s = n.valor;
+  for (No[i32] f in n.filhos) { s += soma(f); }
+  return s;
+}
+fn main() {
+  No[i32] raiz = new No[i32](valor: 1);
+  raiz.filhos.add(new No[i32](valor: 2));
+  raiz.filhos.add(new No[i32](valor: 3));
+  print(soma(raiz));
+}
+// expect: 6
+```
+
+```cinza
+struct Cresce[T] { list<Cresce[list<T>]> mais; }
+fn main() {
+  Cresce[i32] c = new Cresce[i32]();
+}
+// expect-error: Instanciações genéricas encadeadas demais (mais de 64)
+```
+
+**Leitura dos colchetes.** `Nome[tipos]` é um tipo onde se espera um tipo (declaração de
+variável, campo, parâmetro, retorno, `list<...>`, `cast<...>`) e depois de `new`. No começo de
+uma instrução, `Nome[...]` seguido de um nome é uma declaração de variável (`Caixa[i32] c = ...`);
+seguido de qualquer outra coisa, é um índice, como sempre (`l[0] = 5;`).

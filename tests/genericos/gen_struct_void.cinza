@@ -1,0 +1,6 @@
+// 8.6: void não é argumento de tipo
+struct Caixa[T] { list<T> l; }
+fn main() {
+  Caixa[void] c = new Caixa[void]();
+}
+// expect-error: 'void' não pode ser o tipo de 'T' em 'Caixa'

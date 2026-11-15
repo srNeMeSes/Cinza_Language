@@ -1,0 +1,5 @@
+// 8.6: no uso, os tipos são sempre escritos
+struct Caixa[T] { T valor; }
+fn usa(Caixa c) {}
+fn main() {}
+// expect-error: o struct genérico 'Caixa' precisa dos tipos entre colchetes, ex.: Caixa[i32]

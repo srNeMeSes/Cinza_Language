@@ -1,0 +1,8 @@
+// 4.7: o mesmo struct do teste anterior, criado corretamente
+struct Pessoa { string nome; }
+struct Time { Pessoa capitao; Pessoa reserva = new Pessoa(nome: "ninguém"); }
+fn main() {
+  Time t = new Time(capitao: new Pessoa(nome: "ana"));
+  print(t);
+}
+// expect: Time{capitao: Pessoa{nome: "ana"}, reserva: Pessoa{nome: "ninguém"}}

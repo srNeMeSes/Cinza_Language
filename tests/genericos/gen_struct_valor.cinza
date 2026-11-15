@@ -1,0 +1,14 @@
+// 8.6 + 5.1: a cópia é um struct comum, copiado na atribuição e no argumento
+struct Caixa[T] { T valor; }
+fn zera(Caixa[i32] c) -> Caixa[i32] {
+  c.valor = 0;
+  return c;
+}
+fn main() {
+  Caixa[i32] a = new Caixa[i32](valor: 5);
+  Caixa[i32] b = a;
+  b.valor = 6;
+  Caixa[i32] z = zera(a);
+  print(a.valor, b.valor, z.valor);
+}
+// expect: 5 6 0

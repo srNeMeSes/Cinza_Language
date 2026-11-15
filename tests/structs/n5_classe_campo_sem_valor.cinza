@@ -1,0 +1,7 @@
+// 4.6: na classe, o campo continua precisando de valor inicial (só no struct mudou)
+class Conta {
+  string dono;
+  pub { Conta(string d) { dono = d; } }
+}
+fn main() {}
+// expect-error: Campo 'dono' deve ser inicializado na declaração

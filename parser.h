@@ -170,7 +170,9 @@ private:
 
     // C3: campos (class e struct) e declaração de struct
     bool             checkFieldStart() const;
-    ClassDecl::Field parseFieldDeclaration();
+    // Tipo customizado seguido de um nome: Pilha p, tx.Pessoa p, Par[i32, string] p (N5)
+    bool             checkCustomTypeDecl() const;
+    ClassDecl::Field parseFieldDeclaration(bool em_struct = false);
     StmtPtr          parseStructDeclaration();
 
     // C4: exceções
@@ -195,7 +197,8 @@ public:
     
     // N2: uma cópia de função genérica — os tokens da declaração com os tipos
     // concretos no lugar dos parâmetros de tipo. Devolve a FunctionDecl, ou nulo
-    // com o primeiro erro de sintaxe em `erro`/`erro_tok`.
+    // com o primeiro erro de sintaxe em `erro`/`erro_tok`. N5: os tokens de um struct
+    // genérico ('struct' no começo) dão a StructDecl da cópia.
     static StmtPtr parseGenericCopy(std::vector<Token> tokens,
                                     const std::set<std::string>& apelidos,
                                     std::string& erro, Token& erro_tok);

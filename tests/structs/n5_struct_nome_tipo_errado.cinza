@@ -1,0 +1,6 @@
+// 4.7: pelo nome, o valor segue o tipo do campo
+struct Ponto { i32 x = 0; i32 y = 0; }
+fn main() {
+  Ponto p = new Ponto(y: "dois");
+}
+// expect-error: Campo 'y' na criação de 'Ponto': esperado 'i32', mas recebeu 'string'

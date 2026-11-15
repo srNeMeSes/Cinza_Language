@@ -31,7 +31,9 @@ fn main() {
 ## 5.2 Ordem de avaliação
 
 - Operandos, argumentos de chamada e elementos de literais são avaliados **da esquerda para a
-  direita**. Numa chamada de método, o objeto é avaliado antes dos argumentos.
+  direita**. Numa chamada de método, o objeto é avaliado antes dos argumentos. Na criação de
+  struct pelo nome, os valores informados vêm na ordem escrita e depois os valores iniciais dos
+  campos omitidos (seção 4.7).
 - `&&`/`and` e `||`/`or` avaliam o lado direito só se necessário (curto-circuito).
 - Numa atribuição, primeiro são avaliadas as partes do alvo (base e índices, da esquerda para a
   direita), depois o valor; então o valor é gravado. Em `a op= b`, o alvo é avaliado **uma única

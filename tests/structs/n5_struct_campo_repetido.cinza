@@ -1,0 +1,6 @@
+// 4.7: pelo nome, cada campo uma vez
+struct Ponto { i32 x = 0; i32 y = 0; }
+fn main() {
+  Ponto p = new Ponto(x: 1, x: 2);
+}
+// expect-error: O campo 'x' foi informado mais de uma vez na criação de 'Ponto'

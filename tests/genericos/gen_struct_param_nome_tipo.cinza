@@ -1,0 +1,5 @@
+// 8.1 vale para struct: parâmetro de tipo com nome de tipo declarado
+struct Ponto { i32 x = 0; }
+struct Caixa[Ponto] { Ponto p; }
+fn main() {}
+// expect-error: Em 'Caixa', o parâmetro de tipo 'Ponto' tem o nome de um tipo declarado

@@ -1,4 +1,20 @@
-// N1: struct genérico fica fora desta versão
-struct Par[A, B] { A primeiro; B segundo; }
-fn main() {}
-// expect-error: struct não aceita parâmetros de tipo
+// 8.6: struct genérico com as três formas de criação; type() e print com os tipos
+struct Ponto { i32 x = 0; i32 y = 0; }
+struct A[T] {
+  string nm = "nome";
+  T ct;
+  i32 valor = 1;
+}
+fn main() {
+  A[Ponto] a = new A[Ponto](ct: new Ponto(1, 2));
+  A[string] b = new A[string]("b", "texto", 2);
+  A[list<i32>] c = new A[list<i32>](valor: 9, ct: [1, 2]);
+  print(a);
+  print(b, type(b), type(a) == type(b));
+  print(c.ct, c.valor, c.nm);
+  printf("{a.ct.x} {b.ct}");
+}
+// expect: A[Ponto]{nm: "nome", ct: Ponto{x: 1, y: 2}, valor: 1}
+// expect: A[string]{nm: "b", ct: "texto", valor: 2} A[string] false
+// expect: [1, 2] 9 nome
+// expect: 1 texto

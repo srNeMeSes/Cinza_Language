@@ -1,0 +1,6 @@
+// 4.7: não se misturam argumentos pelo nome e sem nome
+struct Ponto { i32 x = 0; i32 y = 0; }
+fn main() {
+  Ponto p = new Ponto(1, y: 2);
+}
+// expect-error: não misture argumentos pelo nome (campo: valor) com argumentos sem nome

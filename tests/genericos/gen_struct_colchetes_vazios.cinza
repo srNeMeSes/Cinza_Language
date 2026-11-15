@@ -1,0 +1,6 @@
+// 8.6: ao menos um tipo entre os colchetes
+struct Caixa[T] { T valor; }
+fn main() {
+  Caixa[] c = new Caixa[i32](valor: 1);
+}
+// expect-error: Esperado ao menos um tipo entre os colchetes, ex.: Caixa[i32]

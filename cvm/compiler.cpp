@@ -574,7 +574,24 @@ void Compiler::newExpr(const NewExpr* e, std::uint16_t dst) {
         // (calculados aqui mesmo: só enxergam os const globais)
         const StructDecl* decl = img.structs[it->second];
         const std::uint16_t base = top;
-        if (!e->arguments.empty()) {
+        if (!e->arg_fields.empty()) {
+            // N5: pelo nome — os informados na ordem escrita, cada um direto no registro
+            // do seu campo; depois os valores iniciais dos omitidos
+            std::vector<bool> dado(decl->fields.size(), false);
+            for (std::size_t i = 0; i < decl->fields.size(); ++i) alloc(tok);
+            for (std::size_t i = 0; i < e->arguments.size(); ++i) {
+                const auto f = static_cast<std::size_t>(e->arg_fields[i]);
+                expr(e->arguments[i].get(), static_cast<std::uint16_t>(base + f));
+                dado[f] = true;
+            }
+            for (std::size_t i = 0; i < decl->fields.size(); ++i) {
+                if (dado[i]) continue;
+                const auto& f = decl->fields[i];
+                const auto r = static_cast<std::uint16_t>(base + i);
+                if (f.initializer) expr(f.initializer.get(), r);
+                else emit(f.type->kind == Type::Kind::DICT ? Op::NEWDICT : Op::NEWLIST, r, 0, 0, f.token);
+            }
+        } else if (!e->arguments.empty()) {
             for (const auto& arg : e->arguments) expr(arg.get(), alloc(tok));
         } else {
             for (const auto& f : decl->fields) {
@@ -1079,14 +1096,22 @@ Image Compiler::run() {
                 img.classes.push_back(ref);
             } else if (s->node_kind == NodeKind::StructDecl) {
                 auto* st = static_cast<const StructDecl*>(s.get());
+                if (!st->type_params.empty()) continue;   // N5: só as cópias existem
                 struct_of[st->name] = img.structs.size();
                 img.structs.push_back(st);
             }
         }
 
-    // N2: cópias das funções genéricas (maior[i32]...), funções comuns
+    // N2: cópias das funções genéricas (maior[i32]...), funções comuns; N5: cópias dos
+    // structs genéricos (Par[i32, string]), structs comuns
     for (const auto* prog : programs)
         for (const auto& s : prog->instancias) {
+            if (s->node_kind == NodeKind::StructDecl) {
+                auto* st = static_cast<const StructDecl*>(s.get());
+                struct_of[st->name] = img.structs.size();
+                img.structs.push_back(st);
+                continue;
+            }
             auto* fn = static_cast<const FunctionDecl*>(s.get());
             proto_of[fn] = newProto(fn->trace_name, fn->token);
         }
@@ -1141,6 +1166,7 @@ Image Compiler::run() {
 
     for (const auto* prog : programs)   // N2: as cópias das genéricas
         for (const auto& s : prog->instancias) {
+            if (s->node_kind != NodeKind::FunctionDecl) continue;   // N5: struct
             auto* fn = static_cast<const FunctionDecl*>(s.get());
             body(&img.protos[proto_of.at(fn)], fn->num_slots, fn->parameters.size(), false,
                  fn->body.get(), fn->token, fn->return_type->kind == Type::Kind::VOID);

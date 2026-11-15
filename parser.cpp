@@ -226,14 +226,24 @@ TypePtr Parser::parseTypeInner() {
         }
         return pair_type;
 
-    } else if (checkQualified()) {
-        // C5: tipo de um módulo importado: tx.Pessoa p;
-        return std::make_unique<Type>(Type::Kind::CUSTOM, parseQualifiedName());
-    } else if (check(TokenType::IDENTIFIER)) {
+    } else if (checkQualified() || check(TokenType::IDENTIFIER)) {
         // Tipo customizado: nome de uma classe definida pelo usuário
         //   Ex: Pilha p;  →  type = CUSTOM("Pilha")
-        Token id_token = advance();
-        return std::make_unique<Type>(Type::Kind::CUSTOM, id_token.lexeme);
+        // C5: tipo de um módulo importado: tx.Pessoa p;
+        auto custom = std::make_unique<Type>(Type::Kind::CUSTOM,
+                                             checkQualified() ? parseQualifiedName()
+                                                              : advance().lexeme);
+        // N5: struct genérico, Par[i32, string] (num tipo, '[' não tem outro significado)
+        if (match(TokenType::LBRACKET)) {
+            if (check(TokenType::RBRACKET)) {
+                error("Esperado ao menos um tipo entre os colchetes, ex.: " + custom->name +
+                      "[i32]", peek());
+                throw ParseError("tipo genérico sem tipos", peek());
+            }
+            do { custom->type_params.push_back(parseType()); } while (match(TokenType::COMMA));
+            consume(TokenType::RBRACKET, "Esperado ']' após os tipos de '" + custom->name + "'");
+        }
+        return custom;
     } else {
         error("Esperado tipo válido");
         throw ParseError("Tipo inválido", type_token);
@@ -719,18 +729,50 @@ ExprPtr Parser::parseNewExpr() {
         class_name = consume(TokenType::IDENTIFIER, "Esperado nome da classe após 'new'").lexeme;
     }
 
+    // N5: new Par[i32, string](...) — os tipos de um struct genérico
+    std::vector<TypePtr> type_args;
+    if (match(TokenType::LBRACKET)) {
+        if (check(TokenType::RBRACKET)) {
+            error("Esperado ao menos um tipo entre os colchetes, ex.: new " + class_name +
+                  "[i32](...)", peek());
+            throw ParseError("new genérico sem tipos", peek());
+        }
+        do { type_args.push_back(parseType()); } while (match(TokenType::COMMA));
+        consume(TokenType::RBRACKET, "Esperado ']' após os tipos de '" + class_name + "'");
+    }
+
     consume(TokenType::LPAREN, "Esperado '(' após nome da classe em 'new'");
 
-    std::vector<ExprPtr> arguments;
+    // N5: um argumento pode vir com o nome do campo (new Ponto(y: 4)); a mistura e o
+    // uso fora de struct são conferidos no semântico
+    std::vector<ExprPtr>     arguments;
+    std::vector<std::string> nomes;
+    std::vector<Token>       nome_tokens;
+    bool algum_nome = false;
     if (!check(TokenType::RPAREN)) {
         do {
+            if (check(TokenType::IDENTIFIER) && peekNext().type == TokenType::COLON) {
+                nome_tokens.push_back(advance());
+                nomes.push_back(nome_tokens.back().lexeme);
+                advance();   // ':'
+                algum_nome = true;
+            } else {
+                nome_tokens.push_back(peek());
+                nomes.emplace_back();
+            }
             arguments.push_back(parseExpression());
         } while (match(TokenType::COMMA));
     }
 
     consume(TokenType::RPAREN, "Esperado ')' após argumentos do construtor");
 
-    return std::make_unique<NewExpr>(new_token, class_name, std::move(arguments));
+    auto novo = std::make_unique<NewExpr>(new_token, class_name, std::move(arguments));
+    novo->type_args = std::move(type_args);
+    if (algum_nome) {
+        novo->arg_names       = std::move(nomes);
+        novo->arg_name_tokens = std::move(nome_tokens);
+    }
+    return novo;
 }
 
 // Encadeia acesso a membros (.key, .value), índices ([0], ["chave"]) e métodos (.add(...))
@@ -934,16 +976,9 @@ StmtPtr Parser::parseStatement() {
             return parseVarDeclStatement();
         }
 
-        // C5: declaração com tipo de módulo: tx.Pessoa p = ...;
-        if (checkQualified() && current + 3 < tokens.size() &&
-            tokens[current + 3].type == TokenType::IDENTIFIER) {
-            return parseVarDeclStatement();
-        }
-
         // Declaração de variável de tipo customizado: NomeClasse variavel;
-        if (check(TokenType::IDENTIFIER) &&
-            current + 1 < tokens.size() &&
-            tokens[current + 1].type == TokenType::IDENTIFIER) {
+        // C5: tipo de módulo, tx.Pessoa p; N5: struct genérico, Par[i32, string] p
+        if (checkCustomTypeDecl()) {
             return parseVarDeclStatement();
         }
         
@@ -1143,13 +1178,9 @@ StmtPtr Parser::parseForStatement() {
         check(TokenType::TYPE_LIST) || check(TokenType::TYPE_DICT) ||
         check(TokenType::TYPE_PAIR) ||
         check(TokenType::TYPE_VAR) ||
-        // tipo customizado: NomeClasse (IDENTIFIER seguido de IDENTIFIER)
-        (check(TokenType::IDENTIFIER) &&
-         current + 1 < tokens.size() &&
-         tokens[current + 1].type == TokenType::IDENTIFIER) ||
-        // C5: tipo de módulo: for (fm.Forma f in l)
-        (checkQualified() && current + 3 < tokens.size() &&
-         tokens[current + 3].type == TokenType::IDENTIFIER)) {
+        // tipo customizado: NomeClasse (IDENTIFIER seguido de IDENTIFIER); C5: tipo de
+        // módulo, for (fm.Forma f in l); N5: for (Par[i32, string] p in l)
+        checkCustomTypeDecl()) {
         
         // Consome o tipo
         type = parseType();
@@ -1463,16 +1494,35 @@ bool Parser::checkFieldStart() const {
            check(TokenType::TYPE_STRING) || check(TokenType::TYPE_BOOL)    ||
            check(TokenType::TYPE_LIST)   || check(TokenType::TYPE_DICT)    ||
            check(TokenType::TYPE_PAIR)   || check(TokenType::TYPE_VAR)     ||
-           (check(TokenType::IDENTIFIER) &&
-            current + 1 < tokens.size() &&
-            tokens[current + 1].type == TokenType::IDENTIFIER) ||
-           (checkQualified() && current + 3 < tokens.size() &&            // C5
-            tokens[current + 3].type == TokenType::IDENTIFIER);
+           checkCustomTypeDecl();
+}
+
+// Tipo customizado seguido do nome da variável: `Pilha p`, `tx.Pessoa p` (C5) ou, N5,
+// `Par[i32, string] p` / `tx.Par[i32] p`. No começo de uma instrução, `l[0] = 5;` continua
+// sendo índice: depois do ']' não vem um nome.
+bool Parser::checkCustomTypeDecl() const {
+    size_t i = current;
+    if (checkQualified()) i += 3;
+    else if (check(TokenType::IDENTIFIER)) i += 1;
+    else return false;
+    if (i < tokens.size() && tokens[i].type == TokenType::LBRACKET) {
+        int nivel = 0;
+        for (; i < tokens.size(); ++i) {
+            const TokenType t = tokens[i].type;
+            if (t == TokenType::LBRACKET) ++nivel;
+            else if (t == TokenType::RBRACKET && --nivel == 0) break;
+            else if (t == TokenType::SEMICOLON || t == TokenType::LBRACE ||
+                     t == TokenType::RBRACE || t == TokenType::END_OF_FILE) return false;
+        }
+        ++i;   // depois do ']'
+    }
+    return i < tokens.size() && tokens[i].type == TokenType::IDENTIFIER;
 }
 
 // Campo de class ou struct:  tipo nome;  ou  tipo nome = expr;
 // C3: extraído de parseClassDeclaration para ser usado também por struct.
-ClassDecl::Field Parser::parseFieldDeclaration() {
+// N5: no struct, qualquer campo pode ficar sem valor inicial (é informado na criação)
+ClassDecl::Field Parser::parseFieldDeclaration(bool em_struct) {
     Token   field_tok = peek();
     TypePtr field_type = parseType();
     Token   field_name = consume(TokenType::IDENTIFIER, "Esperado nome do campo");
@@ -1486,8 +1536,8 @@ ClassDecl::Field Parser::parseFieldDeclaration() {
     }
 
     // list<T> e dict<K,V> podem ser declarados sem inicializador
-    bool field_can_omit = (field_type->kind == Type::Kind::LIST ||
-                           field_type->kind == Type::Kind::DICT);
+    bool field_can_omit = em_struct || field_type->kind == Type::Kind::LIST ||
+                          field_type->kind == Type::Kind::DICT;
 
     ExprPtr initializer = nullptr;
     if (match(TokenType::OP_ASSIGN)) {
@@ -1642,11 +1692,13 @@ StmtPtr Parser::parseTryStatement() {
 
 // C3: struct Nome { campos... }  — só campos, sem métodos e sem bloco pub
 StmtPtr Parser::parseStructDeclaration() {
+    const size_t inicio = current;   // N5: o struct genérico guarda os próprios tokens
     Token struct_token = advance(); // consome 'struct'
 
     Token name_token = consume(TokenType::IDENTIFIER,
                                "Esperado nome do struct após 'struct'");
-    recusaParametrosTipo("struct");   // N1
+    std::vector<Token> type_params;   // N5: struct Par[A, B]
+    if (check(TokenType::LBRACKET)) type_params = parseTypeParams();
 
     consume(TokenType::LBRACE, "Esperado '{' após nome do struct");
     DepthGuard struct_brace_guard{brace_depth};   // A9
@@ -1662,7 +1714,7 @@ StmtPtr Parser::parseStructDeclaration() {
                 throw ParseError("Membro inválido em struct", peek());
             }
             if (checkFieldStart()) {
-                fields.push_back(parseFieldDeclaration());
+                fields.push_back(parseFieldDeclaration(true));
             } else {
                 error("Membro de struct inválido: esperado um campo (tipo nome = valor;)");
                 synchronize();
@@ -1674,7 +1726,13 @@ StmtPtr Parser::parseStructDeclaration() {
 
     consume(TokenType::RBRACE, "Esperado '}' para fechar o struct");
 
-    return std::make_unique<StructDecl>(struct_token, name_token.lexeme, std::move(fields));
+    auto st = std::make_unique<StructDecl>(struct_token, name_token.lexeme, std::move(fields));
+    if (!type_params.empty()) {
+        st->type_params = std::move(type_params);
+        st->fonte.assign(tokens.begin() + static_cast<std::ptrdiff_t>(inicio),
+                         tokens.begin() + static_cast<std::ptrdiff_t>(current));
+    }
+    return st;
 }
 
 // ============================================================================
@@ -1807,7 +1865,9 @@ StmtPtr Parser::parseGenericCopy(std::vector<Token> tokens, const std::set<std::
     p.silencioso     = true;
     StmtPtr fn;
     try {
-        fn = p.parseFunctionDeclaration(false);
+        // N5: a cópia de um struct genérico começa por 'struct'
+        fn = p.check(TokenType::KW_STRUCT) ? p.parseStructDeclaration()
+                                           : p.parseFunctionDeclaration(false);
     } catch (const ParseError& e) {
         if (p.primeiro_erro.empty()) { p.primeiro_erro = e.what(); p.primeiro_erro_tok = e.error_token; }
     }

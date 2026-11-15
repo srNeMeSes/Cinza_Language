@@ -1,0 +1,5 @@
+// 8.6 + 4.7: um struct não contém a si mesmo por valor, nem por uma cópia genérica
+struct Caixa[T] { T valor; }
+struct B { Caixa[B] c; }
+fn main() {}
+// expect-error: contém a si mesmo por valor

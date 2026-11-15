@@ -1,0 +1,10 @@
+// 8.6: a cópia do struct como T de função genérica (o nome com colchetes no corpo)
+struct Caixa[T] { T valor; }
+fn mostra[T](T x) -> string { return format("<{x}> {type(x) == T}"); }
+fn lista[T](T x) -> list<T> { return [x, x]; }
+fn main() {
+  print(mostra(new Caixa[string](valor: "a")));
+  print(lista(new Caixa[i32](valor: 1)).size());
+}
+// expect: <Caixa[string]{valor: "a"}> true
+// expect: 2

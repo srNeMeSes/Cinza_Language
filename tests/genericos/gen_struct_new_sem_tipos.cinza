@@ -1,0 +1,6 @@
+// 8.6: new de struct genérico sem os tipos
+struct Caixa[T] { T valor; }
+fn main() {
+  Caixa[i32] c = new Caixa(valor: 1);
+}
+// expect-error: precisa dos tipos entre colchetes, ex.: new Caixa[i32](...)

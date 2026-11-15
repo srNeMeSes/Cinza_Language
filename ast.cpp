@@ -41,7 +41,13 @@ std::string Type::toString() const {
             }
             return result;
         }
-        case Kind::CUSTOM: return name; // classe
+        case Kind::CUSTOM: {   // class, struct...; N5: struct genérico, Par[i32, string]
+            if (type_params.empty()) return name;
+            std::string result = name + "[";
+            for (size_t i = 0; i < type_params.size(); ++i)
+                result += (i ? ", " : "") + type_params[i]->toString();
+            return result + "]";
+        }
         default: return "unknown";
     }
 }

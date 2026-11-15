@@ -13,7 +13,7 @@ using TK = TypeInfo::Kind;
 
 namespace {
 // N2 (definida na seção das funções genéricas, no fim do arquivo)
-void trocaParametros(const FunctionDecl& g, const std::vector<TypeRef>& tipos, bool marca,
+void trocaParametros(const std::vector<Token>& params, const std::vector<TypeRef>& tipos, bool marca,
                      const std::vector<Token>& in, size_t inicio, std::vector<Token>& out);
 }  // namespace
 
@@ -311,9 +311,14 @@ const Symbol* SymbolTable::resolve(const std::string& name) const {
 void SemanticAnalyzer::preRegisterDeclarations(const Program& program) {
     // C3: nomes de struct antes de tudo, para que `Ponto p` vire tipo struct
     // (e não class) em qualquer assinatura registrada a seguir
+    // N5: um struct genérico não é um tipo sozinho (só Par[i32, string] é): fica guardado
+    // para as cópias, já aqui, porque uma assinatura registrada a seguir pode usá-lo
     for (const auto& stmt : program.statements)
-        if (stmt->node_kind == NodeKind::StructDecl)
-            types.declareStruct(static_cast<const StructDecl*>(stmt.get())->name);
+        if (stmt->node_kind == NodeKind::StructDecl) {
+            auto* st = static_cast<const StructDecl*>(stmt.get());
+            if (st->type_params.empty()) types.declareStruct(st->name);
+            else structs_genericos[st->name] = StructGenerico{st, current_module};
+        }
 
     // enum: também antes de tudo, para `Cor c` virar tipo enum em qualquer assinatura
     for (const auto& stmt : program.statements)
@@ -350,7 +355,18 @@ void SemanticAnalyzer::preRegisterDeclarations(const Program& program) {
 }
 
 // C3: registra um struct em struct_table e como nome de tipo no escopo global
-void SemanticAnalyzer::registerStruct(const StructDecl& st) {
+void SemanticAnalyzer::registerStruct(const StructDecl& st, bool simbolo) {
+    if (!st.type_params.empty()) {   // N5: genérico — só o nome; os campos vêm em cada cópia
+        Symbol sym;
+        sym.name          = st.name;
+        sym.kind          = Symbol::Kind::CLASS;
+        sym.resolved_type = types.structType(st.name);
+        sym.line          = st.token.line;
+        sym.column        = st.token.column;
+        sym.module        = current_module;
+        symbol_table.declare(sym, st.token);
+        return;
+    }
     StructInfo info;
     info.name = st.name;
     info.decl = &st;
@@ -362,6 +378,7 @@ void SemanticAnalyzer::registerStruct(const StructDecl& st) {
         info.fields.emplace_back(field.name, typeOf(field.type.get()));
     }
     struct_table[st.name] = std::move(info);
+    if (!simbolo) return;
 
     Symbol sym;
     sym.name          = st.name;
@@ -475,7 +492,7 @@ void SemanticAnalyzer::registerEnum(const EnumDecl& en) {
 
 bool SemanticAnalyzer::isKnownType(const std::string& name) const {
     return class_table.count(name) || struct_table.count(name) || enum_table.count(name) ||
-           interface_table.count(name) ||
+           interface_table.count(name) || structs_genericos.count(name) ||
            TypeContext::instance().isError(name);
 }
 
@@ -816,6 +833,15 @@ TypeRef SemanticAnalyzer::typeOf(Type* type) {
         if (t->kind == Type::Kind::CUSTOM && !t->qualified) {
             t->name      = qualifyName(t->name, t->token);
             t->qualified = true;
+            // N5: Par[i32, string] vira o nome da cópia, um struct comum
+            if (auto g = structs_genericos.find(t->name); g != structs_genericos.end()) {
+                t->name = usoStructGenerico(g->second, t->type_params, t->token)->name;
+                t->type_params.clear();
+                return;
+            }
+            if (!t->type_params.empty())
+                throwError("'" + stripModulePrefixes(t->name) + "' não é um struct genérico e não "
+                           "aceita tipos entre colchetes", t->token);
         }
         for (auto& p : t->type_params) qualifica(p.get());
     };
@@ -932,7 +958,12 @@ void SemanticAnalyzer::analyzeStmt(Stmt* stmt) {
             return;
         }
         case NodeKind::ClassDecl:       analyzeClassDecl      (static_cast<ClassDecl*>(stmt));           return;
-        case NodeKind::StructDecl:      analyzeStructDecl     (static_cast<StructDecl*>(stmt));          return;
+        case NodeKind::StructDecl: {
+            auto* st = static_cast<StructDecl*>(stmt);
+            if (!st->type_params.empty()) checkGenericStructDecl(st);   // N5: só as cópias
+            else analyzeStructDecl(st);
+            return;
+        }
         default:                        break;
     }
     throwError("Tipo de statement não reconhecido pelo analisador semântico",
@@ -1712,13 +1743,9 @@ void SemanticAnalyzer::analyzeStructDecl(StructDecl* stmt) {
                     field.token);
             }
             coerceInPlace(field.initializer, ftype);
-        } else if (!ftype->is(TK::List) && !ftype->is(TK::Dict)) {
-            throwError(
-                "Erro interno: campo '" + field.name + "' de tipo '" + ftype->str() +
-                "' chegou ao semântico sem inicializador. "
-                "O parser deveria ter rejeitado esta declaração.",
-                field.token);
         }
+        // N5: sem valor inicial, list e dict nascem vazios e os demais são obrigatórios
+        // na criação (analyzeNew)
     }
 }
 
@@ -1951,6 +1978,16 @@ TypeRef SemanticAnalyzer::analyzeIdentifier(IdentifierExpr* expr) {
     const Symbol* sym = lookup(expr->name, expr->token, full);
 
     if (!sym) {
+        // N5: numa cópia de função genérica, T trocado por uma cópia de struct
+        // (type(x) == T com T = Caixa[i32]) é o nome da cópia, que não é um símbolo
+        const std::string copia = expr->name.rfind("::", 0) == 0 ? expr->name.substr(2)
+                                                                 : expr->name;
+        if (copia_struct.count(copia)) {
+            expr->name       = copia;
+            expr->res        = {Resolution::Kind::Type, 0};
+            expr->type_value = types.structType(copia);
+            return expr->resolved_type = types.typeType();
+        }
         throwError("Variável '" + expr->name + "' não declarada", expr->token);
     }
     expr->name = full;       // C5: global de módulo vira nome completo
@@ -2725,7 +2762,7 @@ TypeRef SemanticAnalyzer::analyzeInterpolation(CallExpr* expr) {
             const bool marca = !modules[static_cast<size_t>(inst.modulo)].prefix.empty();
             troca = [&inst, marca](std::vector<Token>& toks) {
                 std::vector<Token> novos;
-                trocaParametros(*inst.origem, inst.tipos, marca, toks, 0, novos);
+                trocaParametros(inst.origem->type_params, inst.tipos, marca, toks, 0, novos);
                 toks = std::move(novos);
             };
         }
@@ -2791,16 +2828,87 @@ TypeRef SemanticAnalyzer::analyzeNew(NewExpr* expr) {
     if (interface_table.count(expr->class_name))
         throwError("A interface '" + stripModulePrefixes(expr->class_name) + "' não pode ser "
                    "instanciada: crie o objeto de uma classe que a cumpra.", expr->token);
-    // C3: construtor automático de struct — nenhum argumento (valores padrão)
-    // ou todos os campos, em ordem; número parcial é erro
+    // N5: new Par[i32, string](...) cria a cópia; o nome dela fica no lugar do genérico
+    if (!expr->tipos_resolvidos) {
+        auto g = structs_genericos.find(expr->class_name);
+        if (!expr->type_args.empty()) {
+            if (g == structs_genericos.end())
+                throwError("'" + stripModulePrefixes(expr->class_name) + "' não é um struct "
+                           "genérico e não aceita tipos entre colchetes no 'new'", expr->token);
+            expr->class_name = usoStructGenerico(g->second, expr->type_args, expr->token)->name;
+        } else if (g != structs_genericos.end()) {
+            const std::string nome = stripModulePrefixes(expr->class_name);
+            throwError("o struct genérico '" + nome + "' precisa dos tipos entre colchetes, ex.: "
+                       "new " + nome + "[i32](...)", expr->token);
+        }
+        expr->tipos_resolvidos = true;
+    }
+    // C3: construtor automático de struct — nenhum argumento (valores padrão), todos os
+    // campos em ordem ou (N5) os campos pelo nome; número parcial é erro
     if (auto sit = struct_table.find(expr->class_name); sit != struct_table.end()) {
         const StructInfo& info = sit->second;
+        const StructDecl& decl = *info.decl;
         const size_t n = expr->arguments.size();
+        std::vector<std::string> obrigatorios;   // N5: campos sem valor inicial
+        for (const auto& f : decl.fields)
+            if (StructDecl::obrigatorio(f)) obrigatorios.push_back(f.name);
+
+        if (!expr->arg_names.empty()) {   // N5: new Ponto(y: 4)
+            expr->arg_fields.assign(n, -1);
+            std::vector<bool> dado(info.fields.size(), false);
+            for (size_t i = 0; i < n; ++i) {
+                const std::string& campo = expr->arg_names[i];
+                const Token& tok = expr->arg_name_tokens[i];
+                if (campo.empty())
+                    throwError("Na criação de '" + info.name + "', não misture argumentos pelo "
+                               "nome (campo: valor) com argumentos sem nome: use só um dos dois "
+                               "jeitos", tok);
+                int idx = -1;
+                for (size_t j = 0; j < info.fields.size(); ++j)
+                    if (info.fields[j].first == campo) idx = static_cast<int>(j);
+                if (idx < 0)
+                    throwError("'" + campo + "' não é campo do struct '" + info.name + "'", tok);
+                if (dado[static_cast<size_t>(idx)])
+                    throwError("O campo '" + campo + "' foi informado mais de uma vez na criação "
+                               "de '" + info.name + "'", tok);
+                dado[static_cast<size_t>(idx)] = true;
+                expr->arg_fields[i] = idx;
+                TypeRef tipo = info.fields[static_cast<size_t>(idx)].second;
+                TypeRef at   = analyzeExpr(expr->arguments[i].get(), tipo);
+                if (!TypeChecker::isAssignable(tipo, at))
+                    throwError("Campo '" + campo + "' na criação de '" + info.name + "': esperado '" +
+                               tipo->str() + "', mas recebeu '" + at->str() + "'" + dicaCast(tipo, at),
+                               tok);
+                coerceInPlace(expr->arguments[i], tipo);
+            }
+            for (size_t j = 0; j < info.fields.size(); ++j)
+                if (!dado[j] && StructDecl::obrigatorio(decl.fields[j])) {
+                    const std::string& campo = info.fields[j].first;
+                    throwError("Na criação de '" + info.name + "', falta o campo obrigatório '" +
+                               campo + "' (ele não tem valor inicial): informe-o, ex.: new " +
+                               info.name + "(" + campo + ": ...)", expr->token);
+                }
+            return expr->resolved_type = types.structType(info.name);
+        }
+
+        if (n == 0 && !obrigatorios.empty()) {
+            std::string lista;
+            for (size_t k = 0; k < obrigatorios.size(); ++k)
+                lista += (k ? ", '" : "'") + obrigatorios[k] + "'";
+            throwError("Construtor de '" + info.name + "': " +
+                       (obrigatorios.size() == 1 ? "o campo " + lista + " não tem valor inicial"
+                                                 : "os campos " + lista + " não têm valor inicial") +
+                       (obrigatorios.size() == 1 ? "; informe-o" : "; informe-os") +
+                       " pelo nome, ex.: new " + info.name + "(" + obrigatorios[0] +
+                       ": ...), ou todos os campos, em ordem", expr->token);
+        }
         if (n != 0 && n != info.fields.size()) {
             throwError(
                 "Construtor de '" + info.name + "': informe todos os " +
-                std::to_string(info.fields.size()) + " campos, em ordem, ou nenhum (valores "
-                "padrão), mas recebeu " + std::to_string(n) + " argumento(s)",
+                std::to_string(info.fields.size()) + " campos, em ordem, " +
+                (obrigatorios.empty() ? "ou nenhum (valores padrão), " : "") +
+                "ou os campos pelo nome (campo: valor), mas recebeu " + std::to_string(n) +
+                " argumento(s)",
                 expr->token);
         }
         for (size_t i = 0; i < n; ++i) {
@@ -2826,6 +2934,11 @@ TypeRef SemanticAnalyzer::analyzeNew(NewExpr* expr) {
     }
 
     const ClassInfo& cls = it->second;
+
+    if (!expr->arg_names.empty())   // N5
+        throwError("Argumentos pelo nome (campo: valor) só existem na criação de struct; '" +
+                   expr->class_name + "' é uma classe, e os argumentos vão para o construtor, "
+                   "em ordem", expr->token);
 
     // checando aridade
     if (expr->arguments.size() != cls.ctor_param_types.size()) {
@@ -3209,9 +3322,9 @@ std::string nomeParaMensagem(const std::string& nome) {
     return s;
 }
 
-int indiceParametro(const FunctionDecl& g, const std::string& nome) {
-    for (size_t i = 0; i < g.type_params.size(); ++i)
-        if (g.type_params[i].lexeme == nome) return static_cast<int>(i);
+int indiceParametro(const std::vector<Token>& params, const std::string& nome) {
+    for (size_t i = 0; i < params.size(); ++i)
+        if (params[i].lexeme == nome) return static_cast<int>(i);
     return -1;
 }
 
@@ -3227,7 +3340,7 @@ bool menciona(const Type* t, const std::string& T) {
 // Algum parâmetro de tipo aparece no tipo escrito t (sozinho ou dentro de list/dict/pair)?
 bool mencionaParametro(const Type* t, const FunctionDecl& g) {
     if (!t) return false;
-    if (t->kind == Type::Kind::CUSTOM && indiceParametro(g, t->name) >= 0) return true;
+    if (t->kind == Type::Kind::CUSTOM && indiceParametro(g.type_params, t->name) >= 0) return true;
     for (const auto& q : t->type_params)
         if (mencionaParametro(q.get(), g)) return true;
     return false;
@@ -3274,13 +3387,13 @@ void tokensDoTipo(TypeRef t, const Token& pos, bool marca_principal, std::vector
 // nome de membro, depois de '.') pelos tokens do tipo concreto. Serve à cópia
 // inteira e às expressões {...} de printf/format no corpo dela, que só viram
 // tokens na análise.
-void trocaParametros(const FunctionDecl& g, const std::vector<TypeRef>& tipos, bool marca,
+void trocaParametros(const std::vector<Token>& params, const std::vector<TypeRef>& tipos, bool marca,
                      const std::vector<Token>& in, size_t inicio, std::vector<Token>& out) {
     for (size_t k = inicio; k < in.size(); ++k) {
         const Token& t = in[k];
         const int idx = t.type == TokenType::IDENTIFIER &&
                         (k == 0 || in[k - 1].type != TokenType::DOT)
-                        ? indiceParametro(g, t.lexeme) : -1;
+                        ? indiceParametro(params, t.lexeme) : -1;
         if (idx >= 0) tokensDoTipo(tipos[static_cast<size_t>(idx)], t, marca, out);
         else out.push_back(t);
     }
@@ -3293,10 +3406,15 @@ void SemanticAnalyzer::checkGenericDecl(FunctionDecl* fn) {
     if (nome == "main")
         throwError("A função 'main' não pode ser genérica: ela é o ponto de entrada do "
                    "programa, chamada sem tipos.", fn->token);
-    for (size_t i = 0; i < fn->type_params.size(); ++i) {
-        const Token& p = fn->type_params[i];
+    confereParametrosTipo(fn->type_params, nome);
+}
+
+void SemanticAnalyzer::confereParametrosTipo(const std::vector<Token>& params,
+                                             const std::string& nome) {
+    for (size_t i = 0; i < params.size(); ++i) {
+        const Token& p = params[i];
         for (size_t j = 0; j < i; ++j)
-            if (fn->type_params[j].lexeme == p.lexeme)
+            if (params[j].lexeme == p.lexeme)
                 throwError("Parâmetro de tipo '" + p.lexeme + "' repetido em '" + nome + "'", p);
         if (isKnownType(qualifyName(p.lexeme, p)))
             throwError("Em '" + nome + "', o parâmetro de tipo '" + p.lexeme + "' tem o nome de "
@@ -3370,7 +3488,22 @@ TypeRef SemanticAnalyzer::analyzeGenericCall(CallExpr* expr, const Symbol& sym) 
             [&](const Type* p, TypeRef a, bool dentro) {
                 if (!p || !a || a->is(TK::Var)) return;
                 if (p->kind == Type::Kind::CUSTOM) {
-                    if (int k = indiceParametro(g, p->name); k >= 0) liga(k, a, dentro);
+                    if (int k = indiceParametro(g.type_params, p->name); k >= 0) {
+                        liga(k, a, dentro);
+                        return;
+                    }
+                    // N5: Par[A, B] com uma cópia do mesmo struct: os tipos dela, exatos
+                    if (p->type_params.empty() || !a->is(TK::Struct)) return;
+                    auto c = copia_struct.find(a->name);
+                    if (c == copia_struct.end()) return;
+                    const int salvo = current_module;
+                    current_module = sym.module;   // o nome escrito vale no módulo da genérica
+                    std::string escrito;
+                    try { escrito = qualifyName(p->name, p->token); } catch (const SemanticError&) {}
+                    current_module = salvo;
+                    if (escrito != c->second->origem->name) return;
+                    for (size_t i = 0; i < p->type_params.size() && i < c->second->tipos.size(); ++i)
+                        deduz(p->type_params[i].get(), c->second->tipos[i], true);
                     return;
                 }
                 const bool mesma_forma = (p->kind == Type::Kind::LIST && a->is(TK::List)) ||
@@ -3446,7 +3579,7 @@ SemanticAnalyzer::Instancia* SemanticAnalyzer::instancia(const FunctionDecl& g, 
     size_t k = 2;
     while (k < F.size() && F[k].type != TokenType::RBRACKET) ++k;
     const bool marca = !modules[static_cast<size_t>(modulo)].prefix.empty();
-    trocaParametros(g, tipos, marca, F, k + 1, toks);
+    trocaParametros(g.type_params, tipos, marca, F, k + 1, toks);
     Token fim = F.back();
     fim.type   = TokenType::END_OF_FILE;
     fim.lexeme = "";
@@ -3495,7 +3628,30 @@ SemanticAnalyzer::Instancia* SemanticAnalyzer::instancia(const FunctionDecl& g, 
 }
 
 void SemanticAnalyzer::analisaInstancias() {
-    while (!fila_instancias.empty()) {
+    while (!fila_instancias.empty() || !fila_structs.empty()) {
+        // N5: os valores iniciais das cópias de struct, no escopo global (como os de um
+        // struct escrito à mão), e a conferência dos tipos usados
+        if (!fila_structs.empty()) {
+            InstanciaStruct* s = fila_structs.front();
+            fila_structs.pop_front();
+            const int        salvo_modulo = current_module;
+            const Instancia* salva_atual  = instancia_atual;
+            current_module  = s->modulo;
+            instancia_atual = nullptr;
+            try {
+                for (size_t k = 0; k < s->tipos.size(); ++k)
+                    confereArgumentoDeTipo(s->tipos[k], s->origem->type_params[k].lexeme,
+                                           stripModulePrefixes(s->origem->name), s->uso);
+                analyzeStructDecl(s->decl);
+                checkStructCycles();
+            } catch (SemanticError& e) {
+                if (e.notes.empty()) e.notes = rastro(s->decl->name, s->uso, s->pai);
+                throw;
+            }
+            current_module  = salvo_modulo;
+            instancia_atual = salva_atual;
+            continue;
+        }
         Instancia* inst = fila_instancias.front();
         fila_instancias.pop_front();
         const int        salvo_modulo = current_module;
@@ -3530,6 +3686,128 @@ std::vector<std::string> SemanticAnalyzer::rastro(const std::string& nome, const
         return curto;
     }
     return linhas;
+}
+
+// ============================================================================
+// N5 — STRUCTS GENÉRICOS (spec 8.6)
+// Como as funções: os tokens da declaração com cada parâmetro de tipo trocado pelo
+// tipo concreto, reparseados. A cópia é um struct comum ("Par[i32, string]"): os
+// campos são registrados na hora (o tipo dela é preciso já, numa assinatura ou numa
+// variável); os valores iniciais são analisados depois, no escopo global.
+// ============================================================================
+
+void SemanticAnalyzer::checkGenericStructDecl(StructDecl* st) {
+    const std::string nome = stripModulePrefixes(st->name);
+    confereParametrosTipo(st->type_params, nome);
+    for (const auto& f : st->fields) {
+        const Type* t = f.type.get();
+        if (f.initializer && t->kind == Type::Kind::CUSTOM && t->type_params.empty() &&
+            indiceParametro(st->type_params, t->name) >= 0)
+            throwError("Em '" + nome + "', o campo '" + f.name + "' é do tipo '" + t->name +
+                       "' e não pode ter valor inicial: não há valor que sirva a todo " +
+                       t->name + ". Deixe-o sem valor; quem cria o struct o informa.", f.token);
+    }
+}
+
+TypeRef SemanticAnalyzer::usoStructGenerico(const StructGenerico& g,
+                                            const std::vector<TypePtr>& args, const Token& tok) {
+    const std::string nome = stripModulePrefixes(g.decl->name);
+    const size_t n = g.decl->type_params.size();
+    if (args.empty())
+        throwError("o struct genérico '" + nome + "' precisa dos tipos entre colchetes, ex.: " +
+                   nome + "[i32]", tok);
+    if (args.size() != n) {
+        std::string lista;
+        for (size_t k = 0; k < n; ++k) lista += (k ? ", " : "") + g.decl->type_params[k].lexeme;
+        throwError("'" + nome + "' tem " + std::to_string(n) + " parâmetro(s) de tipo (" + lista +
+                   "), mas recebeu " + std::to_string(args.size()), tok);
+    }
+    std::vector<TypeRef> tipos;
+    for (const auto& a : args) {
+        TypeRef t = typeOf(a.get());
+        if (t->is(TK::Void) || t->is(TK::Var))
+            throwError("'" + t->str() + "' não pode ser o tipo de '" +
+                       g.decl->type_params[tipos.size()].lexeme + "' em '" + nome + "': um "
+                       "argumento de tipo é um tipo de valor (i32, string, list<i32>, uma "
+                       "struct...)", tok);
+        tipos.push_back(t);
+    }
+    return instanciaStruct(g, tipos, tok);
+}
+
+TypeRef SemanticAnalyzer::instanciaStruct(const StructGenerico& g, const std::vector<TypeRef>& tipos,
+                                          const Token& uso) {
+    auto chave = std::make_pair(g.decl, tipos);
+    if (auto it = instancias_struct.find(chave); it != instancias_struct.end())
+        return types.structType(it->second->decl->name);
+
+    const std::string nome = nomeCopia(g.decl->name, tipos);
+    if (structs_abertos >= MAX_COPIAS_ENCADEADAS) {
+        SemanticError e("Instanciações genéricas encadeadas demais (mais de " +
+                        std::to_string(MAX_COPIAS_ENCADEADAS) + "): '" +
+                        stripModulePrefixes(g.decl->name) + "' usa a si mesmo com tipos que só "
+                        "crescem (como T → list<T>); isso nunca termina na compilação.", uso);
+        e.notes = rastro(nome, uso, instancia_atual);
+        throw e;
+    }
+
+    // Tokens da cópia: "struct nome" + o resto depois do ']' dos parâmetros de tipo
+    const std::vector<Token>& F = g.decl->fonte;
+    std::vector<Token> toks{F[0], F[1]};
+    size_t k = 2;
+    while (k < F.size() && F[k].type != TokenType::RBRACKET) ++k;
+    const bool marca = !modules[static_cast<size_t>(g.modulo)].prefix.empty();
+    trocaParametros(g.decl->type_params, tipos, marca, F, k + 1, toks);
+    Token fim = F.back();
+    fim.type   = TokenType::END_OF_FILE;
+    fim.lexeme = "";
+    toks.push_back(fim);
+
+    std::set<std::string> apelidos;
+    for (const auto& [apelido, _] : modules[static_cast<size_t>(g.modulo)].imports)
+        apelidos.insert(apelido);
+    std::string erro;
+    Token       erro_tok;
+    StmtPtr copia = Parser::parseGenericCopy(std::move(toks), apelidos, erro, erro_tok);
+    if (!copia) {
+        std::string ligacoes;
+        for (size_t j = 0; j < tipos.size(); ++j)
+            ligacoes += (j ? ", " : "") + g.decl->type_params[j].lexeme + " = " + tipos[j]->str();
+        SemanticError e("Com " + ligacoes + ", o struct '" + stripModulePrefixes(g.decl->name) +
+                        "' não é válido: " + erro, erro_tok);
+        e.notes = rastro(nome, uso, instancia_atual);
+        throw e;
+    }
+
+    auto* st = static_cast<StructDecl*>(copia.get());
+    st->name = nome;
+    auto inst = std::make_unique<InstanciaStruct>();
+    inst->origem = g.decl;
+    inst->tipos  = tipos;
+    inst->decl   = st;
+    inst->modulo = g.modulo;
+    inst->uso    = uso;
+    inst->pai    = instancia_atual;
+    InstanciaStruct* r = inst.get();
+    programas[static_cast<size_t>(g.modulo)]->instancias.push_back(std::move(copia));
+    instancias_struct.emplace(std::move(chave), std::move(inst));
+    copia_struct[nome] = r;
+    types.declareStruct(nome);   // antes dos campos: list<No[T]> dentro de No[T] acha a cópia
+
+    // Os campos, no módulo da declaração (podem criar outras cópias)
+    const int salvo = current_module;
+    current_module = g.modulo;
+    ++structs_abertos;
+    try {
+        registerStruct(*st, false);
+    } catch (SemanticError& e) {
+        if (e.notes.empty()) e.notes = rastro(nome, uso, instancia_atual);
+        throw;
+    }
+    --structs_abertos;
+    current_module = salvo;
+    fila_structs.push_back(r);
+    return types.structType(nome);
 }
 
 } // namespace cinza

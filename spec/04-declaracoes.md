@@ -200,11 +200,27 @@ fn main() {
 struct Ponto { i64 x = 0; i64 y = 0; }
 ```
 
-Um struct só tem campos, todos públicos — não tem métodos, construtor nem `pub`. Cada campo
-precisa de valor inicial (exceto `list` e `dict`).
+Um struct só tem campos, todos públicos — não tem métodos, construtor nem `pub`.
 
-**Criação**: `new Ponto()` usa os valores iniciais; `new Ponto(3, 4)` informa **todos** os
-campos, na ordem da declaração. Um número parcial de argumentos é erro.
+Um campo pode ter **valor inicial** (`i64 x = 0;`) ou não. `list` e `dict` sem valor inicial
+nascem vazios. Qualquer outro campo sem valor inicial é **obrigatório**: quem cria o struct
+precisa informá-lo. Assim nenhum struct existe com um campo sem valor.
+
+**Criação**, de três formas:
+
+- `new Ponto()` — todos os campos com o valor inicial. Só vale se o struct não tiver campo
+  obrigatório.
+- `new Ponto(3, 4)` — **todos** os campos, na ordem da declaração. Um número parcial de
+  argumentos é erro.
+- `new Ponto(y: 4)` — **pelo nome** (`campo: valor`), em qualquer ordem. Os campos omitidos
+  recebem o valor inicial; os obrigatórios não podem ser omitidos. Um nome que não é campo, um
+  campo repetido ou a mistura com argumentos sem nome são erro.
+
+Na criação pelo nome, os valores informados são avaliados na ordem em que estão escritos, e
+depois os valores iniciais dos campos omitidos, na ordem da declaração.
+
+Um campo cujo tipo é um struct com campos obrigatórios também não tem valor padrão: ele mesmo é
+obrigatório, a menos que receba um valor inicial completo (`Contato c = new Contato(nome: "");`).
 
 Um struct é um **valor**: cada atribuição, argumento e retorno copia os campos (seção 5.1). Por
 isso um struct não pode conter a si mesmo por valor, direta ou indiretamente (por um campo ou um
@@ -222,6 +238,37 @@ fn main() {
   print(a, b);
 }
 // expect: Ponto{x: 1, y: 2} Ponto{x: 10, y: 2}
+```
+
+```cinza
+struct Contato {
+  string nome;            // obrigatório
+  string telefone = "";
+  i32 prioridade = 1;
+}
+fn main() {
+  Contato a = new Contato(nome: "ana");
+  Contato b = new Contato(prioridade: 3, nome: "bia");
+  Contato c = new Contato("caio", "1199", 2);
+  print(a, b, c.telefone);
+}
+// expect: Contato{nome: "ana", telefone: "", prioridade: 1} Contato{nome: "bia", telefone: "", prioridade: 3} 1199
+```
+
+```cinza
+struct Contato { string nome; string telefone = ""; }
+fn main() {
+  Contato c = new Contato();
+}
+// expect-error: o campo 'nome' não tem valor inicial
+```
+
+```cinza
+struct Contato { string nome; string telefone = ""; }
+fn main() {
+  Contato c = new Contato(telefone: "1199");
+}
+// expect-error: falta o campo obrigatório 'nome'
 ```
 
 ## 4.8 `enum`

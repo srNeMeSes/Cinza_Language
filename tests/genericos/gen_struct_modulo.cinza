@@ -1,0 +1,16 @@
+// 8.6 + 4.11: struct genérico pub de outro módulo; os valores iniciais resolvem nomes no
+// módulo dele (LIMITE), os tipos vêm de quem usa (o Ponto daqui)
+import modulos.structs_genericos as sg;
+struct Ponto { string nome = "do principal"; }
+fn main() {
+  sg.Conta[Ponto] a = new sg.Conta[Ponto](dono: new Ponto());
+  sg.Conta[Ponto] b = sg.abre(new Ponto());
+  sg.Conta[i32] c = sg.abre(7);
+  print(a.dono.nome, b.dono.nome, a.limite, c);
+  print(sg.local().dono.nome, sg.dono_de(c), type(a));
+  sg.Par[string, sg.Conta[i32]] p = new sg.Par[string, sg.Conta[i32]]("x", c);
+  print(p);
+}
+// expect: do principal do principal 100 Conta[i32]{dono: 7, limite: 100}
+// expect: do módulo 7 Conta[Ponto]
+// expect: Par[string, Conta[i32]]{primeiro: "x", segundo: Conta[i32]{dono: 7, limite: 100}}

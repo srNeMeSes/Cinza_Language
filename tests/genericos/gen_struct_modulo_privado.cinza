@@ -1,0 +1,6 @@
+// 8.6 + 4.11: struct genérico sem pub não é visível de outro módulo
+import modulos.structs_genericos as sg;
+fn main() {
+  sg.Secreto[i32] s = new sg.Secreto[i32](x: 1);
+}
+// expect-error: 'Secreto' é privado no módulo 'sg'

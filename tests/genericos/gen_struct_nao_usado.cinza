@@ -1,0 +1,4 @@
+// 8.6: struct genérico nunca usado só passa pela sintaxe e pelas regras da declaração
+struct Nunca[T] { Fantasma f; dict<T, i32> d; }
+fn main() { print("ok"); }
+// expect: ok

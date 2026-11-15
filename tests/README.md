@@ -22,14 +22,14 @@ do `run_tests.py`. Para rodar só uma parte: `python tests/run_tests.py cinza.ex
 | `funcoes/` | chamadas, escopo, recursão |
 | `const/` | `const` global e local, recipientes `const` |
 | `classes/` | campos, métodos, `self`, lugares atribuíveis |
-| `structs/` | `struct`: cópia, construtor, recursão |
+| `structs/` | `struct`: cópia, criação (posicional e pelo nome), campos obrigatórios, recursão |
 | `enum/` | `enum` |
 | `interfaces/` | `interface` |
 | `excecoes/` | `error`, `throw`, `try`/`except`/`finally` |
 | `strings_e_printf/` | índices e fatias de texto, `printf`/`format` |
 | `importacao/` | `import`, módulos, `pub`, `CINZA_PATH`, nomes de módulos nativos |
 | `biblioteca/` | funções embutidas e módulos nativos (`Strings`, `Files`, `Math`...) |
-| `genericos/` | funções genéricas (spec, capítulo 8) |
+| `genericos/` | funções e structs genéricos (spec, capítulo 8) |
 | `cvm/` | casos específicos da máquina virtual |
 | `gc/` | coleta de ciclos |
 | `programas/` | programas maiores (rede neural, lista ligada) |

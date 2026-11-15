@@ -1,0 +1,16 @@
+// 4.7: pelo nome, os valores informados na ordem escrita e depois os valores iniciais
+// dos omitidos, na ordem da declaração
+fn marca(string s, i32 v) -> i32 {
+  print(s);
+  return v;
+}
+struct S { i32 a = marca("a", 1); i32 b = 2; i32 c = marca("c", 3); i32 d = marca("d", 4); }
+fn main() {
+  S s = new S(c: marca("C", 30), b: marca("B", 20));
+  print(s);
+}
+// expect: C
+// expect: B
+// expect: a
+// expect: d
+// expect: S{a: 1, b: 20, c: 30, d: 4}

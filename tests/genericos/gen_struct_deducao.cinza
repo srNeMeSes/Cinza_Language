@@ -1,0 +1,10 @@
+// 8.3 + 8.6: dentro de Caixa[T] o tipo é exato e fixa a ligação; um i32 de fora alarga
+struct Caixa[T] { T valor; }
+fn soma[T](Caixa[T] c, T n) -> T { return c.valor + n; }
+fn main() {
+  Caixa[i64] c = new Caixa[i64](valor: 5000000000);
+  i32 pouco = 1;
+  var r = soma(c, pouco);
+  print(r, type(r));
+}
+// expect: 5000000001 i64

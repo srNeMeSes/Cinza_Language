@@ -1,0 +1,6 @@
+// 4.7: new sem argumentos não vale com campos obrigatórios
+struct Contato { string nome; string telefone = ""; string email; }
+fn main() {
+  Contato c = new Contato();
+}
+// expect-error: Construtor de 'Contato': os campos 'nome', 'email' não têm valor inicial

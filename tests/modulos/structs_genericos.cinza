@@ -1,0 +1,9 @@
+// N5: structs genéricos exportados por um módulo (testes gen_struct_modulo*)
+const i32 LIMITE = 100;
+struct Ponto { string nome = "do módulo"; }
+pub struct Conta[T] { T dono; i32 limite = LIMITE; }
+pub struct Par[A, B] { A primeiro; B segundo; }
+struct Secreto[T] { T x; }
+pub fn abre[T](T dono) -> Conta[T] { return new Conta[T](dono: dono); }
+pub fn local() -> Conta[Ponto] { return new Conta[Ponto](dono: new Ponto()); }
+pub fn dono_de[T](Conta[T] c) -> T { return c.dono; }
