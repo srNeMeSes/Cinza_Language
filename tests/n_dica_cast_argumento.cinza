@@ -1,0 +1,7 @@
+// Varredura N: argumento numérico de outro tipo sugere o cast.
+fn metade(i32 x) -> i32 { return x / 2; }
+fn main() {
+  i64 n = 10;
+  print(metade(n));
+}
+// expect-error: Argumento 1 de 'metade': esperado 'i32', mas recebeu 'i64'. Converta com cast<i32>(valor)

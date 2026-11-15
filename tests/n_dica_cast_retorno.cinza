@@ -1,0 +1,4 @@
+// Varredura N: retorno numérico de outro tipo sugere o cast.
+fn media(i64 total, i64 n) -> f64 { return total / n; }
+fn main() { print(media(3, 2)); }
+// expect-error: esperado 'f64', mas retornando 'i64'. Converta com cast<f64>(valor)

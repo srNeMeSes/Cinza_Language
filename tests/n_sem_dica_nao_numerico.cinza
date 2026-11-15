@@ -1,0 +1,4 @@
+// Varredura N: a dica do cast só aparece entre tipos que o cast converte (bool não).
+fn main() { bool b = 5; }
+// expect-error: declarado 'bool', mas atribuído 'i32'
+// expect-not: Converta com cast

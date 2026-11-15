@@ -1320,6 +1320,18 @@ linguagem CINZA, vai contra a filosofia da linguagem, isso deve gerar erro e nã
   > `f7_math_erros`, `stdlib_revisao` e `rev_decimal_overflow` no formato de erro (com f32); novos
   > `m_sem_infinito`, `m_cast_sem_infinito`, `m_math_sem_constantes`, `m_math_sem_is_nan`,
   > `m_average_sem_estouro`, `l_unique_largura`.
+- [x] M2. Segunda varredura (antes do push). — feito em 2026-11-14
+  > ~35 programas de sondagem: o padrão do autor (`printf` com `self.campo.metodo()` dentro de método,
+  > `for (pair<str, i32> p in dict)`), interpolação (escapes, `{{`, formatos, erros), `throw` de
+  > novo e erro dentro do `finally`, métodos privados, `self` fora de classe, `const` que estoura na
+  > inicialização, structs recursivos, parâmetros `const`, 300 parênteses aninhados, `print`
+  > redefinido, módulos (`pub`, apelido, inexistente), alteração da coleção dentro do `for`, código
+  > inalcançável, chaves duplicadas, interfaces, hierarquia de erros, Unicode com índice negativo.
+  > Tudo de acordo com a spec. Uma inconsistência corrigida: as operações entre famílias sugeriam o
+  > `cast<T>`, mas declaração, atribuição, retorno e argumentos (função, método, construtor, nativa,
+  > `list.add`) só diziam "incompatível"; agora todos terminam com "Converta com cast<T>(valor)"
+  > quando o `cast` faria a conversão (números entre si e com `string`; `bool` não). Testes `n_*`.
+  > 483/483, limpo sob ASan/UBSan.
 
 ---
 

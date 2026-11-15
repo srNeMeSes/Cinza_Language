@@ -1,0 +1,6 @@
+// Varredura N: número que não cabe no lugar sugere o cast (como as operações entre famílias).
+fn main() {
+  i32 x = 5;
+  f64 y = x;
+}
+// expect-error: declarado 'f64', mas atribuído 'i32'. Converta com cast<f64>(valor)

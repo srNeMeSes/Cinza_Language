@@ -35,6 +35,15 @@ bool TypeChecker::widens(TypeRef to, TypeRef from) {
     return (to->is(TK::I64) && from->is(TK::I32)) || (to->is(TK::F64) && from->is(TK::F32));
 }
 
+// Dica para um valor que o cast<T> converteria (i32 onde se espera f64, i64
+// onde se espera i32, número onde se espera string e vice-versa): a conversão
+// é explícita — a mesma sugestão das operações entre famílias
+static std::string dicaCast(TypeRef esperado, TypeRef recebido) {
+    auto conversivel = [](TypeRef t) { return t->isNumeric() || t->is(TK::String); };
+    if (!conversivel(esperado) || !conversivel(recebido) || esperado == recebido) return "";
+    return ". Converta com cast<" + esperado->str() + ">(valor)";
+}
+
 // Mensagem de operação entre famílias diferentes (i32 + f64)
 static std::string familiasMessage(const std::string& op_text, TypeRef l, TypeRef r) {
     TypeRef f = l->isFloat() ? l : r;
@@ -1093,7 +1102,7 @@ void SemanticAnalyzer::analyzeVarDecl(VarDeclStmt* stmt) {
                 throwError(
                     "Tipo incompatível na declaração de '" + stmt->name +
                     "': declarado '" + declared_type->str() +
-                    "', mas atribuído '" + init_type->str() + "'",
+                    "', mas atribuído '" + init_type->str() + "'" + dicaCast(declared_type, init_type),
                     stmt->token);
             }
             coerceInPlace(stmt->initializer, declared_type);
@@ -1304,16 +1313,16 @@ void SemanticAnalyzer::analyzeAssign(AssignStmt* stmt) {
             TypeRef container = static_cast<const IndexAccessExpr*>(t)->object->resolved_type;
             if (container->is(TK::List))
                 throwError("Valor de tipo '" + val_type->str() +
-                           "' incompatível com elemento da lista '" + target_type->str() + "'",
-                           stmt->token);
+                           "' incompatível com elemento da lista '" + target_type->str() + "'" +
+                           dicaCast(target_type, val_type), stmt->token);
             throwError("Valor de tipo '" + val_type->str() +
-                       "' incompatível com V='" + target_type->str() + "' do dicionário",
-                       stmt->token);
+                       "' incompatível com V='" + target_type->str() + "' do dicionário" +
+                       dicaCast(target_type, val_type), stmt->token);
         }
         throwError(
             "Tipo incompatível na atribuição de '" + lvalueName(t) +
             "': esperado '" + target_type->str() +
-            "', mas recebeu '" + val_type->str() + "'",
+            "', mas recebeu '" + val_type->str() + "'" + dicaCast(target_type, val_type),
             stmt->token);
     }
     coerceInPlace(stmt->value, target_type);   // A2
@@ -1474,8 +1483,8 @@ void SemanticAnalyzer::analyzeReturn(ReturnStmt* stmt) {
     if (!TypeChecker::isAssignable(current_function_return_type, ret_type)) {
         throwError(
             "Tipo de retorno incompatível: esperado '" +
-            current_function_return_type->str() + "', mas retornando '" + ret_type->str() + "'",
-            stmt->token);
+            current_function_return_type->str() + "', mas retornando '" + ret_type->str() + "'" +
+            dicaCast(current_function_return_type, ret_type), stmt->token);
     }
     coerceInPlace(stmt->value, current_function_return_type);
 }
@@ -2021,8 +2030,8 @@ TypeRef SemanticAnalyzer::analyzeCall(CallExpr* expr) {
                         throwError(
                             "Argumento " + std::to_string(i + 1) + " de '" +
                             expr->function_name + "': esperado '" +
-                            mi.param_types[i]->str() + "', mas recebeu '" + at->str() + "'",
-                            expr->token);
+                            mi.param_types[i]->str() + "', mas recebeu '" + at->str() + "'" +
+                            dicaCast(mi.param_types[i], at), expr->token);
                     }
                     coerceInPlace(expr->arguments[i], mi.param_types[i]);
                 }
@@ -2112,7 +2121,7 @@ TypeRef SemanticAnalyzer::analyzeCall(CallExpr* expr) {
             throwError(
                 "Argumento " + std::to_string(i + 1) + " de '" +
                 expr->function_name + "': esperado '" + sym->param_types[i]->str() +
-                "', mas recebeu '" + at->str() + "'",
+                "', mas recebeu '" + at->str() + "'" + dicaCast(sym->param_types[i], at),
                 expr->token);
         }
         coerceInPlace(expr->arguments[i], sym->param_types[i]);
@@ -2212,7 +2221,8 @@ TypeRef SemanticAnalyzer::analyzeNativeCall(CallExpr* expr, const NativeFn& fn) 
         if (!unify(param, at, binds)) {
             TypeRef mostrado = expected ? expected : param;
             throwError("Argumento " + std::to_string(i + 1) + " de '" + nome +
-                       "': esperado " + tiposAceitos(mostrado) + ", mas recebeu '" + at->str() + "'",
+                       "': esperado " + tiposAceitos(mostrado) + ", mas recebeu '" + at->str() + "'" +
+                       (mostrado->is(TK::TypeVar) ? std::string() : dicaCast(mostrado, at)),
                        expr->token);
         }
     }
@@ -2261,7 +2271,7 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
             if (!TypeChecker::isAssignable(mi.param_types[a], at))
                 throwError("Argumento " + std::to_string(a + 1) + " de '" + obj_type->str() + "." +
                            expr->method_name + "': esperado '" + mi.param_types[a]->str() +
-                           "', mas recebeu '" + at->str() + "'", expr->token);
+                           "', mas recebeu '" + at->str() + "'" + dicaCast(mi.param_types[a], at), expr->token);
             coerceInPlace(expr->arguments[a], mi.param_types[a]);
         }
         expr->iface        = ii.decl;
@@ -2304,7 +2314,7 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
             TypeRef elem_type = analyzeExpr(expr->arguments[0].get(), T);
             if (!TypeChecker::isAssignable(T, elem_type))
                 throwError("'list.add': tipo '" + elem_type->str() +
-                           "' incompatível com elemento '" + T->str() + "'",
+                           "' incompatível com elemento '" + T->str() + "'" + dicaCast(T, elem_type),
                            expr->token);
             coerceInPlace(expr->arguments[0], T);
             return expr->resolved_type = types.voidType();
@@ -2453,8 +2463,8 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
             throwError(
                 "Argumento " + std::to_string(i + 1) + " de '" +
                 obj_type->str() + "." + expr->method_name + "': esperado '" +
-                mi.param_types[i]->str() + "', mas recebeu '" + arg_type->str() + "'",
-                expr->token);
+                mi.param_types[i]->str() + "', mas recebeu '" + arg_type->str() + "'" +
+                dicaCast(mi.param_types[i], arg_type), expr->token);
         }
         coerceInPlace(expr->arguments[i], mi.param_types[i]);
     }
@@ -2745,7 +2755,7 @@ TypeRef SemanticAnalyzer::analyzeNew(NewExpr* expr) {
                 throwError(
                     "Argumento " + std::to_string(i + 1) + " do construtor de '" + info.name +
                     "' (campo '" + nome + "'): esperado '" + tipo->str() +
-                    "', mas recebeu '" + at->str() + "'",
+                    "', mas recebeu '" + at->str() + "'" + dicaCast(tipo, at),
                     expr->token);
             }
             coerceInPlace(expr->arguments[i], tipo);
@@ -2779,7 +2789,7 @@ TypeRef SemanticAnalyzer::analyzeNew(NewExpr* expr) {
             throwError(
                 "Argumento " + std::to_string(i + 1) + " do construtor de '" +
                 expr->class_name + "': esperado '" + cls.ctor_param_types[i]->str() +
-                "', mas recebeu '" + arg_type->str() + "'",
+                "', mas recebeu '" + arg_type->str() + "'" + dicaCast(cls.ctor_param_types[i], arg_type),
                 expr->token);
         }
         coerceInPlace(expr->arguments[i], cls.ctor_param_types[i]);
