@@ -11,6 +11,12 @@ namespace cinza {
 
 using TK = TypeInfo::Kind;
 
+namespace {
+// N2 (definida na seção das funções genéricas, no fim do arquivo)
+void trocaParametros(const FunctionDecl& g, const std::vector<TypeRef>& tipos, bool marca,
+                     const std::vector<Token>& in, size_t inicio, std::vector<Token>& out);
+}  // namespace
+
 // ============================================================================
 // TYPE CHECKER
 // B1: opera sobre TypeRef (tipos únicos do TypeContext); igualdade de tipos
@@ -2712,9 +2718,21 @@ TypeRef SemanticAnalyzer::analyzeInterpolation(CallExpr* expr) {
         if (codigo.find_first_not_of(" \t") == std::string::npos)
             throwError("'{}' vazio no texto de '" + nome + "': coloque uma expressão, ex.: {nome}", origem);
 
+        // N4: no corpo de uma cópia genérica, o T do texto também vira o tipo concreto
+        std::function<void(std::vector<Token>&)> troca;
+        if (instancia_atual) {
+            const Instancia& inst = *instancia_atual;
+            const bool marca = !modules[static_cast<size_t>(inst.modulo)].prefix.empty();
+            troca = [&inst, marca](std::vector<Token>& toks) {
+                std::vector<Token> novos;
+                trocaParametros(*inst.origem, inst.tipos, marca, toks, 0, novos);
+                toks = std::move(novos);
+            };
+        }
         CallExpr::InterpPart parte;
         try {
-            parte.expr = Parser::parseEmbedded(codigo, origem, static_cast<int>(i + 2), apelidos);
+            parte.expr = Parser::parseEmbedded(codigo, origem, static_cast<int>(i + 2), apelidos,
+                                               troca);
         } catch (const ParseError& e) {
             throwError("Expressão inválida em '{" + codigo + "}' no texto de '" + nome + "': " + e.what(),
                        e.error_token);
@@ -3252,6 +3270,22 @@ void tokensDoTipo(TypeRef t, const Token& pos, bool marca_principal, std::vector
     }
 }
 
+// Copia in[inicio..] para out, trocando cada parâmetro de tipo de g (que não seja
+// nome de membro, depois de '.') pelos tokens do tipo concreto. Serve à cópia
+// inteira e às expressões {...} de printf/format no corpo dela, que só viram
+// tokens na análise.
+void trocaParametros(const FunctionDecl& g, const std::vector<TypeRef>& tipos, bool marca,
+                     const std::vector<Token>& in, size_t inicio, std::vector<Token>& out) {
+    for (size_t k = inicio; k < in.size(); ++k) {
+        const Token& t = in[k];
+        const int idx = t.type == TokenType::IDENTIFIER &&
+                        (k == 0 || in[k - 1].type != TokenType::DOT)
+                        ? indiceParametro(g, t.lexeme) : -1;
+        if (idx >= 0) tokensDoTipo(tipos[static_cast<size_t>(idx)], t, marca, out);
+        else out.push_back(t);
+    }
+}
+
 }  // namespace
 
 void SemanticAnalyzer::checkGenericDecl(FunctionDecl* fn) {
@@ -3412,13 +3446,7 @@ SemanticAnalyzer::Instancia* SemanticAnalyzer::instancia(const FunctionDecl& g, 
     size_t k = 2;
     while (k < F.size() && F[k].type != TokenType::RBRACKET) ++k;
     const bool marca = !modules[static_cast<size_t>(modulo)].prefix.empty();
-    for (++k; k < F.size(); ++k) {
-        const Token& t = F[k];
-        const int idx = t.type == TokenType::IDENTIFIER && F[k - 1].type != TokenType::DOT
-                        ? indiceParametro(g, t.lexeme) : -1;
-        if (idx >= 0) tokensDoTipo(tipos[static_cast<size_t>(idx)], t, marca, toks);
-        else toks.push_back(t);
-    }
+    trocaParametros(g, tipos, marca, F, k + 1, toks);
     Token fim = F.back();
     fim.type   = TokenType::END_OF_FILE;
     fim.lexeme = "";

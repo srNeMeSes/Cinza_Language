@@ -1,0 +1,5 @@
+fn f[T](T x) -> T {
+  if (true) { return x; }
+}
+fn main() { print(f(1)); }
+// expect-error: Função 'f[i32]' não retorna em todos os caminhos de execução

@@ -1,0 +1,16 @@
+// genérica chamada de método que cumpre interface, e com self
+interface I { fn f() -> i32; }
+fn id[T](T x) -> T { return x; }
+class C : I {
+  i32 v = 2;
+  pub {
+    fn f() -> i32 { return id(7); }
+    fn eu() -> C { return id(self); }
+    fn valor() -> i32 { return v; }
+  }
+}
+fn main() {
+  I i = new C();
+  print(i.f(), new C().eu().valor());
+}
+// expect: 7 2

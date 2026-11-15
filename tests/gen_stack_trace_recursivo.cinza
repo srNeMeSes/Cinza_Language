@@ -1,0 +1,5 @@
+// estouro de pilha numa cópia: o stack trace mostra o nome com os tipos
+fn desce[T](T x, i32 n) -> i32 { return desce(x, n + 1); }
+fn main() { print(desce("a", 0)); }
+// expect-error: StackOverflowError
+// expect-error:     em desce[string] (

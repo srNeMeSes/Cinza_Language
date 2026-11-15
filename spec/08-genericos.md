@@ -23,7 +23,8 @@ fn nome[T, U](parâmetros) -> tipo { ... }
   interface, erro).
 - Dentro da função — parâmetros, tipo de retorno e corpo — um parâmetro de tipo vale em qualquer
   lugar onde se escreve um tipo: `T x`, `list<T>`, `dict<string, T>`, `pair<T, U>`, `cast<T>(...)`,
-  `type(x) == T`.
+  `type(x) == T`, `new T()`, `except (T e)`, inclusive nas expressões `{...}` de `printf` e `format`.
+  Depois de `.` o nome é de membro, não o parâmetro de tipo (`x.T` é o campo `T`).
 - Métodos, construtores, assinaturas de interface, `struct`, `class`, `enum` e `error` não aceitam
   parâmetros de tipo. A `main` não pode ser genérica.
 - Continua não havendo sobrecarga (seção 4.4): uma função genérica e outro item do nível superior

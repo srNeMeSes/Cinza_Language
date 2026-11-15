@@ -1,0 +1,11 @@
+// T como tipo de erro: throw T(...) e except (T e)
+fn tenta[E](string m) -> string {
+  try {
+    throw E(m);
+  } except (E e) {
+    return "pegou " + e.kind + ": " + e.message;
+  }
+}
+fn main() { print(tenta[ValueError]("a")); print(tenta[IndexError]("b")); }
+// expect: pegou ValueError: a
+// expect: pegou IndexError: b

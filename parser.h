@@ -5,6 +5,7 @@
 #include "lexer.h"
 #include <vector>
 #include <set>
+#include <functional>
 #include <string>
 #include <stdexcept>
 
@@ -185,9 +186,12 @@ public:
     // Uma expressão sozinha, escrita dentro de um texto ({expr} do printf):
     // os tokens recebem a posição de `origem` deslocada em `coluna` caracteres.
     // `apelidos` são os módulos importados pelo arquivo (Math.abs(x) dentro do texto).
-    // Lança ParseError se o código não for exatamente uma expressão.
+    // `troca` (N4) altera os tokens antes da leitura: numa cópia de função genérica,
+    // troca cada T pelo tipo concreto. Lança ParseError se o código não for
+    // exatamente uma expressão.
     static ExprPtr parseEmbedded(const std::string& codigo, const Token& origem, int coluna,
-                                 const std::set<std::string>& apelidos);
+                                 const std::set<std::string>& apelidos,
+                                 const std::function<void(std::vector<Token>&)>& troca = {});
     
     // N2: uma cópia de função genérica — os tokens da declaração com os tipos
     // concretos no lugar dos parâmetros de tipo. Devolve a FunctionDecl, ou nulo

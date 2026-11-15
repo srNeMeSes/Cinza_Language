@@ -1,0 +1,11 @@
+// nativas genéricas no corpo seguem o tipo concreto; o erro vem com rastro
+import Math;
+import Lists;
+fn maior2[T](T a, T b) -> T { return Math.max(a, b); }
+fn ordena[T](list<T> l) -> list<T> { return Lists.sorted(l); }
+fn main() {
+  print(maior2(1, 5), maior2(2.5ff, 1.ff), ordena([3, 1, 2]), ordena(["b", "a"]));
+  print(maior2("a", "b"));
+}
+// expect-error: Argumento 1 de 'Math.max': esperado 'i32', 'i64', 'f32' ou 'f64', mas recebeu 'string'
+// expect-error:     em maior2[string], usada em tests/gen_nativa_no_corpo.cinza:8

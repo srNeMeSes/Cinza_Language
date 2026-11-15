@@ -1,0 +1,15 @@
+// chamadas genéricas misturadas com índices e fatias (8.3)
+fn maior[T](T a, T b) -> T {
+  if (a > b) { return a; }
+  return b;
+}
+fn id[T](T x) -> T { return x; }
+fn main() {
+  list<i32> l = [5, 6, 7];
+  string s = "cinza";
+  list<list<i32>> m = [[1, 2], [3]];
+  print(id[i32](l[0]), l[id[i32](1)], s[id(1):id[i32](3)], m[0][id(1)], id(l)[2]);
+  print(maior[i32](l[0], l[id(2)]), id[list<i32>](l)[0], id[string](s)[1:2]);
+}
+// expect: 5 6 in 2 7
+// expect: 7 5 i

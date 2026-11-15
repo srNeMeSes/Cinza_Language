@@ -1,0 +1,16 @@
+// T = tipo de um módulo (deduzido e explícito); objeto compartilhado (5.1)
+import modulos.geom as geo;
+import modulos.genericos as g;
+fn id[T](T x) -> T { return x; }
+fn main() {
+  geo.Ponto p = new geo.Ponto(1, 2);
+  print(id(p), id[geo.Ponto](p).x, type(id(p)));
+  geo.Contador c = new geo.Contador();
+  id(c).inc();
+  print(c.valor());
+  list<geo.Ponto> l = [new geo.Ponto(4, 5)];
+  print(g.primeiro(l), g.primeiro[geo.Ponto](l).y, g.cria[geo.Ponto]());
+}
+// expect: Ponto{x: 1, y: 2} 1 Ponto
+// expect: 1
+// expect: Ponto{x: 4, y: 5} 5 Ponto{x: 0, y: 0}

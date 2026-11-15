@@ -1,0 +1,8 @@
+// com tipos explícitos, o literal de lista se adapta à assinatura concreta
+fn soma[T](list<T> l) -> T {
+  T t = cast<T>(0);
+  for (T x in l) { t += x; }
+  return t;
+}
+fn main() { print(soma[i64]([1, 2]), soma[f64]([1.5ff]), type(soma[i64]([1]))); }
+// expect: 3 1.5 i64

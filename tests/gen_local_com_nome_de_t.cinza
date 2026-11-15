@@ -1,0 +1,7 @@
+// uma variável com o nome do parâmetro de tipo também é trocada
+fn f[T](T x) -> T {
+  i32 T = 1;
+  return x;
+}
+fn main() { print(f(1)); }
+// expect-error: Com T = i32, o corpo de 'f' não é válido

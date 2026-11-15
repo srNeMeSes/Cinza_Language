@@ -1,0 +1,14 @@
+// genérica chamando outra com tipos explícitos montados de T
+fn vazia[T]() -> list<T> {
+  list<T> l;
+  return l;
+}
+fn embrulha[T](T x) -> list<list<T>> {
+  list<list<T>> r = vazia[list<T>]();
+  list<T> um = vazia[T]();
+  um.add(x);
+  r.add(um);
+  return r;
+}
+fn main() { print(embrulha(1), embrulha("x")); }
+// expect: [[1]] [["x"]]

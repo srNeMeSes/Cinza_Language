@@ -1,0 +1,6 @@
+// campos de classe continuam privados para a genérica
+class C { i32 v = 1; }
+fn le[T](T x) -> i32 { return x.v; }
+fn main() { print(le(new C())); }
+// expect-error: Campo 'v' é privado na classe 'C'
+// expect-error:     em le[C], usada em

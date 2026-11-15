@@ -1426,11 +1426,27 @@ exemplos); ela saiu na N3. Testes com prefixo `gen_`.
   > struct/classe/interface como `T`, `new T()`, `const`, `printf`, recursão e cache, rastro
   > encadeado e abreviado, módulo com `pub`, privado e erro com rastro — módulo de teste
   > `tests/modulos/genericos.cinza`). 553/553, limpo sob ASan/UBSan.
-- [ ] N4. Varredura e acabamento: genéricos entre módulos (`pub`, apelido, tipo do módulo de quem
+- [x] N4. Varredura e acabamento: genéricos entre módulos (`pub`, apelido, tipo do módulo de quem
   usa), recursão com e sem crescimento de tipo, interface como `T`, `const`, `var`, `printf`/
   `format` no corpo, coleções aninhadas, colchetes de tipo ao lado de índices e fatias
   (`f[i32](l[0])`, `l[f[i32](x)]`); ASan/UBSan. Extensão do VS Code (`fn nome[T]` e chamadas com
-  tipos explícitos). Spec versão 4.
+  tipos explícitos). Spec versão 4. — feito em 2026-11-15
+  > ~40 programas de sondagem: colchetes de tipo com índices, fatias e índices encadeados; tipos de
+  > módulo como `T` (deduzidos e explícitos, `g.cria[geo.Ponto]()`), duas genéricas de módulos
+  > diferentes; `var`, `dict<T, ...>` com chave inválida, retorno em todos os caminhos, `throw T(...)`
+  > e `except (T e)`, enum como `T`, genérica em inicializador de campo (class e struct), nativas
+  > genéricas no corpo (`Math.max`, `Lists.sorted`), 12 cópias de uma função, estouro de pilha e
+  > exceção atravessando uma cópia, parâmetro de tipo sem uso, `str`, literais de pair e de lista
+  > com tipos explícitos, campo privado, igualdade de struct, formatos `{x:8}`/`{x:.2f}`, genérica
+  > declarada depois da `main`, chamada dentro de método que cumpre interface e com `self`.
+  > **Corrigido**: o `T` dentro do texto de `printf`/`format` não era trocado (as expressões
+  > `{...}` só viram tokens na análise): `printf("{cast<T>(x)}")` dava "cast<T> não existe". Agora
+  > `parseEmbedded` recebe a mesma troca de tokens da cópia (`trocaParametros`). Spec 8.1: a lista
+  > de lugares onde `T` vale (inclusive `new T()`, `except (T e)` e o texto do `printf`) e a
+  > regra do `x.T`. Extensão (`C:\cinza-vscode`, 0.5.0): `fn nome[T, U]` com os parâmetros de
+  > tipo destacados como tipos, `nome[tipos](...)` e `apelido.f[tipos](...)` como chamada de
+  > função (só quando o `]` é seguido de `(`; índices e fatias não mudam). Spec versão 4.
+  > 16 testes `gen_*` novos. 569/569, limpo sob ASan/UBSan.
 
 **Fora desta seção** (em discussão com o autor): `struct` e `class` genéricas — falta decidir como
 um campo de tipo genérico recebe valor inicial (proposta: sem valor inicial, quem cria fornece;

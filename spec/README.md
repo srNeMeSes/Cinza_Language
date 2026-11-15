@@ -1,6 +1,6 @@
 # Especificação da linguagem Cinza
 
-Versão 3 · novembro de 2026 (sistema numérico i32/i64/f32/f64)
+Versão 4 · novembro de 2026 (funções genéricas)
 
 Este documento define a linguagem Cinza: o que é um programa válido e o que ele faz ao
 executar. É a referência para quem implementa a linguagem — a máquina virtual (CVM) e o futuro

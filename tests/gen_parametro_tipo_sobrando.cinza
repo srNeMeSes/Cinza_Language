@@ -1,0 +1,7 @@
+// U não aparece nos parâmetros: os tipos explícitos são obrigatórios
+fn f[T, U](T x) -> T { return x; }
+fn main() {
+  print(f[i32, string](1));
+  print(f(1));
+}
+// expect-error: Não é possível deduzir o tipo 'U' de 'f'

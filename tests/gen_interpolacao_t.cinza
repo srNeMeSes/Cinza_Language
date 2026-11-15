@@ -1,0 +1,18 @@
+// N4 (corrigido): o T dentro do texto de printf/format também vira o tipo
+// concreto (as expressões {...} só viram tokens na análise da cópia)
+fn mostra[T](T x) {
+  printf("{cast<T>(x)} {type(x) == T}");
+  print(format("{T == i32}"));
+}
+struct S { i32 T = 4; }
+fn campo[T](T x) { printf("{x.T}"); }
+fn main() {
+  mostra(1);
+  mostra(2.5ff);
+  campo(new S());
+}
+// expect: 1 true
+// expect: true
+// expect: 2.5 true
+// expect: false
+// expect: 4
