@@ -1,0 +1,7 @@
+// B6: erro léxico no formato arquivo:linha:coluna: Tipo: mensagem; todos os erros léxicos aparecem.
+fn main() {
+  i64 a = 1 @ 2;
+  i64 b = 3 $ 4;
+}
+// expect-error: tests/diagnosticos/b6_formato_lexico.cinza:3:13: LexicalError:
+// expect-error: tests/diagnosticos/b6_formato_lexico.cinza:4:13: LexicalError:

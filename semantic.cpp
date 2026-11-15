@@ -545,7 +545,7 @@ void SemanticAnalyzer::registerFunction(const FunctionDecl& fn) {
         symbol_table.declare(sym, fn.token);
         return;
     }
-Symbol sym;
+    Symbol sym;
     sym.name          = fn.name;
     sym.kind          = Symbol::Kind::FUNCTION;
 

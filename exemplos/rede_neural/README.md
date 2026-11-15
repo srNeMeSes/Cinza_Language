@@ -83,5 +83,5 @@ lido é **bit a bit** o número gravado, e o modelo relido prevê exatamente o m
 verificação e a coerência das camadas antes de usar qualquer peso. Um arquivo corrompido ou de outro
 formato é recusado com uma mensagem clara.
 
-O teste `tests/exemplo_rede_neural.cinza` cobre a ida e volta exata dos decimais, o treino, salvar e
+O teste `tests/programas/exemplo_rede_neural.cinza` cobre a ida e volta exata dos decimais, o treino, salvar e
 reler, e a detecção de corrupção.

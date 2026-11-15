@@ -1,0 +1,8 @@
+// erro no corpo de uma genérica de módulo: posição lá, rastro até aqui
+import modulos.genericos as g;
+fn main() {
+  print(g.nome_de(5));
+}
+// expect-error: genericos.cinza
+// expect-error: Tipo 'i32' não possui campos
+// expect-error:     em nome_de[i32], usada em tests/genericos/gen_modulo_erro_rastro.cinza:4

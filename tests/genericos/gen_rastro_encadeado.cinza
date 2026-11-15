@@ -1,0 +1,9 @@
+// 8.4: uma linha por uso, da cópia mais interna para fora
+fn dono_de[T](T x) -> string { return x.dono; }
+fn mostra[T](T x) { print(dono_de(x)); }
+fn main() {
+  mostra(5);
+}
+// expect-error: Tipo 'i32' não possui campos
+// expect-error:     em dono_de[i32], usada em tests/genericos/gen_rastro_encadeado.cinza:3
+// expect-error:     em mostra[i32], usada em tests/genericos/gen_rastro_encadeado.cinza:5

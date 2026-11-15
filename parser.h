@@ -33,7 +33,7 @@ private:
     // N2: com silencioso, o primeiro erro fica guardado para quem chamou relatar
     std::string primeiro_erro;
     Token       primeiro_erro_tok;
-// Profundidade da árvore em construção: parênteses, unários, cada operador de
+    // Profundidade da árvore em construção: parênteses, unários, cada operador de
     // uma cadeia (a + b + c... cresce para a esquerda) e instruções aninhadas.
     // Acima do limite é erro de sintaxe, antes que as etapas recursivas (parser,
     // semântico, compilador da CVM) estourem a pilha do C++.

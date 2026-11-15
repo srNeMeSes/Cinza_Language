@@ -290,7 +290,7 @@ e devolve. O valor atual é lido depois de `b` (spec 5.2): em `l[0].x += g()`, u
 
 Em níveis que são objetos ou coleções (referências), a gravação vai direto, sem devolução.
 
-Testes: `tests/cvm_struct_lugar_valor.cinza`, `cvm_struct_lugar_composto.cinza` e
+Testes: `tests/structs/cvm_struct_lugar_valor.cinza`, `cvm_struct_lugar_composto.cinza` e
 `cvm_struct_lugar_removido.cinza`.
 
 ## 8. Módulos e início do programa

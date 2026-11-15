@@ -73,8 +73,11 @@ def ler_entrada(caminho):
 
 
 def ler_ambiente(caminho):
-    """Ambiente do processo: o atual mais as variáveis de `// env: NOME=valor`."""
+    """Ambiente do processo: o atual mais as variáveis de `// env: NOME=valor`.
+    CINZA_PATH=tests por padrão: os testes ficam em subpastas por assunto e importam
+    os módulos de apoio de tests/modulos/ (import modulos.geom)."""
     env = dict(os.environ)
+    env["CINZA_PATH"] = "tests"   # relativo à raiz (cwd): as mensagens mostram tests/modulos/...
     for linha in caminho.read_text(encoding="utf-8-sig").splitlines():
         m = RE_ENV.search(linha)
         if m:
@@ -221,7 +224,13 @@ def main():
         print(f"Binário não encontrado: {binario} (rode 'make' antes)")
         return 2
 
-    testes = [(p.name, p) for p in sorted(DIR_TESTES.glob("*.cinza")) if filtro in p.name]
+    # Testes em subpastas por assunto (tests/genericos/gen_modulo.cinza); ficam de fora os
+    # módulos de apoio, os exemplos extraídos da spec e pastas locais (tests_adm)
+    fora = {"modulos", "spec_exemplos", "tests_adm"}
+    testes = [(p.relative_to(DIR_TESTES).as_posix(), p)
+              for p in sorted(DIR_TESTES.rglob("*.cinza"))
+              if not fora.intersection(p.relative_to(DIR_TESTES).parts[:-1])
+              and filtro in p.relative_to(DIR_TESTES).as_posix()]
     testes += exemplos_da_spec(filtro)
     if not testes:
         print(f"Nenhum teste encontrado em {DIR_TESTES} com o filtro '{filtro}'")

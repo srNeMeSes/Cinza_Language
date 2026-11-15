@@ -3,7 +3,7 @@
 *.d
 *.exe
 
-# Gravado pelo teste de Files (tests/f7_files.cinza)
+# Gravado pelo teste de Files (tests/biblioteca/f7_files.cinza)
 tests/modulos/saida_files.txt
 
 # Arquivo vazio criado no Windows por redirecionamento para "nul"
