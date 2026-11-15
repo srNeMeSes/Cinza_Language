@@ -33,8 +33,12 @@ do `run_tests.py`. Para rodar só uma parte: `python tests/run_tests.py cinza.ex
 | `cvm/` | casos específicos da máquina virtual |
 | `gc/` | coleta de ciclos |
 | `programas/` | programas maiores (rede neural, lista ligada) |
+| `projetos/` | projetos de várias pastas, cada um com `czm.mod` próprio (`crud_contatos/`: CRUD de contatos em arquivo) |
 
 O prefixo do nome (`a5_`, `k3_`, `gen_`...) é o item do `REVISAO_V2.md` que criou o teste.
+
+Numa pasta com `czm.mod` próprio (os `projetos/`), só os arquivos com `// expect` são testes; o
+resto é o código do projeto, importado por eles.
 
 ## Módulos de apoio
 

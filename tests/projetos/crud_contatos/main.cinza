@@ -1,0 +1,13 @@
+// Agenda de contatos: um CRUD no console que grava num arquivo de texto.
+//   cinza tests/projetos/crud_contatos/main.cinza [arquivo]   (padrão: contatos.txt)
+// O czm.mod desta pasta faz dela a raiz do projeto: todo import parte daqui,
+// de qualquer arquivo (inclusive dos programas em testes/).
+import servicos.agenda as ag;
+import dados.repositorio as repo;
+import ui.console;
+
+fn main(list<string> args) {
+  string arquivo = "contatos.txt";
+  if (args.size() > 0) { arquivo = args[0]; }
+  console.executa(new ag.Agenda(new repo.ArquivoTexto(arquivo)));
+}

@@ -1,0 +1,28 @@
+// A agenda só conhece a interface repo.Repositorio: aqui ela roda sobre um
+// repositório em memória declarado no próprio teste, sem tocar em arquivo.
+import servicos.agenda as ag;
+import dados.repositorio as repo;
+import modelo.contato as m;
+
+class Memoria : repo.Repositorio {
+  list<m.Contato> guardados;
+  i32 gravacoes = 0;
+  pub {
+    fn carrega() -> list<m.Contato> { return guardados; }
+    fn salva(list<m.Contato> contatos) {
+      guardados = contatos;
+      gravacoes += 1;
+    }
+    fn vezes() -> i32 { return gravacoes; }
+  }
+}
+
+fn main() {
+  Memoria mem = new Memoria();
+  ag.Agenda a = new ag.Agenda(mem);
+  a.cria("Ana", "11999990000", "");
+  a.cria("Bruno", "21988887777", "b@x.com");
+  a.atualiza(1, "Ana Souza", "11999990000", "ana@x.com");
+  print(a.todos(), mem.vezes());
+}
+// expect: [Contato{id: 1, nome: "Ana Souza", telefone: "11999990000", email: "ana@x.com"}, Contato{id: 2, nome: "Bruno", telefone: "21988887777", email: "b@x.com"}] 3

@@ -1,0 +1,62 @@
+// As operações do CRUD. Cada alteração grava a lista inteira no repositório.
+import modelo.contato as m;
+import dados.repositorio as repo;
+import util.listas;
+import Strings as st;
+import Lists;
+
+pub error NaoEncontrado;
+
+pub class Agenda {
+  list<m.Contato> contatos;
+  // trocado no construtor (todo campo precisa de valor inicial)
+  repo.Repositorio armazem = new repo.ArquivoTexto("");
+
+  fn posicao(i32 id) -> i32 {
+    for (i32 i in range(0, contatos.size())) {
+      if (contatos[i].id == id) { return i; }
+    }
+    throw NaoEncontrado(format("não há contato com id {id}"));
+  }
+
+  pub {
+    Agenda(repo.Repositorio r) {
+      armazem = r;
+      contatos = r.carrega();
+    }
+
+    fn cria(string nome, string telefone, string email) -> m.Contato {
+      list<i32> ids;
+      for (m.Contato c in contatos) { ids.add(c.id); }
+      m.Contato novo = m.novo(listas.maior_ou(ids, 0) + 1, nome, telefone, email);
+      contatos.add(novo);
+      armazem.salva(contatos);
+      return novo;
+    }
+
+    fn todos() -> list<m.Contato> { return Lists.copy(contatos); }
+
+    fn busca(string trecho) -> list<m.Contato> {
+      list<m.Contato> achados;
+      for (m.Contato c in contatos) {
+        if (st.contains(st.lower(c.nome), st.lower(st.trim(trecho)))) { achados.add(c); }
+      }
+      return achados;
+    }
+
+    fn pega(i32 id) -> m.Contato { return contatos[posicao(id)]; }
+
+    fn atualiza(i32 id, string nome, string telefone, string email) -> m.Contato {
+      i32 i = posicao(id);
+      m.Contato novo = m.novo(id, nome, telefone, email);
+      contatos[i] = novo;
+      armazem.salva(contatos);
+      return novo;
+    }
+
+    fn remove(i32 id) {
+      contatos.remove(posicao(id));
+      armazem.salva(contatos);
+    }
+  }
+}

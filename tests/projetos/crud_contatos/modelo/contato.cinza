@@ -1,0 +1,37 @@
+// O contato e as regras de um contato válido.
+import Strings as st;
+
+pub error ContatoInvalido;
+
+pub struct Contato {
+  i32 id = 0;
+  string nome = "";
+  string telefone = "";
+  string email = "";
+}
+
+// O separador do arquivo não pode aparecer dentro de um campo
+pub const string SEPARADOR = ";";
+
+pub fn valida(string nome, string telefone, string email) {
+  if (st.is_empty(st.trim(nome))) { throw ContatoInvalido("o nome não pode ficar vazio"); }
+  for (string campo in [nome, telefone, email]) {
+    if (st.contains(campo, SEPARADOR)) {
+      throw ContatoInvalido("'" + SEPARADOR + "' não pode aparecer nos campos");
+    }
+  }
+  string tel = st.trim(telefone);
+  if (!st.is_digit(tel) || tel.size() < 8 || tel.size() > 13) {
+    throw ContatoInvalido("telefone deve ter de 8 a 13 dígitos, sem espaços: '" + telefone + "'");
+  }
+  string mail = st.trim(email);
+  if (!st.is_empty(mail) && (!st.contains(mail, "@") || st.contains(mail, " "))) {
+    throw ContatoInvalido("e-mail inválido: '" + email + "'");
+  }
+}
+
+// Um contato novo, já validado e sem espaços nas pontas dos campos
+pub fn novo(i32 id, string nome, string telefone, string email) -> Contato {
+  valida(nome, telefone, email);
+  return new Contato(id, st.trim(nome), st.trim(telefone), st.trim(email));
+}

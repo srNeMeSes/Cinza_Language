@@ -1,0 +1,37 @@
+// Onde os contatos ficam guardados. A agenda só conhece a interface; o
+// arquivo de texto é uma implementação (os testes usam outra, em memória).
+import modelo.contato as m;
+import dados.formato;
+import Strings as st;
+import Files;
+
+pub interface Repositorio {
+  fn carrega() -> list<m.Contato>;
+  fn salva(list<m.Contato> contatos);
+}
+
+pub class ArquivoTexto : Repositorio {
+  string caminho = "";
+  pub {
+    ArquivoTexto(string c) { caminho = c; }
+
+    // Arquivo que ainda não existe é uma agenda vazia; linhas em branco são puladas
+    fn carrega() -> list<m.Contato> {
+      list<m.Contato> contatos;
+      if (!Files.exists(caminho)) { return contatos; }
+      i32 numero = 0;
+      for (string linha in Files.lines(caminho)) {
+        numero += 1;
+        if (st.is_empty(st.trim(linha))) { continue; }
+        contatos.add(formato.de_linha(linha, numero));
+      }
+      return contatos;
+    }
+
+    fn salva(list<m.Contato> contatos) {
+      list<string> linhas;
+      for (m.Contato c in contatos) { linhas.add(formato.para_linha(c)); }
+      Files.write_lines(caminho, linhas);
+    }
+  }
+}

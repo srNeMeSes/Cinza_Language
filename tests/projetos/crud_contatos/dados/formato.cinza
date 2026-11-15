@@ -1,0 +1,23 @@
+// Uma linha do arquivo por contato: id;nome;telefone;email
+import modelo.contato as m;
+import Strings as st;
+import Convert as cv;
+
+pub error LinhaInvalida;
+
+pub fn para_linha(m.Contato c) -> string {
+  return format("{c.id};{c.nome};{c.telefone};{c.email}");
+}
+
+// `numero` é a linha no arquivo (para a mensagem de erro)
+pub fn de_linha(string linha, i32 numero) -> m.Contato {
+  list<string> partes = st.split(linha, m.SEPARADOR);
+  if (partes.size() != 4) {
+    throw LinhaInvalida(format("linha {numero}: esperados 4 campos, mas há {partes.size()}"));
+  }
+  i32 id = cv.to_i32_or(partes[0], 0);
+  if (id < 1) {
+    throw LinhaInvalida(format("linha {numero}: id inválido '{partes[0]}'"));
+  }
+  return new m.Contato(id, partes[1], partes[2], partes[3]);
+}

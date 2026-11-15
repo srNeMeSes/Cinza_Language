@@ -1,0 +1,32 @@
+// A agenda usada direto (sem o menu): o arquivo guarda tudo entre sessões,
+// o próximo id continua depois do maior (mesmo com o arquivo fora de ordem)
+// e linhas em branco são puladas.
+import servicos.agenda as ag;
+import dados.repositorio as repo;
+import modelo.contato as m;
+import util.listas;
+import Files;
+
+fn ids(ag.Agenda a) -> string {
+  list<i32> l;
+  for (m.Contato c in a.todos()) { l.add(c.id); }
+  return listas.junta(l, ",");
+}
+
+fn main() {
+  string arquivo = "tests/projetos/crud_contatos/testes/_tmp_persistencia.txt";
+  Files.write_lines(arquivo, ["7;Carla;31977776666;", "", "3;Davi;41966665555;davi@x.com"]);
+  ag.Agenda a = new ag.Agenda(new repo.ArquivoTexto(arquivo));
+  print(ids(a), a.pega(7).nome);
+  m.Contato e = a.cria("  Eva  ", " 51955554444 ", "eva@x.com");
+  print(e, ids(a));
+  a.remove(3);
+  ag.Agenda b = new ag.Agenda(new repo.ArquivoTexto(arquivo));
+  print(ids(b), b.busca("EVA").size(), b.busca("z").size());
+  print(Files.lines(arquivo));
+  Files.delete(arquivo);
+}
+// expect: 7,3 Carla
+// expect: Contato{id: 8, nome: "Eva", telefone: "51955554444", email: "eva@x.com"} 7,3,8
+// expect: 7,8 1 0
+// expect: ["7;Carla;31977776666;", "8;Eva;51955554444;eva@x.com"]

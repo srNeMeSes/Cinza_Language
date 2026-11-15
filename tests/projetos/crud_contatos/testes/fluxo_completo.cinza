@@ -1,0 +1,79 @@
+// O CRUD inteiro pelo menu, com a entrada simulada (diretivas stdin), gravando num
+// arquivo de texto; depois o arquivo é relido numa agenda nova.
+// Este arquivo está em testes/: os imports partem da raiz (o czm.mod da pasta acima).
+import servicos.agenda as ag;
+import dados.repositorio as repo;
+import ui.console;
+import Files;
+
+fn main() {
+  string arquivo = "tests/projetos/crud_contatos/testes/_tmp_fluxo.txt";
+  if (Files.exists(arquivo)) { Files.delete(arquivo); }
+  console.executa(new ag.Agenda(new repo.ArquivoTexto(arquivo)));
+  print("--- arquivo ---");
+  for (string linha in Files.lines(arquivo)) { print(linha); }
+  print("--- relido ---");
+  console.executa(new ag.Agenda(new repo.ArquivoTexto(arquivo)));
+  Files.delete(arquivo);
+}
+// stdin: 1
+// stdin: Ana Souza
+// stdin: 11999990000
+// stdin: ana@exemplo.com
+// stdin: 1
+// stdin: Bruno Lima
+// stdin: 21988887777
+// stdin:
+// stdin: 1
+// stdin:
+// stdin: 123
+// stdin: x
+// stdin: 2
+// stdin: 3
+// stdin: an
+// stdin: 4
+// stdin: 2
+// stdin:
+// stdin: 21900001111
+// stdin: bruno@exemplo.com
+// stdin: 5
+// stdin: 1
+// stdin: 5
+// stdin: 9
+// stdin: 7
+// stdin: 2
+// stdin: 0
+// stdin: 2
+// stdin: 0
+// expect: == Agenda: 0 contato(s); ids:  ==
+// expect: 1) Cadastrar  2) Listar  3) Buscar  4) Atualizar  5) Remover  0) Sair
+// expect: Opção: Nome: Telefone: E-mail: Contato 1 cadastrado.
+// expect: 1) Cadastrar  2) Listar  3) Buscar  4) Atualizar  5) Remover  0) Sair
+// expect: Opção: Nome: Telefone: E-mail: Contato 2 cadastrado.
+// expect: 1) Cadastrar  2) Listar  3) Buscar  4) Atualizar  5) Remover  0) Sair
+// expect: Opção: Nome: Telefone: E-mail: Erro: o nome não pode ficar vazio
+// expect: 1) Cadastrar  2) Listar  3) Buscar  4) Atualizar  5) Remover  0) Sair
+// expect: Opção:   [1] Ana Souza | 11999990000 | ana@exemplo.com
+// expect:   [2] Bruno Lima | 21988887777 | (sem e-mail)
+// expect: 1) Cadastrar  2) Listar  3) Buscar  4) Atualizar  5) Remover  0) Sair
+// expect: Opção: Nome contém:   [1] Ana Souza | 11999990000 | ana@exemplo.com
+// expect: 1) Cadastrar  2) Listar  3) Buscar  4) Atualizar  5) Remover  0) Sair
+// expect: Opção: Id: Nome [Bruno Lima]: Telefone [21988887777]: E-mail []: Contato 2 atualizado.
+// expect: 1) Cadastrar  2) Listar  3) Buscar  4) Atualizar  5) Remover  0) Sair
+// expect: Opção: Id: Contato 1 removido.
+// expect: 1) Cadastrar  2) Listar  3) Buscar  4) Atualizar  5) Remover  0) Sair
+// expect: Opção: Id: Erro: não há contato com id 9
+// expect: 1) Cadastrar  2) Listar  3) Buscar  4) Atualizar  5) Remover  0) Sair
+// expect: Opção: Opção inválida.
+// expect: 1) Cadastrar  2) Listar  3) Buscar  4) Atualizar  5) Remover  0) Sair
+// expect: Opção:   [2] Bruno Lima | 21900001111 | bruno@exemplo.com
+// expect: 1) Cadastrar  2) Listar  3) Buscar  4) Atualizar  5) Remover  0) Sair
+// expect: Opção: Até logo!
+// expect: --- arquivo ---
+// expect: 2;Bruno Lima;21900001111;bruno@exemplo.com
+// expect: --- relido ---
+// expect: == Agenda: 1 contato(s); ids: 2 ==
+// expect: 1) Cadastrar  2) Listar  3) Buscar  4) Atualizar  5) Remover  0) Sair
+// expect: Opção:   [2] Bruno Lima | 21900001111 | bruno@exemplo.com
+// expect: 1) Cadastrar  2) Listar  3) Buscar  4) Atualizar  5) Remover  0) Sair
+// expect: Opção: Até logo!

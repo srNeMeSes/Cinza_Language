@@ -1,0 +1,22 @@
+// Funções genéricas de apoio (spec, capítulo 8): servem a qualquer tipo
+// que aceite as operações usadas no corpo.
+
+// O maior elemento, ou `padrao` se a lista for vazia (T precisa aceitar >)
+pub fn maior_ou[T](list<T> l, T padrao) -> T {
+  if (l.size() == 0) { return padrao; }
+  T maior = l[0];
+  for (T x in l) {
+    if (x > maior) { maior = x; }
+  }
+  return maior;
+}
+
+// Os elementos como texto, unidos por `sep` (T precisa aceitar cast<string>)
+pub fn junta[T](list<T> l, string sep) -> string {
+  string r = "";
+  for (i32 i in range(0, l.size())) {
+    if (i > 0) { r += sep; }
+    r += cast<string>(l[i]);
+  }
+  return r;
+}

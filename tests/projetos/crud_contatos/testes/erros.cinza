@@ -1,0 +1,55 @@
+// Regras do contato, id inexistente e arquivo corrompido: cada erro tem o
+// tipo declarado no módulo dele (m.ContatoInvalido, ag.NaoEncontrado,
+// formato.LinhaInvalida) e é capturado pelo apelido.
+import servicos.agenda as ag;
+import dados.repositorio as repo;
+import dados.formato;
+import modelo.contato as m;
+import Files;
+
+fn tenta_criar(ag.Agenda a, string nome, string tel, string email) {
+  try {
+    a.cria(nome, tel, email);
+    print("ok:", nome);
+  } except (m.ContatoInvalido e) {
+    print(e.kind + ":", e.message);
+  }
+}
+
+fn main() {
+  string arquivo = "tests/projetos/crud_contatos/testes/_tmp_erros.txt";
+  if (Files.exists(arquivo)) { Files.delete(arquivo); }
+  ag.Agenda a = new ag.Agenda(new repo.ArquivoTexto(arquivo));
+  tenta_criar(a, "   ", "11999990000", "");
+  tenta_criar(a, "Ana", "1199", "");
+  tenta_criar(a, "Ana", "11 99999 0000", "");
+  tenta_criar(a, "Ana", "11999990000", "ana.exemplo.com");
+  tenta_criar(a, "Ana;Souza", "11999990000", "");
+  tenta_criar(a, "Ana", "11999990000", "");
+  try { a.remove(5); } except (ag.NaoEncontrado e) { print(e.kind + ":", e.message); }
+  print(Files.lines(arquivo));
+
+  Files.write_lines(arquivo, ["1;Ana;11999990000;", "2;Bruno;21988887777"]);
+  try {
+    ag.Agenda b = new ag.Agenda(new repo.ArquivoTexto(arquivo));
+  } except (formato.LinhaInvalida e) {
+    print(e.kind + ":", e.message);
+  }
+  Files.write_lines(arquivo, ["x;Ana;11999990000;"]);
+  try {
+    ag.Agenda b = new ag.Agenda(new repo.ArquivoTexto(arquivo));
+  } except (formato.LinhaInvalida e) {
+    print(e.kind + ":", e.message);
+  }
+  Files.delete(arquivo);
+}
+// expect: ContatoInvalido: o nome não pode ficar vazio
+// expect: ContatoInvalido: telefone deve ter de 8 a 13 dígitos, sem espaços: '1199'
+// expect: ContatoInvalido: telefone deve ter de 8 a 13 dígitos, sem espaços: '11 99999 0000'
+// expect: ContatoInvalido: e-mail inválido: 'ana.exemplo.com'
+// expect: ContatoInvalido: ';' não pode aparecer nos campos
+// expect: ok: Ana
+// expect: NaoEncontrado: não há contato com id 5
+// expect: ["1;Ana;11999990000;"]
+// expect: LinhaInvalida: linha 2: esperados 4 campos, mas há 3
+// expect: LinhaInvalida: linha 1: id inválido 'x'

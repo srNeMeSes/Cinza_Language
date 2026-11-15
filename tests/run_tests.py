@@ -111,6 +111,20 @@ def ler_codigo_saida(caminho):
     return 0
 
 
+def eh_teste(caminho):
+    """Numa pasta com czm.mod próprio abaixo de tests/ (um projeto de exemplo, como
+    projetos/crud_contatos), só os arquivos com expectativas são testes; o resto é
+    o código do projeto, importado por eles. Fora disso, todo .cinza é teste (e
+    um sem expectativa falha, para não passar despercebido)."""
+    pasta = caminho.parent
+    while pasta != DIR_TESTES and DIR_TESTES in pasta.parents:
+        if (pasta / "czm.mod").is_file():
+            esperado, erros, _ = ler_expectativas(caminho)
+            return bool(esperado or erros or ler_codigo_saida(caminho))
+        pasta = pasta.parent
+    return True
+
+
 def descrever_codigo(codigo):
     """Traduz códigos de saída de crash em algo legível."""
     if codigo < 0:
@@ -229,7 +243,7 @@ def main():
     testes = [(p.relative_to(DIR_TESTES).as_posix(), p)
               for p in sorted(DIR_TESTES.rglob("*.cinza"))
               if not fora.intersection(p.relative_to(DIR_TESTES).parts[:-1])
-              and filtro in p.relative_to(DIR_TESTES).as_posix()]
+              and filtro in p.relative_to(DIR_TESTES).as_posix() and eh_teste(p)]
     testes += exemplos_da_spec(filtro)
     if not testes:
         print(f"Nenhum teste encontrado em {DIR_TESTES} com o filtro '{filtro}'")

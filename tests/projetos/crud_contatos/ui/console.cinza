@@ -1,0 +1,89 @@
+// O menu no console: lê com input, mostra com print/printf.
+import servicos.agenda as ag;
+import modelo.contato as m;
+import util.listas;
+import Strings as st;
+import Convert as cv;
+
+pub enum Opcao { Cadastrar, Listar, Buscar, Atualizar, Remover, Sair, Invalida }
+
+fn le_opcao() -> Opcao {
+  string s = st.trim(input("Opção: "));
+  if (s == "1") { return Opcao.Cadastrar; }
+  if (s == "2") { return Opcao.Listar; }
+  if (s == "3") { return Opcao.Buscar; }
+  if (s == "4") { return Opcao.Atualizar; }
+  if (s == "5") { return Opcao.Remover; }
+  if (s == "0") { return Opcao.Sair; }
+  return Opcao.Invalida;
+}
+
+fn le_id() -> i32 { return cv.to_i32_or(st.trim(input("Id: ")), 0); }
+
+// Vazio mantém o valor atual (na atualização)
+fn le_ou_mantem(string rotulo, string atual) -> string {
+  string s = input(rotulo + " [" + atual + "]: ");
+  if (st.is_empty(st.trim(s))) { return atual; }
+  return s;
+}
+
+fn mostra(list<m.Contato> contatos) {
+  if (contatos.size() == 0) {
+    print("  (nenhum contato)");
+    return;
+  }
+  for (m.Contato c in contatos) {
+    string email = c.email;
+    if (st.is_empty(email)) { email = "(sem e-mail)"; }
+    printf("  [{c.id}] {c.nome} | {c.telefone} | {email}");
+  }
+}
+
+fn executa_opcao(ag.Agenda agenda, Opcao op) {
+  if (op == Opcao.Cadastrar) {
+    string nome = input("Nome: ");
+    string telefone = input("Telefone: ");
+    string email = input("E-mail: ");
+    m.Contato c = agenda.cria(nome, telefone, email);
+    printf("Contato {c.id} cadastrado.");
+  } else if (op == Opcao.Listar) {
+    mostra(agenda.todos());
+  } else if (op == Opcao.Buscar) {
+    mostra(agenda.busca(input("Nome contém: ")));
+  } else if (op == Opcao.Atualizar) {
+    i32 id = le_id();
+    m.Contato atual = agenda.pega(id);
+    m.Contato c = agenda.atualiza(id, le_ou_mantem("Nome", atual.nome),
+                                  le_ou_mantem("Telefone", atual.telefone),
+                                  le_ou_mantem("E-mail", atual.email));
+    printf("Contato {c.id} atualizado.");
+  } else if (op == Opcao.Remover) {
+    i32 id = le_id();
+    agenda.remove(id);
+    printf("Contato {id} removido.");
+  } else {
+    print("Opção inválida.");
+  }
+}
+
+pub fn executa(ag.Agenda agenda) {
+  list<m.Contato> todos = agenda.todos();
+  list<i32> ids;
+  for (m.Contato c in todos) { ids.add(c.id); }
+  printf("== Agenda: {todos.size()} contato(s); ids: {listas.junta(ids, \", \")} ==");
+  while (true) {
+    print("1) Cadastrar  2) Listar  3) Buscar  4) Atualizar  5) Remover  0) Sair");
+    Opcao op = le_opcao();
+    if (op == Opcao.Sair) {
+      print("Até logo!");
+      return;
+    }
+    try {
+      executa_opcao(agenda, op);
+    } except (m.ContatoInvalido e) {
+      print("Erro: " + e.message);
+    } except (ag.NaoEncontrado e) {
+      print("Erro: " + e.message);
+    }
+  }
+}
