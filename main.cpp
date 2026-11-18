@@ -18,6 +18,7 @@
 extern "C" {
     __declspec(dllimport) int __stdcall SetConsoleOutputCP(unsigned int);
     __declspec(dllimport) int __stdcall SetConsoleCP(unsigned int);
+    __declspec(dllimport) unsigned int __stdcall SetErrorMode(unsigned int);
 }
 #endif
 
@@ -218,6 +219,11 @@ int main(int argc, char* argv[]) {
     #ifdef _WIN32
     SetConsoleOutputCP(65001);  // força UTF-8 no terminal Windows
     SetConsoleCP(65001);
+    // P2: sem a janela de relatório de erro do Windows. Se o processo cair (um estouro da
+    // pilha do sistema no runtime, por exemplo), ele termina na hora com o código do erro,
+    // em vez de ficar preso esperando o relatório e segurando o cinza.exe
+    // (SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX)
+    SetErrorMode(0x0001 | 0x0002);
     #endif
 
     if (argc < 2) {

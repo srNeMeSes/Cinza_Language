@@ -475,14 +475,17 @@ Um programa válido, com menos de 2000 chamadas aninhadas, **não pode** termina
 32 KB por nível, sem contar o runtime, e um quadro com muitos structs por valor pode passar disso.
 A garantia vem de três partes:
 
-1. **Orçamento por função, calculado pelo `cinzac`.** A CIR conhece cada slot e o tipo dele,
+1. **Orçamento por função, calculado pelo `cinzac`** (o LLVM não expõe o tamanho do quadro
+   para COFF: a seção `.stack_sizes` só existe em ELF, e a `llvm-c` não a liga). A CIR conhece cada slot e o tipo dele,
    então dá um limite superior do quadro de cada função: a soma dos slots, mais as cópias de
    struct passadas por valor, vezes 2 (folga para o que o LLVM acrescenta: registradores salvos,
    alinhamento, argumentos de saída), mais 4 KB fixos.
 2. **Pilha dimensionada para o programa.** O executável é ligado com reserva de pilha
-   `max(64 MB, 2000 × maior orçamento + 8 MB)` (os 8 MB são para o runtime em C++ no topo:
-   `print`, `format`, a biblioteca). No Windows de 64 bits a reserva é só espaço de endereços: as
-   páginas são usadas sob demanda, então uma reserva grande não custa memória.
+   `max(64 MB, 2000 × maior orçamento + margem + 8 MB)`: os 2000 quadros, a margem da rede de
+   segurança (item 3), que um programa válido nunca pode alcançar, e 8 MB para o runtime em C++
+   no topo (`print`, `format`, a biblioteca). Sem a margem na conta, um programa com um quadro
+   maior que 8 MB bateria na rede mesmo válido. No Windows de 64 bits a reserva é só espaço de
+   endereços: as páginas são usadas sob demanda, então uma reserva grande não custa memória.
 3. **Rede de segurança na entrada.** Junto do teste das 2000 chamadas, `entra` compara o
    endereço atual da pilha com o limite calculado na partida (`GetCurrentThreadStackLimits`) mais
    uma margem. Se faltar espaço — o que só acontece se o orçamento do item 1 estiver errado —, o
@@ -490,13 +493,33 @@ A garantia vem de três partes:
    `0xC00000FD` silencioso. Não é um `StackOverflowError`: a regra da linguagem continua sendo só
    a das 2000 chamadas, igual nos dois backends.
 
-A etapa P2 confere as três partes com programas feitos para estressar o quadro (2000 níveis com
-dezenas de structs grandes por valor, chamadas ao runtime em cada nível).
+**Conferido no P2** com o protótipo `llvm/prototipos/pilha/` (`python
+llvm/prototipos/pilha/pilha.py`): o "código gerado" é C compilado pelo clang 20.1.8 do CLANG64 (o
+mesmo LLVM do `cinzac`), o runtime é C++ com o `value.h` de verdade compilado pelo GCC do
+projeto, e a ligação é pelo `g++`, como no `cinzac`.
+
+- **O orçamento cobre os quadros reais** do LLVM (`-fstack-usage`) em seis casos, do comum ao
+  extremo (dez structs de 8 KB e vinte chamadas que os recebem por valor), em -O0 e -O2; a folga
+  mínima é de 2× (o extremo em -O0, onde o quadro é quase a soma exata dos slots e das cópias).
+- **O runtime no topo gasta pouco:** um `print` típico (lista de 600 valores e um dict em
+  texto) usa ~4 KB de pilha. A **margem da rede de segurança** é então: maior orçamento do
+  programa + 64 KB (o runtime, com folga) + 64 KB (as páginas de guarda do Windows).
+- **2000 níveis do quadro extremo** terminam normalmente em -O0 e -O2 com a reserva da fórmula
+  (≈ 930 MB de espaço de endereços, sem custo de memória real).
+- **Com a reserva fixa de 64 MB**, a mesma recursão para com "Erro interno: pilha do sistema
+  esgotada" quando tem a rede, e estoura com `0xC00000FD` sem ela (o controle).
+- O endereço do quadro vem de `__builtin_frame_address(0)` (no LLVM, `llvm.frameaddress`) e o fim
+  da pilha, de `GetCurrentThreadStackLimits` na partida.
+- **Sem janela de relatório de erro:** o executável gerado chama `SetErrorMode` na partida (o
+  `cinza.exe` também passou a chamar): se algo derrubar o processo, ele termina na hora, em vez
+  de ficar preso esperando o relatório do Windows e segurando o executável.
 
 Fica um risco que já existe na CVM: funções **recursivas do runtime em C++** sobre dados
-aninhados sem limite — imprimir, comparar (`==`, `<`) ou converter em texto uma lista aninhada a
-centenas de milhares de níveis. Não fazem parte deste backend; ficam registradas como item à
-parte no `REVISAO_V2.md` (a destruição, o caso mais comum, já sai na seção 2.1).
+aninhados sem limite. Medido no P2: o `toString` gasta **848 bytes por nível** de aninhamento, e um
+programa Cinza válido — `struct No { list<No> f; }` encadeado 200 mil vezes e impresso — derruba
+hoje o `cinza.exe` com `0xC00000FD`. Imprimir, comparar (`==`, `<`) e converter em texto têm o
+mesmo problema. Não é deste backend; fica registrado à parte (P1b no `REVISAO_V2.md`; a
+destruição, o caso mais comum, já saiu na seção 2.1).
 
 ## 7. Interface C do runtime (`libcinzart`)
 

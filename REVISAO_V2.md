@@ -1629,9 +1629,33 @@ depois de um debate com duas revisões externas:
     > cadeia de 1 milhão de listas. Os processos que travaram nas sondagens deste defeito ficaram
     > presos no relatório de erro do Windows e seguraram o `cinza.exe` (sem permissão para
     > encerrá-los); por isso as sondagens de travamento passam a rodar numa cópia do executável.
-- [ ] P2. Pilha física: o orçamento de quadro por função, a reserva de pilha calculada e a rede
+  - [ ] P1b. **Defeito encontrado no P2, também na CVM de hoje**: as funções recursivas do
+    runtime em C++ (`toString`, `==`, `<`) sobre dados aninhados sem limite estouram a pilha do
+    sistema. Reprodução: `struct No { list<No> f; }` encadeado 200 mil vezes e impresso
+    (`format("{n}")`) derruba o `cinza.exe` com `0xC00000FD`. Medido: 848 bytes de pilha por
+    nível no `toString` (≈ 75 mil níveis com 64 MB). A correção pede uma decisão do autor:
+    percorrer sem recursão (uma pilha explícita, como a destruição do P1) ou lançar um erro
+    capturável acima de uma profundidade (como o `RecursionError` do `repr` no Python).
+- [x] P2. Pilha física: o orçamento de quadro por função, a reserva de pilha calculada e a rede
   de segurança (`llvm/DESENHO.md`, 6.3), conferidos com programas de 2000 níveis com dezenas de
-  structs grandes por valor e chamadas ao runtime em cada nível.
+  structs grandes por valor e chamadas ao runtime em cada nível. — feito em 2026-11-18
+  > Nota: como a CIR ainda não existe (P4), o mecanismo foi conferido **antes** de ser
+  > construído, com o protótipo `llvm/prototipos/pilha/` (`python llvm/prototipos/pilha/pilha.py`):
+  > o "código gerado" é C compilado pelo clang 20.1.8 do CLANG64 (o mesmo LLVM do `cinzac`), o
+  > runtime é C++ com o `value.h` de verdade compilado pelo GCC do projeto, e a ligação é pelo
+  > `g++`. (1) O orçamento `(slots + cópias por valor) × 2 + 4 KB` cobre os quadros reais do LLVM
+  > (`-fstack-usage`) em seis casos, em -O0 e -O2, com folga mínima de 2×; o LLVM não expõe o
+  > tamanho do quadro para COFF, então a estimativa pela CIR é mesmo o caminho. (2) Um `print`
+  > típico gasta ~4 KB de pilha no topo. (3) 2000 níveis do quadro extremo (dez structs de 8 KB,
+  > vinte chamadas por valor) terminam em -O0 e -O2 com a reserva da fórmula. (4) Com a reserva
+  > fixa de 64 MB, a rede de segurança para com "Erro interno: pilha do sistema esgotada", e o
+  > controle sem a rede estoura com `0xC00000FD`. **Corrigido no desenho**: a reserva precisa
+  > incluir a margem da rede (`2000 × orçamento + margem + 8 MB`), senão um programa válido com um
+  > quadro maior que 8 MB bateria na rede. **Também**: o `cinza.exe` passa a chamar
+  > `SetErrorMode` na partida (sem a janela de relatório de erro do Windows), e um processo que
+  > cai termina na hora (conferido: 0,7 s no caso do P1b) em vez de ficar preso segurando o
+  > executável, como os três do P1. Sem teste automático para isso: a suíte não tem programas que
+  > derrubam o processo (o do P1b é o defeito em aberto).
 - [ ] P3. `libcinzart` (interface C, `cinzart.h`), build do `cinzac` com a `llvm-c`, "olá
   mundo" nativo ligado pelo `g++`, `run_tests.py --cinzac` e `make test-llvm`. Antes: instalar
   os cabeçalhos (`mingw-w64-clang-x86_64-llvm`) **na mesma versão da `libLLVM` instalada**
