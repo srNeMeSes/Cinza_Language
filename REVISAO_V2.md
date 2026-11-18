@@ -1588,18 +1588,47 @@ depois de um debate com duas revisões externas:
   > contrato de layout, não como opaco; a tabela de saídas do `finally` (`return`, `break` e
   > `continue` já eram erro de compilação); cabeçalhos e biblioteca do LLVM sempre da mesma
   > versão.
-- [ ] P1. Migração do runtime, conferida pela CVM: cabeçalho `CzObjeto` com contagem embutida
+- [x] P1. Migração do runtime, conferida pela CVM: cabeçalho `CzObjeto` com contagem embutida
   não atômica (objetos nascem com `refs = 1`), destruição iterativa (corrige P1a), strings
   imutáveis com contagem (hoje o `std::string` é copiado a cada cópia do `Value`), `CzValor` de
-  16 bytes com `Value` e `ValorRef` por cima, erros como objetos, descritores de
-  classe/struct/tipo/função sem ponteiro para a AST, fronteira `noexcept`, contador de objetos
-  vivos e o modo `CINZA_VAZAMENTOS=1` (`run_tests.py --vazamentos`), testes de ciclos e
-  cadeias em `tests/gc/`. Medição de velocidade antes e depois.
-  - [ ] P1a. **Defeito encontrado na CVM**: soltar uma cadeia longa (400 mil nós em
+  16 bytes com `Value` por cima, erros como objetos, descritores de classe/struct/enum sem
+  ponteiro para a AST, contador de objetos vivos e o modo `CINZA_VAZAMENTOS=1`, testes de
+  ciclos e cadeias em `tests/gc/`. Medição de velocidade antes e depois. — feito em 2026-11-18
+  > Nota: em cinco passos, cada um com a suíte verde. (1) `gc_object.h`: `CzObjeto` (32 bytes,
+  > `static_assert`), `GcObject` = cabeçalho + o que a coleta usa (`gc_refs`, `gc_marca`), `Ref<T>`
+  > intrusivo no lugar do `shared_ptr` (`adota`, `empresta`, `solta`; atribuição com retain antes
+  > do release), `novo<T>()`; `czDestroi` em `value.h` com a fila intrusiva pelo campo `prox`;
+  > `gc.h` lê `refs` e segura o lixo com `czRetain`. (2) `CzString`: o texto imutável num
+  > `std::string` interno, para `asString()` continuar `const std::string&` nos ~135 usos; os
+  > bytes na mesma alocação ficam como otimização (o código nativo só lê por funções).
+  > (3) `Value` = um `CzValor` (tipo, extra, união de 8 bytes) no lugar do `std::variant` de 40
+  > bytes; acessores conferem o tipo (falha fria, `gnu::cold`) e devolvem os objetos como ponteiro
+  > sem posse — nenhum código guardava cópia com posse do resultado; atribuição por cópia com
+  > caminho rápido para valores sem objeto. (4) Descritores `CzClasseDesc`/`CzStructDesc`/
+  > `CzEnumDesc` no campo `desc` do cabeçalho, montados pelo compilador da CVM (a imagem é a
+  > dona); some o `class_name` copiado em cada objeto; a chamada por interface vai direto pelo
+  > índice da classe (sem o mapa `class_index`); o `value.h` não inclui mais a AST; o tipo de
+  > `type()` continua o `TypeInfo` (não depende da AST). (5) Modo sem vazamento: o `main` solta a
+  > VM e a imagem, coleta e conta (por tipo); **ligado por padrão no `run_tests.py`**
+  > (`--sem-vazamentos` desliga), então todo teste é teste de vazamento — a detecção foi
+  > conferida com um objeto esquecido de propósito (código 70, "lista 1"). Conferência de
+  > contagem (`CINZA_CONFERE_REFS`: liberação dupla, estouro) no `make debug`. Desvios do
+  > desenho, registrados nele: o `ValorRef` das nativas virou cópia para `Value` no `cz_nativa`
+  > (P3), sem mudar as ~200 funções da biblioteca; a fronteira `noexcept` entra com a interface C
+  > (P3). Velocidade (bench/medir.ps1, ms, melhor de 5): `ciclos` 615 → 416, `fib` 54 → 40,
+  > `laco` 123 → 108, `objetos` 100 → 62. Testes: `tests/gc/rev_cadeia_longa` e cinco `p1_*`
+  > (construtor que falha, temporários de expressões que falham, autoatribuição, ciclos por tipos
+  > variados, strings compartilhadas), mais conferências em `unit_gc` e `unit_value`. 649/649,
+  > todos no modo sem vazamento; limpo sob ASan/UBSan com `CINZA_CONFERE_REFS`.
+  - [x] P1a. **Defeito encontrado na CVM**: soltar uma cadeia longa (400 mil nós em
     `class No { list<No> f; }`) estoura a pilha do sistema (`0xC00000FD`), porque o
     `shared_ptr` destrói os nós em recursão; a spec 5.9 promete memória automática. Corrige com
     a destruição iterativa do P1 (o *trashcan* do CPython). Teste obrigatório da migração, na
-    suíte normal e no modo sem vazamento: `tests/gc/rev_cadeia_longa`.
+    suíte normal e no modo sem vazamento: `tests/gc/rev_cadeia_longa`. — feito em 2026-11-18
+    > Nota: 400 mil nós soltos em 0,45 s e 3 milhões em 3,1 s, sem estourar; `unit_gc` solta uma
+    > cadeia de 1 milhão de listas. Os processos que travaram nas sondagens deste defeito ficaram
+    > presos no relatório de erro do Windows e seguraram o `cinza.exe` (sem permissão para
+    > encerrá-los); por isso as sondagens de travamento passam a rodar numa cópia do executável.
 - [ ] P2. Pilha física: o orçamento de quadro por função, a reserva de pilha calculada e a rede
   de segurança (`llvm/DESENHO.md`, 6.3), conferidos com programas de 2000 níveis com dezenas de
   structs grandes por valor e chamadas ao runtime em cada nível.

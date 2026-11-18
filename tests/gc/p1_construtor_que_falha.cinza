@@ -1,0 +1,27 @@
+// P1: um objeto cujo construtor lança erro depois de criar outros objetos não
+// deixa nada vivo (o modo sem vazamento da suíte confere ao sair)
+class Recurso {
+  list<string> nomes;
+  dict<string, i32> uso;
+  pub {
+    Recurso(i32 n) {
+      nomes.add("a");
+      uso.add({"a", 1});
+      if (n > 1) { throw ValueError("grande demais: " + n); }
+    }
+    fn total() -> i32 { return nomes.size(); }
+  }
+}
+fn main() {
+  i32 falhas = 0;
+  for (i32 i in range(0, 1000)) {
+    try {
+      Recurso r = new Recurso(i % 3);
+      falhas += 0;
+    } except (ValueError e) {
+      falhas += 1;
+    }
+  }
+  print(falhas);
+}
+// expect: 333

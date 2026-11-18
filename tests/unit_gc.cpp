@@ -69,5 +69,53 @@ int main() {
     CHECK(gc_registro.vivos == 0);
     CHECK(gcCollect() == 0);
 
+    // P1: contagem embutida. Nasce com 1; copiar o Value faz retain; soltar, release
+    {
+        Value l = makeList();
+        CHECK(l.asList()->refs == 1);
+        {
+            Value copia = l;
+            CHECK(l.asList()->refs == 2);
+        }
+        CHECK(l.asList()->refs == 1);
+        Value movido = std::move(l);
+        CHECK(movido.asList()->refs == 1);
+    }
+    CHECK(gc_registro.objetos == 0);
+
+    // Atribuir a si mesmo não solta o objeto antes da hora
+    {
+        Value l = makeList();
+        Value& mesmo = l;
+        l = mesmo;
+        CHECK(l.asList()->refs == 1);
+        CHECK(gc_registro.vivos == 1);
+    }
+
+    // Destruição iterativa: uma cadeia de 1 milhão de listas (cada uma dentro da
+    // anterior) é solta sem recursão, e nada fica na fila
+    {
+        Value raiz = makeList();
+        Value atual = raiz;
+        for (int i = 0; i < 1000000; ++i) {
+            Value nova = makeList();
+            atual.asList()->elements.push_back(nova);
+            atual = nova;
+        }
+        CHECK(gc_registro.vivos == 1000001);
+    }
+    CHECK(gc_registro.vivos == 0);
+    CHECK(gc_registro.objetos == 0);
+    CHECK(gc_registro.fila == nullptr && !gc_registro.esvaziando);
+
+    // Erro também é objeto com contagem (não rastreado pela coleta)
+    {
+        auto e = novo<ErrorValue>();
+        e->kind = "ValueError";
+        Value v(std::move(e));
+        CHECK(gc_registro.objetos == 1 && gc_registro.vivos == 0);
+    }
+    CHECK(gc_registro.objetos == 0);
+
     return falhas ? 1 : 0;
 }

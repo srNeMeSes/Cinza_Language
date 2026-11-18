@@ -560,7 +560,7 @@ TypeRef runtimeType(const Value& v, TypeRef st) {
     if (v.kind() == Value::Kind::ERROR) return t.errorType(v.asError()->kind);
     // Objeto guardado como interface: o tipo real é a classe
     if (v.kind() == Value::Kind::INSTANCE && st->is(K::Interface))
-        return t.classType(v.asInstance()->class_name);
+        return t.classType(v.asInstance()->classe()->nome);
     return st;   // nos demais casos o tipo estático já é o real
 }
 

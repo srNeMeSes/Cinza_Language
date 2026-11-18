@@ -6,6 +6,7 @@
 #include "cvm/compiler.h"
 #include "cvm/vm.h"
 #include "plataforma.h"
+#include "gc.h"            // P1: modo sem vazamento (coleta final e contagem)
 #include <filesystem>
 #include <iostream>
 #include <fstream>
@@ -344,16 +345,42 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         if (show_bytecode) std::cout << cvm::disassemble(img);
-        try {
+        int codigo = 0;
+        {
             cvm::VM vm(img);
-            vm.run(program_args);
-        } catch (const RuntimeError& e) {
-            if (isExit(e)) { std::cout.flush(); return std::stoi(e.message); }   // exit(código)
-            // C4/B6: erro não tratado — tipo, mensagem e stack trace
-            diagnostics().report(e.kind, e.message, e.location(), e.trace);
-            diagnostics().flush(std::cerr);
-            return 1;
+            try {
+                vm.run(program_args);
+            } catch (const RuntimeError& e) {
+                if (isExit(e)) {   // exit(código)
+                    std::cout.flush();
+                    codigo = std::stoi(e.message);
+                } else {
+                    // C4/B6: erro não tratado — tipo, mensagem e stack trace
+                    diagnostics().report(e.kind, e.message, e.location(), e.trace);
+                    diagnostics().flush(std::cerr);
+                    codigo = 1;
+                }
+            }
+        }   // a VM solta os registradores e os const globais
+        img = cvm::Image();   // e a imagem, as constantes
+
+        // P1: CINZA_VAZAMENTOS=1 — depois de soltar tudo e de uma última coleta de
+        // ciclos, nenhum objeto do runtime pode sobrar (llvm/DESENHO.md 2.6)
+        if (const char* v = std::getenv("CINZA_VAZAMENTOS"); v && *v) {
+            gcCollect();
+            if (gc_registro.objetos != 0) {
+                std::cout.flush();
+                std::cerr << "[vazamentos] " << gc_registro.objetos
+                          << " objeto(s) do runtime ainda vivo(s) ao sair:";
+                for (std::size_t k = 0; k < 7; ++k)
+                    if (gc_registro.por_tipo[k])
+                        std::cerr << " " << nomeGcKind(static_cast<GcKind>(k)) << " "
+                                  << gc_registro.por_tipo[k];
+                std::cerr << "\n";
+                return 70;
+            }
         }
+        if (codigo != 0) return codigo;
 
         //std::cout << std::string(80, '-') << "\n";
         //std::cout << "✓ Execução concluída.\n\n";

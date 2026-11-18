@@ -381,14 +381,12 @@ Value VM::dispatch(std::size_t entrada) {
                     // coleta de ciclos na criação de objetos (ponto seguro); a
                     // coleta não move registradores, mas pode liberar objetos
                     gcMaybeCollect();
-                    const ClassDecl* c = img.classes[in.b].decl;
-                    R[in.a] = makeInstance(c->class_name, c);
+                    R[in.a] = makeInstance(img.desc_classes[in.b].get());
                     break;
                 }
                 case Op::NEWSTRUCT: {
                     gcMaybeCollect();
-                    auto sv  = std::make_shared<StructValue>();
-                    sv->decl = img.structs[in.b];
+                    auto sv  = novo<StructValue>(img.desc_structs[in.b].get());
                     sv->fields.assign(R + in.a, R + in.a + in.c);
                     R[in.a] = Value(std::move(sv));
                     break;
@@ -415,7 +413,7 @@ Value VM::dispatch(std::size_t entrada) {
                 // ── exceções ─────────────────────────────────────────────
                 case Op::NEWERROR: {   // posição: a da criação (a da chamada Tipo(...))
                     const SourceLocation& loc = f->proto->lines[f->pc - 1];
-                    auto ev     = std::make_shared<ErrorValue>();
+                    auto ev     = novo<ErrorValue>();
                     ev->kind    = K[in.b].asString();
                     ev->message = in.c == NO_REG ? std::string() : R[in.c].asString();
                     ev->line    = loc.line;
@@ -446,8 +444,7 @@ Value VM::dispatch(std::size_t entrada) {
                 case Op::CALL: case Op::CALLIFACE: {
                     std::size_t idx = in.b;
                     if (in.op == Op::CALLIFACE) {   // pela classe real do objeto
-                        const ClassDecl* c = R[in.a].asInstance()->decl;
-                        const ClassRef& ref = img.classes[img.class_index.at(c)];
+                        const ClassRef& ref = img.classes[R[in.a].asInstance()->classe()->indice];
                         const InterfaceDecl* iface = img.interfaces[in.b];
                         idx = ClassRef::none;
                         for (const auto& [i, protos] : ref.itables)
@@ -519,7 +516,7 @@ bool VM::handle(const RuntimeError& err, std::size_t entrada) {
             // vazio: pega-tudo do finally (até o exit); "Error": todo erro, menos o exit
             const bool pega = h.kind.empty() || h.kind == e.kind || (h.kind == "Error" && !isExit(e));
             if (!pega) continue;
-            auto ev     = std::make_shared<ErrorValue>();
+            auto ev     = novo<ErrorValue>();
             ev->kind    = e.kind;
             ev->message = e.message;
             ev->line    = e.line;

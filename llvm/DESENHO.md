@@ -72,6 +72,10 @@ typedef struct CzObjeto {
 } CzObjeto;               // 32 bytes
 ```
 
+Os contêineres rastreados (lista, dict, par, objeto, struct) acrescentam, depois do cabeçalho, o
+que a coleta de ciclos usa durante a varredura (`gc_refs`, `gc_marca`: `GcObject` em
+`gc_object.h`); strings e erros ficam só com os 32 bytes. *(Implementado no P1.)*
+
 - **Contagem não atômica**, decisão explícita: a Cinza não tem threads. Se um dia tiver, esta
   decisão é revista (contagem atômica ou objetos por thread).
 - **Todo objeto nasce com `refs = 1`**: a posse inicial é de quem o criou (a função do runtime
@@ -115,18 +119,14 @@ suíte normal e no modo sem vazamento.
 Hoje: `std::string` **por valor** dentro do `Value` — atribuir, passar ou pôr numa lista copia o
 texto inteiro. Depois: objeto imutável com contagem.
 
-```c
-typedef struct CzString {
-    CzObjeto cab;
-    uint32_t bytes;       // tamanho em bytes (UTF-8)
-    uint32_t caracteres;  // em code points (o s.size() da linguagem), calculado na criação
-} CzString;               // os bytes vêm logo depois, na mesma alocação
-```
-
-O texto fica na mesma alocação, logo depois da estrutura: `sizeof(CzString) + bytes + 1`, em
-UTF-8 e terminado em `'\0'` (para as chamadas ao sistema). O acesso é por uma função,
-`cz_str_dados(s)` (`reinterpret_cast<char*>(s + 1)` no C++), e não por um membro de array
-flexível (`char dados[]`), que é válido em C mas não é C++ padrão.
+**Implementado no P1:** `CzString` é o cabeçalho mais o texto, imutável, num `std::string`
+interno (`const std::string texto`). O código do runtime continua lendo `asString()` como
+`const std::string&`, sem mudar os ~135 lugares que o usam. O código nativo **nunca** lê o layout
+da string: só pelas funções do runtime (`cz_str_dados(s)`, `cz_str_bytes(s)`), então a forma
+interna pode mudar sem afetar ninguém. Quando a medição pedir, a otimização é guardar os bytes
+na mesma alocação, logo depois do cabeçalho (`sizeof(CzString) + bytes + 1`, UTF-8 terminado em
+`'\0'`, acessados por `reinterpret_cast<char*>(s + 1)` e não por um membro de array flexível,
+que não é C++ padrão), e guardar o número de caracteres (o `s.size()` da linguagem).
 
 Literais do programa nativo são `CzString` constantes no executável, com `CZ_IMORTAL` (sem
 alocação, sem contagem). Concatenação, fatia e conversões criam strings novas.
@@ -137,9 +137,9 @@ alocação, sem contagem). Concatenação, fatia e conversões criam strings nov
 typedef struct CzValor {
     uint8_t  tipo;        // VOID, I32, I64, F32, F64, BOOL, ENUM, TIPO, ou um ponteiro de objeto
     uint8_t  _r[3];
-    uint32_t extra;       // ENUM: o id do enum
+    uint32_t extra;       // ENUM: o índice do valor
     union { int32_t i32; int64_t i64; float f32; double f64; uint8_t b;
-            CzObjeto* obj; const struct CzTipo* t; } u;
+            CzObjeto* obj; const void* ptr; } u;     // ptr: TypeInfo* (TIPO), CzEnumDesc* (ENUM)
 } CzValor;
 ```
 
@@ -149,15 +149,16 @@ porque ali não existem objetos `Value`.
 
 - **`CzValor`**: a estrutura C acima, sem construtor nem destrutor. É o que atravessa a interface
   C (seção 7) e o que as coleções guardam. Quem a segura cuida da posse (seção 3).
-- **`Value`**: a classe C++ da CVM e do código do runtime. Contém um `CzValor` como único membro;
-  o construtor de cópia faz `retain`, o destrutor faz `release`, e a cópia de struct continua
-  clonando (como hoje). Converter é explícito: `Value::empresta(const CzValor&)` (sem posse) e
-  `Value::toma(CzValor)` (assume a posse).
-- **`ValorRef`**: uma vista que não é dona, sobre um `CzValor` que outro segura. É o que as
-  funções da biblioteca (`NativeFn`) passam a receber: `std::span<const ValorRef>`, ou um
-  adaptador com a mesma interface que o `Value` de leitura (`asInt()`, `asString()`...), para
-  o código de `stdlib.cpp` mudar pouco. O código nativo chama `cz_nativa(id, args, n)` com um
-  vetor de `CzValor`; o runtime monta as vistas, sem copiar nem mexer na contagem.
+- **`Value`**: a classe C++ da CVM e do código do runtime. Contém um `CzValor` como único membro
+  (`v`); o construtor de cópia faz `retain`, o destrutor faz `release`, e a cópia de struct
+  continua clonando. Os acessores conferem o tipo (erro interno, nunca comportamento
+  indefinido) e devolvem os objetos como ponteiro sem posse (`CinzaList*`...). *(Implementado
+  no P1.)*
+- **Chamada de uma função da biblioteca pelo código nativo** (`cz_nativa(id, args, n)`, P3): o
+  runtime monta um pequeno vetor de `Value` a partir dos `CzValor` recebidos (uma cópia com
+  `retain` por argumento) e chama a `NativeFn` de hoje, sem mudar as ~200 funções da
+  biblioteca e sem `reinterpret_cast`. Uma vista sem posse (`ValorRef`, com os mesmos
+  acessores de leitura) fica como otimização, se a medição mostrar que a cópia pesa.
 
 O layout é conferido na compilação do runtime e por um teste do `cinzac` (seção 8.4):
 
@@ -173,23 +174,27 @@ coleções, argumentos das funções nativas, `print`.
 
 ### 2.4 Descritores sem AST
 
-Hoje `ClassInstance` e `StructValue` apontam para a declaração na AST (`ClassDecl*`,
-`StructDecl*`), e o tipo de `type()` é um `TypeInfo*` do compilador. O runtime passa a usar
-descritores próprios, que o compilador da CVM monta a partir da AST e o `cinzac` emite como
-constantes:
+Antes, `ClassInstance`, `StructValue` e os valores de enum apontavam para a declaração na AST
+(`ClassDecl*`, `StructDecl*`, `EnumDecl*`), e cada objeto guardava uma cópia do nome da classe.
+**Implementado no P1:** o runtime usa descritores próprios, guardados no campo `desc` do
+cabeçalho; a CVM os monta a partir da AST (a imagem é a dona) e o `cinzac` os emitirá como
+constantes. O `value.h` não inclui mais a AST.
 
-- `CzClasse`: nome (para `<Nome object>` e mensagens), número de campos, tabelas de interface
-  (interface → métodos);
-- `CzStructDesc`: nome e nomes dos campos (para o `print` `Ponto{x: 1}`);
-- `CzTipo`: o texto canônico (`list<i64>`, `Par[i32, string]`), único por tipo (comparar é
-  comparar ponteiros); o `cinzac` emite um por tipo usado em `type()`;
-- `CzFuncao`: nome no stack trace e posição da declaração (seção 6).
+- `CzClasseDesc`: nome completo (para `<Nome object>`, mensagens e `type()`), índice na tabela
+  de classes do backend (métodos, tabelas de interface) e número de campos;
+- `CzStructDesc`: nome e nomes dos campos (para o `print` `Ponto{x: 1}` e `s.campo`);
+- `CzEnumDesc`: nome e nomes dos valores (`Cor.Verde`);
+- o tipo de `type()` continua sendo o `TypeInfo` de `types.h`: ele não depende da AST (é uma
+  estrutura pura, única por tipo, comparada por ponteiro), então serve de descritor de tipo
+  para os dois backends — o `cinzac` vai criá-los pelo mesmo `TypeContext`;
+- `CzFuncao`: nome no stack trace e posição da declaração (seção 6) — entra com o backend
+  nativo (P8); a CVM continua com os protótipos dela.
 
 ### 2.5 Erros
 
-`ErrorValue` vira objeto com contagem (`CzErro`): tipo (o nome: `"ValueError"`, `"MeuErro"`),
-mensagem (`CzString`), posição (arquivo, linha, coluna) e stack trace (lista de linhas, montada
-quando o erro nasce). O sinal de `exit(código)` continua sendo um erro de tipo especial
+`ErrorValue` vira objeto com contagem (`CzErro`; **implementado no P1**, não rastreado pela
+coleta): tipo (o nome: `"ValueError"`, `"MeuErro"`), mensagem, posição (arquivo, linha, coluna) e
+stack trace (lista de linhas, montada quando o erro nasce). O sinal de `exit(código)` continua sendo um erro de tipo especial
 (`EXIT_KIND`), que nenhum `except` captura (seção 5).
 
 ### 2.6 Testes de memória
@@ -197,9 +202,10 @@ quando o erro nasce). O sinal de `exit(código)` continua sendo um erro de tipo 
 - **Contador de objetos vivos** no runtime (já existe para os contêineres:
   `gc_registro.vivos`; passa a contar todos os objetos). Com a variável de ambiente
   `CINZA_VAZAMENTOS=1`, ao sair o runtime solta os `const` globais, roda uma última coleta e, se
-  sobrar algum objeto vivo, escreve quantos e de que tipo no stderr e sai com código 70. O
-  `run_tests.py` ganha o modo `--vazamentos`, que roda a suíte inteira assim, nos dois backends:
-  os 640 testes viram testes de vazamento.
+  sobrar algum objeto vivo, escreve quantos e de que tipo no stderr e sai com código 70.
+  **Implementado no P1, e ligado por padrão no `run_tests.py`** (a conferência não muda nada
+  quando não há vazamento): todo teste da suíte é também teste de vazamento, sem rodar a suíte
+  duas vezes; `--sem-vazamentos` desliga.
 - O contador só vê objetos do runtime; o **ASan/UBSan** continua cobrindo o resto (uso depois de
   liberar, estouro de buffer, memória do C++). Os dois juntos.
 - Testes específicos em `tests/gc/`: ciclos de cada tipo (lista ↔ objeto, dict → objeto → lista,
@@ -517,8 +523,8 @@ parte no `REVISAO_V2.md` (a destruição, o caso mais comum, já sai na seção 
 | objetos e structs | `cz_obj_novo(desc)`, `cz_struct_embrulha(desc, campos)`, `cz_struct_desembrulha` |
 | erros | `cz_erro_novo(tipo, msg)`, `cz_lanca(erro)`, `cz_estouro(f)`, os erros dos números (`cz_falha_estouro`…) |
 | saída e entrada | `cz_print(valores, n)`, `cz_format(...)`, `cz_input` (`CZ_FALHA`) |
-| biblioteca | `cz_nativa(id, args, n)` → as `NativeFn` de hoje, que recebem vistas (`ValorRef`) sobre os `CzValor` (seção 2.3) |
-| tipos | `cz_tipo_de(valor)`, os `CzTipo` constantes do programa |
+| biblioteca | `cz_nativa(id, args, n)` → as `NativeFn` de hoje, com os argumentos copiados para `Value` (seção 2.3) |
+| tipos | `cz_tipo_de(valor)`, os `TypeInfo` do programa (seção 2.4) |
 
 As regras de `print`, `format`, conversões e da biblioteca continuam escritas **uma vez**, no
 runtime, para os dois backends.
@@ -537,7 +543,7 @@ runtime, para os dois backends.
 | objeto de classe | ponteiro para o objeto: cabeçalho + campos como `CzValor`, acesso por índice fixo (sem procurar) |
 | `struct` | struct LLVM **por valor** com os campos nos tipos nativos; embrulhado (numa lista), um `CzStruct` do runtime, copiado na entrada e na saída (como a cópia da spec 5.1) |
 | interface | par `{objeto, tabela de métodos}`, como o `dyn Trait` do Rust; ao sair de um `CzValor` (elemento de lista), a tabela é procurada no descritor da classe |
-| `type()` | ponteiro para `CzTipo` |
+| `type()` | ponteiro para `TypeInfo` (seção 2.4) |
 
 **[decidir, depois do P9]** campos de objeto nos tipos nativos (sem `CzValor`) e listas
 especializadas (`list<i32>` como vetor de `int32_t`) são otimizações da etapa P10: primeiro a
@@ -617,7 +623,8 @@ Erros de compilação saem iguais aos do `cinza` (o front-end é o mesmo). O `ci
   mesmos `// args:`, `// stdin:`, `// env:`; confere `// expect`, `// expect-error`,
   `// expect-exit` como hoje. Um erro de compilação conta como saída do teste (mesma mensagem nos
   dois). `make test-llvm`.
-- `run_tests.py --vazamentos` (seção 2.6), nos dois backends.
+- O modo sem vazamento (seção 2.6) vale para os dois backends: ligado por padrão no
+  `run_tests.py`.
 - ASan/UBSan no runtime e no código gerado (o `cinzac` aceita `--sanitize` para ligar com eles).
 - A meta da etapa P9: a suíte inteira passa nos dois backends, sem vazamento.
 

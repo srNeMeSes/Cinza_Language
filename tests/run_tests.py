@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Runner de testes da linguagem Cinza.
 
-Uso: python tests/run_tests.py [binario] [filtro]
+Uso: python tests/run_tests.py [--sem-vazamentos] [binario] [filtro]
 
-Os programas rodam na CVM (o único runtime da Cinza).
+Os programas rodam na CVM (o único runtime da Cinza). Todo teste roda com
+CINZA_VAZAMENTOS=1: se sobrar um objeto do runtime ao sair, o programa termina com
+código 70 e o teste falha (--sem-vazamentos desliga).
 
 Cada tests/*.cinza declara a saída esperada em comentários:
     // expect: <linha exata do stdout>
@@ -72,11 +74,17 @@ def ler_entrada(caminho):
     return "".join(linhas).encode("utf-8")
 
 
+VAZAMENTOS = True   # P1: todo teste confere também que nenhum objeto do runtime sobra
+
+
 def ler_ambiente(caminho):
     """Ambiente do processo: o atual mais as variáveis de `// env: NOME=valor`.
     (tests/czm.mod faz de tests/ a raiz do projeto: `import modulos.geom;` vale em
-    qualquer subpasta, sem CINZA_PATH.)"""
+    qualquer subpasta, sem CINZA_PATH.) Com o modo sem vazamento (o padrão), o
+    programa sai com código 70 se sobrar algum objeto do runtime ao terminar."""
     env = dict(os.environ)
+    if VAZAMENTOS:
+        env["CINZA_VAZAMENTOS"] = "1"
     for linha in caminho.read_text(encoding="utf-8-sig").splitlines():
         m = RE_ENV.search(linha)
         if m:
@@ -161,6 +169,10 @@ def rodar(binario, caminho):
         f"    obtido   stderr: {stderr.strip()!r}"
     )
 
+    if proc.returncode == 70 and "[vazamentos]" in stderr:
+        linha = next(l for l in stderr.splitlines() if "[vazamentos]" in l)
+        return False, "vazamento de memória: " + linha.replace("[vazamentos] ", ""), detalhes
+
     presentes = [t for t in proibidos if t in stdout + stderr]
     if presentes:
         return False, f"saída contém trecho proibido {presentes}", detalhes
@@ -222,6 +234,11 @@ def exemplos_da_spec(filtro):
 def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
+
+    global VAZAMENTOS
+    if "--sem-vazamentos" in sys.argv:
+        VAZAMENTOS = False
+        sys.argv.remove("--sem-vazamentos")
 
     if len(sys.argv) > 1:
         binario = Path(sys.argv[1])

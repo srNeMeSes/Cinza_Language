@@ -37,6 +37,19 @@ private:
     std::unordered_map<const InterfaceDecl*, std::size_t> iface_of;   // → img.interfaces
     std::unordered_map<const NativeFn*, std::size_t>     native_of;
 
+    // P1: descritores do runtime a partir da AST (a imagem é a dona)
+    static std::unique_ptr<CzStructDesc> descStruct(const StructDecl* st) {
+        auto d = std::make_unique<CzStructDesc>();
+        d->nome = st->name;
+        for (const auto& f : st->fields) d->campos.push_back(f.name);
+        return d;
+    }
+    const CzEnumDesc* descEnum(const EnumDecl* en) {
+        auto& d = img.desc_enums[en];
+        if (!d) d = std::make_unique<CzEnumDesc>(CzEnumDesc{en->name, en->members});
+        return d.get();
+    }
+
     // laços em compilação: saltos de break a corrigir e destino do continue
     struct Laco {
         std::vector<std::size_t> breaks;
@@ -351,7 +364,7 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
             auto* m = static_cast<const MemberAccessExpr*>(e);
             TypeRef t = m->object->resolved_type;
             if (m->enum_decl) {   // Cor.Verde: uma constante
-                loadK(dst, Value(EnumValue{m->enum_decl, static_cast<std::uint32_t>(m->field_index)}), e->token);
+                loadK(dst, Value(EnumValue{descEnum(m->enum_decl), static_cast<std::uint32_t>(m->field_index)}), e->token);
                 break;
             }
             if (t->is(TK::Error)) {   // e.kind, e.message, e.line, e.column
@@ -1095,7 +1108,9 @@ Image Compiler::run() {
                     proto_of[c->constructor.get()] = ref.ctor;
                 }
                 if (!c->fields.empty()) ref.init = newProto("", c->token);   // oculto
-                img.class_index[c] = img.classes.size();
+                img.desc_classes.push_back(std::make_unique<CzClasseDesc>(CzClasseDesc{
+                    c->class_name, static_cast<std::uint32_t>(img.classes.size()),
+                    static_cast<std::uint32_t>(c->fields.size())}));
                 class_of[c->class_name] = img.classes.size();
                 img.classes.push_back(ref);
             } else if (s->node_kind == NodeKind::StructDecl) {
@@ -1103,6 +1118,7 @@ Image Compiler::run() {
                 if (!st->type_params.empty()) continue;   // N5: só as cópias existem
                 struct_of[st->name] = img.structs.size();
                 img.structs.push_back(st);
+                img.desc_structs.push_back(descStruct(st));
             }
         }
 
@@ -1114,6 +1130,7 @@ Image Compiler::run() {
                 auto* st = static_cast<const StructDecl*>(s.get());
                 struct_of[st->name] = img.structs.size();
                 img.structs.push_back(st);
+                img.desc_structs.push_back(descStruct(st));
                 continue;
             }
             auto* fn = static_cast<const FunctionDecl*>(s.get());

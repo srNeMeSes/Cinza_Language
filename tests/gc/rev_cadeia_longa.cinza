@@ -1,0 +1,36 @@
+// P1a: soltar uma cadeia longa não estoura a pilha do sistema. Antes, o
+// shared_ptr destruía os nós em recursão e 400 mil nós derrubavam a CVM
+// (0xC00000FD); agora a destruição vai por uma fila (llvm/DESENHO.md 2.1).
+// Cadeias menores também são soltas de dentro de uma lista e no fim do programa
+// (a de 400 mil é a que travava; maior que isso, o teste fica lento sob ASan).
+// env: CINZA_GC_STATS=1
+class No {
+  list<No> f;
+  pub { fn add(No n) { f.add(n); } }
+}
+fn cadeia(i32 n) -> No {
+  No raiz = new No();
+  No atual = raiz;
+  for (i32 i in range(0, n)) {
+    No novo = new No();
+    atual.add(novo);
+    atual = novo;
+  }
+  return raiz;
+}
+fn main() {
+  No a = cadeia(400000);
+  print("criou");
+  a = new No();
+  print("soltou");
+  list<No> guardadas = [cadeia(5000), cadeia(5000)];
+  guardadas.remove(0);
+  print(guardadas.size());
+  No fim = cadeia(5000);
+  print("fim");
+}
+// expect: criou
+// expect: soltou
+// expect: 1
+// expect: fim
+// expect: [gc] liberados em ciclos: 0, contêineres vivos: 0

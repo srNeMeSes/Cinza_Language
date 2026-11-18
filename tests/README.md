@@ -8,6 +8,10 @@ Cada programa diz o resultado esperado em comentários (`// expect:`, `// expect
 do `run_tests.py`. Para rodar só uma parte: `python tests/run_tests.py cinza.exe genericos/`
 (o filtro é um trecho do caminho).
 
+Todo teste também confere a memória: o `run_tests.py` roda os programas com
+`CINZA_VAZAMENTOS=1`, e um programa que termina com algum objeto do runtime ainda vivo sai com
+código 70 e falha como "vazamento de memória" (`--sem-vazamentos` desliga a conferência).
+
 ## Pastas
 
 | Pasta | Assunto |
@@ -31,7 +35,7 @@ do `run_tests.py`. Para rodar só uma parte: `python tests/run_tests.py cinza.ex
 | `biblioteca/` | funções embutidas e módulos nativos (`Strings`, `Files`, `Math`...) |
 | `genericos/` | funções e structs genéricos (spec, capítulo 8) |
 | `cvm/` | casos específicos da máquina virtual |
-| `gc/` | coleta de ciclos |
+| `gc/` | memória: coleta de ciclos, contagem de referências, cadeias longas |
 | `programas/` | programas maiores (rede neural, lista ligada) |
 | `projetos/` | projetos de várias pastas, cada um com `czm.mod` próprio (`crud_contatos/`: CRUD de contatos em arquivo) |
 

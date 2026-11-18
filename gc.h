@@ -12,33 +12,35 @@ namespace cinza {
 // ============================================================================
 // COLETA DE CICLOS (trial deletion, como no CPython)
 //
-// A contagem de referências (shared_ptr) libera quase tudo, mas não um ciclo:
+// A contagem de referências (embutida no objeto, gc_object.h) libera quase tudo,
+// mas não um ciclo:
 //   class No { list<No> xs; }   a.xs.add(a);   — `a` segura a si mesmo.
 // Todo ciclo da Cinza passa por um contêiner, e todos são GcObject.
 //
 // Coleta:
-//   1. gc_refs = referências fortes de cada contêiner (use_count);
+//   1. gc_refs = referências de cada contêiner (refs);
 //   2. desconta as referências que vêm de outros contêineres rastreados;
 //   3. quem fica com gc_refs > 0 é referenciado de fora (frames, globais,
 //      temporários da CVM): raiz. Marca tudo o que as raízes alcançam;
 //   4. o resto é lixo em ciclo: esvazia esses contêineres (segurando uma
 //      referência a cada um enquanto isso), e a contagem libera tudo.
 //
-// Não é preciso enumerar os temporários do C++: qualquer shared_ptr fora dos
+// Não é preciso enumerar os temporários do C++: qualquer Ref fora dos
 // contêineres conta como referência externa. Por isso a CVM só dispara a
 // coleta em pontos seguros (NEWOBJ, cvm/vm.cpp), onde nenhum ponteiro cru
 // aponta para dentro de um contêiner sem um Value forte segurando o dono.
 // ============================================================================
 
 // Contêiner referenciado por um Value (nullptr se o Value não é contêiner).
-// Lê o variant sem copiar o shared_ptr, para não mexer nas contagens.
+// Lê o ponteiro sem copiar o Value, para não mexer nas contagens.
 inline GcObject* gcChild(const Value& v) {
-    if (auto* p = std::get_if<std::shared_ptr<CinzaList>>(&v.data))     return p->get();
-    if (auto* p = std::get_if<std::shared_ptr<CinzaDict>>(&v.data))     return p->get();
-    if (auto* p = std::get_if<std::shared_ptr<CinzaPair>>(&v.data))     return p->get();
-    if (auto* p = std::get_if<std::shared_ptr<ClassInstance>>(&v.data)) return p->get();
-    if (auto* p = std::get_if<std::shared_ptr<StructValue>>(&v.data))   return p->get();
-    return nullptr;
+    switch (v.kind()) {
+        case Value::Kind::LIST: case Value::Kind::DICT: case Value::Kind::PAIR:
+        case Value::Kind::INSTANCE: case Value::Kind::STRUCT:
+            return static_cast<GcObject*>(v.objeto());
+        default:
+            return nullptr;
+    }
 }
 
 template <typename F>
@@ -63,6 +65,8 @@ inline void gcForEachChild(GcObject* o, F&& f) {
         case GcKind::Struct:
             for (const Value& v : static_cast<StructValue*>(o)->fields) visita(v);
             break;
+        case GcKind::Error: case GcKind::String:   // não são contêineres: fora do registro
+            break;
     }
 }
 
@@ -83,6 +87,8 @@ inline void gcClear(GcObject* o) {
         case GcKind::Struct:
             for (Value& v : static_cast<StructValue*>(o)->fields) v = Value();
             break;
+        case GcKind::Error: case GcKind::String:
+            break;
     }
 }
 
@@ -97,20 +103,21 @@ inline std::size_t gcCollect() {
     ++gc_stats.coletas;
     gc_registro.novos = 0;
 
-    // 1. referências fortes (sem shared_ptr dono: não é nosso — trata como raiz)
-    for (GcObject* o = gc_registro.head; o; o = o->gc_next) {
-        const long n = o->weak_from_this().use_count();
-        o->gc_refs  = n > 0 ? n : std::numeric_limits<long>::max();
+    auto contem = [](CzObjeto* o) { return static_cast<GcObject*>(o); };
+    // 1. referências de cada contêiner
+    for (CzObjeto* c = gc_registro.head; c; c = c->prox) {
+        GcObject* o = contem(c);
+        o->gc_refs  = static_cast<long>(o->refs);
         o->gc_marca = false;
     }
     // 2. desconta as referências internas
-    for (GcObject* o = gc_registro.head; o; o = o->gc_next)
-        gcForEachChild(o, [](GcObject* c) { --c->gc_refs; });
+    for (CzObjeto* c = gc_registro.head; c; c = c->prox)
+        gcForEachChild(contem(c), [](GcObject* f) { --f->gc_refs; });
 
     // 3. marca o que as raízes alcançam
     std::vector<GcObject*> pilha;
-    for (GcObject* o = gc_registro.head; o; o = o->gc_next)
-        if (o->gc_refs > 0) { o->gc_marca = true; pilha.push_back(o); }
+    for (CzObjeto* c = gc_registro.head; c; c = c->prox)
+        if (GcObject* o = contem(c); o->gc_refs > 0) { o->gc_marca = true; pilha.push_back(o); }
     while (!pilha.empty()) {
         GcObject* o = pilha.back();
         pilha.pop_back();
@@ -119,14 +126,14 @@ inline std::size_t gcCollect() {
         });
     }
 
-    // 4. lixo: segura cada um (nada é destruído no meio) e esvazia
-    std::vector<std::shared_ptr<GcObject>> lixo;
-    for (GcObject* o = gc_registro.head; o; o = o->gc_next)
-        if (!o->gc_marca)
-            if (auto forte = o->weak_from_this().lock()) lixo.push_back(std::move(forte));
-    for (auto& o : lixo) gcClear(o.get());
+    // 4. lixo: segura cada um (nada é destruído no meio) e esvazia; os
+    //    contadores chegam a zero ao soltar, e a destruição vai pela fila
+    std::vector<GcObject*> lixo;
+    for (CzObjeto* c = gc_registro.head; c; c = c->prox)
+        if (GcObject* o = contem(c); !o->gc_marca) { czRetain(o); lixo.push_back(o); }
+    for (GcObject* o : lixo) gcClear(o);
     const std::size_t liberados = lixo.size();
-    lixo.clear();   // os contadores chegam a zero aqui
+    for (GcObject* o : lixo) czRelease(o);
 
     gc_stats.liberados += liberados;
     return liberados;

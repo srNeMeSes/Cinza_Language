@@ -1,0 +1,21 @@
+// P1: atribuir um valor a si mesmo (retain antes do release) não solta o objeto
+// antes da hora
+struct S { list<i32> l; string s = "s"; }
+class C { i32 v = 7; pub { fn valor() -> i32 { return v; } } }
+fn main() {
+  list<i32> l = [1, 2];
+  string t = "texto";
+  S s = new S([3], "abc");
+  C c = new C();
+  dict<string, list<i32>> d = {{"k", [9]}};
+  list<list<i32>> m = [[5]];
+  l = l;
+  t = t;
+  s = s;
+  c = c;
+  d["k"] = d["k"];
+  m[0] = m[0];
+  s.l = s.l;
+  print(l, t, s, c.valor(), d, m);
+}
+// expect: [1, 2] texto S{l: [3], s: "abc"} 7 {"k": [9]} [[5]]

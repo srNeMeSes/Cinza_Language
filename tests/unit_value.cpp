@@ -42,26 +42,36 @@ int main() {
     CHECK(makeList().kind() == K::LIST);
     CHECK(makeDict().kind() == K::DICT);
     CHECK(makePair(Value(1), Value(2)).kind() == K::PAIR);
-    CHECK(makeInstance("C", nullptr).kind() == K::INSTANCE);
+    CHECK(makeInstance(nullptr).kind() == K::INSTANCE);
 
     // A11: kind() acompanha o valor guardado, inclusive após reatribuir data
     Value v(1);
-    v.data = std::string("texto");
+    v = Value(novo<CzString>(std::string("texto")));
     CHECK(v.kind() == K::STRING);
+
+    // P1: a string é imutável e compartilhada: copiar o Value não copia o texto
+    {
+        Value a(std::string("compartilhado"));
+        Value b = a;
+        CHECK(&a.asString() == &b.asString());
+        CHECK(a.objeto()->refs == 2);
+        b = Value("outro");
+        CHECK(a.asString() == "compartilhado" && b.asString() == "outro");
+    }
     v = Value(false);
     CHECK(v.kind() == K::BOOL);
 
     // C3: copiar um struct clona os campos (cópia rasa: list interna compartilhada)
-    auto sv = std::make_shared<StructValue>();
+    auto sv = novo<StructValue>();
     sv->fields = {Value(1), makeList()};
     Value original(sv);
     Value copia = original;
     CHECK(copia.kind() == K::STRUCT);
-    CHECK(copia.asStruct().get() != original.asStruct().get());   // struct próprio
+    CHECK(copia.asStruct() != original.asStruct());   // struct próprio
     copia.asStruct()->fields[0] = Value(99);
     CHECK(original.asStruct()->fields[0].asInt() == 1);            // original intacto
-    CHECK(copia.asStruct()->fields[1].asList().get() ==
-          original.asStruct()->fields[1].asList().get());          // list compartilhada
+    CHECK(copia.asStruct()->fields[1].asList() ==
+          original.asStruct()->fields[1].asList());          // list compartilhada
     CHECK(copia != original);
     copia.asStruct()->fields[0] = Value(1);
     CHECK(copia == original);                                      // == campo a campo

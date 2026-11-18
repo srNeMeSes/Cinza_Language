@@ -1,0 +1,17 @@
+// P1: strings são compartilhadas (copiar não copia o texto) e imutáveis:
+// "alterar" cria outra, e quem tinha a original continua com ela
+struct R { string nome = ""; }
+fn main() {
+  string a = "original";
+  string b = a;
+  list<string> l = [a, a];
+  dict<string, string> d = {{a, a}};
+  R r = new R(a);
+  b += "!";
+  l[0] = l[0] + "?";
+  r.nome = r.nome + ".";
+  print(a, b, l, d, r);
+  print(a.size(), b.size(), a == d[a]);
+}
+// expect: original original! ["original?", "original"] {"original": "original"} R{nome: "original."}
+// expect: 8 9 true

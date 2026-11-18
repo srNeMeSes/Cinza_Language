@@ -73,7 +73,7 @@ $(TARGET_BIN): $(OBJECTS)
 -include $(DEPS)
 
 # Build de depuração com sanitizers
-debug: CXXFLAGS = -std=c++20 -O0 -g -Wall -Wextra -fsanitize=address,undefined
+debug: CXXFLAGS = -std=c++20 -O0 -g -Wall -Wextra -fsanitize=address,undefined -DCINZA_CONFERE_REFS
 debug: clean $(TARGET_BIN)
 
 # Roda a suíte de testes em tests/

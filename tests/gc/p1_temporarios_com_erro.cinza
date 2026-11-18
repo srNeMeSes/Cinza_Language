@@ -1,0 +1,17 @@
+// P1: temporários (strings, listas, structs) de uma expressão que falha no
+// meio são soltos; nada sobra depois de mil falhas
+struct P { string nome = ""; list<i32> l; }
+fn monta(i32 i) -> string {
+  list<string> partes = ["x", "y", "z"];
+  P p = new P("p" + i, [i, i + 1]);
+  return p.nome + partes[i % 5];   // i % 5 >= 3: IndexError no meio da conta
+}
+fn main() {
+  i32 erros = 0;
+  string ultimo = "";
+  for (i32 i in range(0, 1000)) {
+    try { ultimo = monta(i); } except (IndexError e) { erros += 1; }
+  }
+  print(erros, ultimo);
+}
+// expect: 400 p997z

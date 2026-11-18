@@ -172,7 +172,11 @@ struct Image {
     std::vector<ClassRef>        classes;
     std::vector<const StructDecl*> structs;
     std::vector<const InterfaceDecl*> interfaces;
-    std::unordered_map<const ClassDecl*, std::size_t> class_index;   // classe de um objeto → classes
+    // P1: os descritores do runtime (llvm/DESENHO.md 2.4), paralelos a classes e structs;
+    // a imagem é a dona (os objetos e as constantes apontam para eles)
+    std::vector<std::unique_ptr<CzClasseDesc>> desc_classes;
+    std::vector<std::unique_ptr<CzStructDesc>> desc_structs;
+    std::unordered_map<const EnumDecl*, std::unique_ptr<CzEnumDesc>> desc_enums;
     std::vector<std::size_t>     inits;        // inicialização dos const de cada módulo, em ordem
     std::size_t                  main = 0;     // protótipo da main
     bool                         main_has_args = false;

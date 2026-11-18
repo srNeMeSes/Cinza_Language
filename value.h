@@ -1,10 +1,9 @@
 #ifndef CINZA_VALUE_H
 #define CINZA_VALUE_H
 
-#include "ast.h"          // ClassDecl* do objeto (métodos e interfaces na CVM)
+#include "types.h"        // TypeInfo: o valor de type() (P1: o runtime não depende da AST)
 #include "source_files.h" // C5: displayName
 #include "gc_object.h"   // coleta de ciclos: contêineres rastreados
-#include <variant>
 #include <cstdint>
 #include <type_traits>
 #include <string>
@@ -29,14 +28,48 @@ struct CinzaDict;
 struct CinzaPair;
 struct ClassInstance;
 
-// Valor de enum: a declaração e o índice do valor. Não há i64 visível na
+// ============================================================================
+// DESCRITORES (P1, llvm/DESENHO.md 2.4)
+//
+// O que o runtime precisa saber de uma classe, struct ou enum, sem apontar para
+// a AST: o backend que criou o objeto (a CVM, a partir da AST; o código nativo,
+// como constantes) é o dono dos descritores, que vivem até o fim do programa.
+// Os nomes são os completos ("modulos.geom::Ponto"); as mensagens tiram o prefixo.
+// ============================================================================
+struct CzClasseDesc {
+    std::string   nome;
+    std::uint32_t indice = 0;   // na tabela de classes do backend (métodos, interfaces)
+    std::uint32_t campos = 0;
+};
+struct CzStructDesc {
+    std::string              nome;
+    std::vector<std::string> campos;   // na ordem da declaração (print, s.campo)
+};
+struct CzEnumDesc {
+    std::string              nome;
+    std::vector<std::string> valores;
+};
+
+// Valor de enum: o descritor e o índice do valor. Não há i64 visível na
 // linguagem: o índice só serve para comparar e ordenar chaves de dict.
 struct EnumValue {
-    const EnumDecl* decl  = nullptr;
-    std::uint32_t   index = 0;
+    const CzEnumDesc* desc  = nullptr;
+    std::uint32_t     index = 0;
 };
 struct StructValue;
 struct ErrorValue;
+
+// P1 (llvm/DESENHO.md 2.2): string imutável com contagem. Antes o Value guardava
+// um std::string por valor, e atribuir, passar ou pôr numa lista copiava o texto
+// inteiro; agora copia só a referência. Não é rastreada pela coleta (não contém
+// contêineres). O texto fica num std::string interno (o código nativo o lê só por
+// funções do runtime, então o layout pode mudar sem afetar ninguém).
+struct CzString : CzObjeto {
+    const std::string texto;
+
+    explicit CzString(const std::string& t) : CzObjeto(GcKind::String), texto(t) {}
+    explicit CzString(std::string&& t) noexcept : CzObjeto(GcKind::String), texto(std::move(t)) {}
+};
 
 // ============================================================================
 // VALUE
@@ -48,15 +81,37 @@ struct ErrorValue;
 //   - I32, I64, F32, F64, STRING, BOOL, PAIR → value semantics (cópia por valor)
 //   - STRUCT (C3)                      → value semantics: copiar clona os campos
 //                                        (cópia rasa, ver Value(const Value&))
-//   - LIST, DICT, INSTANCE             → reference semantics (shared_ptr)
+//   - LIST, DICT, INSTANCE             → reference semantics (Ref: contagem embutida, gc_object.h)
 //
 // A semântica de referência para coleções e instâncias garante que
 // mutações (list.add(), campo = x) sejam visíveis para todos os
 // "donos" do mesmo objeto — comportamento esperado em linguagens imperativas.
 // ============================================================================
 
+// P1 (llvm/DESENHO.md 2.3): a representação de um valor, 16 bytes, compatível
+// com C — é o que vai atravessar a interface com o código nativo e o que as
+// coleções guardam. Não tem construtor nem destrutor: quem a segura cuida da
+// posse (o Value, abaixo, ou o código nativo).
+struct CzValor {
+    std::uint8_t  tipo;       // um Value::Kind
+    std::uint8_t  _r[3];
+    std::uint32_t extra;      // ENUM: o índice do valor
+    union {
+        std::int32_t  i32;
+        std::int64_t  i64;
+        float         f32;
+        double        f64;
+        std::uint8_t  b;
+        CzObjeto*     obj;    // STRING, LIST, DICT, PAIR, INSTANCE, STRUCT, ERROR
+        const void*   ptr;    // TYPE (TypeInfo*), ENUM (CzEnumDesc*)
+    } u;
+};
+static_assert(sizeof(CzValor) == 16 && alignof(CzValor) == 8, "llvm/DESENHO.md 2.3");
+static_assert(offsetof(CzValor, tipo) == 0 && offsetof(CzValor, extra) == 4 &&
+              offsetof(CzValor, u) == 8, "llvm/DESENHO.md 2.3");
+
 struct Value {
-    enum class Kind {
+    enum class Kind : std::uint8_t {
         I64,         // inteiro de 64 bits (int64_t)
         F64,         // ponto flutuante de 64 bits (double, IEEE 754)
         STRING,
@@ -80,46 +135,42 @@ struct Value {
         VOID_VAL
     };
 
-    std::variant<
-        std::monostate,                         // VOID_VAL
-        std::int64_t,                           // I64
-        double,                                 // F64
-        std::string,                            // STRING
-        bool,                                   // BOOL
-        std::shared_ptr<CinzaList>,             // LIST
-        std::shared_ptr<CinzaDict>,             // DICT
-        std::shared_ptr<CinzaPair>,             // PAIR
-        std::shared_ptr<ClassInstance>,         // INSTANCE
-        std::shared_ptr<StructValue>,           // STRUCT (C3)
-        std::shared_ptr<ErrorValue>,            // ERROR (C4)
-        const TypeInfo*,                        // TYPE
-        EnumValue,                              // ENUM
-        std::int32_t,                           // I32
-        float                                   // F32
-    > data;
+    // P1: o valor, no formato C (o antigo std::variant saiu). O Value é o dono:
+    // copiar faz retain do objeto (e clona o struct), destruir faz release.
+    CzValor v;
+
+    // Os kinds que guardam um objeto do runtime (o ponteiro em u.obj, com posse)
+    static constexpr bool guardaObjeto(Kind k) noexcept {
+        constexpr unsigned mascara = (1u << static_cast<unsigned>(Kind::STRING)) |
+            (1u << static_cast<unsigned>(Kind::LIST)) | (1u << static_cast<unsigned>(Kind::DICT)) |
+            (1u << static_cast<unsigned>(Kind::PAIR)) | (1u << static_cast<unsigned>(Kind::INSTANCE)) |
+            (1u << static_cast<unsigned>(Kind::STRUCT)) | (1u << static_cast<unsigned>(Kind::ERROR));
+        return (mascara >> static_cast<unsigned>(k)) & 1u;
+    }
 
     // ── Construtores convenientes ─────────────────────────────────────────
 
-    Value() : data(std::monostate{}) {}
+    Value() noexcept { poe(Kind::VOID_VAL); v.u.i64 = 0; }
 
-    explicit Value(std::int64_t v)       : data(v)              {}
+    explicit Value(std::int64_t x) noexcept { poe(Kind::I64); v.u.i64 = x; }
     // int do C++ (literais do próprio runtime: Value(0)) é i64; i32 só por Value::i32
-    explicit Value(int v)                : Value(static_cast<std::int64_t>(v))       {}
-    explicit Value(double v)             : data(v)              {}
-    explicit Value(const std::string& v) : data(v)              {}
-    explicit Value(std::string&& v)      : data(std::move(v))   {}
+    explicit Value(int x) noexcept          : Value(static_cast<std::int64_t>(x)) {}
+    explicit Value(double x) noexcept       { poe(Kind::F64); v.u.f64 = x; }
+    explicit Value(const std::string& s)    : Value(novo<CzString>(s)) {}
+    explicit Value(std::string&& s)         : Value(novo<CzString>(std::move(s))) {}
     // A11: sem este construtor, Value("x") escolhia a conversão padrão
     // const char* → bool e virava BOOL true
-    explicit Value(const char* v)        : data(std::string(v))  {}
-    explicit Value(bool v)               : data(v)              {}
-    explicit Value(std::shared_ptr<CinzaList>     v) : data(std::move(v)) {}
-    explicit Value(std::shared_ptr<CinzaDict>     v) : data(std::move(v)) {}
-    explicit Value(std::shared_ptr<CinzaPair>     v) : data(std::move(v)) {}
-    explicit Value(std::shared_ptr<ClassInstance> v) : data(std::move(v)) {}
-    explicit Value(std::shared_ptr<StructValue>   v) : data(std::move(v)) {}
-    explicit Value(std::shared_ptr<ErrorValue>    v) : data(std::move(v)) {}
-    explicit Value(const TypeInfo* t)                : data(t) {}
-    explicit Value(EnumValue e)                      : data(e) {}
+    explicit Value(const char* s)           : Value(novo<CzString>(std::string(s))) {}
+    explicit Value(bool x) noexcept         { poe(Kind::BOOL); v.u.i64 = 0; v.u.b = x ? 1 : 0; }
+    explicit Value(Ref<CzString> o) noexcept;
+    explicit Value(Ref<CinzaList> o) noexcept;
+    explicit Value(Ref<CinzaDict> o) noexcept;
+    explicit Value(Ref<CinzaPair> o) noexcept;
+    explicit Value(Ref<ClassInstance> o) noexcept;
+    explicit Value(Ref<StructValue> o) noexcept;
+    explicit Value(Ref<ErrorValue> o) noexcept;
+    explicit Value(const TypeInfo* t) noexcept  { poe(Kind::TYPE); v.u.ptr = t; }
+    explicit Value(EnumValue e) noexcept        { poe(Kind::ENUM); v.u.ptr = e.desc; v.extra = e.index; }
 
     // ── Cópia (C3) ────────────────────────────────────────────────────────
     // struct é valor: copiar um Value que guarda struct clona os campos. É
@@ -129,57 +180,70 @@ struct Value {
     // Mover não clona.
     Value(const Value& other);
     Value& operator=(const Value& other);
-    Value(Value&&) noexcept            = default;
-    Value& operator=(Value&&) noexcept = default;
+    Value(Value&& o) noexcept : v(o.v) { o.poe(Kind::VOID_VAL); o.v.u.i64 = 0; }
+    Value& operator=(Value&& o) noexcept {
+        if (this != &o) {
+            const CzValor velho = v;
+            v = o.v;
+            o.poe(Kind::VOID_VAL);
+            o.v.u.i64 = 0;
+            solta(velho);
+        }
+        return *this;
+    }
+    ~Value() { solta(v); }
 
     // Os tipos de 32 bits têm fábrica com nome: o construtor Value(int) do C++ é i64
-    static Value i32(std::int32_t v) { Value r; r.data = v; return r; }
-    static Value f32(float v)        { Value r; r.data = v; return r; }
+    static Value i32(std::int32_t x) noexcept { Value r; r.v.tipo = static_cast<std::uint8_t>(Kind::I32); r.v.u.i64 = 0; r.v.u.i32 = x; return r; }
+    static Value f32(float x) noexcept        { Value r; r.v.tipo = static_cast<std::uint8_t>(Kind::F32); r.v.u.i64 = 0; r.v.u.f32 = x; return r; }
 
     // ── Kind ──────────────────────────────────────────────────────────────
-    // A11: derivado de data.index(), então nunca diverge do valor guardado.
-    // Índices do variant: 0 = monostate (VOID_VAL); os demais na mesma ordem
-    // do enum Kind.
-    Kind kind() const noexcept {
-        const auto i = data.index();
-        return i == 0 ? Kind::VOID_VAL : static_cast<Kind>(i - 1);
-    }
+    // A11: guardado junto do valor, e só os construtores o escrevem: nunca
+    // diverge do valor guardado.
+    Kind kind() const noexcept { return static_cast<Kind>(v.tipo); }
 
     // ── Acessores tipados ─────────────────────────────────────────────────
-    // Otimização (CVM, seção 11): os ponteiros compartilhados são devolvidos por
-    // referência — devolver por cópia mexia no contador de referências (atômico)
-    // a cada leitura de campo ou elemento.
+    // Conferem o kind (como o std::get antes): acesso com o tipo errado é erro
+    // interno, nunca comportamento indefinido. Os objetos saem como ponteiro
+    // sem posse: válido enquanto este Value não mudar.
 
     // Inteiro de qualquer largura como int64 (i32 → i64 é exato): a promoção
     // dentro da família não precisa de conversão para ser lida
     std::int64_t asInt() const {
-        if (auto* p = std::get_if<std::int32_t>(&data)) return *p;
-        return std::get<std::int64_t>(data);
+        if (kind() == Kind::I32) return v.u.i32;
+        confere(Kind::I64);
+        return v.u.i64;
     }
     // Ponto flutuante de qualquer largura como double (f32 → f64 é exato)
     double asFloat() const {
-        if (auto* p = std::get_if<float>(&data)) return *p;
-        return std::get<double>(data);
+        if (kind() == Kind::F32) return v.u.f32;
+        confere(Kind::F64);
+        return v.u.f64;
     }
-    std::int32_t asI32() const { return std::get<std::int32_t>(data); }
-    float        asF32() const { return std::get<float>(data); }
+    std::int32_t asI32() const { confere(Kind::I32); return v.u.i32; }
+    float        asF32() const { confere(Kind::F32); return v.u.f32; }
 
     bool isInteger() const { const Kind k = kind(); return k == Kind::I64 || k == Kind::I32; }
     bool isFloat()   const { const Kind k = kind(); return k == Kind::F64 || k == Kind::F32; }
     bool isNumber()  const { return isInteger() || isFloat(); }
     // Número de qualquer tipo como double (ordenação, Math): só para leitura
     double asNumber() const { return isInteger() ? static_cast<double>(asInt()) : asFloat(); }
-    bool        asBool()     const { return std::get<bool>(data); }
-    const std::string& asString() const { return std::get<std::string>(data); }
+    bool        asBool()     const { confere(Kind::BOOL); return v.u.b != 0; }
+    const std::string& asString() const;
 
-    const std::shared_ptr<CinzaList>&    asList() const { return std::get<std::shared_ptr<CinzaList>>(data); }
-    const std::shared_ptr<CinzaDict>&    asDict() const { return std::get<std::shared_ptr<CinzaDict>>(data); }
-    const std::shared_ptr<CinzaPair>&    asPair() const { return std::get<std::shared_ptr<CinzaPair>>(data); }
-    const std::shared_ptr<ClassInstance>& asInstance() const { return std::get<std::shared_ptr<ClassInstance>>(data); }
-    const std::shared_ptr<StructValue>&  asStruct() const { return std::get<std::shared_ptr<StructValue>>(data); }
-    const std::shared_ptr<ErrorValue>&   asError() const { return std::get<std::shared_ptr<ErrorValue>>(data); }
-    const TypeInfo*                asType()     const { return std::get<const TypeInfo*>(data); }
-    EnumValue                      asEnum()     const { return std::get<EnumValue>(data); }
+    CinzaList* asList() const;
+    CinzaDict* asDict() const;
+    CinzaPair* asPair() const;
+    ClassInstance* asInstance() const;
+    StructValue* asStruct() const;
+    ErrorValue* asError() const;
+    const TypeInfo* asType()    const { confere(Kind::TYPE);     return static_cast<const TypeInfo*>(v.u.ptr); }
+    EnumValue      asEnum()     const {
+        confere(Kind::ENUM);
+        return EnumValue{static_cast<const CzEnumDesc*>(v.u.ptr), v.extra};
+    }
+    // O objeto do runtime guardado (STRING...ERROR), ou nulo
+    CzObjeto* objeto() const noexcept { return guardaObjeto(kind()) ? v.u.obj : nullptr; }
 
     // ── Utilitário de display ─────────────────────────────────────────────
 
@@ -196,29 +260,26 @@ struct Value {
     bool operator<=(const Value& other) const { return !(other < *this);  }
     bool operator> (const Value& other) const { return other < *this;     }
     bool operator>=(const Value& other) const { return !(*this < other);  }
-};
 
-// A11: kind() depende de a ordem do variant casar com a do enum Kind;
-// se alguém reordenar um dos dois, a compilação falha aqui.
-namespace detail {
-using ValueData = decltype(Value::data);
-template <std::size_t I> using Alt = std::variant_alternative_t<I, ValueData>;
-static_assert(std::variant_size_v<ValueData> == static_cast<std::size_t>(Value::Kind::VOID_VAL) + 1);
-static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::I64)      + 1>, std::int64_t>);
-static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::F64)      + 1>, double>);
-static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::STRING)   + 1>, std::string>);
-static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::BOOL)     + 1>, bool>);
-static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::LIST)     + 1>, std::shared_ptr<CinzaList>>);
-static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::DICT)     + 1>, std::shared_ptr<CinzaDict>>);
-static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::PAIR)     + 1>, std::shared_ptr<CinzaPair>>);
-static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::INSTANCE) + 1>, std::shared_ptr<ClassInstance>>);
-static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::STRUCT)   + 1>, std::shared_ptr<StructValue>>);
-static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::ERROR)    + 1>, std::shared_ptr<ErrorValue>>);
-static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::TYPE)     + 1>, const TypeInfo*>);
-static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::ENUM)     + 1>, EnumValue>);
-static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::I32)      + 1>, std::int32_t>);
-static_assert(std::is_same_v<Alt<static_cast<std::size_t>(Value::Kind::F32)      + 1>, float>);
-} // namespace detail
+private:
+    void poe(Kind k) noexcept {
+        v.tipo = static_cast<std::uint8_t>(k);
+        v._r[0] = v._r[1] = v._r[2] = 0;
+        v.extra = 0;
+    }
+    void adota(Kind k, CzObjeto* o) noexcept { poe(k); v.u.obj = o; }
+    static void solta(const CzValor& x) noexcept {
+        if (guardaObjeto(static_cast<Kind>(x.tipo)) && x.u.obj) czRelease(x.u.obj);
+    }
+    void confere(Kind k) const {
+        if (kind() != k) [[unlikely]] falhaTipo();
+    }
+    // Fria e fora de linha: o teste dos acessores fica no caminho quente sem o throw
+    [[noreturn, gnu::noinline, gnu::cold]] static void falhaTipo() {
+        throw std::logic_error("erro interno: valor de tipo inesperado no runtime");
+    }
+};
+static_assert(sizeof(Value) == 16, "o Value é o CzValor com posse");
 
 // ============================================================================
 // TIPOS DE COLEÇÃO
@@ -256,42 +317,43 @@ struct CinzaPair : GcObject {
 //
 // Representa um objeto instanciado com `new NomeClasse(...)`.
 // Carrega:
-//   - class_name: para mensagens de erro e lookup de métodos
+//   - desc (no cabeçalho): o CzClasseDesc — nome (mensagens, type()) e o
+//                 índice da classe no backend (métodos, interfaces)
 //   - fields:     valores dos campos, na ordem da declaração (B2: o
 //                 semântico anota o índice em cada acesso)
-//   - decl:       ponteiro para o nó ClassDecl na AST
-//                 (usado pela CVM para localizar métodos)
 // ============================================================================
 
 struct ClassInstance : GcObject {
-    std::string                             class_name;
-    std::vector<Value>                      fields;
-    const ClassDecl*                        decl = nullptr;  // não owning
+    std::vector<Value> fields;
 
     ClassInstance() : GcObject(GcKind::Instance) {}
-    ClassInstance(const std::string& name, const ClassDecl* d)
-        : GcObject(GcKind::Instance), class_name(name), fields(d ? d->fields.size() : 0), decl(d) {}
+    explicit ClassInstance(const CzClasseDesc* d)
+        : GcObject(GcKind::Instance), fields(d ? d->campos : 0) { desc = d; }
+
+    const CzClasseDesc* classe() const { return static_cast<const CzClasseDesc*>(desc); }
 };
 
 // ============================================================================
 // STRUCT VALUE (C3)
 //
-// Valor de um struct: os campos na ordem da declaração. `decl` dá os nomes
-// (para `s.campo` e para o print). Diferente de ClassInstance, é copiado a
-// cada cópia do Value que o guarda.
+// Valor de um struct: os campos na ordem da declaração. O descritor (desc, no
+// cabeçalho) dá os nomes (para `s.campo` e para o print). Diferente de
+// ClassInstance, é copiado a cada cópia do Value que o guarda.
 // ============================================================================
 
 struct StructValue : GcObject {
-    const StructDecl*  decl = nullptr;
     std::vector<Value> fields;
 
     StructValue() : GcObject(GcKind::Struct) {}
+    explicit StructValue(const CzStructDesc* d) : GcObject(GcKind::Struct) { desc = d; }
+
+    const CzStructDesc* tipo() const { return static_cast<const CzStructDesc*>(desc); }
 
     // Índice do campo pelo nome, ou -1
     int indexOf(const std::string& name) const {
-        if (!decl) return -1;
-        for (size_t i = 0; i < decl->fields.size(); ++i)
-            if (decl->fields[i].name == name) return static_cast<int>(i);
+        if (!tipo()) return -1;
+        for (size_t i = 0; i < tipo()->campos.size(); ++i)
+            if (tipo()->campos[i] == name) return static_cast<int>(i);
         return -1;
     }
 };
@@ -304,7 +366,8 @@ struct StructValue : GcObject {
 // e.message, e.line, e.column. Compartilhado (imutável), como um objeto.
 // ============================================================================
 
-struct ErrorValue {
+struct ErrorValue : CzObjeto {   // P1: objeto com contagem (não rastreado: não forma ciclo)
+    ErrorValue() noexcept : CzObjeto(GcKind::Error) {}
     std::string  kind;      // "ValueError", "SaldoInsuficiente", "Error"...
     std::string  message;
     std::int64_t line   = 0;
@@ -313,16 +376,45 @@ struct ErrorValue {
     int          file_id = 0;         // C5: arquivo onde surgiu (0 = principal)
 };
 
-inline Value::Value(const Value& other) : data(other.data) {
-    if (auto* s = std::get_if<std::shared_ptr<StructValue>>(&other.data))
-        data = std::make_shared<StructValue>(**s);   // clona; campos copiados um a um
+// Construtores e acessores que precisam dos tipos completos (P1)
+inline Value::Value(Ref<CzString> o) noexcept { adota(Kind::STRING, static_cast<CzObjeto*>(o.solta())); }
+inline Value::Value(Ref<CinzaList> o) noexcept { adota(Kind::LIST, static_cast<CzObjeto*>(o.solta())); }
+inline Value::Value(Ref<CinzaDict> o) noexcept { adota(Kind::DICT, static_cast<CzObjeto*>(o.solta())); }
+inline Value::Value(Ref<CinzaPair> o) noexcept { adota(Kind::PAIR, static_cast<CzObjeto*>(o.solta())); }
+inline Value::Value(Ref<ClassInstance> o) noexcept { adota(Kind::INSTANCE, static_cast<CzObjeto*>(o.solta())); }
+inline Value::Value(Ref<StructValue> o) noexcept { adota(Kind::STRUCT, static_cast<CzObjeto*>(o.solta())); }
+inline Value::Value(Ref<ErrorValue> o) noexcept { adota(Kind::ERROR, static_cast<CzObjeto*>(o.solta())); }
+inline const std::string& Value::asString() const {
+    confere(Kind::STRING);
+    return static_cast<const CzString*>(v.u.obj)->texto;
+}
+inline CinzaList* Value::asList() const { confere(Kind::LIST); return static_cast<CinzaList*>(v.u.obj); }
+inline CinzaDict* Value::asDict() const { confere(Kind::DICT); return static_cast<CinzaDict*>(v.u.obj); }
+inline CinzaPair* Value::asPair() const { confere(Kind::PAIR); return static_cast<CinzaPair*>(v.u.obj); }
+inline ClassInstance* Value::asInstance() const { confere(Kind::INSTANCE); return static_cast<ClassInstance*>(v.u.obj); }
+inline StructValue* Value::asStruct() const { confere(Kind::STRUCT); return static_cast<StructValue*>(v.u.obj); }
+inline ErrorValue* Value::asError() const { confere(Kind::ERROR); return static_cast<ErrorValue*>(v.u.obj); }
+
+inline Value::Value(const Value& other) : v(other.v) {
+    if (other.kind() == Kind::STRUCT) {
+        // clona; campos copiados um a um
+        v.u.obj = static_cast<CzObjeto*>(novo<StructValue>(*other.asStruct()).solta());
+    } else if (guardaObjeto(kind())) {
+        czRetain(v.u.obj);
+    }
 }
 
 inline Value& Value::operator=(const Value& other) {
-    if (this != &other) {
+    if (this == &other) return *this;
+    const Kind k = other.kind();
+    if (k == Kind::STRUCT) {   // clona antes de soltar o antigo
         Value copia(other);
-        data = std::move(copia.data);
+        return *this = std::move(copia);
     }
+    if (guardaObjeto(k)) czRetain(other.v.u.obj);   // retain do novo antes do release do antigo
+    const CzValor velho = v;
+    v = other.v;
+    solta(velho);
     return *this;
 }
 
@@ -359,20 +451,20 @@ inline bool Value::operator==(const Value& other) const {
         }
         case Kind::INSTANCE:
             // Dois objetos são iguais apenas se são o mesmo (identidade de referência)
-            return asInstance().get() == other.asInstance().get();
+            return asInstance() == other.asInstance();
         case Kind::ERROR:
             // C4: erros são iguais só se forem o mesmo erro (identidade)
-            return asError().get() == other.asError().get();
+            return asError() == other.asError();
         case Kind::TYPE:
             // tipos são únicos (TypeContext): mesmo ponteiro = mesmo tipo
             return asType() == other.asType();
         case Kind::ENUM:
-            return asEnum().decl == other.asEnum().decl && asEnum().index == other.asEnum().index;
+            return asEnum().desc == other.asEnum().desc && asEnum().index == other.asEnum().index;
         case Kind::STRUCT: {
             // C3: igualdade estrutural, campo a campo
             const auto& a = *asStruct();
             const auto& b = *other.asStruct();
-            return a.decl == b.decl && a.fields == b.fields;
+            return a.tipo() == b.tipo() && a.fields == b.fields;
         }
         default:
             return false;
@@ -394,7 +486,7 @@ inline bool Value::operator<(const Value& other) const {
         case Kind::BOOL:    return static_cast<int>(asBool()) < static_cast<int>(other.asBool());
         case Kind::ENUM: {   // chave de dict: ordem da declaração (e por enum)
             const EnumValue a = asEnum(), b = other.asEnum();
-            if (a.decl != b.decl) return std::less<const EnumDecl*>()(a.decl, b.decl);
+            if (a.desc != b.desc) return std::less<const CzEnumDesc*>()(a.desc, b.desc);
             return a.index < b.index;
         }
         default:            return false;   // listas/dicts/pares/instâncias: não ordenáveis
@@ -461,21 +553,22 @@ inline std::string Value::toString() const {
             return oss.str();
         }
         case Kind::INSTANCE:
-            return "<" + displayName(asInstance()->class_name) + " object>";
+            return "<" + (asInstance()->classe() ? displayName(asInstance()->classe()->nome)
+                                                 : std::string("?")) + " object>";
         case Kind::ERROR:
             // C4: "ValueError: mensagem"
             return displayName(asError()->kind) + ": " + asError()->message;
         case Kind::TYPE:
             return stripModulePrefixes(asType()->str());   // "i64", "list<i32>", "Ponto"
         case Kind::ENUM:   // "Cor.Verde"
-            return displayName(asEnum().decl->name) + "." + asEnum().decl->members[asEnum().index];
+            return displayName(asEnum().desc->nome) + "." + asEnum().desc->valores[asEnum().index];
         case Kind::STRUCT: {
             // C3: Nome{campo: valor, ...}, com strings entre aspas
             const auto& sv = *asStruct();
-            oss << (sv.decl ? displayName(sv.decl->name) : std::string("struct")) << "{";
+            oss << (sv.tipo() ? displayName(sv.tipo()->nome) : std::string("struct")) << "{";
             for (size_t i = 0; i < sv.fields.size(); ++i) {
                 if (i > 0) oss << ", ";
-                oss << (sv.decl ? sv.decl->fields[i].name : "?") << ": ";
+                oss << (sv.tipo() ? sv.tipo()->campos[i] : "?") << ": ";
                 if (sv.fields[i].kind() == Kind::STRING)
                     oss << "\"" << sv.fields[i].asString() << "\"";
                 else
@@ -495,19 +588,55 @@ inline std::string Value::toString() const {
 // ============================================================================
 
 inline Value makeList(std::vector<Value> elems = {}) {
-    return Value(std::make_shared<CinzaList>(std::move(elems)));
+    return Value(novo<CinzaList>(std::move(elems)));
 }
 
 inline Value makeDict() {
-    return Value(std::make_shared<CinzaDict>());
+    return Value(novo<CinzaDict>());
 }
 
 inline Value makePair(Value first, Value second) {
-    return Value(std::make_shared<CinzaPair>(std::move(first), std::move(second)));
+    return Value(novo<CinzaPair>(std::move(first), std::move(second)));
 }
 
-inline Value makeInstance(const std::string& class_name, const ClassDecl* decl) {
-    return Value(std::make_shared<ClassInstance>(class_name, decl));
+inline Value makeInstance(const CzClasseDesc* desc) {
+    return Value(novo<ClassInstance>(desc));
+}
+
+// ============================================================================
+// DESTRUIÇÃO ITERATIVA (P1, llvm/DESENHO.md 2.1)
+//
+// Um objeto que chega a zero sai do registro da coleta (se for contêiner) e
+// entra na fila de destruição, encadeada pelo próprio campo `prox`. Se ninguém
+// mais acima já esvazia a fila, este esvazia: destruir um objeto solta os
+// campos dele, e um filho que chega a zero só entra na fila — a profundidade da
+// pilha do sistema fica constante, qualquer que seja o tamanho da cadeia.
+// ============================================================================
+
+inline void czApaga(CzObjeto* o) noexcept {
+    switch (o->gc_kind) {
+        case GcKind::List:     delete static_cast<CinzaList*>(o);     break;
+        case GcKind::Dict:     delete static_cast<CinzaDict*>(o);     break;
+        case GcKind::Pair:     delete static_cast<CinzaPair*>(o);     break;
+        case GcKind::Instance: delete static_cast<ClassInstance*>(o); break;
+        case GcKind::Struct:   delete static_cast<StructValue*>(o);   break;
+        case GcKind::Error:    delete static_cast<ErrorValue*>(o);    break;
+        case GcKind::String:   delete static_cast<CzString*>(o);      break;
+    }
+}
+
+inline void czDestroi(CzObjeto* o) noexcept {
+    if (o->marcas & marca::LIGADO) static_cast<GcObject*>(o)->desliga();
+    o->prox = gc_registro.fila;
+    gc_registro.fila = o;
+    if (gc_registro.esvaziando) return;
+    gc_registro.esvaziando = true;
+    while (CzObjeto* x = gc_registro.fila) {
+        gc_registro.fila = x->prox;
+        x->prox = nullptr;
+        czApaga(x);
+    }
+    gc_registro.esvaziando = false;
 }
 
 } // namespace cinza

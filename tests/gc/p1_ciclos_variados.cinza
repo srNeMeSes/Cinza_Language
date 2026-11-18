@@ -1,0 +1,36 @@
+// P1: ciclos que passam por tipos diferentes (struct dentro de lista dentro de
+// objeto; dict → objeto → lista → objeto) são coletados. Por volta: 5 No com 4 contêineres\n// cada (o objeto e as 3 coleções) e 2 Caixa com 2 (o struct e a lista) = 24; 100 voltas
+// env: CINZA_GC_STATS=1
+struct Caixa { list<No> dentro; }
+class No {
+  list<Caixa> caixas;
+  dict<string, No> vizinhos;
+  list<No> filhos;
+  pub {
+    fn guarda(No n) {
+      Caixa c = new Caixa();
+      c.dentro.add(n);
+      caixas.add(c);
+    }
+    fn liga(string k, No n) { vizinhos.add({k, n}); }
+    fn filho(No n) { filhos.add(n); }
+  }
+}
+fn ciclos() {
+  No a = new No();
+  No b = new No();
+  a.guarda(b);
+  b.guarda(a);
+  No c = new No();
+  c.liga("eu", c);
+  No d = new No();
+  No e = new No();
+  d.liga("e", e);
+  e.filho(d);
+}
+fn main() {
+  for (i32 i in range(0, 100)) { ciclos(); }
+  print("ok");
+}
+// expect: ok
+// expect: [gc] liberados em ciclos: 2400, contêineres vivos: 0
