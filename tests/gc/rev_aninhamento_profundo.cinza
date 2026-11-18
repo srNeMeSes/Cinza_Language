@@ -1,0 +1,29 @@
+// P1b: converter em texto e comparar dados aninhados muito fundos não estoura a pilha
+// do sistema. Antes, o toString e o == do runtime eram recursivos (848 bytes de pilha por
+// nível): um struct com lista de si mesmo encadeado 200 mil vezes e impresso derrubava o
+// cinza.exe (0xC00000FD). Agora os dois usam uma pilha explícita. 100 mil níveis passam
+// do ponto em que a versão antiga caía (~75 mil); a diferença entre a e c fica no nó mais
+// fundo, então a comparação precisa descer tudo.
+struct No { list<No> f; string nome = "n"; }
+fn cadeia(i32 n, string folha) -> No {
+  No x = new No(nome: folha);
+  for (i32 i in range(0, n)) {
+    No novo = new No();
+    novo.f.add(x);
+    x = novo;
+  }
+  return x;
+}
+fn main() {
+  print(cadeia(2, "x"));
+  No a = cadeia(100000, "x");
+  No b = cadeia(100000, "x");
+  No c = cadeia(100000, "y");
+  string s = format("{a}");
+  print(s.size(), a == b, a == c, a != c);
+  list<list<No>> l = [[a], [c]];
+  print(format("{l}").size(), l == [[b], [c]], l == [[c], [a]]);
+}
+// expect: No{f: [No{f: [No{f: [], nome: "x"}], nome: "n"}], nome: "n"}
+// expect: 2000020 true false true
+// expect: 4000048 true false

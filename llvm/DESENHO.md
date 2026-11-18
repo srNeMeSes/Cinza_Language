@@ -514,12 +514,14 @@ projeto, e a ligação é pelo `g++`, como no `cinzac`.
   `cinza.exe` também passou a chamar): se algo derrubar o processo, ele termina na hora, em vez
   de ficar preso esperando o relatório do Windows e segurando o executável.
 
-Fica um risco que já existe na CVM: funções **recursivas do runtime em C++** sobre dados
-aninhados sem limite. Medido no P2: o `toString` gasta **848 bytes por nível** de aninhamento, e um
-programa Cinza válido — `struct No { list<No> f; }` encadeado 200 mil vezes e impresso — derruba
-hoje o `cinza.exe` com `0xC00000FD`. Imprimir, comparar (`==`, `<`) e converter em texto têm o
-mesmo problema. Não é deste backend; fica registrado à parte (P1b no `REVISAO_V2.md`; a
-destruição, o caso mais comum, já saiu na seção 2.1).
+O P2 encontrou também um risco que já existia na CVM: as funções **recursivas do runtime em
+C++** sobre dados aninhados sem limite. O `toString` gastava 848 bytes de pilha por nível de
+aninhamento, e um programa Cinza válido — `struct No { list<No> f; }` encadeado 200 mil vezes e
+impresso — derrubava o `cinza.exe` com `0xC00000FD`. **Corrigido no P1b**: a conversão em texto
+e a igualdade (`==`) usam uma pilha explícita, no heap, como a destruição da seção 2.1 (o `<` não
+desce em contêineres, que não são ordenáveis). Assim o runtime no topo da pilha gasta uma
+quantidade limitada, qualquer que seja a profundidade dos dados — o que a margem da rede de
+segurança precisa.
 
 ## 7. Interface C do runtime (`libcinzart`)
 

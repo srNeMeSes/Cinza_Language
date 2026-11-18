@@ -423,52 +423,84 @@ inline Value& Value::operator=(const Value& other) {
 // (definidas aqui porque dependem de CinzaList/Dict/Pair/ClassInstance)
 // ============================================================================
 
-inline bool Value::operator==(const Value& other) const {
-    if (kind() != other.kind()) {
+// P1b: a igualdade não é recursiva. Contêineres (list, dict, pair, struct) dentro de
+// contêineres podem estar aninhados a qualquer profundidade (struct No { list<No> f; }),
+// e a recursão do C++ estourava a pilha do sistema com centenas de milhares de níveis;
+// os pares a comparar vão numa pilha explícita, no heap.
+namespace detail {
+// Compara a e b sem descer: devolve false se já diferem; se são contêineres do mesmo
+// tipo e tamanho, empilha os pares de filhos a comparar
+inline bool igualRaso(const Value& a, const Value& b,
+                      std::vector<std::pair<const Value*, const Value*>>& pendentes) {
+    using Kind = Value::Kind;
+    if (a.kind() != b.kind()) {
         // mesma família numérica, larguras diferentes: compara o valor
-        if (isInteger() && other.isInteger()) return asInt() == other.asInt();
-        if (isFloat() && other.isFloat())     return asFloat() == other.asFloat();
+        if (a.isInteger() && b.isInteger()) return a.asInt() == b.asInt();
+        if (a.isFloat() && b.isFloat())     return a.asFloat() == b.asFloat();
         return false;
     }
-
-    switch (kind()) {
+    switch (a.kind()) {
         case Kind::VOID_VAL:  return true;
-        case Kind::I64: case Kind::I32: return asInt()   == other.asInt();
-        case Kind::F64: case Kind::F32: return asFloat() == other.asFloat();
-        case Kind::STRING:    return asString()  == other.asString();
-        case Kind::BOOL:      return asBool()    == other.asBool();
+        case Kind::I64: case Kind::I32: return a.asInt()   == b.asInt();
+        case Kind::F64: case Kind::F32: return a.asFloat() == b.asFloat();
+        case Kind::STRING:    return a.asString() == b.asString();
+        case Kind::BOOL:      return a.asBool()   == b.asBool();
         case Kind::LIST: {
-            const auto& a = asList()->elements;
-            const auto& b = other.asList()->elements;
-            return a == b;
+            const auto& x = a.asList()->elements;
+            const auto& y = b.asList()->elements;
+            if (x.size() != y.size()) return false;
+            for (std::size_t i = 0; i < x.size(); ++i) pendentes.emplace_back(&x[i], &y[i]);
+            return true;
         }
-        case Kind::DICT: {
-            return asDict()->entries == other.asDict()->entries;
+        case Kind::DICT: {   // as chaves estão em ordem (std::map): compara entrada a entrada
+            const auto& x = a.asDict()->entries;
+            const auto& y = b.asDict()->entries;
+            if (x.size() != y.size()) return false;
+            for (auto i = x.begin(), j = y.begin(); i != x.end(); ++i, ++j) {
+                pendentes.emplace_back(&i->first, &j->first);
+                pendentes.emplace_back(&i->second, &j->second);
+            }
+            return true;
         }
-        case Kind::PAIR: {
-            return asPair()->first == other.asPair()->first &&
-                   asPair()->second == other.asPair()->second;
-        }
+        case Kind::PAIR:
+            pendentes.emplace_back(&a.asPair()->first, &b.asPair()->first);
+            pendentes.emplace_back(&a.asPair()->second, &b.asPair()->second);
+            return true;
         case Kind::INSTANCE:
             // Dois objetos são iguais apenas se são o mesmo (identidade de referência)
-            return asInstance() == other.asInstance();
+            return a.asInstance() == b.asInstance();
         case Kind::ERROR:
             // C4: erros são iguais só se forem o mesmo erro (identidade)
-            return asError() == other.asError();
+            return a.asError() == b.asError();
         case Kind::TYPE:
             // tipos são únicos (TypeContext): mesmo ponteiro = mesmo tipo
-            return asType() == other.asType();
+            return a.asType() == b.asType();
         case Kind::ENUM:
-            return asEnum().desc == other.asEnum().desc && asEnum().index == other.asEnum().index;
+            return a.asEnum().desc == b.asEnum().desc && a.asEnum().index == b.asEnum().index;
         case Kind::STRUCT: {
             // C3: igualdade estrutural, campo a campo
-            const auto& a = *asStruct();
-            const auto& b = *other.asStruct();
-            return a.tipo() == b.tipo() && a.fields == b.fields;
+            const auto& x = *a.asStruct();
+            const auto& y = *b.asStruct();
+            if (x.tipo() != y.tipo() || x.fields.size() != y.fields.size()) return false;
+            for (std::size_t i = 0; i < x.fields.size(); ++i)
+                pendentes.emplace_back(&x.fields[i], &y.fields[i]);
+            return true;
         }
         default:
             return false;
     }
+}
+}  // namespace detail
+
+inline bool Value::operator==(const Value& other) const {
+    std::vector<std::pair<const Value*, const Value*>> pendentes;
+    if (!detail::igualRaso(*this, other, pendentes)) return false;
+    while (!pendentes.empty()) {   // vazio no caso comum (números, strings): sem laço
+        const auto [a, b] = pendentes.back();
+        pendentes.pop_back();
+        if (!detail::igualRaso(*a, *b, pendentes)) return false;
+    }
+    return true;
 }
 
 inline bool Value::operator<(const Value& other) const {
@@ -493,93 +525,126 @@ inline bool Value::operator<(const Value& other) const {
     }
 }
 
-inline std::string Value::toString() const {
-    std::ostringstream oss;
-
-    switch (kind()) {
+// P1b: a conversão em texto não é recursiva (pelo mesmo motivo da igualdade): os
+// pedaços a escrever vão numa pilha explícita, no heap. Cada item é um valor (com ou
+// sem aspas, se for string) ou um trecho fixo.
+namespace detail {
+// Um valor que não é contêiner, em texto (strings sem aspas)
+inline std::string folhaTexto(const Value& v) {
+    using Kind = Value::Kind;
+    switch (v.kind()) {
         case Kind::VOID_VAL:  return "void";
-        case Kind::I64: case Kind::I32: return std::to_string(asInt());
+        case Kind::I64: case Kind::I32: return std::to_string(v.asInt());
         case Kind::F64: case Kind::F32: {
             // A menor forma que volta ao mesmo número, na precisão do próprio
             // tipo (0.1f sai 0.1, não 0.10000000149011612). Valor inteiro sai
             // sem ".0" (4.0 → 4). Infinito e NaN não existem (seção M).
-            const double d = asFloat();
             char buf[64];
-            auto [fim, ec] = kind() == Kind::F32
-                ? std::to_chars(buf, buf + sizeof buf, asF32())
-                : std::to_chars(buf, buf + sizeof buf, d);
+            auto [fim, ec] = v.kind() == Kind::F32
+                ? std::to_chars(buf, buf + sizeof buf, v.asF32())
+                : std::to_chars(buf, buf + sizeof buf, v.asFloat());
             return ec == std::errc() ? std::string(buf, fim) : std::string("?");
         }
-        case Kind::STRING:  return asString();
-        case Kind::BOOL:    return asBool() ? "true" : "false";
-        case Kind::LIST: {
-            oss << "[";
-            const auto& elems = asList()->elements;
-            for (size_t i = 0; i < elems.size(); ++i) {
-                if (i > 0) oss << ", ";
-                // Strings dentro de listas aparecem com aspas
-                if (elems[i].kind() == Kind::STRING)
-                    oss << "\"" << elems[i].asString() << "\"";
-                else
-                    oss << elems[i].toString();
-            }
-            oss << "]";
-            return oss.str();
-        }
-        case Kind::DICT: {
-            oss << "{";
-            bool first = true;
-            for (const auto& [k, v] : asDict()->entries) {
-                if (!first) oss << ", ";
-                first = false;
-                if (k.kind() == Kind::STRING) oss << "\"" << k.asString() << "\"";
-                else oss << k.toString();
-                oss << ": ";
-                if (v.kind() == Kind::STRING) oss << "\"" << v.asString() << "\"";
-                else oss << v.toString();
-            }
-            oss << "}";
-            return oss.str();
-        }
-        case Kind::PAIR: {
-            oss << "{";
-            const auto& p = *asPair();
-            if (p.first.kind() == Kind::STRING)  oss << "\"" << p.first.asString()  << "\"";
-            else                               oss << p.first.toString();
-            oss << ", ";
-            if (p.second.kind() == Kind::STRING) oss << "\"" << p.second.asString() << "\"";
-            else                               oss << p.second.toString();
-            oss << "}";
-            return oss.str();
-        }
+        case Kind::STRING:  return v.asString();
+        case Kind::BOOL:    return v.asBool() ? "true" : "false";
         case Kind::INSTANCE:
-            return "<" + (asInstance()->classe() ? displayName(asInstance()->classe()->nome)
-                                                 : std::string("?")) + " object>";
+            return "<" + (v.asInstance()->classe() ? displayName(v.asInstance()->classe()->nome)
+                                                   : std::string("?")) + " object>";
         case Kind::ERROR:
             // C4: "ValueError: mensagem"
-            return displayName(asError()->kind) + ": " + asError()->message;
+            return displayName(v.asError()->kind) + ": " + v.asError()->message;
         case Kind::TYPE:
-            return stripModulePrefixes(asType()->str());   // "i64", "list<i32>", "Ponto"
+            return stripModulePrefixes(v.asType()->str());   // "i64", "list<i32>", "Ponto"
         case Kind::ENUM:   // "Cor.Verde"
-            return displayName(asEnum().desc->nome) + "." + asEnum().desc->valores[asEnum().index];
-        case Kind::STRUCT: {
-            // C3: Nome{campo: valor, ...}, com strings entre aspas
-            const auto& sv = *asStruct();
-            oss << (sv.tipo() ? displayName(sv.tipo()->nome) : std::string("struct")) << "{";
-            for (size_t i = 0; i < sv.fields.size(); ++i) {
-                if (i > 0) oss << ", ";
-                oss << (sv.tipo() ? sv.tipo()->campos[i] : "?") << ": ";
-                if (sv.fields[i].kind() == Kind::STRING)
-                    oss << "\"" << sv.fields[i].asString() << "\"";
-                else
-                    oss << sv.fields[i].toString();
-            }
-            oss << "}";
-            return oss.str();
-        }
+            return displayName(v.asEnum().desc->nome) + "." + v.asEnum().desc->valores[v.asEnum().index];
         default:
             return "<unknown>";
     }
+}
+
+struct PedacoTexto {
+    const Value* valor;   // nulo: trecho fixo
+    const char*  trecho;
+    bool         aspas;   // string dentro de contêiner: entre aspas
+};
+}  // namespace detail
+
+inline std::string Value::toString() const {
+    switch (kind()) {
+        case Kind::LIST: case Kind::DICT: case Kind::PAIR: case Kind::STRUCT: break;
+        default: return detail::folhaTexto(*this);
+    }
+    using detail::PedacoTexto;
+    std::string out;
+    std::vector<PedacoTexto> pilha;   // em ordem inversa: o topo é o próximo a escrever
+    auto fixo  = [&](const char* t) { pilha.push_back({nullptr, t, false}); };
+    auto valor = [&](const Value& v) { pilha.push_back({&v, nullptr, true}); };
+    pilha.push_back({this, nullptr, false});
+    while (!pilha.empty()) {
+        const PedacoTexto p = pilha.back();
+        pilha.pop_back();
+        if (!p.valor) { out += p.trecho; continue; }
+        const Value& v = *p.valor;
+        switch (v.kind()) {
+            case Kind::STRING:
+                // Strings dentro de contêineres aparecem com aspas
+                if (p.aspas) { out += '"'; out += v.asString(); out += '"'; }
+                else out += v.asString();
+                break;
+            case Kind::LIST: {
+                const auto& e = v.asList()->elements;
+                out += '[';
+                fixo("]");
+                for (std::size_t i = e.size(); i-- > 0;) {
+                    valor(e[i]);
+                    if (i > 0) fixo(", ");
+                }
+                break;
+            }
+            case Kind::DICT: {
+                const auto& entradas = v.asDict()->entries;
+                std::vector<const std::pair<const Value, Value>*> em_ordem;
+                em_ordem.reserve(entradas.size());
+                for (const auto& kv : entradas) em_ordem.push_back(&kv);
+                out += '{';
+                fixo("}");
+                for (std::size_t i = em_ordem.size(); i-- > 0;) {
+                    valor(em_ordem[i]->second);
+                    fixo(": ");
+                    valor(em_ordem[i]->first);
+                    if (i > 0) fixo(", ");
+                }
+                break;
+            }
+            case Kind::PAIR: {
+                const auto& par = *v.asPair();
+                out += '{';
+                fixo("}");
+                valor(par.second);
+                fixo(", ");
+                valor(par.first);
+                break;
+            }
+            case Kind::STRUCT: {
+                // C3: Nome{campo: valor, ...}, com strings entre aspas
+                const auto& sv = *v.asStruct();
+                out += sv.tipo() ? displayName(sv.tipo()->nome) : std::string("struct");
+                out += '{';
+                fixo("}");
+                for (std::size_t i = sv.fields.size(); i-- > 0;) {
+                    valor(sv.fields[i]);
+                    fixo(": ");
+                    fixo(sv.tipo() ? sv.tipo()->campos[i].c_str() : "?");
+                    if (i > 0) fixo(", ");
+                }
+                break;
+            }
+            default:
+                out += detail::folhaTexto(v);
+                break;
+        }
+    }
+    return out;
 }
 
 // ============================================================================

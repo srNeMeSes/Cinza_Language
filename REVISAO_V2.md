@@ -1629,13 +1629,25 @@ depois de um debate com duas revisões externas:
     > cadeia de 1 milhão de listas. Os processos que travaram nas sondagens deste defeito ficaram
     > presos no relatório de erro do Windows e seguraram o `cinza.exe` (sem permissão para
     > encerrá-los); por isso as sondagens de travamento passam a rodar numa cópia do executável.
-  - [ ] P1b. **Defeito encontrado no P2, também na CVM de hoje**: as funções recursivas do
+  - [x] P1b. **Defeito encontrado no P2, também na CVM de hoje**: as funções recursivas do
     runtime em C++ (`toString`, `==`, `<`) sobre dados aninhados sem limite estouram a pilha do
     sistema. Reprodução: `struct No { list<No> f; }` encadeado 200 mil vezes e impresso
     (`format("{n}")`) derruba o `cinza.exe` com `0xC00000FD`. Medido: 848 bytes de pilha por
     nível no `toString` (≈ 75 mil níveis com 64 MB). A correção pede uma decisão do autor:
     percorrer sem recursão (uma pilha explícita, como a destruição do P1) ou lançar um erro
     capturável acima de uma profundidade (como o `RecursionError` do `repr` no Python).
+    — feito em 2026-11-18
+    > Decisão do autor: **percorrer sem recursão** (a linguagem não ganha regra nova; a spec 5.9
+    > promete a memória automática). Nota: só o `Value::toString` e o `Value::operator==`
+    > desciam pelos dados (a biblioteca e o `operacoes.cpp` só fazem operações rasas; o `<` não
+    > desce em contêineres). Os dois agora usam uma pilha explícita no heap: a igualdade empilha
+    > pares de filhos a comparar (`detail::igualRaso`, sem alocar nada no caso comum de números e
+    > strings); a conversão em texto empilha pedaços — valores e trechos fixos — em ordem
+    > inversa. Formato da saída e regras de igualdade idênticos (a suíte inteira confere). 200 mil
+    > níveis impressos e comparados em 1,3 s e 1 milhão em 7,2 s. Teste
+    > `tests/gc/rev_aninhamento_profundo` (100 mil níveis, a diferença no nó mais fundo): o
+    > executável de antes cai nele com `0xC00000FD`. Sem perda nos benchmarks. 650/650, limpo
+    > sob ASan/UBSan.
 - [x] P2. Pilha física: o orçamento de quadro por função, a reserva de pilha calculada e a rede
   de segurança (`llvm/DESENHO.md`, 6.3), conferidos com programas de 2000 níveis com dezenas de
   structs grandes por valor e chamadas ao runtime em cada nível. — feito em 2026-11-18
@@ -1655,7 +1667,7 @@ depois de um debate com duas revisões externas:
   > `SetErrorMode` na partida (sem a janela de relatório de erro do Windows), e um processo que
   > cai termina na hora (conferido: 0,7 s no caso do P1b) em vez de ficar preso segurando o
   > executável, como os três do P1. Sem teste automático para isso: a suíte não tem programas que
-  > derrubam o processo (o do P1b é o defeito em aberto).
+  > derrubam o processo (o do P1b, que servia de exemplo, foi corrigido logo depois).
 - [ ] P3. `libcinzart` (interface C, `cinzart.h`), build do `cinzac` com a `llvm-c`, "olá
   mundo" nativo ligado pelo `g++`, `run_tests.py --cinzac` e `make test-llvm`. Antes: instalar
   os cabeçalhos (`mingw-w64-clang-x86_64-llvm`) **na mesma versão da `libLLVM` instalada**
@@ -1675,9 +1687,8 @@ depois de um debate com duas revisões externas:
   sobre o papel dela.
 
 **Fora desta seção**: informação de depuração, compilação separada por módulo, ABI estável,
-threads, `cinzac` sem `g++` (com o `lld`), distribuição. Também à parte: as funções recursivas
-do runtime em C++ (imprimir, comparar, converter em texto dados aninhados a centenas de milhares
-de níveis) podem estourar a pilha do sistema nos dois backends — risco que já existe hoje.
+threads, `cinzac` sem `g++` (com o `lld`), distribuição. (As funções recursivas do runtime sobre
+dados aninhados, que estavam aqui como risco, viraram o P1b e foram corrigidas.)
 
 ---
 
