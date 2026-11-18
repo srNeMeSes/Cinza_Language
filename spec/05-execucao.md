@@ -267,6 +267,12 @@ finally { ... }
 - O `finally` **sempre roda**: depois do fluxo normal, de um `return`, `break` ou `continue`
   dentro do `try` ou `except`, de um erro não capturado e de um erro lançado dentro do próprio
   `except`. Depois dele, o fluxo pendente continua (o erro sobe, o `return` acontece).
+- Um erro lançado dentro do próprio `finally` **substitui** o fluxo pendente: o erro que estava
+  subindo se perde (ou o `return` não acontece), e o erro novo sobe no lugar dele. `exit` conta
+  como um erro que nenhum `except` captura (capítulo 6, `exit`): chamado dentro de um `finally`, ele
+  substitui o fluxo pendente; e um erro lançado num `finally` que roda por causa de um `exit`
+  substitui o `exit`. Como `return`, `break` e `continue` não podem sair de um `finally`, esses
+  são os únicos jeitos de um `finally` mudar o fluxo pendente.
 - `return`, `break` e `continue` não podem sair de um `finally`.
 
 ```cinza
@@ -289,6 +295,43 @@ fn main() {
 // expect: capturado: divisão por zero
 // expect: finally
 // expect: 0
+```
+
+```cinza
+fn f() -> i32 {
+  try { throw ValueError("primeiro"); }
+  finally { throw IndexError("segundo"); }
+}
+fn g() -> i32 {
+  try { return 1; }
+  finally { throw KeyError("no lugar do return"); }
+}
+fn main() {
+  try { f(); } except (Error e) { print(e.kind, e.message); }
+  try { print(g()); } except (Error e) { print(e.kind, e.message); }
+}
+// expect: IndexError segundo
+// expect: KeyError no lugar do return
+```
+
+```cinza
+fn main() {
+  try { throw ValueError("original"); }
+  finally {
+    print("no finally");
+    exit(4);
+  }
+}
+// expect: no finally
+// expect-exit: 4
+```
+
+```cinza
+fn main() {
+  try { exit(3); }
+  finally { throw KeyError("no lugar do exit"); }
+}
+// expect-error: KeyError: no lugar do exit
 ```
 
 ### Campos de um erro

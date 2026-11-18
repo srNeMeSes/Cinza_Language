@@ -10,7 +10,9 @@ fonte → Lexer → Parser → Semântico → Compilador CVM → bytecode → VM
 ```
 
 A CVM é o único runtime da Cinza (o interpretador tree-walk de referência saiu em 2026-11-14).
-O próximo passo é um backend LLVM (seção 12), a partir da mesma AST analisada.
+O próximo passo é um backend LLVM (seção 12), a partir da mesma AST analisada; o desenho dele
+está em `llvm/DESENHO.md` (a CVM continua compilando da AST, e o runtime passa a ser comum aos
+dois).
 
 O compilador CVM recebe a AST **já analisada** — tipos resolvidos, slots do B2, alvos de chamada,
 tabelas de interface, conversões inseridas — e gera uma função compilada (**protótipo**) para

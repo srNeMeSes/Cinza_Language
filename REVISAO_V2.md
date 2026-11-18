@@ -1546,6 +1546,86 @@ na pasta de quem importa (sem import relativo nem `..`).
   > `czm.mod` (raiz na pasta do principal) e rodar um arquivo de subpasta conferidos à mão, num
   > projeto temporário (a suíte inteira vive sob `tests/czm.mod`). 573/573, limpo sob ASan/UBSan.
 
+## P. Backend nativo com LLVM (2026-11-18)
+
+Desenho completo em `llvm/DESENHO.md` (escrito antes do código, para revisão). Decisões do autor,
+depois de um debate com duas revisões externas:
+
+1. **IR pela API do LLVM**, a versão em C (`llvm-c`, LLVM 20.1.8 fixo): liga com o GCC do
+   projeto sem depender da ABI de C++ do LLVM (compilado com `libc++` no CLANG64).
+2. **CIR**: uma IR intermediária tipada e simples (blocos básicos, slots, posse e erros
+   explícitos) entre a AST e o LLVM. A CVM continua compilando da AST: duas implementações
+   independentes da mesma semântica.
+3. **Memória**: contagem de referências (não atômica, sem threads) + a coleta de ciclos do
+   `gc.h`, com a contagem embutida no objeto no lugar do `shared_ptr`. Posse +0/+1 (parâmetro
+   emprestado, retorno com posse); temporários com liberação explícita na CIR, no fim da
+   instrução.
+4. **Erros por retorno explícito**, um mecanismo só (erros do runtime, `throw` e o sinal de
+   `exit`): o erro pendente num estado de execução encapsulado pelo runtime (`cz_exec`, global
+   sem threads), testado depois de cada chamada que pode falhar. Sem *unwinding*.
+5. **CVM mantida até o `cinzac` passar a suíte inteira**; depois se decide o papel dela.
+6. **Dois executáveis**: `cinza prog.cinza` (CVM, sem LLVM) e `cinzac prog.cinza -o prog.exe`.
+7. O `StackOverflowError` da spec 5.8 é a regra das 2000 chamadas, não o estouro da pilha do
+   sistema: o código nativo conta como a CVM, numa sombra da pilha que também dá o stack trace.
+
+**Etapas** (cada uma com a suíte verde, ASan/UBSan e um commit):
+
+- [ ] P0. Revisão do desenho (`llvm/DESENHO.md`) pelo autor. Spec 5.6: erro lançado no `finally`
+  substitui o fluxo pendente, e o `exit` segue a mesma regra (o que a CVM já faz; exemplos
+  executáveis na spec).
+  > Revisão 2 (2026-11-18), depois de uma revisão externa: `CzValor` (C), `Value` (C++, dono) e
+  > `ValorRef` (vista sem posse) separados — mesmo layout não torna os tipos intercambiáveis, e
+  > as `NativeFn` passam a receber vistas; inicialização do alvo X86, triple e `DataLayout` do
+  > módulo, tratamento do `LLVMErrorRef`, verificação antes e depois da otimização, teste de
+  > layout contra os `static_assert` do runtime; nenhuma exceção do C++ escapa de `cz_*`
+  > (`RuntimeError` vira erro pendente, `bad_alloc` é fatal como na CVM, o resto é erro interno);
+  > orçamento de quadro por função calculado pela CIR e pilha dimensionada para o programa, com
+  > rede de segurança que para com erro interno em vez de `0xC00000FD`; `borrow`/`copy`/`move`
+  > e `store.own`/`store.copy` na CIR, slots começando vazios (sem liberação dupla nos caminhos
+  > de erro); fila de destruição intrusiva (o campo `prox`, livre depois de o objeto sair do
+  > registro da coleta), objetos nascendo com `refs = 1`, testes de contagem no build de
+  > depuração; `CzString` sem array flexível (não é C++ padrão); o estado de erro descrito como
+  > contrato de layout, não como opaco; a tabela de saídas do `finally` (`return`, `break` e
+  > `continue` já eram erro de compilação); cabeçalhos e biblioteca do LLVM sempre da mesma
+  > versão.
+- [ ] P1. Migração do runtime, conferida pela CVM: cabeçalho `CzObjeto` com contagem embutida
+  não atômica (objetos nascem com `refs = 1`), destruição iterativa (corrige P1a), strings
+  imutáveis com contagem (hoje o `std::string` é copiado a cada cópia do `Value`), `CzValor` de
+  16 bytes com `Value` e `ValorRef` por cima, erros como objetos, descritores de
+  classe/struct/tipo/função sem ponteiro para a AST, fronteira `noexcept`, contador de objetos
+  vivos e o modo `CINZA_VAZAMENTOS=1` (`run_tests.py --vazamentos`), testes de ciclos e
+  cadeias em `tests/gc/`. Medição de velocidade antes e depois.
+  - [ ] P1a. **Defeito encontrado na CVM**: soltar uma cadeia longa (400 mil nós em
+    `class No { list<No> f; }`) estoura a pilha do sistema (`0xC00000FD`), porque o
+    `shared_ptr` destrói os nós em recursão; a spec 5.9 promete memória automática. Corrige com
+    a destruição iterativa do P1 (o *trashcan* do CPython). Teste obrigatório da migração, na
+    suíte normal e no modo sem vazamento: `tests/gc/rev_cadeia_longa`.
+- [ ] P2. Pilha física: o orçamento de quadro por função, a reserva de pilha calculada e a rede
+  de segurança (`llvm/DESENHO.md`, 6.3), conferidos com programas de 2000 níveis com dezenas de
+  structs grandes por valor e chamadas ao runtime em cada nível.
+- [ ] P3. `libcinzart` (interface C, `cinzart.h`), build do `cinzac` com a `llvm-c`, "olá
+  mundo" nativo ligado pelo `g++`, `run_tests.py --cinzac` e `make test-llvm`. Antes: instalar
+  os cabeçalhos (`mingw-w64-clang-x86_64-llvm`) **na mesma versão da `libLLVM` instalada**
+  (`pacman -S` sem `-y`), ou atualizar o conjunto inteiro para uma versão nova e fixá-la.
+- [ ] P4. CIR e backend para números, `bool`, funções, `if`/`while`/`for range`, `print`,
+  `const` globais; `--emit-cir` e `--emit-llvm`.
+- [ ] P5. Strings e as regras de posse (temporários, `return` antecipado, parâmetros
+  reatribuídos), com o modo sem vazamento.
+- [ ] P6. `list`, `dict`, `pair` e a coleta de ciclos.
+- [ ] P7. Structs, classes, interfaces e enums.
+- [ ] P8. Erros completos: `throw`, `try`/`except`/`finally`, erros de runtime, stack trace,
+  profundidade de 2000, `exit`.
+- [ ] P9. Módulos, genéricos (as cópias), biblioteca nativa, `input`/`args`/`env`: a suíte
+  inteira passa nos dois backends, sem vazamento.
+- [ ] P10. Otimização: `-O2`, eliminar `retain`/`release` desnecessários, não testar erro depois
+  de funções que não falham, campos e listas com tipos nativos. Medição contra a CVM e decisão
+  sobre o papel dela.
+
+**Fora desta seção**: informação de depuração, compilação separada por módulo, ABI estável,
+threads, `cinzac` sem `g++` (com o `lld`), distribuição. Também à parte: as funções recursivas
+do runtime em C++ (imprimir, comparar, converter em texto dados aninhados a centenas de milhares
+de níveis) podem estourar a pilha do sistema nos dois backends — risco que já existe hoje.
+
 ---
 
 ## Registro de decisões
@@ -1587,6 +1667,7 @@ na pasta de quem importa (sem import relativo nem `..`).
 | 2026-10-04 | J2 | `Files.read_bytes(caminho) -> list<int>` e `Files.write_bytes(caminho, list<int>)`, bytes de 0 a 255 (fora disso, `ValueError`). | Decisão do autor da linguagem; formatos binários sem passar por texto UTF-8. |
 | 2026-10-03 | I4 | `menor_int % -1` dá `0` (revê A5); `-0.0` continua `-0` no `print`; decimais extremos continuam em notação científica. | Decisão do autor da linguagem; `x % -1` cabe sempre em `int`. |
 | 2026-10-03 | H3 | `exit([código])`: padrão 0, de 0 a 255; roda os `finally` pendentes e nenhum `except` o captura; encerra o caminho na análise de fluxo. | Decisão do autor da linguagem; 0–255 dá o mesmo resultado em todo sistema. |
+| 2026-11-18 | P | Backend nativo: API em C do LLVM 20 (`llvm-c`); CIR própria entre a AST e o LLVM, com a CVM compilando da AST; contagem de referências não atômica embutida no objeto + coleta de ciclos; erros por retorno explícito com estado de execução encapsulado; CVM mantida até o `cinzac` passar a suíte; `cinza` e `cinzac` separados. Erro lançado no `finally` substitui o fluxo pendente (spec 5.6, como a CVM já fazia). | Decisão do autor depois de duas revisões externas: o LLVM é só backend; posse, erros e o runtime são contratos da Cinza, comuns aos dois backends. |
 | 2026-11-15 | N5 | Structs genéricos (`struct Par[A, B]`), usados sempre com os tipos escritos (`Par[i32, string]`, sem inferência). Em todo struct, campo sem valor inicial é obrigatório na criação (`list`/`dict` nascem vazios); criação também pelo nome, `new Ponto(y: 4)`, omitindo os campos com valor inicial. Um campo do tipo `T` não tem valor inicial. Classes continuam exigindo valor inicial. | Decisão do autor: resolve o campo `T` sem valor possível, mantendo "nenhum struct com campo sem valor"; sem repetir os padrões na criação. |
 | 2026-11-15 | O | Imports a partir da raiz do projeto: a pasta do `czm.mod` mais próximo (marcador, vazio por enquanto) ou, sem ele, a do arquivo principal; depois `CINZA_PATH`. Sai a busca na pasta de quem importa (sem import relativo); o mesmo caminho em dois lugares é erro. | Decisão do autor: projetos em pastas importam entre pastas irmãs, cada módulo tem um nome só (estável para o LLVM) e o projeto não depende de configuração da máquina. |
 | 2026-11-15 | N | Funções genéricas (revê "A Cinza não terá genéricos", D): monomorfização; corpo conferido só no uso, com o tipo concreto, sem restrições declaradas (modelo do Zig); genérico não usado não é conferido; tipos deduzidos dos argumentos, explícitos opcionais e obrigatórios quando não dedutíveis; colchetes como sintaxe exclusiva da função genérica (`fn f[T]`, `f[i32](x)`), com `list<T>`/`cast<T>` mantidos; erros com rastro dos usos e limite de 64 cópias encadeadas. `struct`/`class` genéricas ficam para depois. | Decisão do autor: genéricos simples e leves, sem custo na execução, "deixando à mercê do usuário criar um bom programa". |
