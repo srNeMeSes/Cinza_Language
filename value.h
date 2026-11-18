@@ -245,6 +245,19 @@ struct Value {
     // O objeto do runtime guardado (STRING...ERROR), ou nulo
     CzObjeto* objeto() const noexcept { return guardaObjeto(kind()) ? v.u.obj : nullptr; }
 
+    // P3: a fronteira com o código nativo (llvm/DESENHO.md 2.3), sempre explícita.
+    // `empresta`: um Value novo a partir de um CzValor que outro segura (retain; um
+    // struct é clonado, como em toda cópia). `toma`: assume a posse (+1) de um CzValor,
+    // sem mexer na contagem. `entrega`: devolve o CzValor com a posse e fica vazio.
+    static Value empresta(const CzValor& c);
+    static Value toma(const CzValor& c) noexcept { Value r; r.v = c; return r; }
+    CzValor entrega() noexcept {
+        const CzValor c = v;
+        poe(Kind::VOID_VAL);
+        v.u.i64 = 0;
+        return c;
+    }
+
     // ── Utilitário de display ─────────────────────────────────────────────
 
     std::string toString() const;
@@ -402,6 +415,16 @@ inline Value::Value(const Value& other) : v(other.v) {
     } else if (guardaObjeto(kind())) {
         czRetain(v.u.obj);
     }
+}
+
+inline Value Value::empresta(const CzValor& c) {
+    Value alheio;   // não é dono de c: desarmado antes de ser destruído, mesmo se a cópia falhar
+    alheio.v = c;
+    struct Desarma {
+        Value& x;
+        ~Desarma() { x.poe(Kind::VOID_VAL); x.v.u.i64 = 0; }
+    } desarma{alheio};
+    return Value(alheio);
 }
 
 inline Value& Value::operator=(const Value& other) {

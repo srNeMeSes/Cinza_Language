@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Runner de testes da linguagem Cinza.
 
-Uso: python tests/run_tests.py [--sem-vazamentos] [binario] [filtro]
+Uso: python tests/run_tests.py [--sem-vazamentos] [--cinzac] [binario] [filtro]
 
-Os programas rodam na CVM (o único runtime da Cinza). Todo teste roda com
+Os programas rodam na CVM. Com --cinzac (P3, llvm/DESENHO.md seção 10), cada teste é
+compilado pelo cinzac (padrão: llvm/bin/cinzac.exe) e o executável roda com os mesmos
+args/stdin/env; um erro de compilação conta como a saída do teste, e o que o cinzac
+ainda não compila (código 75) é contado à parte, nem como acerto nem como falha. Todo
+teste roda com
 CINZA_VAZAMENTOS=1: se sobrar um objeto do runtime ao sair, o programa termina com
 código 70 e o teste falha (--sem-vazamentos desliga).
 
@@ -34,6 +38,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -75,6 +80,11 @@ def ler_entrada(caminho):
 
 
 VAZAMENTOS = True   # P1: todo teste confere também que nenhum objeto do runtime sobra
+CINZAC = False      # P3: --cinzac
+PASTA_NATIVA = None # onde ficam os executáveis gerados (temporária)
+NAO_SUPORTADO = 75  # código de saída do cinzac para "ainda não suportado"
+contador_nativo = 0
+executados_nativos = 0   # testes que rodaram como executável nativo (não só a compilação)
 
 
 def ler_ambiente(caminho):
@@ -143,18 +153,39 @@ def descrever_codigo(codigo):
 
 
 def rodar(binario, caminho):
-    """Executa um teste. Retorna (passou, motivo, detalhes)."""
+    """Executa um teste. Retorna (passou, motivo, detalhes); passou é None quando o
+    cinzac ainda não compila o programa (modo --cinzac)."""
+    global contador_nativo, executados_nativos
     esperado, erros, proibidos = ler_expectativas(caminho)
     codigo_esperado = ler_codigo_saida(caminho)
     if not esperado and not erros and not codigo_esperado:
         return False, "nenhum '// expect' encontrado no arquivo", ""
 
+    comando = [str(binario), str(caminho.relative_to(RAIZ))] + ler_argumentos(caminho)
+    proc = None
+    if CINZAC:
+        contador_nativo += 1
+        exe = PASTA_NATIVA / f"t{contador_nativo}.exe"
+        try:
+            comp = subprocess.run([str(binario), str(caminho.relative_to(RAIZ)), "-o", str(exe)],
+                                  cwd=RAIZ, capture_output=True, timeout=TIMEOUT_S * 2,
+                                  env=ler_ambiente(caminho))
+        except subprocess.TimeoutExpired:
+            return False, f"tempo esgotado na compilação ({TIMEOUT_S * 2} s)", ""
+        if comp.returncode == NAO_SUPORTADO:
+            msg = comp.stderr.decode("utf-8", errors="replace").strip().splitlines()
+            motivo = msg[-1].split("ainda não suportado: ", 1)[-1] if msg else "?"
+            return None, motivo, ""
+        if comp.returncode != 0:
+            proc = comp   # erro de compilação: é a saída do teste
+        else:
+            comando = [str(exe)] + ler_argumentos(caminho)
+            executados_nativos += 1
+
     try:
-        proc = subprocess.run(
-            [str(binario), str(caminho.relative_to(RAIZ))] + ler_argumentos(caminho),
-            cwd=RAIZ, capture_output=True, timeout=TIMEOUT_S, env=ler_ambiente(caminho),
-            input=ler_entrada(caminho),
-        )
+        if proc is None:
+            proc = subprocess.run(comando, cwd=RAIZ, capture_output=True, timeout=TIMEOUT_S,
+                                  env=ler_ambiente(caminho), input=ler_entrada(caminho))
     except subprocess.TimeoutExpired:
         return False, f"tempo esgotado ({TIMEOUT_S} s)", ""
 
@@ -235,15 +266,22 @@ def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
 
-    global VAZAMENTOS
+    global VAZAMENTOS, CINZAC, PASTA_NATIVA
     if "--sem-vazamentos" in sys.argv:
         VAZAMENTOS = False
         sys.argv.remove("--sem-vazamentos")
+    if "--cinzac" in sys.argv:
+        CINZAC = True
+        sys.argv.remove("--cinzac")
 
     if len(sys.argv) > 1:
         binario = Path(sys.argv[1])
         if not binario.is_absolute():
             binario = RAIZ / binario
+    elif CINZAC:
+        binario = RAIZ / "llvm" / "bin" / "cinzac.exe"
+        if not binario.exists():
+            binario = RAIZ / "llvm" / "bin" / "cinzac"
     else:
         binario = RAIZ / "cinza.exe"
         if not binario.exists():
@@ -267,17 +305,32 @@ def main():
         return 2
 
     falhas = 0
-    for nome, caminho in testes:
-        passou, motivo, detalhes = rodar(binario, caminho)
-        if passou:
-            print(f"PASS  {nome}")
-        else:
-            falhas += 1
-            print(f"FAIL  {nome}: {motivo}")
-            if detalhes:
-                print(detalhes)
+    nao_suportados = {}   # motivo → quantos (modo --cinzac)
+    with tempfile.TemporaryDirectory(prefix="cinza_nativo_") as pasta:
+        PASTA_NATIVA = Path(pasta)
+        for nome, caminho in testes:
+            passou, motivo, detalhes = rodar(binario, caminho)
+            if passou is None:
+                nao_suportados[motivo] = nao_suportados.get(motivo, 0) + 1
+                print(f"NSUP  {nome}: {motivo}")
+            elif passou:
+                print(f"PASS  {nome}")
+            else:
+                falhas += 1
+                print(f"FAIL  {nome}: {motivo}")
+                if detalhes:
+                    print(detalhes)
 
-    print(f"\n{len(testes) - falhas} passaram, {falhas} falharam, {len(testes)} no total")
+    nsup = sum(nao_suportados.values())
+    if CINZAC and nsup:
+        print("\nAinda não suportados pelo cinzac (os motivos mais comuns):")
+        for motivo, n in sorted(nao_suportados.items(), key=lambda kv: -kv[1])[:10]:
+            print(f"  {n:4}  {motivo}")
+    resumo = f"{len(testes) - falhas - nsup} passaram, {falhas} falharam"
+    if CINZAC:
+        resumo += (f", {nsup} ainda não suportados ({executados_nativos} rodaram como executável "
+                   f"nativo; os demais que passaram são erros de compilação, do front-end comum)")
+    print(f"\n{resumo}, {len(testes)} no total")
     return 1 if falhas else 0
 
 

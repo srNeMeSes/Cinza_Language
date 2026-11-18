@@ -2,7 +2,6 @@
 #include "natives.h"         // fixedText (Strings.fixed)
 #include "runtime_error.h"
 #include "utf8.h"
-#include "semantic.h"   // TypeChecker::isAssignable
 #include <charconv>
 #include <cmath>
 #include <cstdlib>

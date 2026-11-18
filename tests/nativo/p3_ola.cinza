@@ -1,0 +1,21 @@
+// P3: o subconjunto do primeiro executável nativo (cinzac) — print de literais de
+// cada tipo, com acentos, vários argumentos e nenhum. Roda nos dois backends: na CVM
+// (make test) e pelo cinzac (make test-llvm).
+fn main() {
+  print("olá, Cinza");
+  print("ação", "çãõ", "日本");
+  print(1, 2147483647, -5, 5000000000, -5000000000);
+  print(2.5ff, 0.1f, 1.ff, -0.5ff);
+  print(true, false);
+  print("misturado:", 3, 1.25ff, true, "fim");
+  print();
+  print("");
+}
+// expect: olá, Cinza
+// expect: ação çãõ 日本
+// expect: 1 2147483647 -5 5000000000 -5000000000
+// expect: 2.5 0.1 1 -0.5
+// expect: true false
+// expect: misturado: 3 1.25 true fim
+// expect:
+// expect:

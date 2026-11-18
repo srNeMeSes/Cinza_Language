@@ -35,8 +35,9 @@ runtime (C++; contagem embutida + coleta de ciclos; interface C)          ← co
 - **Ferramentas, versões fixas:** compilador do projeto GCC 15.2 (WinLibs, UCRT, `libstdc++`);
   LLVM **20.1.8** do MSYS2 CLANG64, usado só pela **API em C** (`llvm-c`), que não depende da
   ABI de C++ (o LLVM do CLANG64 é compilado com `libc++`, incompatível com a `libstdc++` do
-  GCC). Falta instalar os cabeçalhos: pacote `mingw-w64-clang-x86_64-llvm` (hoje há só
-  `llvm-libs` e `llvm-tools`).
+  GCC). Os cabeçalhos vêm do pacote `mingw-w64-clang-x86_64-llvm` (instalado no P3, na mesma
+  versão 20.1.8-2 da `llvm-libs`). O GCC os inclui com `-idirafter`, para os cabeçalhos do
+  CLANG64 não passarem na frente dos dele; só `llvm/emissor.cpp` e `llvm/cinzac.cpp` os usam.
 - **Cabeçalhos e biblioteca da mesma versão, nunca misturados.** O banco local do pacman lista o
   pacote de cabeçalhos em `20.1.8-2`, igual à `libLLVM-20.dll` instalada; o repositório do
   MSYS2 pode já estar numa versão mais nova (22.x). Instalar com `pacman -S` **sem** `-y` (sem
@@ -45,9 +46,13 @@ runtime (C++; contagem embutida + coleta de ciclos; interface C)          ← co
   ASan também usa) para a mesma versão nova e fixar essa — decisão do autor na etapa P3.
 - **Alvo:** `x86_64-w64-windows-gnu` (o do GCC do projeto). Os objetos gerados ligam com o
   runtime compilado pelo mesmo GCC.
-- **Dependências:** o `cinzac` precisa da `libLLVM-20.dll` (139 MB) e das DLLs dela (`libc++`,
-  `libffi`, `zlib`, `libzstd`, `libxml2`) e do `g++` para ligar. **Os programas gerados não
-  dependem do LLVM**: ligam com o runtime, com `-static-libstdc++ -static-libgcc`.
+- **Dependências:** o `cinzac` precisa da `libLLVM-20.dll` (139 MB) e das 7 DLLs de que ela
+  depende (`libc++`, `libffi-8`, `libiconv-2`, `liblzma-5`, `libxml2-16`, `libzstd`, `zlib1`) e
+  do `g++` para ligar. O `make cinzac` copia as oito para `llvm/bin/`, ao lado do `cinzac.exe` e
+  da `libcinzart.a`: o Windows procura ali antes do `PATH`, onde o `C:\MinGW\bin` do GCC tem
+  outras versões de `zlib1`, `libzstd` e `libxml2-16` (com elas o `cinzac` caía com
+  `0xC0000139`). **Os programas gerados não dependem do LLVM**: ligam com o runtime, com
+  `-static-libstdc++ -static-libgcc`.
 
 ## 2. Runtime (pré-requisito: etapa P1)
 
@@ -536,6 +541,12 @@ segurança precisa.
   declaradas `noexcept` no lado C++.
 - Nenhuma estrutura de C++ aparece na interface: só os tipos C das seções 2 e 5.
 
+**Implementado no P3** (`llvm/cinzart.{h,cpp}`): `cz_inicio`, `cz_fim`, `cz_str_literal`
+(imortal; o `cz_fim` solta os literais depois da última coleta e antes de conferir
+vazamentos), `cz_nativa_resolve` (pelo nome do módulo e da função, uma vez na partida),
+`cz_nativa` e `cz_solta_valor`; `cz_exec` só com o campo `erro`. A tabela abaixo é o plano das
+etapas seguintes.
+
 ### 7.2 Grupos
 
 | Grupo | Exemplos |
@@ -633,21 +644,29 @@ Outros pontos:
 ## 9. O comando `cinzac`
 
 ```
-cinzac prog.cinza -o prog.exe          compila e liga
+cinzac prog.cinza -o prog.exe          compila e liga (sem -o: o nome do programa com .exe)
 cinzac -O2 prog.cinza -o prog.exe      com otimização
 cinzac --emit-cir prog.cinza           mostra a CIR
-cinzac --emit-llvm prog.cinza -o p.ll  grava o IR do LLVM (texto, para depurar)
+cinzac --emit-llvm prog.cinza -o p.ll  grava o IR do LLVM (texto, depois dos passes)
+cinzac --manter-objeto ...             não apaga o .o depois de ligar
+cinzac --confere-layout                confere CzValor, CzObjeto e CzExec (LLVM x GCC)
 ```
 
 Erros de compilação saem iguais aos do `cinza` (o front-end é o mesmo). O `cinza prog.cinza`
-(CVM) não muda.
+(CVM) não muda. Códigos de saída: 0 certo; 1 erro do programa ou da ligação; **75** recurso
+que o `cinzac` ainda não compila (`arquivo:linha:coluna: [cinzac] ainda não suportado: ...`),
+que diminui a cada etapa até a P9. O `cinzac` fica em `llvm/bin/` (`make cinzac`); `CINZA_GXX`
+troca o `g++` da ligação.
 
 ## 10. Testes
 
-- `run_tests.py --cinzac`: para cada teste, compila com o `cinzac` e roda o executável com os
-  mesmos `// args:`, `// stdin:`, `// env:`; confere `// expect`, `// expect-error`,
-  `// expect-exit` como hoje. Um erro de compilação conta como saída do teste (mesma mensagem nos
-  dois). `make test-llvm`.
+- `run_tests.py --cinzac` (P3): para cada teste, compila com o `cinzac` e roda o executável com
+  os mesmos `// args:`, `// stdin:`, `// env:`; confere `// expect`, `// expect-error`,
+  `// expect-exit` como hoje. Um erro de compilação conta como saída do teste (mesma mensagem
+  nos dois). O código 75 conta à parte ("ainda não suportado"), com um resumo dos motivos mais
+  comuns — o mapa do que falta —, e o resumo diz quantos rodaram como executável nativo (os
+  demais que passam são erros de compilação, do front-end comum). `make test-llvm` roda o
+  `--confere-layout` e a suíte.
 - O modo sem vazamento (seção 2.6) vale para os dois backends: ligado por padrão no
   `run_tests.py`.
 - ASan/UBSan no runtime e no código gerado (o `cinzac` aceita `--sanitize` para ligar com eles).

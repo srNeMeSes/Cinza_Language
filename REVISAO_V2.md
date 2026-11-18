@@ -1668,10 +1668,43 @@ depois de um debate com duas revisões externas:
   > cai termina na hora (conferido: 0,7 s no caso do P1b) em vez de ficar preso segurando o
   > executável, como os três do P1. Sem teste automático para isso: a suíte não tem programas que
   > derrubam o processo (o do P1b, que servia de exemplo, foi corrigido logo depois).
-- [ ] P3. `libcinzart` (interface C, `cinzart.h`), build do `cinzac` com a `llvm-c`, "olá
+- [x] P3. `libcinzart` (interface C, `cinzart.h`), build do `cinzac` com a `llvm-c`, "olá
   mundo" nativo ligado pelo `g++`, `run_tests.py --cinzac` e `make test-llvm`. Antes: instalar
   os cabeçalhos (`mingw-w64-clang-x86_64-llvm`) **na mesma versão da `libLLVM` instalada**
   (`pacman -S` sem `-y`), ou atualizar o conjunto inteiro para uma versão nova e fixá-la.
+  — feito em 2026-11-18
+  > Nota: cabeçalhos instalados com autorização do autor (`pacman -S`, sem atualizar o banco):
+  > `mingw-w64-clang-x86_64-llvm 20.1.8-2`, a mesma versão da `llvm-libs`, sem mexer em outro
+  > pacote. **Problemas resolvidos no caminho**: (1) o GCC do projeto liga a `llvm-c` do CLANG64
+  > (confirmado num teste: módulo, triple, DataLayout, `default<O2>`, objeto), mas com
+  > `-idirafter` — senão os cabeçalhos do CLANG64 passariam na frente dos do GCC; (2) o
+  > `cinzac.exe` caía com `0xC0000139` porque o `C:\MinGW\bin` do `PATH` tem outras versões de
+  > `zlib1`, `libzstd` e `libxml2-16`, que a `libLLVM` também usa: o `make cinzac` copia a
+  > `libLLVM-20.dll` e as 7 dependências (fecho calculado pelo `llvm-objdump`, ~145 MB) para
+  > `llvm/bin/`, ao lado do `cinzac.exe` — o Windows procura ali antes do `PATH` (`llvm/bin/` fica
+  > fora do git); (3) o `copy` do `cmd` lê o `+` de `libc++.dll` como concatenação: caminhos
+  > entre aspas. **O que entrou**: `llvm/cinzart.{h,cpp}` (`cz_inicio`, `cz_fim` — relata o erro
+  > pendente como a CVM, solta os literais e confere vazamentos —, `cz_str_literal` imortal,
+  > `cz_nativa_resolve`/`cz_nativa` com os argumentos copiados para `Value`, `cz_solta_valor`;
+  > toda função passa por uma fronteira que transforma `RuntimeError` em erro pendente e trata
+  > `bad_alloc` e o resto como fatais); `Value::empresta`/`toma`/`entrega`; a CIR mínima
+  > (`llvm/cir.*`: embrulha, call.nativa, solta, ret; `--emit-cir`) e a tradução da AST
+  > (`llvm/gera_cir.*`: a `main` com `print` de literais, inclusive `-literal`; o resto é
+  > "ainda não suportado", código 75, com a posição); o emissor (`llvm/emissor.*`, o único que
+  > inclui `llvm-c`, com a sequência do desenho e o `--confere-layout`: `CzValor`, `CzObjeto` e
+  > `CzExec` com o mesmo tamanho e deslocamentos no LLVM e no GCC); `llvm/cinzac.cpp` (front-end
+  > igual ao do `cinza`, CIR, LLVM, ligação pelo `g++` com a `libcinzart.a` ao lado, `-O2`,
+  > `--emit-llvm` com o IR já otimizado, `--manter-objeto`); `preparaConsole`,
+  > `executaProcesso` e `caminhoDoExecutavel` em `plataforma.*` (o `cinza` passa a usar o mesmo
+  > `preparaConsole`); o `operacoes.cpp` deixou de incluir o `semantic.h` (sobrava), então o
+  > runtime não depende do front-end. **Testes**: `run_tests.py --cinzac` (compila, roda o
+  > executável com os mesmos args/stdin/env, conta "ainda não suportado" à parte e resume os
+  > motivos; diz quantos rodaram como executável nativo — os demais que passam são erros de
+  > compilação do front-end comum) e `make test-llvm` (layout + suíte); teste
+  > `tests/nativo/p3_ola` (literais de cada tipo, acentos, `print()` vazio) nos dois backends.
+  > Resultado: 651/651 na CVM; pelo `cinzac`, 0 falhas, 341 passaram (8 como executável
+  > nativo), 310 ainda não suportados; a CVM limpa sob ASan/UBSan. O `cinzac` sob ASan fica para quando a
+  > CIR crescer (o build de depuração é pelo clang do CLANG64, que liga com `libc++`).
 - [ ] P4. CIR e backend para números, `bool`, funções, `if`/`while`/`for range`, `print`,
   `const` globais; `--emit-cir` e `--emit-llvm`.
 - [ ] P5. Strings e as regras de posse (temporários, `return` antecipado, parâmetros

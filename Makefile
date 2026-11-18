@@ -32,6 +32,8 @@ endif
 # valor padrão "sh.exe" e roda as receitas no cmd.exe
 ifeq ($(SHELL),sh.exe)
     RM = del /Q /F
+    COPY = copy /Y
+    mkdirp = if not exist $(subst /,\,$1) mkdir $(subst /,\,$1)
     PYTHON ?= python
     # o del do cmd entende '/' como opção: caminhos precisam de '\'
     fixpath = $(subst /,\,$1)
@@ -42,6 +44,8 @@ ifeq ($(SHELL),sh.exe)
     NC =
 else
     RM = rm -f
+    COPY = cp
+    mkdirp = mkdir -p $1
     PYTHON ?= python3
     fixpath = $1
     RED = \033[0;31m
@@ -93,6 +97,49 @@ $(UNIT_TYPES): tests/unit_types.cpp types.h
 $(UNIT_GC): tests/unit_gc.cpp gc.h gc_object.h value.h
 	$(CXX) $(CXXFLAGS) -o $(UNIT_GC) tests/unit_gc.cpp
 
+# ---------------------------------------------------------------------------
+# cinzac: o compilador nativo (llvm/DESENHO.md; seção P do REVISAO_V2.md). Usa a
+# API em C do LLVM 20.1.8 do MSYS2 CLANG64 (mingw-w64-clang-x86_64-llvm) com o GCC do
+# projeto. Fica em llvm/bin/, com a libcinzart.a (o runtime que os programas gerados
+# ligam) e as DLLs do LLVM ao lado: o Windows as procura primeiro na pasta do
+# executável, antes do PATH (onde o GCC tem outras versões de zlib1, libzstd...).
+LLVM_PREFIX ?= C:/msys64/clang64
+LLVM_BIN    = llvm/bin
+CINZAC_BIN  = $(LLVM_BIN)/cinzac$(EXE)
+LIBCINZART  = $(LLVM_BIN)/libcinzart.a
+RUNTIME_OBJ = operacoes.o natives.o stdlib.o plataforma.o llvm/cinzart.o
+CINZAC_OBJ  = lexer.o parser.o ast.o semantic.o module_loader.o operacoes.o natives.o stdlib.o \
+              plataforma.o llvm/cir.o llvm/gera_cir.o llvm/emissor.o llvm/cinzac.o
+LLVM_DLLS   = libLLVM-20.dll libc++.dll libffi-8.dll libiconv-2.dll liblzma-5.dll libxml2-16.dll \
+              libzstd.dll zlib1.dll
+CINZAC_DEPS = $(patsubst %.o,%.d,llvm/cinzart.o llvm/cir.o llvm/gera_cir.o llvm/emissor.o llvm/cinzac.o)
+-include $(CINZAC_DEPS)
+
+# só o emissor e o cinzac incluem a llvm-c; -idirafter: os cabeçalhos do CLANG64 não
+# passam na frente dos do GCC
+llvm/emissor.o llvm/cinzac.o: CXXFLAGS += -idirafter $(LLVM_PREFIX)/include
+
+cinzac: $(CINZAC_BIN) $(LIBCINZART) $(addprefix $(LLVM_BIN)/,$(LLVM_DLLS))
+	@echo "$(GREEN)✓ cinzac pronto em $(CINZAC_BIN)$(NC)"
+
+$(LLVM_BIN):
+	$(call mkdirp,$(LLVM_BIN))
+
+$(CINZAC_BIN): $(CINZAC_OBJ) | $(LLVM_BIN)
+	$(CXX) $(CXXFLAGS) -o $@ $(CINZAC_OBJ) $(LLVM_PREFIX)/lib/libLLVM-20.dll.a -static-libstdc++ -static-libgcc $(LDFLAGS)
+
+$(LIBCINZART): $(RUNTIME_OBJ) | $(LLVM_BIN)
+	ar rcs $@ $(RUNTIME_OBJ)
+
+$(LLVM_BIN)/%.dll: $(LLVM_PREFIX)/bin/%.dll | $(LLVM_BIN)
+	$(COPY) "$(call fixpath,$<)" "$(call fixpath,$@)"
+
+# A suíte pelo cinzac (compila cada teste e roda o executável); os recursos que ele
+# ainda não compila são contados à parte
+test-llvm: cinzac
+	./$(CINZAC_BIN) --confere-layout
+	$(PYTHON) tests/run_tests.py --cinzac
+
 # Testa mostrando tokens
 test-tokens: $(TARGET_BIN)
 	@echo "$(GREEN)Executando teste com tokens detalhados...$(NC)"
@@ -107,6 +154,7 @@ test-ast: $(TARGET_BIN)
 clean:
 	@echo "$(YELLOW)Limpando arquivos de compilação...$(NC)"
 	-$(RM) $(call fixpath,$(OBJECTS) $(DEPS)) $(TARGET_BIN) $(call fixpath,$(UNIT_BIN) $(UNIT_TYPES) $(UNIT_GC))
+	-$(RM) $(call fixpath,llvm/cinzart.o llvm/cir.o llvm/gera_cir.o llvm/emissor.o llvm/cinzac.o $(CINZAC_DEPS) $(CINZAC_BIN) $(LIBCINZART))
 	@echo "$(GREEN)✓ Limpeza concluída!$(NC)"
 
 # Rebuild completo
@@ -126,6 +174,8 @@ help:
 	@echo "  make              - Compila o projeto"
 	@echo "  make test         - Compila e roda a suíte em tests/"
 	@echo "  make debug        - Recompila com -O0 -g e sanitizers"
+	@echo "  make cinzac       - Compila o cinzac (backend LLVM) em llvm/bin/"
+	@echo "  make test-llvm    - Roda a suíte pelo cinzac"
 	@echo "  make test-tokens  - Mostra tokens detalhados"
 	@echo "  make test-ast     - Mostra AST detalhada"
 	@echo "  make clean        - Remove arquivos compilados"
@@ -133,4 +183,4 @@ help:
 	@echo "  make deps         - Verifica dependências"
 	@echo "  make help         - Mostra esta ajuda"
 
-.PHONY: all clean test test-tokens test-ast rebuild deps help debug
+.PHONY: all clean test test-tokens test-ast rebuild deps help debug cinzac test-llvm

@@ -40,6 +40,57 @@ std::vector<std::string> argumentosUtf8(int argc, char* argv[]) {
     return args;
 }
 
+void preparaConsole() {
+    SetConsoleOutputCP(CP_UTF8);   // força UTF-8 no terminal Windows
+    SetConsoleCP(CP_UTF8);
+    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+}
+
+namespace {
+// Um argumento na linha de comando do Windows, com as regras do CommandLineToArgvW:
+// entre aspas, e as barras antes de uma aspa (ou do fim) dobradas
+std::wstring citado(const std::wstring& a) {
+    std::wstring r = L"\"";
+    std::size_t barras = 0;
+    for (wchar_t c : a) {
+        if (c == L'\\') { ++barras; continue; }
+        if (c == L'"') r.append(barras * 2 + 1, L'\\');
+        else r.append(barras, L'\\');
+        barras = 0;
+        r += c;
+    }
+    r.append(barras * 2, L'\\');
+    return r + L"\"";
+}
+}  // namespace
+
+int executaProcesso(const std::vector<std::string>& args) {
+    if (args.empty()) return -1;
+    std::wstring linha;
+    for (const auto& a : args) {
+        if (!linha.empty()) linha += L' ';
+        linha += citado(caminhoUtf8(a).wstring());
+    }
+    STARTUPINFOW si{};
+    si.cb = sizeof si;
+    PROCESS_INFORMATION pi{};
+    if (!CreateProcessW(nullptr, linha.data(), nullptr, nullptr, TRUE, 0, nullptr, nullptr, &si, &pi))
+        return -1;
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    DWORD codigo = 1;
+    GetExitCodeProcess(pi.hProcess, &codigo);
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    return static_cast<int>(codigo);
+}
+
+std::string caminhoDoExecutavel() {
+    std::wstring w(32768, L'\0');
+    const DWORD n = GetModuleFileNameW(nullptr, w.data(), static_cast<DWORD>(w.size()));
+    w.resize(n);
+    return utf8(w.c_str());
+}
+
 bool ambienteUtf8(const char* nome, std::string& valor) {
     const std::wstring wnome = caminhoUtf8(nome).wstring();
     const DWORD n = GetEnvironmentVariableW(wnome.c_str(), nullptr, 0);
@@ -71,11 +122,38 @@ bool dataModificacao(const std::filesystem::path& p, std::int64_t& segundos) {
 #else
 #include <chrono>
 #include <cstdlib>
+#include <climits>
+#include <sys/wait.h>
+#include <unistd.h>
 
 namespace cinza {
 
 std::vector<std::string> argumentosUtf8(int argc, char* argv[]) {
     return std::vector<std::string>(argv, argv + argc);
+}
+
+void preparaConsole() {}
+
+int executaProcesso(const std::vector<std::string>& args) {
+    if (args.empty()) return -1;
+    const pid_t pid = fork();
+    if (pid < 0) return -1;
+    if (pid == 0) {
+        std::vector<char*> v;
+        for (const auto& a : args) v.push_back(const_cast<char*>(a.c_str()));
+        v.push_back(nullptr);
+        execvp(v[0], v.data());
+        _exit(127);
+    }
+    int estado = 0;
+    if (waitpid(pid, &estado, 0) < 0) return -1;
+    return WIFEXITED(estado) ? WEXITSTATUS(estado) : -1;
+}
+
+std::string caminhoDoExecutavel() {
+    char buf[PATH_MAX];
+    const ssize_t n = readlink("/proc/self/exe", buf, sizeof buf - 1);
+    return n > 0 ? std::string(buf, static_cast<std::size_t>(n)) : std::string();
 }
 
 bool ambienteUtf8(const char* nome, std::string& valor) {
