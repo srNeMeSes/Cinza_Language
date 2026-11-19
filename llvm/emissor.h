@@ -12,7 +12,8 @@ namespace cinza::llvm {
 
 class Emissor {
 public:
-    explicit Emissor(bool otimiza);
+    // asan: o código gerado com o AddressSanitizer do LLVM (o build de depuração, Q2)
+    explicit Emissor(bool otimiza, bool asan = false);
     ~Emissor();
     Emissor(const Emissor&) = delete;
     Emissor& operator=(const Emissor&) = delete;

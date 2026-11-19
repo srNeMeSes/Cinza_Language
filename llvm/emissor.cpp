@@ -113,6 +113,7 @@ std::vector<bool> podemFalhar(const cir::Modulo& m) {
 
 struct Emissor::Impl {
     bool                 otimiza = false;
+    bool                 asan = false;   // sanitize_address em toda função e o passo asan
     bool                 otimizado = false;   // os passes já rodaram
     LLVMContextRef       ctx = nullptr;
     LLVMModuleRef        mod = nullptr;
@@ -1005,7 +1006,10 @@ struct Emissor::Impl {
     }
 };
 
-Emissor::Emissor(bool otimiza) : impl(std::make_unique<Impl>()) { impl->otimiza = otimiza; }
+Emissor::Emissor(bool otimiza, bool asan) : impl(std::make_unique<Impl>()) {
+    impl->otimiza = otimiza;
+    impl->asan = asan;
+}
 
 Emissor::~Emissor() {
     if (impl->b) LLVMDisposeBuilder(impl->b);
@@ -1079,7 +1083,13 @@ bool Emissor::otimiza(std::string& erro) {
     if (e.otimizado) return true;
     e.otimizado = true;
     LLVMPassBuilderOptionsRef opcoes = LLVMCreatePassBuilderOptions();
-    LLVMErrorRef falha = LLVMRunPasses(e.mod, e.otimiza ? "default<O2>" : "default<O0>", e.tm, opcoes);
+    if (e.asan) {   // o passo do AddressSanitizer só instrumenta as funções marcadas
+        for (LLVMValueRef f = LLVMGetFirstFunction(e.mod); f; f = LLVMGetNextFunction(f))
+            if (!LLVMIsDeclaration(f)) e.atributo(f, "sanitize_address");
+    }
+    const char* passes = e.otimiza ? (e.asan ? "default<O2>,asan" : "default<O2>")
+                                   : (e.asan ? "default<O0>,asan" : "default<O0>");
+    LLVMErrorRef falha = LLVMRunPasses(e.mod, passes, e.tm, opcoes);
     LLVMDisposePassBuilderOptions(opcoes);
     if (falha) {
         char* msg = LLVMGetErrorMessage(falha);

@@ -140,6 +140,18 @@ test-llvm: cinzac
 	./$(CINZAC_BIN) --confere-layout
 	$(PYTHON) tests/run_tests.py --cinzac
 
+# cinzac e libcinzart com ASan/UBSan (REVISAO Q2): só no MSYS2 CLANG64, como o make debug.
+# A suíte pelo cinzac de depuração, com o código gerado também instrumentado (--asan) e os
+# programas ligados com o runtime do ASan pelo clang++ (o UBSan também interrompe o programa, senão
+# o aviso dele passaria despercebido num teste que só confere a saída):
+#   make cinzac-debug && make test-llvm-debug PYTHON=/c/Python313/python
+cinzac-debug: CXXFLAGS = -std=c++20 -O1 -g -Wall -Wextra -fsanitize=address,undefined -DCINZA_CONFERE_REFS
+cinzac-debug: clean cinzac
+
+test-llvm-debug:
+	./$(CINZAC_BIN) --confere-layout
+	CINZA_GXX=clang++ CINZA_LIGACAO="-fsanitize=address,undefined" UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 $(PYTHON) tests/run_tests.py --cinzac --asan
+
 # A gramática da extensão do VS Code (editor/vscode): os trechos que ela marca como
 # inválidos nos .cinza do repositório têm de ser os esperados (usa o VS Code instalado)
 test-vscode:
@@ -182,6 +194,7 @@ help:
 	@echo "  make cinzac       - Compila o cinzac (backend LLVM) em llvm/bin/"
 	@echo "  make test-llvm    - Roda a suíte pelo cinzac"
 	@echo "  make test-vscode  - Confere a gramática da extensão do VS Code (editor/vscode)"
+	@echo "  make cinzac-debug - cinzac e runtime com ASan/UBSan (MSYS2 CLANG64); depois make test-llvm-debug"
 	@echo "  make test-tokens  - Mostra tokens detalhados"
 	@echo "  make test-ast     - Mostra AST detalhada"
 	@echo "  make clean        - Remove arquivos compilados"
@@ -189,4 +202,4 @@ help:
 	@echo "  make deps         - Verifica dependências"
 	@echo "  make help         - Mostra esta ajuda"
 
-.PHONY: all clean test test-tokens test-ast rebuild deps help debug cinzac test-llvm test-vscode
+.PHONY: all clean test test-tokens test-ast rebuild deps help debug cinzac test-llvm test-vscode         cinzac-debug test-llvm-debug

@@ -1932,6 +1932,16 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
   > de saída iguais nos três e sem vazamento. Sessão de 15 min: 1.784 programas, todos válidos e
   > terminando, todos comparados nos três (380 terminam com erro não pego, também comparado), nenhum
   > defeito. Conferido que um nativo com uma linha a mais é acusado.
+  > **ASan/UBSan no `cinzac`**: `make cinzac-debug` (no MSYS2 CLANG64, como o `make debug`) compila o
+  > `cinzac` e a `libcinzart` pelo clang com `-fsanitize=address,undefined` e a conferência da contagem
+  > (`CINZA_CONFERE_REFS`); a opção nova `cinzac --asan` instrumenta também o código gerado (o passo
+  > `asan` do LLVM em toda função: confere o que o P10 faz em linha, a contagem e os campos); a
+  > variável nova `CINZA_LIGACAO` acrescenta opções à ligação (o runtime do ASan, pelo `clang++`). `make
+  > test-llvm-debug` roda a suíte assim, com `UBSAN_OPTIONS=halt_on_error=1` — sem ela o UBSan só
+  > avisa e o programa sai com 0, e um teste que só confere a saída passaria (conferido com um estouro
+  > de `int` de propósito). Conferidos também: o ASan acusa um estouro de buffer de propósito, o IR com
+  > `--asan` chama as rotinas do ASan, e o `--confere-layout` vale com a `libc++` do clang. Resultado:
+  > 684/684, nenhum relato do ASan nem do UBSan (no compilador, no runtime e no código gerado).
 - [ ] Q3. Biblioteca padrão da 1.0. **[decidir o escopo]** Hoje: `Strings`, `Files`, `Math`,
   `Random`, `Convert`, `Lists`, `Time`. Candidatos: JSON (texto ↔ `dict`/`list`), ambiente e
   processo (variáveis de ambiente, rodar um comando), pastas (listar, criar, apagar), o que faltar

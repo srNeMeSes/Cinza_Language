@@ -36,6 +36,8 @@ void ajuda() {
                  "  --emit-cir        mostra a CIR e para\n"
                  "  --emit-llvm       grava o IR do LLVM (em -o, ou na saída) e para\n"
                  "  --manter-objeto   não apaga o .o depois de ligar\n"
+                 "  --asan            o código gerado com o AddressSanitizer (ligar com o runtime\n"
+                 "                    dele: CINZA_GXX=clang++ CINZA_LIGACAO=-fsanitize=address)\n"
                  "  --confere-layout  confere as estruturas da interface com o runtime\n";
 }
 
@@ -56,7 +58,7 @@ int main(int argc, char* argv[]) {
     const std::vector<std::string> args = argumentosUtf8(argc, argv);
 
     std::string arquivo, saida;
-    bool otimiza = false, emit_cir = false, emit_llvm = false, manter_objeto = false;
+    bool otimiza = false, emit_cir = false, emit_llvm = false, manter_objeto = false, asan = false;
     for (std::size_t i = 1; i < args.size(); ++i) {
         const std::string& a = args[i];
         if (a == "-h" || a == "--help") { ajuda(); return 0; }
@@ -72,6 +74,7 @@ int main(int argc, char* argv[]) {
         if (a == "--emit-cir") { emit_cir = true; continue; }
         if (a == "--emit-llvm") { emit_llvm = true; continue; }
         if (a == "--manter-objeto") { manter_objeto = true; continue; }
+        if (a == "--asan") { asan = true; continue; }
         if (!a.empty() && a[0] == '-') {
             std::cerr << "Erro: opção desconhecida '" << a << "'.\n";
             ajuda();
@@ -126,7 +129,7 @@ int main(int argc, char* argv[]) {
     }
 
     // CIR → LLVM → objeto
-    llvm::Emissor emissor(otimiza);
+    llvm::Emissor emissor(otimiza, asan);
     std::string erro;
     if (!emissor.gera(modulo, erro)) {
         std::cerr << "Erro interno do cinzac: " << erro << "\n";
@@ -150,13 +153,19 @@ int main(int argc, char* argv[]) {
     }
 
     // Ligação pelo g++ (o mesmo que compilou o runtime, por causa da libstdc++): a
-    // libcinzart.a fica ao lado do cinzac. CINZA_GXX troca o g++.
+    // libcinzart.a fica ao lado do cinzac. CINZA_GXX troca o g++; CINZA_LIGACAO acrescenta
+    // opções à ligação, separadas por espaço (o build de depuração: -fsanitize=address).
     const std::filesystem::path pasta = caminhoUtf8(caminhoDoExecutavel()).parent_path();
     std::string gxx = "g++";
     ambienteUtf8("CINZA_GXX", gxx);
-    const int ligou = executaProcesso({gxx, objeto, textoCaminho(pasta / "libcinzart.a"), "-o", saida,
-                                       "-static-libstdc++", "-static-libgcc",
-                                       "-Wl,--stack,67108864"});
+    std::vector<std::string> ligacao{gxx, objeto, textoCaminho(pasta / "libcinzart.a"), "-o", saida,
+                                     "-static-libstdc++", "-static-libgcc", "-Wl,--stack,67108864"};
+    std::string extra;
+    if (ambienteUtf8("CINZA_LIGACAO", extra)) {
+        std::istringstream partes(extra);
+        for (std::string p; partes >> p;) ligacao.push_back(p);
+    }
+    const int ligou = executaProcesso(ligacao);
     if (!manter_objeto) {
         std::error_code ec;
         std::filesystem::remove(caminhoUtf8(objeto), ec);
