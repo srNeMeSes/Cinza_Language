@@ -1,0 +1,75 @@
+// P10: o acesso em linha aos campos sem referência (número, bool, enum, tipo) no código
+// nativo, em classes e structs: no inicializador, no construtor, por self, compostos, por
+// caminhos (lista[i].campo, struct dentro de objeto), misturados a campos com referência.
+// Os mesmos resultados da CVM. Roda nos dois backends.
+enum Cor { Azul, Verde }
+
+struct Medida {
+  i32 a = 1;
+  i64 b = 5000000000;
+  f32 c = 0.5f;
+  f64 d = 0.25ff;
+  bool e = true;
+  Cor f = Cor.Verde;
+  string nome = "m";
+}
+
+class Caixa {
+  i32 contador = 10;
+  f64 total = 0.0ff;
+  bool ativa = false;
+  Cor cor = Cor.Azul;
+  Medida medida = new Medida();
+  list<Medida> historico;
+  pub {
+    Caixa(bool a) {
+      ativa = a;
+      self.contador += 5;
+    }
+    fn soma(f64 v) {
+      total += v;
+      contador += 1;
+      medida.a *= 2;
+      self.medida.d += v;
+      historico.add(medida);
+    }
+    fn resumo() -> string {
+      return cast<string>(contador) + " " + cast<string>(total) + " " + cast<string>(medida.a) + " " +
+             cast<string>(medida.d) + " " + cast<string>(historico.size());
+    }
+    fn troca() { cor = Cor.Verde; ativa = !ativa; }
+    fn estado() -> bool { return ativa && cor == Cor.Verde; }
+  }
+}
+
+fn main() {
+  Medida m = new Medida();
+  m.a += 41;
+  m.b -= 1;
+  m.c *= 3.0f;
+  m.d /= 2.0ff;
+  m.e = !m.e;
+  m.f = Cor.Azul;
+  print(m.a, m.b, m.c, m.d, m.e, m.f, m.nome);
+  Caixa cx = new Caixa(false);
+  cx.soma(1.5ff);
+  cx.soma(2.0ff);
+  print(cx.resumo(), cx.estado());
+  cx.troca();
+  print(cx.estado());
+  list<Medida> l = [m, new Medida(a: 7)];
+  l[1].a += 1;
+  l[0].f = Cor.Verde;
+  print(l[0].a, l[1].a, l[0].f, l[1].f, type(l[1].a) == i32);
+  i64 t = 0;
+  for (i32 i in range(0, 100000)) {
+    m.a = i;
+    t += m.a + m.b % 7;
+  }
+  print(t);
+}
+// expect: 42 4999999999 1.5 0.125 false Cor.Azul m
+// expect: 17 3.5 4 3.75 2 false
+// expect: true
+// expect: 42 8 Cor.Verde Cor.Verde true
+// expect: 5000050000

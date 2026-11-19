@@ -1826,9 +1826,25 @@ depois de um debate com duas revisões externas:
   > `tests/nativo/p9_modulos` (dois módulos encadeados com const, enum, error, classe, struct
   > genérico e função genérica, `except` de um erro de outro módulo, stack trace atravessando os
   > arquivos) e `p9_args` (`main(list<string> args)` com acento, `input`), nos dois backends.
-- [ ] P10. Otimização: `-O2`, eliminar `retain`/`release` desnecessários, não testar erro depois
+- [x] P10. Otimização: `-O2`, eliminar `retain`/`release` desnecessários, não testar erro depois
   de funções que não falham, campos e listas com tipos nativos. Medição contra a CVM e decisão
-  sobre o papel dela.
+  sobre o papel dela. — feito em 2026-11-19
+  > Nota (DESENHO 4.4, nota do P10): parâmetros que não mudam ficam emprestados, `return` de uma
+  > local move, a contagem em linha no -O2, a regra das 2000 chamadas em quem chama e a conferência
+  > do erro só depois de funções que podem falhar, e os campos sem referência lidos e gravados em
+  > linha. **Decisões do autor**: (1) campos com o **caminho rápido**, sem mudar a representação do
+  > runtime — a representação nativa (campos tipados, listas especializadas) fica de fora por
+  > enquanto (DESENHO 8.1); (2) **as duas ficam**: `cinza` (CVM) roda na hora e `cinzac` gera o
+  > executável; toda mudança da linguagem entra nos dois e a suíte roda nos dois. **Testes**:
+  > `tests/nativo/p10_posse_otimizada`, `p10_profundidade_iface` e `p10_campos`; 684/684 na CVM e
+  > pelo `cinzac` em -O0 e -O2, sem vazamento e com a `libcinzart` de `CINZA_CONFERE_REFS`; os 22
+  > programas de erro do P4 continuam idênticos à CVM. **Medição** (-O2, melhor de 5, ms, nativo /
+  > CVM, com o ganho do P10 entre parênteses): `ciclos` 334 / 407, `fib` 17 / 45, `laco` 17 / 119,
+  > `objetos` 16 / 68 (era 32), e três novos — `strings` (concatenação e parâmetros) 461 / 909,
+  > `structs` (structs por valor) 154 / 1055 (era 581), `metodos` (getters e um setter) 36 / 580
+  > (era 110). O que sobra no `strings` e no `ciclos` é do runtime comum aos dois (alocação,
+  > conversão em texto, a coleta). Compilar leva 0,4–0,55 s (a maior parte é a ligação pelo `g++`;
+  > gerar o IR, 80 ms); o executável tem 4 MB.
 
 **Fora desta seção**: informação de depuração, compilação separada por módulo, ABI estável,
 threads, `cinzac` sem `g++` (com o `lld`), distribuição. (As funções recursivas do runtime sobre
@@ -1875,6 +1891,7 @@ dados aninhados, que estavam aqui como risco, viraram o P1b e foram corrigidas.)
 | 2026-10-04 | J2 | `Files.read_bytes(caminho) -> list<int>` e `Files.write_bytes(caminho, list<int>)`, bytes de 0 a 255 (fora disso, `ValueError`). | Decisão do autor da linguagem; formatos binários sem passar por texto UTF-8. |
 | 2026-10-03 | I4 | `menor_int % -1` dá `0` (revê A5); `-0.0` continua `-0` no `print`; decimais extremos continuam em notação científica. | Decisão do autor da linguagem; `x % -1` cabe sempre em `int`. |
 | 2026-10-03 | H3 | `exit([código])`: padrão 0, de 0 a 255; roda os `finally` pendentes e nenhum `except` o captura; encerra o caminho na análise de fluxo. | Decisão do autor da linguagem; 0–255 dá o mesmo resultado em todo sistema. |
+| 2026-11-19 | P10 | As duas implementações ficam: `cinza` (CVM) roda na hora, `cinzac` (LLVM) gera o executável; toda mudança da linguagem entra nas duas, e a suíte roda nas duas. Campos de objeto e struct com um caminho rápido em linha para os sem referência, no layout da CVM; sem campos tipados nem listas especializadas por enquanto. | Decisão do autor, com as medições do P10: a CVM começa a rodar na hora (o `cinzac` leva ~0,5 s, quase tudo na ligação pelo `g++`); o caminho rápido dá o grosso do ganho (getters 16× a CVM) sem mexer no runtime inteiro. |
 | 2026-11-18 | P | Backend nativo: API em C do LLVM 20 (`llvm-c`); CIR própria entre a AST e o LLVM, com a CVM compilando da AST; contagem de referências não atômica embutida no objeto + coleta de ciclos; erros por retorno explícito com estado de execução encapsulado; CVM mantida até o `cinzac` passar a suíte; `cinza` e `cinzac` separados. Erro lançado no `finally` substitui o fluxo pendente (spec 5.6, como a CVM já fazia). | Decisão do autor depois de duas revisões externas: o LLVM é só backend; posse, erros e o runtime são contratos da Cinza, comuns aos dois backends. |
 | 2026-11-15 | N5 | Structs genéricos (`struct Par[A, B]`), usados sempre com os tipos escritos (`Par[i32, string]`, sem inferência). Em todo struct, campo sem valor inicial é obrigatório na criação (`list`/`dict` nascem vazios); criação também pelo nome, `new Ponto(y: 4)`, omitindo os campos com valor inicial. Um campo do tipo `T` não tem valor inicial. Classes continuam exigindo valor inicial. | Decisão do autor: resolve o campo `T` sem valor possível, mantendo "nenhum struct com campo sem valor"; sem repetir os padrões na criação. |
 | 2026-11-15 | O | Imports a partir da raiz do projeto: a pasta do `czm.mod` mais próximo (marcador, vazio por enquanto) ou, sem ele, a do arquivo principal; depois `CINZA_PATH`. Sai a busca na pasta de quem importa (sem import relativo); o mesmo caminho em dois lugares é erro. | Decisão do autor: projetos em pastas importam entre pastas irmãs, cada módulo tem um nome só (estável para o LLVM) e o projeto não depende de configuração da máquina. |

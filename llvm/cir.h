@@ -107,6 +107,8 @@ enum class Op : std::uint8_t {
     ConverteValor, // dst: valor = a convertido no runtime para o kind de `tipo` (nativas genéricas)
     Chama,         // [dst =] call F(args...) — aux: F
     ChamaIface,    // [dst =] call.iface T(obj, args...) — aux: a tabela; o método pela classe do obj
+    CampoDireto,   // dst = campo aux de a (obj ou struct) — só campo sem referência (P10: em linha)
+    GravaCampoDireto, // campo aux de a = b — só valor sem referência (o antigo também não tem)
     Retem,         // retem a (str): uma referência a mais
     Solta,         // solta a — str: solta a referência (nulo: nada); valor: a que ele segura
     ChamaRt,       // [dst =] call.rt R(args...) — aux: o Rt (tabela abaixo)

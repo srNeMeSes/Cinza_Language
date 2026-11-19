@@ -1,0 +1,26 @@
+// P10: a regra das 2000 chamadas conferida por quem chama (como a CVM), também numa
+// chamada por interface: o StackOverflowError na declaração do método escolhido pela
+// classe do objeto, com o trace. Roda nos dois backends.
+interface Passo {
+  fn anda(i32 n) -> i32;
+}
+
+class Ida : Passo {
+  pub {
+    fn anda(i32 n) -> i32 {
+      Passo eu = self;
+      return 1 + eu.anda(n + 1);
+    }
+  }
+}
+
+fn main() {
+  Passo p = new Ida();
+  print("antes");
+  print(p.anda(0));
+}
+// expect: antes
+// expect-error: p10_profundidade_iface.cinza:10:5: StackOverflowError: profundidade máxima de chamadas (2000) excedida ao chamar 'Ida.anda'
+// expect-error: em Ida.anda (tests/nativo/p10_profundidade_iface.cinza:12)
+// expect-error: ... (1989 chamadas omitidas)
+// expect-error: em main (tests/nativo/p10_profundidade_iface.cinza:20)

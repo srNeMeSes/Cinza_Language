@@ -195,6 +195,8 @@ std::string texto(const Modulo& m) {
                         if (m.funcoes[in.aux].ret != Tipo::Void) dst();
                         out << "call F" << in.aux << "("; args(); out << ")";
                         break;
+                    case Op::CampoDireto: dst(); out << "campo " << in.aux << " "; args(); break;
+                    case Op::GravaCampoDireto: out << "grava.campo " << in.aux << " "; args(); break;
                     case Op::ChamaIface:
                         if (m.tabelas[in.aux].ret != Tipo::Void) dst();
                         out << "call.iface " << m.tabelas[in.aux].nome << "("; args(); out << ")";

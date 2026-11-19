@@ -350,6 +350,10 @@ extern "C" void cz_solta(CzObjeto* o) noexcept {
     if (o) czRelease(o);   // a destruição (czDestroi) não lança
 }
 
+extern "C" void cz_destroi(CzObjeto* o) noexcept {
+    czDestroi(o);
+}
+
 // ── Strings ───────────────────────────────────────────────────────────────
 
 namespace {

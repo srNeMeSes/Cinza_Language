@@ -37,6 +37,14 @@ void inicializaAlvo() {
     feito = true;
 }
 
+// O deslocamento do vetor de campos num objeto e num struct do runtime (P10: o acesso em
+// linha). Os dois tipos não são standard-layout (o offsetof do GCC vale, com aviso)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winvalid-offsetof"
+const std::size_t DESLOC_CAMPOS_OBJ    = offsetof(ClassInstance, fields);
+const std::size_t DESLOC_CAMPOS_STRUCT = offsetof(StructValue, fields);
+#pragma GCC diagnostic pop
+
 LLVMTargetMachineRef criaMaquina(bool otimiza, std::string& erro) {
     inicializaAlvo();
     LLVMTargetRef alvo = nullptr;
@@ -78,6 +86,29 @@ struct ErroEmissor {
     std::string msg;
 };
 
+// As funções que podem voltar com erro pendente (P10): uma operação que falha, uma
+// chamada a uma função da Cinza (a regra das 2000 chamadas é conferida em quem chama) ou
+// a uma oculta que pode falhar. As outras — um getter, um setter sem conta — dispensam a
+// conferência do erro depois de chamadas a elas
+std::vector<bool> podemFalhar(const cir::Modulo& m) {
+    std::vector<bool> r(m.funcoes.size(), false);
+    for (bool mudou = true; mudou;) {
+        mudou = false;
+        for (std::size_t fi = 0; fi < m.funcoes.size(); ++fi) {
+            if (r[fi]) continue;
+            bool falha = false;
+            for (const cir::Bloco& bl : m.funcoes[fi].blocos)
+                for (const cir::Instr& in : bl.instr) {
+                    if (in.op == cir::Op::Chama) falha = falha || !m.funcoes[in.aux].oculta || r[in.aux];
+                    else if (in.op == cir::Op::ChamaIface) falha = true;   // chama uma função não oculta
+                    else falha = falha || cir::podeFalhar(in);
+                }
+            if (falha) { r[fi] = true; mudou = true; }
+        }
+    }
+    return r;
+}
+
 }  // namespace
 
 struct Emissor::Impl {
@@ -111,6 +142,8 @@ struct Emissor::Impl {
     std::vector<LLVMValueRef> descs;      // o CzFuncao de cada uma
     std::vector<LLVMValueRef> descs_struct, descs_classe, descs_enum, tipos;   // ptr, preenchidos na partida
     std::vector<LLVMValueRef> tabelas;    // as tabelas de métodos de interface
+    std::vector<LLVMValueRef> tabelas_desc;   // o CzFuncao de cada uma (a regra das 2000 chamadas)
+    std::vector<bool>         pode_falhar;    // a função pode voltar com erro pendente
     LLVMValueRef quadro_vazio{};          // o quadro da função oculta sem chamador (a dos const)
     std::size_t  vetores = 0;             // os globais dos literais grandes (cz.vetor.N)
     std::map<std::tuple<int, int, int>, LLVMValueRef> posicoes;   // os CzPos
@@ -339,6 +372,51 @@ struct Emissor::Impl {
         LLVMBuildCondBr(b, LLVMBuildICmp(b, LLVMIntNE, e, LLVMConstNull(tPtr), ""), tratador, ok);
         LLVMPositionBuilderAtEnd(b, ok);
     }
+    // -O2: a contagem em linha, como o czRetain/czRelease de gc_object.h — o objeto imortal
+    // (literal) não conta; a contagem que chega a zero chama a destruição do runtime. Os
+    // deslocamentos (refs no 0, marcas no 5) são os do CzObjeto, conferidos pelo
+    // --confere-layout. Em -O0 as funções do runtime fazem isso (e, na libcinzart de
+    // depuração, conferem cada operação)
+    LLVMValueRef marcasDe(LLVMValueRef p) {
+        LLVMValueRef idx[] = {ci64(5)};
+        return LLVMBuildLoad2(b, tI8, LLVMBuildInBoundsGEP2(b, tI8, p, idx, 1, ""), "marcas");
+    }
+    void retemEmLinha(LLVMValueRef p) {
+        LLVMValueRef imortal = LLVMBuildICmp(b, LLVMIntNE, LLVMBuildAnd(b, marcasDe(p), LLVMConstInt(tI8, marca::IMORTAL, 0), ""),
+                                             LLVMConstInt(tI8, 0, 0), "imortal");
+        LLVMBasicBlockRef conta = novoBloco("retem"), fim = novoBloco("reteve");
+        LLVMBuildCondBr(b, imortal, fim, conta);
+        LLVMPositionBuilderAtEnd(b, conta);
+        LLVMValueRef refs = LLVMBuildLoad2(b, tI32, p, "refs");
+        LLVMBuildStore(b, LLVMBuildAdd(b, refs, ci32(1), ""), p);
+        LLVMBuildBr(b, fim);
+        LLVMPositionBuilderAtEnd(b, fim);
+    }
+    void soltaEmLinha(LLVMValueRef p) {
+        LLVMValueRef imortal = LLVMBuildICmp(b, LLVMIntNE, LLVMBuildAnd(b, marcasDe(p), LLVMConstInt(tI8, marca::IMORTAL, 0), ""),
+                                             LLVMConstInt(tI8, 0, 0), "imortal");
+        LLVMBasicBlockRef conta = novoBloco("conta"), destroi = novoBloco("destroi"), fim = novoBloco("soltou.em.linha");
+        LLVMBuildCondBr(b, imortal, fim, conta);
+        LLVMPositionBuilderAtEnd(b, conta);
+        LLVMValueRef refs = LLVMBuildSub(b, LLVMBuildLoad2(b, tI32, p, "refs"), ci32(1), "");
+        LLVMBuildStore(b, refs, p);
+        LLVMBuildCondBr(b, LLVMBuildICmp(b, LLVMIntEQ, refs, ci32(0), ""), destroi, fim);
+        LLVMPositionBuilderAtEnd(b, destroi);
+        chamaRt(rt("cz_destroi", tVoid, {tPtr}), {p});
+        LLVMBuildBr(b, fim);
+        LLVMPositionBuilderAtEnd(b, fim);
+    }
+
+    // A regra das 2000 chamadas, antes de chamar uma função da Cinza (desc: o CzFuncao dela):
+    // cheia, o StackOverflowError fica pendente, na posição da declaração chamada, e o fluxo
+    // vai para o tratador
+    void confereProfundidade(LLVMValueRef desc) {
+        LLVMValueRef prof = LLVMBuildLoad2(b, tI32, LLVMBuildStructGEP2(b, tExec, gExec, 1, ""), "prof");
+        seFalha(LLVMBuildICmp(b, LLVMIntSGE, prof, ci32(CZ_PROFUNDIDADE), "cheia"), [&] {
+            chamaRt(rt("cz_estouro", tVoid, {tPtr}, true), {desc});
+        });
+    }
+
     // Volta com o erro pendente: o valor de retorno não importa (o chamador confere antes)
     void retornaComErro() {
         LLVMTypeRef r = LLVMGetReturnType(LLVMGlobalGetValueType(fn));
@@ -553,7 +631,8 @@ struct Emissor::Impl {
                 break;
             }
             case Op::Retem:
-                chamaRt(rt("cz_retem", tVoid, {tPtr}), {val(in.args[0])});
+                if (otimiza) retemEmLinha(val(in.args[0]));
+                else chamaRt(rt("cz_retem", tVoid, {tPtr}), {val(in.args[0])});
                 break;
             case Op::Solta: {
                 if (cir::ehRef(tipoOp(in.args[0]))) {   // nulo (slot vazio): nada a soltar
@@ -561,7 +640,8 @@ struct Emissor::Impl {
                     LLVMBasicBlockRef sim = novoBloco("solta"), segue = novoBloco("soltou");
                     LLVMBuildCondBr(b, LLVMBuildICmp(b, LLVMIntNE, p, LLVMConstNull(tPtr), ""), sim, segue);
                     LLVMPositionBuilderAtEnd(b, sim);
-                    chamaRt(rt("cz_solta", tVoid, {tPtr}), {p});
+                    if (otimiza) soltaEmLinha(p);
+                    else chamaRt(rt("cz_solta", tVoid, {tPtr}), {p});
                     LLVMBuildBr(b, segue);
                     LLVMPositionBuilderAtEnd(b, segue);
                     break;
@@ -576,6 +656,28 @@ struct Emissor::Impl {
                 if (cir::infoRt(static_cast<cir::Rt>(in.aux)).ret != cir::Tipo::Void) temps[in.dst] = r;
                 break;
             }
+            case Op::CampoDireto: case Op::GravaCampoDireto: {
+                // o CzValor do campo i, direto no vetor de campos do objeto (ClassInstance ou
+                // StructValue): o início do std::vector é o primeiro ponteiro dele
+                const bool st = tipoOp(in.args[0]) == cir::Tipo::Struct;
+                LLVMValueRef o = val(in.args[0]);
+                LLVMValueRef off[] = {ci64(static_cast<std::int64_t>(st ? DESLOC_CAMPOS_STRUCT : DESLOC_CAMPOS_OBJ))};
+                LLVMValueRef inicio = LLVMBuildLoad2(b, tPtr, LLVMBuildInBoundsGEP2(b, tI8, o, off, 1, ""), "campos");
+                LLVMValueRef idx[] = {ci64(static_cast<std::int64_t>(in.aux))};
+                LLVMValueRef lugar = LLVMBuildInBoundsGEP2(b, tValor, inicio, idx, 1, "campo");
+                if (in.op == Op::CampoDireto) {
+                    const cir::Tipo t = cf->temps[in.dst];
+                    if (cir::ehValorDireto(t)) {
+                        temps[in.dst] = LLVMBuildLoad2(b, tValor, lugar, "");
+                    } else {
+                        LLVMValueRef pu = LLVMBuildStructGEP2(b, tValor, lugar, 3, "");
+                        temps[in.dst] = deBits(LLVMBuildLoad2(b, tI64, pu, ""), t);
+                    }
+                } else {   // o valor inteiro (o tipo também): o antigo não tem referência
+                    LLVMBuildStore(b, cir::ehValorDireto(tipoOp(in.args[1])) ? val(in.args[1]) : embrulha(in.args[1]), lugar);
+                }
+                break;
+            }
             case Op::ChamaIface: {
                 // o método pela classe real do objeto: a tabela do método, pelo índice da classe
                 const cir::TabelaIface& t = cm->tabelas[in.aux];
@@ -586,12 +688,16 @@ struct Emissor::Impl {
                 LLVMTypeRef tt = LLVMArrayType2(tPtr, cm->classes.size());
                 LLVMValueRef idx[] = {ci64(0), LLVMBuildSExt(b, ci, tI64, "")};
                 LLVMValueRef fp = LLVMBuildLoad2(b, tPtr, LLVMBuildInBoundsGEP2(b, tt, tabelas[in.aux], idx, 2, ""), "metodo");
+                confereProfundidade(LLVMBuildLoad2(b, tPtr, LLVMBuildInBoundsGEP2(b, tt, tabelas_desc[in.aux], idx, 2, ""),
+                                                   "desc"));
                 std::vector<LLVMTypeRef> ps;
                 for (cir::Tipo p : t.params) ps.push_back(tipo(p));
                 LLVMTypeRef tf = LLVMFunctionType(tipo(t.ret), ps.data(), static_cast<unsigned>(ps.size()), 0);
                 LLVMValueRef r = LLVMBuildCall2(b, tf, fp, args.data(), static_cast<unsigned>(args.size()), "");
                 if (t.ret != cir::Tipo::Void) temps[in.dst] = r;
-                confereErro();
+                bool falha = false;   // alguma das funções da tabela pode falhar?
+                for (int fi : t.funcoes) falha = falha || (fi >= 0 && pode_falhar[static_cast<std::size_t>(fi)]);
+                if (falha) confereErro();
                 break;
             }
             case Op::Chama: {
@@ -599,10 +705,11 @@ struct Emissor::Impl {
                     LLVMBuildStore(b, posicao(in.pos), LLVMBuildStructGEP2(b, tQuadro(), quadro, 1, ""));
                 std::vector<LLVMValueRef> args;
                 for (const auto& a : in.args) args.push_back(val(a));
+                if (!cm->funcoes[in.aux].oculta) confereProfundidade(descs[in.aux]);
                 LLVMValueRef r = LLVMBuildCall2(b, tfns[in.aux], fns[in.aux], args.data(),
                                                 static_cast<unsigned>(args.size()), "");
                 if (cm->funcoes[in.aux].ret != cir::Tipo::Void) temps[in.dst] = r;
-                confereErro();   // a função voltou com erro pendente?
+                if (pode_falhar[in.aux]) confereErro();   // a função voltou com erro pendente?
                 break;
             }
             case Op::ConferePasso:
@@ -767,18 +874,11 @@ struct Emissor::Impl {
         for (std::size_t p = 0; p < f.params.size(); ++p)
             LLVMBuildStore(b, LLVMGetParam(fn, static_cast<unsigned>(p)), slots[p]);
         if (!f.oculta) {
-            // entra na sombra da pilha: a regra das 2000 chamadas (spec 5.8), conferida na
-            // chamada como na CVM (a main conta como a primeira)
+            // entra na sombra da pilha. A regra das 2000 chamadas (spec 5.8) é conferida por
+            // quem chama, antes da chamada, como na CVM (a main conta como a primeira): aqui
+            // sempre há lugar
             LLVMValueRef pp = LLVMBuildStructGEP2(b, tExec, gExec, 1, "");
             LLVMValueRef prof = LLVMBuildLoad2(b, tI32, pp, "prof");
-            // cheia: o StackOverflowError fica pendente e a função volta sem entrar (nada
-            // foi retido ainda); quem chamou confere
-            LLVMBasicBlockRef cheia = novoBloco("cheia"), segue = novoBloco("entra");
-            LLVMBuildCondBr(b, LLVMBuildICmp(b, LLVMIntSGE, prof, ci32(CZ_PROFUNDIDADE), ""), cheia, segue);
-            LLVMPositionBuilderAtEnd(b, cheia);
-            chamaRt(rt("cz_estouro", tVoid, {tPtr}, true), {descs[i]});
-            retornaComErro();
-            LLVMPositionBuilderAtEnd(b, segue);
             LLVMValueRef idx[] = {ci32(0), ci32(3), prof};
             quadro = LLVMBuildInBoundsGEP2(b, tExec, gExec, idx, 3, "quadro");
             LLVMBuildStore(b, descs[i], LLVMBuildStructGEP2(b, tQuadro(), quadro, 0, ""));
@@ -951,7 +1051,12 @@ bool Emissor::gera(const cir::Modulo& m, std::string& erro) {
             for (int fi : m.tabelas[i].funcoes) fs.push_back(fi < 0 ? LLVMConstNull(e.tPtr) : e.fns[fi]);
             LLVMValueRef arr = LLVMConstArray2(e.tPtr, fs.data(), fs.size());
             e.tabelas.push_back(e.global(LLVMTypeOf(arr), "cz.iface." + std::to_string(i), arr, true));
+            std::vector<LLVMValueRef> ds;
+            for (int fi : m.tabelas[i].funcoes) ds.push_back(fi < 0 ? LLVMConstNull(e.tPtr) : e.descs[fi]);
+            LLVMValueRef ad = LLVMConstArray2(e.tPtr, ds.data(), ds.size());
+            e.tabelas_desc.push_back(e.global(LLVMTypeOf(ad), "cz.iface." + std::to_string(i) + ".desc", ad, true));
         }
+        e.pode_falhar = podemFalhar(m);
         for (std::size_t i = 0; i < m.funcoes.size(); ++i) e.funcao(i, m.funcoes[i]);
         e.mainC(m);
     } catch (const ErroEmissor& x) {
@@ -1052,6 +1157,17 @@ bool Emissor::confereLayout(std::string& relato) {
     confere("CzExec", {ptr, i32, i32, LLVMArrayType2(quadro, CZ_PROFUNDIDADE)}, sizeof(CzExec),
             {offsetof(CzExec, erro), offsetof(CzExec, prof), offsetof(CzExec, _reservado),
              offsetof(CzExec, quadros)});
+    // o acesso em linha aos campos (P10): um Value é o CzValor, e o primeiro ponteiro de um
+    // std::vector<Value> é o início dos elementos
+    {
+        std::vector<Value> v(3);
+        Value* const* primeiro = reinterpret_cast<Value* const*>(&v);
+        const bool certo = sizeof(Value) == sizeof(CzValor) && *primeiro == v.data();
+        relato += std::string(certo ? "ok    " : "ERRADO ") + "campos: std::vector<Value> começa pelo ponteiro dos elementos; "
+                  "vetor no deslocamento " + std::to_string(DESLOC_CAMPOS_OBJ) + " (objeto) e " +
+                  std::to_string(DESLOC_CAMPOS_STRUCT) + " (struct)\n";
+        ok = ok && certo;
+    }
     LLVMContextDispose(ctx);
     LLVMDisposeTargetData(dl);
     LLVMDisposeTargetMachine(tm);

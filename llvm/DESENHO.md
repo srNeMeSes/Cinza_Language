@@ -440,6 +440,29 @@ logo antes da chamada (nenhum código da Cinza roda entre as gravações e a cha
 elementos); com uma instrução por elemento, uma lista de 67 mil números levava 9 s para
 compilar em -O0 e mais de 60 s em -O2 — agora, cerca de 1 s nos dois.
 
+**P10 (otimização, sem mudar o layout do runtime)**:
+
+- **parâmetros emprestados**: um parâmetro que o corpo não reatribui nem usa como base de uma
+  gravação (`p = v`, `p.x = v`, `p[i] = v`) fica emprestado — sem `retem`/`solta` nem o clone de
+  um struct na entrada, e sem soltar na saída. Quem chamou segura o valor até a volta, e nada na
+  função alcança os slots dele (sem closures). O self também;
+- **`return` de uma local dona move** o valor (o slot fica vazio), sem `retem` e sem clonar um
+  struct — menos com um `finally` pendente, que ainda pode ler a local;
+- **contagem em linha no -O2**: `retem` e `solta` leem as marcas e a contagem do cabeçalho
+  (deslocamentos 5 e 0, conferidos pelo `--confere-layout`) e só chamam o runtime para destruir
+  (`cz_destroi`). No -O0 continuam chamadas ao runtime, para a `libcinzart` de depuração
+  (`CINZA_CONFERE_REFS`) conferir cada operação;
+- **a regra das 2000 chamadas em quem chama**, como na CVM (o prólogo só empilha o quadro);
+  numa chamada por interface, pelo descritor da função escolhida (uma tabela paralela à dos
+  métodos). Com isso uma análise do módulo acha as funções que não podem voltar com erro (sem
+  operação que falha nem chamada a função da Cinza: getters, setters sem conta), e a conferência
+  do erro depois de chamá-las sai;
+- **campos sem referência em linha** (seção 8.1): `campo`/`grava.campo` leem e gravam o
+  `CzValor` do campo direto no `std::vector<Value>` do objeto ou struct. O que isso supõe — o
+  deslocamento do vetor (40 nos dois), o `Value` do tamanho do `CzValor`, o vetor começando pelo
+  ponteiro dos elementos — é conferido pelo `--confere-layout` (o `cinzac` e a `libcinzart` são
+  compilados pelo mesmo GCC).
+
 ## 5. Erros
 
 ### 5.1 Um mecanismo só
@@ -707,9 +730,12 @@ runtime, para os dois backends.
 | interface | par `{objeto, tabela de métodos}`, como o `dyn Trait` do Rust; ao sair de um `CzValor` (elemento de lista), a tabela é procurada no descritor da classe |
 | `type()` | ponteiro para `TypeInfo` (seção 2.4) |
 
-**[decidir, depois do P9]** campos de objeto nos tipos nativos (sem `CzValor`) e listas
-especializadas (`list<i32>` como vetor de `int32_t`) são otimizações da etapa P10: primeiro a
-semântica, a posse e a destruição corretas, com o mesmo layout da CVM.
+**Decidido no P10 (2026-11-19)**: os campos continuam no layout da CVM (um `CzValor` por campo,
+no vetor do objeto), com um **caminho rápido**: o código gerado lê e grava em linha os campos
+sem referência (número, `bool`, enum, tipo), direto no vetor; os campos com referência seguem
+pelo runtime. A representação nativa (campos tipados num struct LLVM, `list<i32>` como vetor
+de `int32_t`) fica de fora por enquanto — ela mexeria no runtime inteiro (print, `==`, a coleta,
+as nativas).
 
 ### 8.2 Números
 

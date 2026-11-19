@@ -1,0 +1,68 @@
+// P10: as otimizações de posse do código nativo não mudam a semântica — um parâmetro que
+// não muda fica emprestado (sem retem nem cópia); um que muda (reatribuído, ou com campo
+// gravado, num struct) é da função, e a mudança não aparece em quem chamou; return de uma
+// local move o valor, menos com finally pendente (que ainda pode ler a local). Roda nos
+// dois backends, no modo sem vazamento.
+struct P {
+  i32 x = 0;
+  list<i32> l;
+}
+
+fn le(P p, string s) -> i32 {
+  return p.x + s.size();
+}
+
+fn muda_struct(P p) -> i32 {
+  p.x = 100;
+  p.l.add(1);   // a lista é compartilhada (cópia rasa): a mudança aparece em quem chamou
+  return p.x;
+}
+
+fn muda_texto(string s) -> string {
+  s = s + "!";
+  s += "?";
+  return s;
+}
+
+fn local_movida(i32 n) -> string {
+  string r = "";
+  for (i32 i in range(0, n)) {
+    r += cast<string>(i);
+  }
+  return r;
+}
+
+fn com_finally() -> string {
+  string r = "valor";
+  try {
+    return r;
+  } finally {
+    print("finally ainda lê:", r);
+  }
+}
+
+fn struct_movido() -> P {
+  P p = new P(x: 5);
+  p.l.add(9);
+  return p;
+}
+
+fn main() {
+  P a = new P(x: 1);
+  string s = "abc";
+  print(le(a, s), muda_struct(a), a.x, a.l, muda_texto(s), s);
+  print(local_movida(5), com_finally(), struct_movido());
+  P b = struct_movido();
+  b.x = 7;
+  print(b, struct_movido());
+  i64 t = 0;
+  for (i32 i in range(0, 20000)) {
+    t += le(a, muda_texto(s)) + local_movida(2).size();
+  }
+  print(t);
+}
+// expect: 4 100 1 [1] abc!? abc
+// expect: finally ainda lê: valor
+// expect: 01234 valor P{x: 5, l: [9]}
+// expect: P{x: 7, l: [9]} P{x: 5, l: [9]}
+// expect: 160000

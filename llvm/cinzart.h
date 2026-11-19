@@ -119,6 +119,8 @@ CZ_FALHA void cz_conv_valor(cinza::CzValor* v, std::uint8_t kind, const cinza::C
 // Uma referência a mais / a menos (nulo: nada; imortal: nada)
 void cz_retem(cinza::CzObjeto* o) noexcept;
 void cz_solta(cinza::CzObjeto* o) noexcept;
+// A destruição de um objeto cuja contagem chegou a zero (o -O2 conta em linha)
+void cz_destroi(cinza::CzObjeto* o) noexcept;
 
 // ── Strings (as regras da CVM: operacoes.cpp) ─────────────────────────────
 // Os resultados de objeto vêm com posse. `valor` chega por ponteiro (emprestado).

@@ -90,6 +90,44 @@ std::string simbolo(const std::string& nome) {
     return nome.find("::") == std::string::npos ? "cz:::" + nome : "cz:" + nome;
 }
 
+// Os slots do B2 que são a base de alguma atribuição no corpo (x = v, x += v, x.c = v,
+// x[i] = v): um parâmetro fora dessa lista nunca muda, e a função não precisa ser dona dele
+void basesDeAtribuicao(const Stmt& s, std::set<std::uint32_t>& out) {
+    switch (s.node_kind) {
+        case NodeKind::Block:
+            for (const auto& x : static_cast<const BlockStmt&>(s).statements)
+                if (x) basesDeAtribuicao(*x, out);
+            break;
+        case NodeKind::If: {
+            const auto& i = static_cast<const IfStmt&>(s);
+            basesDeAtribuicao(*i.then_branch, out);
+            if (i.else_branch) basesDeAtribuicao(*i.else_branch, out);
+            break;
+        }
+        case NodeKind::While: basesDeAtribuicao(*static_cast<const WhileStmt&>(s).body, out); break;
+        case NodeKind::For:   basesDeAtribuicao(*static_cast<const ForStmt&>(s).body, out); break;
+        case NodeKind::Try: {
+            const auto& t = static_cast<const TryStmt&>(s);
+            basesDeAtribuicao(*t.body, out);
+            for (const auto& h : t.handlers) basesDeAtribuicao(*h.body, out);
+            if (t.finally_block) basesDeAtribuicao(*t.finally_block, out);
+            break;
+        }
+        case NodeKind::Assign: {
+            const Expr* e = static_cast<const AssignStmt&>(s).target.get();
+            while (e->node_kind == NodeKind::IndexAccess || e->node_kind == NodeKind::MemberAccess)
+                e = e->node_kind == NodeKind::IndexAccess ? static_cast<const IndexAccessExpr*>(e)->object.get()
+                                                          : static_cast<const MemberAccessExpr*>(e)->object.get();
+            if (e->node_kind == NodeKind::Identifier) {
+                const auto* id = static_cast<const IdentifierExpr*>(e);
+                if (id->res.kind == Resolution::Kind::Local) out.insert(id->res.slot);
+            }
+            break;
+        }
+        default: break;
+    }
+}
+
 bool literalVerdadeiro(const Expr& e) {
     if (e.node_kind != NodeKind::Literal) return false;
     const auto* b = std::get_if<bool>(&static_cast<const LiteralExpr&>(e).value);
@@ -189,16 +227,23 @@ public:
 
     void corpoDe(std::uint32_t fi, const std::vector<Parameter>& parametros, const Stmt& corpo_, const Token& tok) {
         comeca(fi);
-        // os parâmetros chegam emprestados; a função fica dona deles no próprio slot (um
-        // struct é clonado: a cópia da spec 5.1). Num método, o self vem antes (slot 0)
+        // os parâmetros chegam emprestados. Um que o corpo reatribui (ou de que grava um
+        // campo, num struct) vira do slot: retem, ou o clone de um struct (a cópia da spec
+        // 5.1). Os outros continuam emprestados — quem chamou os segura até a volta, e a
+        // função não os solta (P10). Num método, o self vem antes (slot 0) e nunca muda
         const std::size_t off = f->params.size() - parametros.size();
         for (std::size_t i = 0; i < f->params.size(); ++i) f->novoSlot(f->params[i]);
         if (off) self_slot = 0;
         for (std::size_t i = 0; i < parametros.size(); ++i)
             slot_de[{static_cast<std::uint32_t>(i), f->params[i + off]}] = static_cast<std::uint32_t>(i + off);
+        std::set<std::uint32_t> escritos;
+        basesDeAtribuicao(corpo_, escritos);
         for (std::uint32_t i = 0; i < f->params.size(); ++i) {
+            if (!ehRef(f->params[i])) continue;
+            const bool muda = i >= off && escritos.count(static_cast<std::uint32_t>(i - off));
+            if (!muda) { emprestados.insert(i); continue; }
             if (f->params[i] == Tipo::Struct) grava(i, chamaRt(Rt::StructCopia, {carrega(i, tok)}, tok), tok);
-            else if (ehRef(f->params[i])) retem(carrega(i, tok), tok);
+            else retem(carrega(i, tok), tok);
         }
         saida = f->novoBloco("saida");
         ret_slot = f->ret != Tipo::Void ? f->novoSlot(f->ret) : UINT32_MAX;
@@ -211,7 +256,7 @@ public:
         // a saída: solta os slots donos (os temporários já estão vazios aqui)
         entra(saida);
         for (std::uint32_t s = 0; s < f->slots.size(); ++s)
-            if (ehRef(f->slots[s]) && s != ret_slot && !slots_temp.count(s)) limpa(s, tok);
+            if (ehRef(f->slots[s]) && s != ret_slot && !slots_temp.count(s) && !emprestados.count(s)) limpa(s, tok);
         if (ret_slot != UINT32_MAX) poe(Op::Ret, tok).args = {carrega(ret_slot, tok)};
         else poe(Op::Ret, tok);
         fechaErro(tok);
@@ -223,7 +268,7 @@ public:
         entra(bloco_erro);
         tratadores.clear();
         for (std::uint32_t s = 0; s < f->slots.size(); ++s)
-            if (ehRef(f->slots[s]) && s != self_emprestado) limpa(s, tok);
+            if (ehRef(f->slots[s]) && !emprestados.count(s)) limpa(s, tok);
         poe(Op::RetErro, tok);
     }
 
@@ -232,13 +277,11 @@ public:
     void corpoInit(const ClassDecl& c) {
         comeca(init_de.at(&c));
         self_slot = f->novoSlot(Tipo::Obj);
-        self_emprestado = self_slot;   // não é dono: a saída de erro não o solta
+        emprestados.insert(self_slot);   // não é dono: a saída de erro não o solta
         for (std::size_t i = 0; i < c.fields.size(); ++i) {
             const auto& campo = c.fields[i];
             const Operando v = campo.initializer ? expr(*campo.initializer) : vazioDe(*campo.type, campo.token);
-            chamaRt(Rt::GravaCampo, {embrulha(carrega(self_slot, campo.token), campo.token),
-                                     Operando::i32(static_cast<std::int32_t>(i)), embrulha(v, campo.token)},
-                    campo.token);
+            gravaCampo(carrega(self_slot, campo.token), static_cast<std::uint32_t>(i), v, campo.token);
             fimInstrucao(campo.token);
         }
         poe(Op::Ret, c.token);
@@ -306,7 +349,7 @@ private:
     // operações emitidas agora)
     std::uint32_t bloco_erro = 0;
     std::vector<std::uint32_t> tratadores;
-    std::uint32_t self_emprestado = UINT32_MAX;
+    std::set<std::uint32_t> emprestados;   // slots que não são donos (parâmetros que não mudam)
     // try com finally em tradução (desenho 5.3): o motivo pendente (0 normal, 1 return,
     // 2 break, 3 continue, 4 erro) e o que ele leva
     struct Finally {
@@ -332,7 +375,7 @@ private:
         slots_temp.clear();
         ret_slot = UINT32_MAX;
         self_slot = UINT32_MAX;
-        self_emprestado = UINT32_MAX;
+        emprestados.clear();
         finallys.clear();
         atual = f->novoBloco("b");
         bloco_erro = f->novoBloco("erro");
@@ -910,12 +953,21 @@ private:
         if (self_slot == UINT32_MAX) naoSuportado("self fora de um método (erro interno)", tok);
         return carrega(self_slot, tok);
     }
-    // obj.campo (objeto ou struct): uma cópia do campo, com posse
+    // obj.campo (objeto ou struct): uma cópia do campo, com posse. Um campo sem referência
+    // (número, bool, enum, tipo) é lido e gravado em linha (P10); os outros, pelo runtime
+    static bool campoSimples(Tipo t) { return ehNumero(t) || t == Tipo::Bool || t == Tipo::Enum || t == Tipo::TipoV; }
     Val campo(const Operando& obj, std::uint32_t i, Tipo t, const Token& tok) {
+        if (campoSimples(t)) return {Operando::temp(temp(Op::CampoDireto, t, {obj}, tok, i))};
         const Operando r = chamaRt(Rt::Campo, {embrulha(obj, tok), Operando::i32(static_cast<std::int32_t>(i))}, tok);
         return desembrulha(r, t, tok);
     }
     void gravaCampo(const Operando& obj, std::uint32_t i, const Operando& v, const Token& tok) {
+        if (campoSimples(tipoOperando(v))) {
+            Instr& in = poe(Op::GravaCampoDireto, tok);
+            in.aux = i;
+            in.args = {obj, v};
+            return;
+        }
         chamaRt(Rt::GravaCampo, {embrulha(obj, tok), Operando::i32(static_cast<std::int32_t>(i)), embrulha(v, tok)}, tok);
     }
 
@@ -1062,6 +1114,21 @@ private:
                 const auto& r = static_cast<const ReturnStmt&>(s);
                 Operando v = Operando::boolean(false);
                 const bool tem = r.value != nullptr;
+                if (tem && finallys.empty() && r.value->node_kind == NodeKind::Identifier) {
+                    // return de uma local dona: move (o slot fica vazio), sem retem nem a
+                    // cópia de um struct — nada roda depois na função (sem finally pendente)
+                    const auto& id = static_cast<const IdentifierExpr&>(*r.value);
+                    if (id.res.kind == Resolution::Kind::Local) {
+                        const Tipo t = tipoDe(id.resolved_type, id.token);
+                        auto it = slot_de.find({id.res.slot, t});
+                        if (t == f->ret && ehRef(t) && it != slot_de.end() && !emprestados.count(it->second)) {
+                            v = carrega(it->second, s.token);
+                            grava(it->second, Operando::nulo(), s.token);
+                            retorna(true, v, s.token);
+                            break;
+                        }
+                    }
+                }
                 if (tem) {
                     v = posseTipo(*r.value, f->ret);   // o chamador recebe com posse
                     fimInstrucao(s.token);
