@@ -18,6 +18,9 @@
 // As operações que podem falhar (contas, conversões, chamadas) levam a posição
 // (`pos`) do token que a CVM usa na mesma operação: erros e stack trace iguais.
 // P4: números, bool, funções, if/while/for range, print, const globais.
+// P5: strings e a posse (llvm/DESENHO.md 4.3): um slot de tipo com referência é
+// dono do valor e começa vazio; a tradução escreve cada retem/solta (o emissor não
+// decide nada sobre posse).
 // ============================================================================
 
 #include "../lexer.h"
@@ -38,7 +41,12 @@ inline bool ehFlutuante(Tipo t) { return t == Tipo::F32 || t == Tipo::F64; }
 
 // Um operando: constante ou temporário
 struct Operando {
-    enum class K : std::uint8_t { Temp, I32, I64, F32, F64, Bool, Literal } k = K::Temp;
+    enum class K : std::uint8_t {
+        Temp, I32, I64, F32, F64, Bool,
+        Literal,   // str: uma string do módulo (imortal)
+        Nulo,      // str: o ponteiro nulo (slot vazio)
+        Vazio,     // valor: o CzValor void (parte omitida de uma fatia)
+    } k = K::Temp;
     std::uint32_t indice = 0;   // Temp: o temporário; Literal: a string do módulo
     std::int64_t  i      = 0;
     double        f      = 0;
@@ -50,6 +58,8 @@ struct Operando {
     static Operando boolean(bool v)          { Operando o; o.k = K::Bool; o.i = v; return o; }
     static Operando f32(double v)            { Operando o; o.k = K::F32; o.f = v; return o; }
     static Operando f64(double v)            { Operando o; o.k = K::F64; o.f = v; return o; }
+    static Operando nulo()                   { Operando o; o.k = K::Nulo; return o; }
+    static Operando vazio()                  { Operando o; o.k = K::Vazio; return o; }
 };
 
 enum class Op : std::uint8_t {
@@ -67,7 +77,9 @@ enum class Op : std::uint8_t {
     ChamaNativa,   // dst: valor = call.nativa N(args...) — aux: N; o resultado tem posse
     ConverteValor, // dst: valor = a convertido no runtime para o kind de `tipo` (nativas genéricas)
     Chama,         // [dst =] call F(args...) — aux: F
-    Solta,         // solta a — solta a referência que o valor embrulhado a segura
+    Retem,         // retem a (str): uma referência a mais
+    Solta,         // solta a — str: solta a referência (nulo: nada); valor: a que ele segura
+    ChamaRt,       // [dst =] call.rt R(args...) — aux: o Rt (tabela abaixo)
     ConferePasso,  // confere passo (i64) != 0 — senão ValueError do range (pos: a chamada)
     PassoRange,    // dst: i64 = próximo contador do for range — args: i, passo, fim (i64);
                    // tipo: a largura do iterador; passou da largura: fim (o último)
@@ -76,6 +88,34 @@ enum class Op : std::uint8_t {
     Ret,           // ret [a]
     Inalcancavel,  // fim de um caminho que o semântico garante que não chega
 };
+
+// As funções do runtime chamadas por ChamaRt (llvm/cinzart.h). Na chamada em C, um
+// parâmetro `valor` vai por ponteiro; um resultado `valor` volta por um ponteiro de
+// saída; as que podem falhar recebem a posição no fim e o chamador confere o erro.
+// Resultados `str` e `valor` vêm com posse.
+enum class Rt : std::uint8_t {
+    Concat,          // str (valor a, valor b): a + b com string (o outro lado em texto)
+    Texto,           // str (valor v): cast<string>(v)
+    StrIgual,        // bool (str, str)
+    StrCompara,      // i32 (str, str): < 0, 0, > 0
+    StrBytes,        // i64 (str): o tamanho em bytes
+    StrCaractere,    // str (str, i64 pos): o caractere UTF-8 que começa no byte pos
+    StrTamCaractere, // i64 (str, i64 pos): quantos bytes ele tem
+    Formata,         // str (valor, i32 largura, i32 casas): um {x:formato} do printf
+    DeTexto,         // valor (str, i32 kind): cast<T>(string) — falha
+    Indice,          // valor (valor obj, valor idx): obj[idx] — falha
+    Fatia,           // valor (valor s, valor ini, valor fim, valor passo) — falha
+    Metodo0,         // valor (i32 builtin, valor obj) — falha
+    Metodo1,         // valor (i32 builtin, valor obj, valor a) — falha
+    Metodo2,         // valor (i32 builtin, valor obj, valor a, valor b) — falha
+};
+struct InfoRt {
+    const char*       nome;     // o símbolo em C
+    Tipo              ret;
+    std::vector<Tipo> params;
+    bool              falha;    // CZ_FALHA
+};
+const InfoRt& infoRt(Rt r);
 
 struct Instr {
     Op                    op;
@@ -125,6 +165,7 @@ struct Modulo {
     std::vector<Funcao>      funcoes;
     int                      init = -1;  // a função oculta que inicializa os const (-1: nenhuma)
     int                      main = -1;  // a main da Cinza
+    int                      fim = -1;   // a função oculta que solta os const com referência
 
     std::uint32_t literal(const std::string& s);
     std::uint32_t nativa(const std::string& modulo, const std::string& nome);

@@ -1,0 +1,10 @@
+// P5: fatia de string com passo 0 no código nativo: o ValueError da regra da CVM
+// (sliceGet). Roda nos dois backends.
+fn main() {
+  string s = "abcdef";
+  i32 p = 0;
+  print(s[::2]);
+  print(s[1:4:p]);
+}
+// expect: ace
+// expect-error: p5_erro_fatia.cinza:7:10: ValueError: o passo da fatia não pode ser 0

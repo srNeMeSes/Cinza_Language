@@ -1,0 +1,92 @@
+// P5: as regras de posse das strings no código nativo (llvm/DESENHO.md 4.3). Cada caso
+// vazaria ou soltaria duas vezes com uma regra errada; a suíte roda no modo sem
+// vazamento (CINZA_VAZAMENTOS=1), então sobrar um objeto faz o teste falhar. Roda nos
+// dois backends.
+const string FIXO = "fixo";
+
+// return antecipado de dentro de laços, com locais vivas
+fn acha(string s, string alvo) -> string {
+  string visto = "";
+  for (string c in s) {
+    string marca = "[" + c + "]";
+    visto += marca;
+    if (c == alvo) {
+      return visto;
+    }
+  }
+  return "nada";
+}
+
+// parâmetro reatribuído (a função é dona da cópia dela)
+fn muda(string s) -> string {
+  s = s + s;
+  s = s;
+  s += "!";
+  return s;
+}
+
+// devolve o próprio parâmetro, um const e um literal
+fn mesmo(string s) -> string {
+  return s;
+}
+fn constante() -> string {
+  return FIXO;
+}
+
+// resultado descartado e temporários do lado direito do and/or (nem sempre executado)
+fn marca(string s) -> bool {
+  return s + "x" == "ax";
+}
+
+fn main() {
+  print(acha("abcd", "c"), acha("ab", "z"));
+  string a = "a";
+  print(muda(a), a);
+  print(mesmo(mesmo(a)), constante(), mesmo("lit"));
+  muda("descartado");
+  print(marca("a") or marca("b" + "c"), marca("b") and marca("a" + "a"));
+  // muitas strings num laço: cada volta solta a anterior
+  string acc = "";
+  i32 total = 0;
+  for (i32 i in range(0, 20000)) {
+    string t = cast<string>(i) + ";";
+    total += t.size();
+    if (i % 5000 == 0) {
+      acc += t;
+    }
+  }
+  print(total, acc);
+  // laços aninhados em string, com break e continue
+  i32 pares = 0;
+  for (string x in "abc") {
+    for (string y in "abc") {
+      if (x == y) {
+        continue;
+      }
+      if (y == "c") {
+        break;
+      }
+      pares += 1;
+    }
+  }
+  print(pares);
+  // a mesma variável reescrita em vários caminhos
+  string r = "início";
+  i32 k = 0;
+  while (k < 4) {
+    if (k % 2 == 0) {
+      r = r + cast<string>(k);
+    } else {
+      r = FIXO;
+    }
+    k += 1;
+  }
+  print(r);
+}
+// expect: [a][b][c] nada
+// expect: aa! a
+// expect: a fixo lit
+// expect: true false
+// expect: 108890 0;5000;10000;15000;
+// expect: 4
+// expect: fixo

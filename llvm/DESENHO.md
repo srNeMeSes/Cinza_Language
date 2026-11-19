@@ -363,6 +363,32 @@ definição domina — o curto-circuito de `and`/`or` abre blocos no meio de uma
 leva a posição do token que a CVM usa nela, e é isso que dá as mesmas mensagens e o mesmo stack
 trace. `entra`/`sai`/`pos` não são instruções: o emissor os gera (seção 6.2).
 
+**Implementado no P5** (strings e posse), com as regras desta seção e três escolhas simples, que
+o P10 pode afinar sem mudar a semântica:
+
+- a CIR não tem `borrow`/`copy`/`move`/`store.own` como instruções: a tradução escreve a
+  sequência (`carrega` emprestado; `retem`; o `store.own` como `carrega` do antigo, `grava`,
+  `solta` do antigo), e o emissor só traduz — `grava` é uma gravação simples;
+- **parâmetros**: a função retém cada um no próprio slot na entrada e o solta na saída, então
+  reatribuir um parâmetro é igual a reatribuir uma local (o P10 pode tirar o par quando o
+  parâmetro não é reatribuído);
+- **escopos**: toda saída da função (cada `return` e o fim do corpo) vai para um bloco `saida`
+  único, que solta todos os slots donos — os de blocos internos também, por isso uma variável
+  de um laço guarda a última string até a função sair (o valor de antes é solto a cada nova
+  gravação). Sem `try` (até o P8) as únicas saídas de escopo que não são da função são
+  `break`/`continue`, e nenhuma delas perde referência com essa regra;
+- **temporários**: um valor com posse que só é lido (o resultado de `a + b` passado ao
+  `print`) vai para um slot temporário da instrução, solto e esvaziado no fim dela; o
+  curto-circuito de `and`/`or` deixa o slot vazio quando o lado direito não roda. Um valor com
+  posse que vai ser guardado (declaração, atribuição, `return`, `const`) passa direto, sem
+  `retem`; um emprestado ganha `retem`.
+
+As funções de string do runtime (`call.rt`, uma tabela na CIR: `cz_concat`, `cz_texto`,
+`cz_str_igual`, `cz_str_compara`, `cz_indice`, `cz_fatia`, `cz_formata`, `cz_de_texto`,
+`cz_metodo0..2`, as do `for` em string) recebem e devolvem os valores da CVM e chamam as mesmas
+regras (`operacoes.cpp`). Os `const` com referência são soltos por uma função oculta depois da
+`main`, antes da conferência de vazamentos.
+
 ## 5. Erros
 
 ### 5.1 Um mecanismo só
@@ -447,7 +473,9 @@ a convenção de chamada sem ganho para um programa de uma thread.
   depois da operação que falhou chama `cz_morre`, que faz o relato do `cz_fim` (ou sai com o
   código do `exit`) e encerra o processo. É o que um erro não capturado faz na CVM, então a
   saída é a mesma; programas com `try` continuam "não suportados". O P8 troca o `cz_morre` pelo
-  desvio ao tratador e pelos `release` dos escopos.
+  desvio ao tratador e pelos `release` dos escopos. Enquanto isso, o que as funções em
+  andamento seguram não é solto nesse caminho, e o `cz_morre` desliga a conferência de
+  vazamentos (que acusaria esses objetos); os testes de erro voltam a conferir no P8.
 - **Fronteira com o C++: nenhuma exceção do C++ escapa de uma função `cz_*`**, qualquer que
   seja. Cada uma termina num bloco que trata, na ordem:
   - `RuntimeError` → vira o erro pendente (o mesmo erro da linguagem que a CVM lançaria);

@@ -234,6 +234,8 @@ struct Emissor::Impl {
             case cir::Operando::K::F64:     return cir::Tipo::F64;
             case cir::Operando::K::Bool:    return cir::Tipo::Bool;
             case cir::Operando::K::Literal: return cir::Tipo::Str;
+            case cir::Operando::K::Nulo:    return cir::Tipo::Str;
+            case cir::Operando::K::Vazio:   return cir::Tipo::Valor;
         }
         return cir::Tipo::Void;
     }
@@ -247,6 +249,12 @@ struct Emissor::Impl {
             case cir::Operando::K::F64:     return LLVMConstReal(tF64, o.f);
             case cir::Operando::K::Bool:    return LLVMConstInt(tI1, o.i ? 1 : 0, 0);
             case cir::Operando::K::Literal: return LLVMBuildLoad2(b, tPtr, literais[o.indice], "lit");
+            case cir::Operando::K::Nulo:    return LLVMConstNull(tPtr);
+            case cir::Operando::K::Vazio: {   // o CzValor void: tipo VOID_VAL, o resto zerado
+                LLVMValueRef campos[] = {LLVMConstInt(tI8, kind(Value::Kind::VOID_VAL), 0),
+                                         LLVMConstNull(LLVMArrayType2(tI8, 3)), ci32(0), ci64(0)};
+                return LLVMConstNamedStruct(tValor, campos, 4);
+            }
         }
         return nullptr;
     }
@@ -270,6 +278,7 @@ struct Emissor::Impl {
             case cir::Tipo::F32:  return LLVMBuildBitCast(b, LLVMBuildTrunc(b, u, tI32, ""), tF32, "");
             case cir::Tipo::F64:  return LLVMBuildBitCast(b, u, tF64, "");
             case cir::Tipo::Bool: return LLVMBuildICmp(b, LLVMIntNE, u, ci64(0), "");
+            case cir::Tipo::Str:  return LLVMBuildIntToPtr(b, u, tPtr, "");
             default:              throw ErroEmissor{"desembrulho para um tipo sem valor"};
         }
     }
@@ -503,10 +512,28 @@ struct Emissor::Impl {
                 temps[in.dst] = LLVMBuildLoad2(b, tValor, v, "");
                 break;
             }
+            case Op::Retem:
+                chamaRt(rt("cz_retem", tVoid, {tPtr}), {val(in.args[0])});
+                break;
             case Op::Solta: {
+                if (tipoOp(in.args[0]) == cir::Tipo::Str) {   // nulo (slot vazio): nada a soltar
+                    LLVMValueRef p = val(in.args[0]);
+                    LLVMBasicBlockRef sim = novoBloco("solta"), segue = novoBloco("soltou");
+                    LLVMBuildCondBr(b, LLVMBuildICmp(b, LLVMIntNE, p, LLVMConstNull(tPtr), ""), sim, segue);
+                    LLVMPositionBuilderAtEnd(b, sim);
+                    chamaRt(rt("cz_solta", tVoid, {tPtr}), {p});
+                    LLVMBuildBr(b, segue);
+                    LLVMPositionBuilderAtEnd(b, segue);
+                    break;
+                }
                 LLVMValueRef v = reserva(tValor, "solta");
                 LLVMBuildStore(b, val(in.args[0]), v);
                 chamaRt(rt("cz_solta_valor", tVoid, {tPtr}), {v});
+                break;
+            }
+            case Op::ChamaRt: {
+                LLVMValueRef r = chamaRuntime(in);
+                if (cir::infoRt(static_cast<cir::Rt>(in.aux)).ret != cir::Tipo::Void) temps[in.dst] = r;
                 break;
             }
             case Op::Chama: {
@@ -552,6 +579,44 @@ struct Emissor::Impl {
 
     LLVMTypeRef tQuadro() { return LLVMGetTypeByName2(ctx, "CzQuadro"); }
 
+    // call.rt: a assinatura em C sai da tabela da CIR (cir::infoRt) — `valor` por
+    // ponteiro, o resultado `valor` por um ponteiro de saída, a posição no fim das que
+    // podem falhar; bool volta como int32
+    LLVMValueRef chamaRuntime(const cir::Instr& in) {
+        const cir::InfoRt& info = cir::infoRt(static_cast<cir::Rt>(in.aux));
+        std::vector<LLVMTypeRef> ps;
+        std::vector<LLVMValueRef> args;
+        for (std::size_t i = 0; i < info.params.size(); ++i) {
+            const cir::Tipo t = info.params[i];
+            if (t == cir::Tipo::Valor) {
+                LLVMValueRef v = reserva(tValor, "arg");
+                LLVMBuildStore(b, val(in.args[i]), v);
+                ps.push_back(tPtr);
+                args.push_back(v);
+            } else {
+                ps.push_back(tipo(t));
+                args.push_back(val(in.args[i]));
+            }
+        }
+        LLVMValueRef saida = nullptr;
+        if (info.ret == cir::Tipo::Valor) {
+            saida = reserva(tValor, "saida");
+            ps.push_back(tPtr);
+            args.push_back(saida);
+        }
+        if (info.falha) {
+            ps.push_back(tPtr);
+            args.push_back(posicao(in.pos));
+        }
+        LLVMTypeRef ret = info.ret == cir::Tipo::Valor ? tVoid
+                        : info.ret == cir::Tipo::Bool  ? tI32 : tipo(info.ret);
+        LLVMValueRef r = chamaRt(rt(info.nome, ret, ps), args);
+        if (info.falha) confereErro();
+        if (info.ret == cir::Tipo::Valor) return LLVMBuildLoad2(b, tValor, saida, "");
+        if (info.ret == cir::Tipo::Bool) return LLVMBuildICmp(b, LLVMIntNE, r, ci32(0), "");
+        return info.ret == cir::Tipo::Void ? nullptr : r;
+    }
+
     void declaraFuncao(std::size_t i, const cir::Funcao& f) {
         std::vector<LLVMTypeRef> ps;
         for (cir::Tipo t : f.params) ps.push_back(tipo(t));
@@ -583,6 +648,8 @@ struct Emissor::Impl {
         for (const cir::Bloco& bl : f.blocos) blocos.push_back(novoBloco(bl.nome.c_str()));
 
         LLVMPositionBuilderAtEnd(b, prologo);
+        for (std::size_t s = f.params.size(); s < f.slots.size(); ++s)   // os slots com referência começam vazios
+            if (f.slots[s] == cir::Tipo::Str) LLVMBuildStore(b, LLVMConstNull(tPtr), slots[s]);
         for (std::size_t p = 0; p < f.params.size(); ++p)
             LLVMBuildStore(b, LLVMGetParam(fn, static_cast<unsigned>(p)), slots[p]);
         if (!f.oculta) {
@@ -639,6 +706,7 @@ struct Emissor::Impl {
                            nativas[i]);
         if (m.init >= 0) LLVMBuildCall2(b, tfns[m.init], fns[m.init], nullptr, 0, "");
         LLVMBuildCall2(b, tfns[m.main], fns[m.main], nullptr, 0, "");
+        if (m.fim >= 0) LLVMBuildCall2(b, tfns[m.fim], fns[m.fim], nullptr, 0, "");
         LLVMBuildRet(b, chamaRt(rt("cz_fim", tI32, {}), {}));
     }
 };

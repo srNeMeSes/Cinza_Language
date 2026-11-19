@@ -1,0 +1,14 @@
+// P5: IndexError num índice de string no código nativo: a mensagem da regra da CVM,
+// na posição do acesso, com o stack trace. Roda nos dois backends.
+fn letra(string s, i32 i) -> string {
+  return s[i];
+}
+
+fn main() {
+  print(letra("ação", 3));
+  print(letra("ação", 4));
+}
+// expect: o
+// expect-error: p5_erro_indice.cinza:4:11: IndexError
+// expect-error: em letra (tests/nativo/p5_erro_indice.cinza:4)
+// expect-error: em main (tests/nativo/p5_erro_indice.cinza:9)

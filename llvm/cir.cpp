@@ -17,6 +17,27 @@ std::uint32_t Modulo::nativa(const std::string& modulo, const std::string& nome)
     return static_cast<std::uint32_t>(nativas.size() - 1);
 }
 
+const InfoRt& infoRt(Rt r) {
+    using T = Tipo;
+    static const InfoRt tabela[] = {
+        {"cz_concat",            T::Str,   {T::Valor, T::Valor}, false},
+        {"cz_texto",             T::Str,   {T::Valor}, false},
+        {"cz_str_igual",         T::Bool,  {T::Str, T::Str}, false},
+        {"cz_str_compara",       T::I32,   {T::Str, T::Str}, false},
+        {"cz_str_bytes",         T::I64,   {T::Str}, false},
+        {"cz_str_caractere",     T::Str,   {T::Str, T::I64}, false},
+        {"cz_str_tam_caractere", T::I64,   {T::Str, T::I64}, false},
+        {"cz_formata",           T::Str,   {T::Valor, T::I32, T::I32}, false},
+        {"cz_de_texto",          T::Valor, {T::Str, T::I32}, true},
+        {"cz_indice",            T::Valor, {T::Valor, T::Valor}, true},
+        {"cz_fatia",             T::Valor, {T::Valor, T::Valor, T::Valor, T::Valor}, true},
+        {"cz_metodo0",           T::Valor, {T::I32, T::Valor}, true},
+        {"cz_metodo1",           T::Valor, {T::I32, T::Valor, T::Valor}, true},
+        {"cz_metodo2",           T::Valor, {T::I32, T::Valor, T::Valor, T::Valor}, true},
+    };
+    return tabela[static_cast<std::size_t>(r)];
+}
+
 const char* nomeTipo(Tipo t) {
     switch (t) {
         case Tipo::Void:  return "void";
@@ -58,6 +79,8 @@ std::string operando(const Modulo& m, const Operando& o) {
         case Operando::K::F64:     { std::ostringstream s; s << "f64 " << o.f; return s.str(); }
         case Operando::K::Bool:    return o.i ? "bool true" : "bool false";
         case Operando::K::Literal: return "str " + citado(m.literais[o.indice]);
+        case Operando::K::Nulo:    return "str nulo";
+        case Operando::K::Vazio:   return "valor vazio";
     }
     return "?";
 }
@@ -124,7 +147,12 @@ std::string texto(const Modulo& m) {
                         if (m.funcoes[in.aux].ret != Tipo::Void) dst();
                         out << "call F" << in.aux << "("; args(); out << ")";
                         break;
+                    case Op::Retem:    out << "retem "; args(); break;
                     case Op::Solta:    out << "solta "; args(); break;
+                    case Op::ChamaRt:
+                        if (infoRt(static_cast<Rt>(in.aux)).ret != Tipo::Void) dst();
+                        out << "call.rt " << infoRt(static_cast<Rt>(in.aux)).nome << "("; args(); out << ")";
+                        break;
                     case Op::ConferePasso: out << "confere.passo "; args(); break;
                     case Op::PassoRange: dst(); out << "passo.range " << nomeTipo(in.tipo) << " "; args(); break;
                     case Op::Br:       out << "br " << f.blocos[in.alvo].nome; break;

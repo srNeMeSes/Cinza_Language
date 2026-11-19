@@ -1,0 +1,10 @@
+// P5: cast<i32> de um texto que não é número no código nativo: o ValueError da regra
+// da CVM (convertValue). Roda nos dois backends.
+fn main() {
+  string s = "12";
+  print(cast<i32>(s) + 1);
+  s = s + "a";
+  print(cast<i32>(s));
+}
+// expect: 13
+// expect-error: p5_erro_conversao.cinza:7:9: ValueError: cast<i32>("12a"): não é um número inteiro

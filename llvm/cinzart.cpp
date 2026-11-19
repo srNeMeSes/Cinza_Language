@@ -7,6 +7,7 @@
 #include "../operacoes.h"
 #include "../runtime_error.h"
 #include "../source_files.h"
+#include "../utf8.h"
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -129,6 +130,8 @@ extern "C" void cz_inicio(int argc, char** argv) noexcept {
     });
 }
 
+bool morrendo = false;   // cz_morre: o fim por um erro fatal (sem conferir vazamentos)
+
 extern "C" int cz_fim() noexcept {
     int codigo = 0;
     fronteira([&] {
@@ -157,7 +160,7 @@ extern "C" int cz_fim() noexcept {
         }
         literais.clear();
         // CINZA_VAZAMENTOS=1: nenhum objeto do runtime pode sobrar (llvm/DESENHO.md 2.6)
-        if (const char* v = std::getenv("CINZA_VAZAMENTOS"); v && *v && gc_registro.objetos != 0) {
+        if (const char* v = std::getenv("CINZA_VAZAMENTOS"); v && *v && !morrendo && gc_registro.objetos != 0) {
             std::cout.flush();
             std::cerr << "[vazamentos] " << gc_registro.objetos
                       << " objeto(s) do runtime ainda vivo(s) ao sair:";
@@ -272,5 +275,135 @@ extern "C" void cz_conv_valor(CzValor* v, std::uint8_t kind, const CzPos* p) noe
 }
 
 extern "C" void cz_morre() noexcept {
+    // até o P8 o erro não desce pelas funções soltando os slots: o que elas seguram fica
+    // vivo, e a conferência de vazamentos seria falsa
+    morrendo = true;
     std::exit(cz_fim());
+}
+
+// ── Posse ─────────────────────────────────────────────────────────────────
+
+extern "C" void cz_retem(CzObjeto* o) noexcept {
+    if (o) czRetain(o);
+}
+
+extern "C" void cz_solta(CzObjeto* o) noexcept {
+    if (o) czRelease(o);   // a destruição (czDestroi) não lança
+}
+
+// ── Strings ───────────────────────────────────────────────────────────────
+
+namespace {
+
+const std::string& textoDe(CzObjeto* s) { return static_cast<CzString*>(s)->texto; }
+
+CzObjeto* novaString(std::string&& t) { return novo<CzString>(std::move(t)).solta(); }
+
+// Um Value que é dono de uma string, para as regras da CVM que recebem Value
+Value valorDeTexto(CzObjeto* s) {
+    CzValor v{};
+    v.tipo = static_cast<std::uint8_t>(Value::Kind::STRING);
+    v.u.obj = s;
+    return Value::empresta(v);
+}
+
+void metodo(std::int32_t b, const CzValor* o, std::initializer_list<const CzValor*> args, CzValor* r,
+            const CzPos* p) {
+    *r = Value().entrega();
+    fronteira([&] {
+        Value obj = Value::empresta(*o);
+        std::vector<Value> vals;
+        for (const CzValor* a : args) vals.push_back(Value::empresta(*a));
+        *r = callBuiltin(static_cast<Builtin>(b), obj, std::span<const Value>(vals.data(), vals.size())).entrega();
+    }, p);
+}
+
+}  // namespace
+
+extern "C" CzObjeto* cz_concat(const CzValor* a, const CzValor* b) noexcept {
+    CzObjeto* r = nullptr;
+    fronteira([&] {   // o CONCAT da CVM: string como está, o resto em texto
+        const Value x = Value::empresta(*a), y = Value::empresta(*b);
+        std::string s = x.kind() == Value::Kind::STRING ? x.asString() : x.toString();
+        s += y.kind() == Value::Kind::STRING ? y.asString() : y.toString();
+        r = novaString(std::move(s));
+    });
+    return r;
+}
+
+extern "C" CzObjeto* cz_texto(const CzValor* v) noexcept {
+    CzObjeto* r = nullptr;
+    fronteira([&] {   // cast<string>: a regra comum (convertValue)
+        // a string que a regra criou passa direto, com a posse
+        r = convertValue(Value::empresta(*v), TypeContext::instance().stringType()).entrega().u.obj;
+    });
+    return r;
+}
+
+extern "C" std::int32_t cz_str_igual(CzObjeto* a, CzObjeto* b) noexcept {
+    return textoDe(a) == textoDe(b) ? 1 : 0;
+}
+
+extern "C" std::int32_t cz_str_compara(CzObjeto* a, CzObjeto* b) noexcept {
+    const std::string &x = textoDe(a), &y = textoDe(b);   // a ordem do LT_S/LE_S (std::string)
+    return x < y ? -1 : (x == y ? 0 : 1);
+}
+
+extern "C" std::int64_t cz_str_bytes(CzObjeto* s) noexcept {
+    return static_cast<std::int64_t>(textoDe(s).size());
+}
+
+extern "C" CzObjeto* cz_str_caractere(CzObjeto* s, std::int64_t pos) noexcept {
+    CzObjeto* r = nullptr;
+    fronteira([&] {   // o FORNEXT da CVM: um caractere UTF-8 por vez
+        const std::string& t = textoDe(s);
+        const auto i = static_cast<std::size_t>(pos);
+        r = novaString(t.substr(i, utf8::bytesDoCaractere(t, i)));
+    });
+    return r;
+}
+
+extern "C" std::int64_t cz_str_tam_caractere(CzObjeto* s, std::int64_t pos) noexcept {
+    return static_cast<std::int64_t>(utf8::bytesDoCaractere(textoDe(s), static_cast<std::size_t>(pos)));
+}
+
+extern "C" CzObjeto* cz_formata(const CzValor* v, std::int32_t largura, std::int32_t casas) noexcept {
+    CzObjeto* r = nullptr;
+    fronteira([&] { r = novaString(formatPart(Value::empresta(*v), largura, casas)); });
+    return r;
+}
+
+extern "C" void cz_de_texto(CzObjeto* s, std::int32_t kind, CzValor* r, const CzPos* p) noexcept {
+    *r = Value().entrega();
+    fronteira([&] {
+        *r = convertValue(valorDeTexto(s), tipoDoKind(static_cast<std::uint8_t>(kind))).entrega();
+    }, p);
+}
+
+extern "C" void cz_indice(const CzValor* o, const CzValor* i, CzValor* r, const CzPos* p) noexcept {
+    *r = Value().entrega();
+    fronteira([&] { *r = indexGet(Value::empresta(*o), Value::empresta(*i)).entrega(); }, p);
+}
+
+extern "C" void cz_fatia(const CzValor* s, const CzValor* ini, const CzValor* fim, const CzValor* passo,
+                         CzValor* r, const CzPos* p) noexcept {
+    *r = Value().entrega();
+    fronteira([&] {
+        *r = sliceGet(Value::empresta(*s), Value::empresta(*ini), Value::empresta(*fim),
+                      Value::empresta(*passo)).entrega();
+    }, p);
+}
+
+extern "C" void cz_metodo0(std::int32_t b, const CzValor* o, CzValor* r, const CzPos* p) noexcept {
+    metodo(b, o, {}, r, p);
+}
+
+extern "C" void cz_metodo1(std::int32_t b, const CzValor* o, const CzValor* a, CzValor* r,
+                           const CzPos* p) noexcept {
+    metodo(b, o, {a}, r, p);
+}
+
+extern "C" void cz_metodo2(std::int32_t b, const CzValor* o, const CzValor* a, const CzValor* x, CzValor* r,
+                           const CzPos* p) noexcept {
+    metodo(b, o, {a, x}, r, p);
 }

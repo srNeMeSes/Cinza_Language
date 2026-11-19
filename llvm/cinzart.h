@@ -112,8 +112,36 @@ CZ_FALHA void cz_estouro(const cinza::CzFuncao* f) noexcept;
 // Converte no lugar o resultado de uma nativa genérica para o Value::Kind pedido
 CZ_FALHA void cz_conv_valor(cinza::CzValor* v, std::uint8_t kind, const cinza::CzPos* p) noexcept;
 
+// ── Posse ─────────────────────────────────────────────────────────────────
+// Uma referência a mais / a menos (nulo: nada; imortal: nada)
+void cz_retem(cinza::CzObjeto* o) noexcept;
+void cz_solta(cinza::CzObjeto* o) noexcept;
+
+// ── Strings (as regras da CVM: operacoes.cpp) ─────────────────────────────
+// Os resultados de objeto vêm com posse. `valor` chega por ponteiro (emprestado).
+cinza::CzObjeto* cz_concat(const cinza::CzValor* a, const cinza::CzValor* b) noexcept;   // o CONCAT
+cinza::CzObjeto* cz_texto(const cinza::CzValor* v) noexcept;                              // cast<string>
+std::int32_t     cz_str_igual(cinza::CzObjeto* a, cinza::CzObjeto* b) noexcept;
+std::int32_t     cz_str_compara(cinza::CzObjeto* a, cinza::CzObjeto* b) noexcept;
+std::int64_t     cz_str_bytes(cinza::CzObjeto* s) noexcept;
+cinza::CzObjeto* cz_str_caractere(cinza::CzObjeto* s, std::int64_t pos) noexcept;
+std::int64_t     cz_str_tam_caractere(cinza::CzObjeto* s, std::int64_t pos) noexcept;
+cinza::CzObjeto* cz_formata(const cinza::CzValor* v, std::int32_t largura, std::int32_t casas) noexcept;
+CZ_FALHA void cz_de_texto(cinza::CzObjeto* s, std::int32_t kind, cinza::CzValor* r, const cinza::CzPos* p) noexcept;
+CZ_FALHA void cz_indice(const cinza::CzValor* o, const cinza::CzValor* i, cinza::CzValor* r,
+                        const cinza::CzPos* p) noexcept;
+CZ_FALHA void cz_fatia(const cinza::CzValor* s, const cinza::CzValor* ini, const cinza::CzValor* fim,
+                       const cinza::CzValor* passo, cinza::CzValor* r, const cinza::CzPos* p) noexcept;
+// Métodos embutidos (callBuiltin), com 0, 1 ou 2 argumentos
+CZ_FALHA void cz_metodo0(std::int32_t b, const cinza::CzValor* o, cinza::CzValor* r, const cinza::CzPos* p) noexcept;
+CZ_FALHA void cz_metodo1(std::int32_t b, const cinza::CzValor* o, const cinza::CzValor* a, cinza::CzValor* r,
+                         const cinza::CzPos* p) noexcept;
+CZ_FALHA void cz_metodo2(std::int32_t b, const cinza::CzValor* o, const cinza::CzValor* a,
+                         const cinza::CzValor* x, cinza::CzValor* r, const cinza::CzPos* p) noexcept;
+
 // P4: todo erro é fatal, como um erro não capturado na CVM — relata o erro pendente
-// (ou sai com o código do exit) e encerra o processo
+// (ou sai com o código do exit) e encerra o processo. Até o P8 os slots das funções em
+// andamento não são soltos nesse caminho, então a conferência de vazamentos não roda nele
 [[noreturn]] void cz_morre() noexcept;
 
 }  // extern "C"

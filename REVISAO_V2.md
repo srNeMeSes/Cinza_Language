@@ -1731,8 +1731,29 @@ depois de um debate com duas revisões externas:
   > eram 8), 272 ainda não suportados (os motivos mais comuns: struct 49, string 47, class 37,
   > try 36, import 23). Velocidade: `fib(32)` mais um laço de 100 milhões em 137 ms com `-O2`
   > (1,1 s em -O0; 3,9 s na CVM).
-- [ ] P5. Strings e as regras de posse (temporários, `return` antecipado, parâmetros
-  reatribuídos), com o modo sem vazamento.
+- [x] P5. Strings e as regras de posse (temporários, `return` antecipado, parâmetros
+  reatribuídos), com o modo sem vazamento. — feito em 2026-11-18
+  > Nota: string em variáveis, parâmetros, retornos e `const`; `+` com string (o outro lado em
+  > texto, o `CONCAT` da CVM), `+=`, as seis comparações, índice, fatia, `size()`, `for` em
+  > string, `cast<string>` e `cast<T>(texto)`, `printf`/`format` e as nativas que recebem ou
+  > devolvem string. A posse segue o DESENHO 4.3 (nota do P5 lá): slots donos que começam
+  > vazios, parâmetros retidos na entrada, uma saída única por função que solta os slots,
+  > temporários da instrução soltos no fim dela; a tradução escreve cada `retem`/`solta` e o
+  > emissor não decide nada. As operações de string chamam o runtime (`call.rt`, por tabela)
+  > com as mesmas regras da CVM (`operacoes.cpp`). **Decisão**: até o P8 o erro fatal não solta os
+  > slots das funções em andamento, e o `cz_morre` desliga a conferência de vazamentos — os
+  > testes de erro voltam a conferir no P8. **Conferências**: a suíte nativa inteira passa no
+  > modo sem vazamento e também com uma `libcinzart` montada com `CINZA_CONFERE_REFS` (nenhuma
+  > liberação dupla); uma sabotagem de propósito (`cz_solta` sem soltar) faz o
+  > `tests/nativo/p5_posse` sair com 70 e "string 40046", então a conferência de fato pega a falta
+  > de um `solta`. **Testes**: `tests/nativo/p5_strings`, `p5_posse` (return de dentro de laços com
+  > locais vivas, parâmetro reatribuído, `s = s`, resultado descartado, temporários do lado
+  > direito do `and`/`or`, 20 mil strings num laço, `for` aninhado em string com
+  > `break`/`continue`) e três de erro (`IndexError`, `cast` inválido, passo 0 na fatia), nos dois
+  > backends. 665/665 na CVM; pelo `cinzac` 0 falhas, 420 passaram (87 como executável nativo,
+  > eram 55), 245 ainda não suportados (struct 49, try 46, class 37, import 23, `type()` 20,
+  > list 40). Velocidade: 2 milhões de `cast<string>(i) + ";"` em 452 ms (580 na CVM) — o tempo é
+  > do runtime comum aos dois; o `cz_texto` deixou de copiar a string que o `convertValue` cria.
 - [ ] P6. `list`, `dict`, `pair` e a coleta de ciclos.
 - [ ] P7. Structs, classes, interfaces e enums.
 - [ ] P8. Erros completos: `throw`, `try`/`except`/`finally`, erros de runtime, stack trace,
