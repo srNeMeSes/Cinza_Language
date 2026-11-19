@@ -44,6 +44,12 @@ struct CzQuadro {
 
 constexpr std::int32_t CZ_PROFUNDIDADE = 2000;   // spec 5.8, a mesma da CVM
 
+// Só nos vetores dos literais grandes (cz_lista_nova, cz_dict_novo, cz_struct_novo): um
+// elemento que é a string literal número `extra` do programa. O vetor fica constante no
+// executável, sem uma instrução por elemento; essas funções trocam a marca pela string
+constexpr std::uint8_t CZ_TIPO_LITERAL = 0xFE;
+static_assert(CZ_TIPO_LITERAL > static_cast<std::uint8_t>(Value::Kind::VOID_VAL), "um tipo que não existe");
+
 // Estado de execução (seção 5.2). Os campos são contrato de layout com o código
 // gerado (conferido pelo cinzac --confere-layout): o erro pendente, a profundidade
 // (quadros em uso) e a sombra da pilha. A função de inicialização dos const fica fora
@@ -76,8 +82,13 @@ cinza::CzObjeto* cz_args() noexcept;
 // confere vazamentos (CINZA_VAZAMENTOS=1) e devolve o código de saída
 int cz_fim() noexcept;
 
-// String literal do programa: imortal (sem contagem), solta pelo cz_fim
-cinza::CzObjeto* cz_str_literal(const char* bytes, std::uint64_t n) noexcept;
+// As strings literais do programa, todas na partida: imortais (sem contagem), soltas pelo
+// cz_fim; destino[i] recebe a i-ésima (o índice das marcas CZ_TIPO_LITERAL)
+struct CzTextoLiteral {
+    const char*   bytes;
+    std::uint64_t n;
+};
+void cz_literais(const CzTextoLiteral* tabela, std::uint64_t n, cinza::CzObjeto** destino) noexcept;
 
 // Uma função da biblioteca pelo nome do módulo ("" = embutidas: print, range...) e da
 // função; nulo se não existir. Resolvida uma vez, na partida.

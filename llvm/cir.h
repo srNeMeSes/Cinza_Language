@@ -32,6 +32,7 @@
 #include "../lexer.h"
 #include <cstdint>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace cinza::cir {
@@ -253,6 +254,7 @@ struct Modulo {
     std::vector<DescTipo>    tipos;
     std::vector<TabelaIface> tabelas;
     std::vector<std::string> literais;   // as strings do programa (imortais)
+    std::unordered_map<std::string, std::uint32_t> indice_literais;   // literal → índice (sem repetir)
     std::vector<Nativa>      nativas;
     std::vector<Tipo>        globais;    // os const do nível superior
     std::vector<Funcao>      funcoes;

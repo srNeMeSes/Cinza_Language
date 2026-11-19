@@ -184,15 +184,16 @@ extern "C" int cz_fim() noexcept {
     return codigo;
 }
 
-extern "C" CzObjeto* cz_str_literal(const char* bytes, std::uint64_t n) noexcept {
-    CzObjeto* r = nullptr;
+extern "C" void cz_literais(const CzTextoLiteral* tabela, std::uint64_t n, CzObjeto** destino) noexcept {
     fronteira([&] {
-        auto s = novo<CzString>(std::string(bytes, static_cast<std::size_t>(n)));
-        s->marcas |= marca::IMORTAL;
-        literais.push_back(s.get());
-        r = s.solta();
+        literais.reserve(literais.size() + static_cast<std::size_t>(n));
+        for (std::uint64_t i = 0; i < n; ++i) {
+            auto s = novo<CzString>(std::string(tabela[i].bytes, static_cast<std::size_t>(tabela[i].n)));
+            s->marcas |= marca::IMORTAL;
+            literais.push_back(s.get());
+            destino[i] = s.solta();
+        }
     });
-    return r;
 }
 
 extern "C" const void* cz_nativa_resolve(const char* modulo, const char* nome) noexcept {
@@ -460,12 +461,26 @@ extern "C" void cz_fatia(const CzValor* s, const CzValor* ini, const CzValor* fi
 
 // ── list, dict e pair ─────────────────────────────────────────────────────
 
+namespace {
+
+// Um elemento de um vetor do código gerado: a marca CZ_TIPO_LITERAL é a string literal do
+// programa com aquele índice (os literais estão em `literais`, na ordem do módulo)
+Value elemento(const CzValor& c) {
+    if (c.tipo != CZ_TIPO_LITERAL) return Value::empresta(c);
+    CzValor v{};
+    v.tipo = static_cast<std::uint8_t>(Value::Kind::STRING);
+    v.u.obj = literais.at(c.extra);
+    return Value::empresta(v);
+}
+
+}  // namespace
+
 extern "C" CzObjeto* cz_lista_nova(const CzValor* elems, std::uint64_t n) noexcept {
     CzObjeto* r = nullptr;
     fronteira([&] {
         std::vector<Value> v;
         v.reserve(static_cast<std::size_t>(n));
-        for (std::uint64_t i = 0; i < n; ++i) v.push_back(Value::empresta(elems[i]));
+        for (std::uint64_t i = 0; i < n; ++i) v.push_back(elemento(elems[i]));
         r = makeList(std::move(v)).entrega().u.obj;
     });
     return r;
@@ -476,7 +491,7 @@ extern "C" CzObjeto* cz_dict_novo(const CzValor* kv, std::uint64_t n) noexcept {
     fronteira([&] {   // como o NEWDICT: na ordem, a última chave repetida vence
         Value d = makeDict();
         auto& entries = d.asDict()->entries;
-        for (std::uint64_t i = 0; i + 1 < n; i += 2) entries[Value::empresta(kv[i])] = Value::empresta(kv[i + 1]);
+        for (std::uint64_t i = 0; i + 1 < n; i += 2) entries[elemento(kv[i])] = elemento(kv[i + 1]);
         r = d.entrega().u.obj;
     });
     return r;
@@ -618,7 +633,7 @@ extern "C" CzObjeto* cz_struct_novo(const void* desc, const CzValor* campos, std
         gcMaybeCollect();   // ponto seguro da coleta, como o NEWSTRUCT
         auto sv = novo<StructValue>(static_cast<const CzStructDesc*>(desc));
         sv->fields.reserve(static_cast<std::size_t>(n));
-        for (std::uint64_t i = 0; i < n; ++i) sv->fields.push_back(Value::empresta(campos[i]));
+        for (std::uint64_t i = 0; i < n; ++i) sv->fields.push_back(elemento(campos[i]));
         r = sv.solta();
     });
     return r;

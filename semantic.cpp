@@ -472,11 +472,13 @@ void SemanticAnalyzer::checkInterfaces(ClassDecl* cls) {
 // enum Cor { ... }: vira nome de tipo no escopo global (repetir o nome de
 // outra declaração é "Declaração duplicada"); os valores não podem se repetir
 void SemanticAnalyzer::registerEnum(const EnumDecl& en) {
+    // um conjunto (comparar cada valor com todos os anteriores era quadrático: um enum de
+    // 100 mil valores levava 20 s)
+    std::set<std::string> vistos;
     for (size_t i = 0; i < en.members.size(); ++i)
-        for (size_t j = 0; j < i; ++j)
-            if (en.members[i] == en.members[j])
-                throwError("Valor '" + en.members[i] + "' repetido no enum '" + en.name + "'",
-                           en.member_tokens[i]);
+        if (!vistos.insert(en.members[i]).second)
+            throwError("Valor '" + en.members[i] + "' repetido no enum '" + en.name + "'",
+                       en.member_tokens[i]);
     types.declareEnum(en.name);
     enum_table[en.name] = &en;
 

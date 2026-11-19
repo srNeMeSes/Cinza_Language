@@ -1,0 +1,429 @@
+// Q2 (programas grandes): um main com 400 linhas (mais de 3000 instruções da CIR) com
+// objetos, strings, listas e erros pegos. No cinzac -O2 uma função assim vai sem
+// otimização (optnone), num segundo objeto gerado em -O0: o LLVM crescia mais que linear
+// com milhares de blocos (o main de 1000 linhas com objetos levava 11 s). O resultado é o
+// mesmo nos dois backends, sem vazamento, e o erro não pego no fim ainda sai com o trace certo.
+class Conta {
+  i32 v = 0;
+  pub {
+    Conta(i32 x) { v = x * 2; }
+    fn valor() -> i32 { return v; }
+  }
+}
+
+fn soma(list<i32> l) -> i32 {
+  i32 s = 0;
+  for (i32 x in l) { s += x; }
+  return s;
+}
+
+fn main() {
+  i64 t = 0;
+  i32 erros = 0;
+  list<i32> l = [10, 20, 30];
+  list<string> nomes;
+  t += new Conta(0).valor() % 10;
+  nomes.add("n1" + cast<string>(1));
+  t += soma([2, 3, 4]);
+  try { t += l[3]; } except (IndexError e) { erros += 1; }
+  t += new Conta(4).valor() % 10;
+  nomes.add("n5" + cast<string>(5));
+  t += soma([6, 7, 8]);
+  try { t += l[0]; } except (IndexError e) { erros += 1; }
+  t += new Conta(8).valor() % 10;
+  nomes.add("n9" + cast<string>(9));
+  t += soma([10, 11, 12]);
+  try { t += l[4]; } except (IndexError e) { erros += 1; }
+  t += new Conta(12).valor() % 10;
+  nomes.add("n13" + cast<string>(13));
+  t += soma([14, 15, 16]);
+  try { t += l[1]; } except (IndexError e) { erros += 1; }
+  t += new Conta(16).valor() % 10;
+  nomes.add("n17" + cast<string>(17));
+  t += soma([18, 19, 20]);
+  try { t += l[5]; } except (IndexError e) { erros += 1; }
+  t += new Conta(20).valor() % 10;
+  nomes.add("n21" + cast<string>(21));
+  t += soma([22, 23, 24]);
+  try { t += l[2]; } except (IndexError e) { erros += 1; }
+  t += new Conta(24).valor() % 10;
+  nomes.add("n25" + cast<string>(25));
+  t += soma([26, 27, 28]);
+  try { t += l[6]; } except (IndexError e) { erros += 1; }
+  t += new Conta(28).valor() % 10;
+  nomes.add("n29" + cast<string>(29));
+  t += soma([30, 31, 32]);
+  try { t += l[3]; } except (IndexError e) { erros += 1; }
+  t += new Conta(32).valor() % 10;
+  nomes.add("n33" + cast<string>(33));
+  t += soma([34, 35, 36]);
+  try { t += l[0]; } except (IndexError e) { erros += 1; }
+  t += new Conta(36).valor() % 10;
+  nomes.add("n37" + cast<string>(37));
+  t += soma([38, 39, 40]);
+  try { t += l[4]; } except (IndexError e) { erros += 1; }
+  t += new Conta(40).valor() % 10;
+  nomes.add("n41" + cast<string>(41));
+  t += soma([42, 43, 44]);
+  try { t += l[1]; } except (IndexError e) { erros += 1; }
+  t += new Conta(44).valor() % 10;
+  nomes.add("n45" + cast<string>(45));
+  t += soma([46, 47, 48]);
+  try { t += l[5]; } except (IndexError e) { erros += 1; }
+  t += new Conta(48).valor() % 10;
+  nomes.add("n49" + cast<string>(49));
+  t += soma([50, 51, 52]);
+  try { t += l[2]; } except (IndexError e) { erros += 1; }
+  t += new Conta(52).valor() % 10;
+  nomes.add("n3" + cast<string>(53));
+  t += soma([54, 55, 56]);
+  try { t += l[6]; } except (IndexError e) { erros += 1; }
+  t += new Conta(56).valor() % 10;
+  nomes.add("n7" + cast<string>(57));
+  t += soma([58, 59, 60]);
+  try { t += l[3]; } except (IndexError e) { erros += 1; }
+  t += new Conta(60).valor() % 10;
+  nomes.add("n11" + cast<string>(61));
+  t += soma([62, 63, 64]);
+  try { t += l[0]; } except (IndexError e) { erros += 1; }
+  t += new Conta(64).valor() % 10;
+  nomes.add("n15" + cast<string>(65));
+  t += soma([66, 67, 68]);
+  try { t += l[4]; } except (IndexError e) { erros += 1; }
+  t += new Conta(68).valor() % 10;
+  nomes.add("n19" + cast<string>(69));
+  t += soma([70, 71, 72]);
+  try { t += l[1]; } except (IndexError e) { erros += 1; }
+  t += new Conta(72).valor() % 10;
+  nomes.add("n23" + cast<string>(73));
+  t += soma([74, 75, 76]);
+  try { t += l[5]; } except (IndexError e) { erros += 1; }
+  t += new Conta(76).valor() % 10;
+  nomes.add("n27" + cast<string>(77));
+  t += soma([78, 79, 80]);
+  try { t += l[2]; } except (IndexError e) { erros += 1; }
+  t += new Conta(80).valor() % 10;
+  nomes.add("n31" + cast<string>(81));
+  t += soma([82, 83, 84]);
+  try { t += l[6]; } except (IndexError e) { erros += 1; }
+  t += new Conta(84).valor() % 10;
+  nomes.add("n35" + cast<string>(85));
+  t += soma([86, 87, 88]);
+  try { t += l[3]; } except (IndexError e) { erros += 1; }
+  t += new Conta(88).valor() % 10;
+  nomes.add("n39" + cast<string>(89));
+  t += soma([90, 91, 92]);
+  try { t += l[0]; } except (IndexError e) { erros += 1; }
+  t += new Conta(92).valor() % 10;
+  nomes.add("n43" + cast<string>(93));
+  t += soma([94, 95, 96]);
+  try { t += l[4]; } except (IndexError e) { erros += 1; }
+  t += new Conta(96).valor() % 10;
+  nomes.add("n47" + cast<string>(97));
+  t += soma([98, 99, 100]);
+  try { t += l[1]; } except (IndexError e) { erros += 1; }
+  t += new Conta(100).valor() % 10;
+  nomes.add("n1" + cast<string>(101));
+  t += soma([102, 103, 104]);
+  try { t += l[5]; } except (IndexError e) { erros += 1; }
+  t += new Conta(104).valor() % 10;
+  nomes.add("n5" + cast<string>(105));
+  t += soma([106, 107, 108]);
+  try { t += l[2]; } except (IndexError e) { erros += 1; }
+  t += new Conta(108).valor() % 10;
+  nomes.add("n9" + cast<string>(109));
+  t += soma([110, 111, 112]);
+  try { t += l[6]; } except (IndexError e) { erros += 1; }
+  t += new Conta(112).valor() % 10;
+  nomes.add("n13" + cast<string>(113));
+  t += soma([114, 115, 116]);
+  try { t += l[3]; } except (IndexError e) { erros += 1; }
+  t += new Conta(116).valor() % 10;
+  nomes.add("n17" + cast<string>(117));
+  t += soma([118, 119, 120]);
+  try { t += l[0]; } except (IndexError e) { erros += 1; }
+  t += new Conta(120).valor() % 10;
+  nomes.add("n21" + cast<string>(121));
+  t += soma([122, 123, 124]);
+  try { t += l[4]; } except (IndexError e) { erros += 1; }
+  t += new Conta(124).valor() % 10;
+  nomes.add("n25" + cast<string>(125));
+  t += soma([126, 127, 128]);
+  try { t += l[1]; } except (IndexError e) { erros += 1; }
+  t += new Conta(128).valor() % 10;
+  nomes.add("n29" + cast<string>(129));
+  t += soma([130, 131, 132]);
+  try { t += l[5]; } except (IndexError e) { erros += 1; }
+  t += new Conta(132).valor() % 10;
+  nomes.add("n33" + cast<string>(133));
+  t += soma([134, 135, 136]);
+  try { t += l[2]; } except (IndexError e) { erros += 1; }
+  t += new Conta(136).valor() % 10;
+  nomes.add("n37" + cast<string>(137));
+  t += soma([138, 139, 140]);
+  try { t += l[6]; } except (IndexError e) { erros += 1; }
+  t += new Conta(140).valor() % 10;
+  nomes.add("n41" + cast<string>(141));
+  t += soma([142, 143, 144]);
+  try { t += l[3]; } except (IndexError e) { erros += 1; }
+  t += new Conta(144).valor() % 10;
+  nomes.add("n45" + cast<string>(145));
+  t += soma([146, 147, 148]);
+  try { t += l[0]; } except (IndexError e) { erros += 1; }
+  t += new Conta(148).valor() % 10;
+  nomes.add("n49" + cast<string>(149));
+  t += soma([150, 151, 152]);
+  try { t += l[4]; } except (IndexError e) { erros += 1; }
+  t += new Conta(152).valor() % 10;
+  nomes.add("n3" + cast<string>(153));
+  t += soma([154, 155, 156]);
+  try { t += l[1]; } except (IndexError e) { erros += 1; }
+  t += new Conta(156).valor() % 10;
+  nomes.add("n7" + cast<string>(157));
+  t += soma([158, 159, 160]);
+  try { t += l[5]; } except (IndexError e) { erros += 1; }
+  t += new Conta(160).valor() % 10;
+  nomes.add("n11" + cast<string>(161));
+  t += soma([162, 163, 164]);
+  try { t += l[2]; } except (IndexError e) { erros += 1; }
+  t += new Conta(164).valor() % 10;
+  nomes.add("n15" + cast<string>(165));
+  t += soma([166, 167, 168]);
+  try { t += l[6]; } except (IndexError e) { erros += 1; }
+  t += new Conta(168).valor() % 10;
+  nomes.add("n19" + cast<string>(169));
+  t += soma([170, 171, 172]);
+  try { t += l[3]; } except (IndexError e) { erros += 1; }
+  t += new Conta(172).valor() % 10;
+  nomes.add("n23" + cast<string>(173));
+  t += soma([174, 175, 176]);
+  try { t += l[0]; } except (IndexError e) { erros += 1; }
+  t += new Conta(176).valor() % 10;
+  nomes.add("n27" + cast<string>(177));
+  t += soma([178, 179, 180]);
+  try { t += l[4]; } except (IndexError e) { erros += 1; }
+  t += new Conta(180).valor() % 10;
+  nomes.add("n31" + cast<string>(181));
+  t += soma([182, 183, 184]);
+  try { t += l[1]; } except (IndexError e) { erros += 1; }
+  t += new Conta(184).valor() % 10;
+  nomes.add("n35" + cast<string>(185));
+  t += soma([186, 187, 188]);
+  try { t += l[5]; } except (IndexError e) { erros += 1; }
+  t += new Conta(188).valor() % 10;
+  nomes.add("n39" + cast<string>(189));
+  t += soma([190, 191, 192]);
+  try { t += l[2]; } except (IndexError e) { erros += 1; }
+  t += new Conta(192).valor() % 10;
+  nomes.add("n43" + cast<string>(193));
+  t += soma([194, 195, 196]);
+  try { t += l[6]; } except (IndexError e) { erros += 1; }
+  t += new Conta(196).valor() % 10;
+  nomes.add("n47" + cast<string>(197));
+  t += soma([198, 199, 200]);
+  try { t += l[3]; } except (IndexError e) { erros += 1; }
+  t += new Conta(200).valor() % 10;
+  nomes.add("n1" + cast<string>(201));
+  t += soma([202, 203, 204]);
+  try { t += l[0]; } except (IndexError e) { erros += 1; }
+  t += new Conta(204).valor() % 10;
+  nomes.add("n5" + cast<string>(205));
+  t += soma([206, 207, 208]);
+  try { t += l[4]; } except (IndexError e) { erros += 1; }
+  t += new Conta(208).valor() % 10;
+  nomes.add("n9" + cast<string>(209));
+  t += soma([210, 211, 212]);
+  try { t += l[1]; } except (IndexError e) { erros += 1; }
+  t += new Conta(212).valor() % 10;
+  nomes.add("n13" + cast<string>(213));
+  t += soma([214, 215, 216]);
+  try { t += l[5]; } except (IndexError e) { erros += 1; }
+  t += new Conta(216).valor() % 10;
+  nomes.add("n17" + cast<string>(217));
+  t += soma([218, 219, 220]);
+  try { t += l[2]; } except (IndexError e) { erros += 1; }
+  t += new Conta(220).valor() % 10;
+  nomes.add("n21" + cast<string>(221));
+  t += soma([222, 223, 224]);
+  try { t += l[6]; } except (IndexError e) { erros += 1; }
+  t += new Conta(224).valor() % 10;
+  nomes.add("n25" + cast<string>(225));
+  t += soma([226, 227, 228]);
+  try { t += l[3]; } except (IndexError e) { erros += 1; }
+  t += new Conta(228).valor() % 10;
+  nomes.add("n29" + cast<string>(229));
+  t += soma([230, 231, 232]);
+  try { t += l[0]; } except (IndexError e) { erros += 1; }
+  t += new Conta(232).valor() % 10;
+  nomes.add("n33" + cast<string>(233));
+  t += soma([234, 235, 236]);
+  try { t += l[4]; } except (IndexError e) { erros += 1; }
+  t += new Conta(236).valor() % 10;
+  nomes.add("n37" + cast<string>(237));
+  t += soma([238, 239, 240]);
+  try { t += l[1]; } except (IndexError e) { erros += 1; }
+  t += new Conta(240).valor() % 10;
+  nomes.add("n41" + cast<string>(241));
+  t += soma([242, 243, 244]);
+  try { t += l[5]; } except (IndexError e) { erros += 1; }
+  t += new Conta(244).valor() % 10;
+  nomes.add("n45" + cast<string>(245));
+  t += soma([246, 247, 248]);
+  try { t += l[2]; } except (IndexError e) { erros += 1; }
+  t += new Conta(248).valor() % 10;
+  nomes.add("n49" + cast<string>(249));
+  t += soma([250, 251, 252]);
+  try { t += l[6]; } except (IndexError e) { erros += 1; }
+  t += new Conta(252).valor() % 10;
+  nomes.add("n3" + cast<string>(253));
+  t += soma([254, 255, 256]);
+  try { t += l[3]; } except (IndexError e) { erros += 1; }
+  t += new Conta(256).valor() % 10;
+  nomes.add("n7" + cast<string>(257));
+  t += soma([258, 259, 260]);
+  try { t += l[0]; } except (IndexError e) { erros += 1; }
+  t += new Conta(260).valor() % 10;
+  nomes.add("n11" + cast<string>(261));
+  t += soma([262, 263, 264]);
+  try { t += l[4]; } except (IndexError e) { erros += 1; }
+  t += new Conta(264).valor() % 10;
+  nomes.add("n15" + cast<string>(265));
+  t += soma([266, 267, 268]);
+  try { t += l[1]; } except (IndexError e) { erros += 1; }
+  t += new Conta(268).valor() % 10;
+  nomes.add("n19" + cast<string>(269));
+  t += soma([270, 271, 272]);
+  try { t += l[5]; } except (IndexError e) { erros += 1; }
+  t += new Conta(272).valor() % 10;
+  nomes.add("n23" + cast<string>(273));
+  t += soma([274, 275, 276]);
+  try { t += l[2]; } except (IndexError e) { erros += 1; }
+  t += new Conta(276).valor() % 10;
+  nomes.add("n27" + cast<string>(277));
+  t += soma([278, 279, 280]);
+  try { t += l[6]; } except (IndexError e) { erros += 1; }
+  t += new Conta(280).valor() % 10;
+  nomes.add("n31" + cast<string>(281));
+  t += soma([282, 283, 284]);
+  try { t += l[3]; } except (IndexError e) { erros += 1; }
+  t += new Conta(284).valor() % 10;
+  nomes.add("n35" + cast<string>(285));
+  t += soma([286, 287, 288]);
+  try { t += l[0]; } except (IndexError e) { erros += 1; }
+  t += new Conta(288).valor() % 10;
+  nomes.add("n39" + cast<string>(289));
+  t += soma([290, 291, 292]);
+  try { t += l[4]; } except (IndexError e) { erros += 1; }
+  t += new Conta(292).valor() % 10;
+  nomes.add("n43" + cast<string>(293));
+  t += soma([294, 295, 296]);
+  try { t += l[1]; } except (IndexError e) { erros += 1; }
+  t += new Conta(296).valor() % 10;
+  nomes.add("n47" + cast<string>(297));
+  t += soma([298, 299, 300]);
+  try { t += l[5]; } except (IndexError e) { erros += 1; }
+  t += new Conta(300).valor() % 10;
+  nomes.add("n1" + cast<string>(301));
+  t += soma([302, 303, 304]);
+  try { t += l[2]; } except (IndexError e) { erros += 1; }
+  t += new Conta(304).valor() % 10;
+  nomes.add("n5" + cast<string>(305));
+  t += soma([306, 307, 308]);
+  try { t += l[6]; } except (IndexError e) { erros += 1; }
+  t += new Conta(308).valor() % 10;
+  nomes.add("n9" + cast<string>(309));
+  t += soma([310, 311, 312]);
+  try { t += l[3]; } except (IndexError e) { erros += 1; }
+  t += new Conta(312).valor() % 10;
+  nomes.add("n13" + cast<string>(313));
+  t += soma([314, 315, 316]);
+  try { t += l[0]; } except (IndexError e) { erros += 1; }
+  t += new Conta(316).valor() % 10;
+  nomes.add("n17" + cast<string>(317));
+  t += soma([318, 319, 320]);
+  try { t += l[4]; } except (IndexError e) { erros += 1; }
+  t += new Conta(320).valor() % 10;
+  nomes.add("n21" + cast<string>(321));
+  t += soma([322, 323, 324]);
+  try { t += l[1]; } except (IndexError e) { erros += 1; }
+  t += new Conta(324).valor() % 10;
+  nomes.add("n25" + cast<string>(325));
+  t += soma([326, 327, 328]);
+  try { t += l[5]; } except (IndexError e) { erros += 1; }
+  t += new Conta(328).valor() % 10;
+  nomes.add("n29" + cast<string>(329));
+  t += soma([330, 331, 332]);
+  try { t += l[2]; } except (IndexError e) { erros += 1; }
+  t += new Conta(332).valor() % 10;
+  nomes.add("n33" + cast<string>(333));
+  t += soma([334, 335, 336]);
+  try { t += l[6]; } except (IndexError e) { erros += 1; }
+  t += new Conta(336).valor() % 10;
+  nomes.add("n37" + cast<string>(337));
+  t += soma([338, 339, 340]);
+  try { t += l[3]; } except (IndexError e) { erros += 1; }
+  t += new Conta(340).valor() % 10;
+  nomes.add("n41" + cast<string>(341));
+  t += soma([342, 343, 344]);
+  try { t += l[0]; } except (IndexError e) { erros += 1; }
+  t += new Conta(344).valor() % 10;
+  nomes.add("n45" + cast<string>(345));
+  t += soma([346, 347, 348]);
+  try { t += l[4]; } except (IndexError e) { erros += 1; }
+  t += new Conta(348).valor() % 10;
+  nomes.add("n49" + cast<string>(349));
+  t += soma([350, 351, 352]);
+  try { t += l[1]; } except (IndexError e) { erros += 1; }
+  t += new Conta(352).valor() % 10;
+  nomes.add("n3" + cast<string>(353));
+  t += soma([354, 355, 356]);
+  try { t += l[5]; } except (IndexError e) { erros += 1; }
+  t += new Conta(356).valor() % 10;
+  nomes.add("n7" + cast<string>(357));
+  t += soma([358, 359, 360]);
+  try { t += l[2]; } except (IndexError e) { erros += 1; }
+  t += new Conta(360).valor() % 10;
+  nomes.add("n11" + cast<string>(361));
+  t += soma([362, 363, 364]);
+  try { t += l[6]; } except (IndexError e) { erros += 1; }
+  t += new Conta(364).valor() % 10;
+  nomes.add("n15" + cast<string>(365));
+  t += soma([366, 367, 368]);
+  try { t += l[3]; } except (IndexError e) { erros += 1; }
+  t += new Conta(368).valor() % 10;
+  nomes.add("n19" + cast<string>(369));
+  t += soma([370, 371, 372]);
+  try { t += l[0]; } except (IndexError e) { erros += 1; }
+  t += new Conta(372).valor() % 10;
+  nomes.add("n23" + cast<string>(373));
+  t += soma([374, 375, 376]);
+  try { t += l[4]; } except (IndexError e) { erros += 1; }
+  t += new Conta(376).valor() % 10;
+  nomes.add("n27" + cast<string>(377));
+  t += soma([378, 379, 380]);
+  try { t += l[1]; } except (IndexError e) { erros += 1; }
+  t += new Conta(380).valor() % 10;
+  nomes.add("n31" + cast<string>(381));
+  t += soma([382, 383, 384]);
+  try { t += l[5]; } except (IndexError e) { erros += 1; }
+  t += new Conta(384).valor() % 10;
+  nomes.add("n35" + cast<string>(385));
+  t += soma([386, 387, 388]);
+  try { t += l[2]; } except (IndexError e) { erros += 1; }
+  t += new Conta(388).valor() % 10;
+  nomes.add("n39" + cast<string>(389));
+  t += soma([390, 391, 392]);
+  try { t += l[6]; } except (IndexError e) { erros += 1; }
+  t += new Conta(392).valor() % 10;
+  nomes.add("n43" + cast<string>(393));
+  t += soma([394, 395, 396]);
+  try { t += l[3]; } except (IndexError e) { erros += 1; }
+  t += new Conta(396).valor() % 10;
+  nomes.add("n47" + cast<string>(397));
+  t += soma([398, 399, 400]);
+  try { t += l[0]; } except (IndexError e) { erros += 1; }
+  print(t, erros, nomes.size(), nomes[0], nomes[99]);
+  print(l[400]);
+}
+// expect: 61550 57 100 n11 n47397
+// expect-error: IndexError

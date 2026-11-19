@@ -4,10 +4,10 @@
 namespace cinza::cir {
 
 std::uint32_t Modulo::literal(const std::string& s) {
-    for (std::size_t i = 0; i < literais.size(); ++i)
-        if (literais[i] == s) return static_cast<std::uint32_t>(i);
-    literais.push_back(s);
-    return static_cast<std::uint32_t>(literais.size() - 1);
+    // pelo índice: procurar na lista era quadrático (50 mil literais: 20 s no -O0)
+    auto [it, novo] = indice_literais.try_emplace(s, static_cast<std::uint32_t>(literais.size()));
+    if (novo) literais.push_back(s);
+    return it->second;
 }
 
 std::uint32_t Modulo::nativa(const std::string& modulo, const std::string& nome) {

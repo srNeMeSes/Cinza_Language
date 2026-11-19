@@ -58,7 +58,9 @@ Se houver erro de compilação, nada do programa é executado.
 
 Mais de **2000 níveis** de aninhamento — parênteses, operadores unários, operadores de uma mesma
 cadeia (`a + b + c ...`) ou instruções umas dentro das outras — é `SyntaxError`
-("Código aninhado demais"), relatado uma só vez; a análise para ali.
+("Código aninhado demais"), relatado uma só vez; a análise para ali. Os níveis de fora também
+contam (o corpo da função, a instrução em que a expressão está): na prática, cerca de 1995
+parênteses dentro de uma `main`.
 
 ```cinza
 fn main() {

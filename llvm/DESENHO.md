@@ -451,7 +451,18 @@ compilar em -O0 e mais de 60 s em -O2 — agora, cerca de 1 s nos dois.
 - **contagem em linha no -O2**: `retem` e `solta` leem as marcas e a contagem do cabeçalho
   (deslocamentos 5 e 0, conferidos pelo `--confere-layout`) e só chamam o runtime para destruir
   (`cz_destroi`). No -O0 continuam chamadas ao runtime, para a `libcinzart` de depuração
-  (`CINZA_CONFERE_REFS`) conferir cada operação;
+  (`CINZA_CONFERE_REFS`) conferir cada operação. Uma função com mais de 256 `solta` (os
+  temporários de uma expressão funda, todos vivos até o fim da instrução) fica com as chamadas:
+  os 5 blocos de cada `solta` em linha faziam o alocador de registradores do LLVM crescer mais
+  que linear (uma lista de 1000 níveis levava 114 s);
+- **funções enormes sem otimização** (Q2): acima de 3000 instruções da CIR (o `main` de um
+  programa gerado, uma tabela escrita à mão) a função vai com `optnone` e `noinline`, mesmo no
+  -O2 — o alocador e o *machine sinking* do LLVM crescem mais que linear com milhares de blocos
+  (o `main` de 1000 linhas com objetos levava 11 s; agora 2,4 s). Como a geração de código do -O2
+  ainda é quadrática nelas, depois dos passes o `emiteObjeto` divide o módulo: as enormes vão para
+  um segundo objeto (`prog.exe.grandes.o`), gerado em -O0, com as declarações do resto, e os nomes
+  locais ficam externos para os dois se enxergarem (um `main` de 100 mil linhas: tempo esgotado →
+  15 s). Com `--asan` o módulo fica inteiro. Ela roda igual, só sem otimizar;
 - **a regra das 2000 chamadas em quem chama**, como na CVM (o prólogo só empilha o quadro);
   numa chamada por interface, pelo descritor da função escolhida (uma tabela paralela à dos
   métodos). Com isso uma análise do módulo acha as funções que não podem voltar com erro (sem
@@ -684,9 +695,12 @@ segurança precisa.
   declaradas `noexcept` no lado C++.
 - Nenhuma estrutura de C++ aparece na interface: só os tipos C das seções 2 e 5.
 
-**Implementado no P3** (`llvm/cinzart.{h,cpp}`): `cz_inicio`, `cz_fim`, `cz_str_literal`
-(imortal; o `cz_fim` solta os literais depois da última coleta e antes de conferir
-vazamentos), `cz_nativa_resolve` (pelo nome do módulo e da função, uma vez na partida),
+**Implementado no P3** (`llvm/cinzart.{h,cpp}`): `cz_inicio`, `cz_fim`, `cz_literais` (todas as
+strings literais do módulo de uma vez, de uma tabela constante `{bytes, tamanho}` para o global
+`@cz.literais`; imortais; o `cz_fim` solta os literais depois da última coleta e antes de conferir
+vazamentos — no Q2 trocou uma chamada `cz_str_literal` por literal, que num programa com 50 mil
+literais virava 50 mil chamadas na partida, e num vetor de literal grande uma string literal vai
+como a marca constante `CZ_TIPO_LITERAL` com o índice dela), `cz_nativa_resolve` (pelo nome do módulo e da função, uma vez na partida),
 `cz_nativa` e `cz_solta_valor`; `cz_exec` só com o campo `erro`. **No P4**: `CzPos`, `CzFuncao`,
 `CzQuadro` e o `CzExec` completo (`erro`, `prof`, `quadros`), conferidos pelo `--confere-layout`;
 `cz_arquivos` (os nomes na ordem dos `file_id` do front-end); o caminho de erro dos números

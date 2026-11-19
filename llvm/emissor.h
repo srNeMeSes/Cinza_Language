@@ -23,8 +23,9 @@ public:
     bool gera(const cir::Modulo& m, std::string& erro);
     // Roda os passes (default<O0> ou default<O2>); o emiteObjeto roda se ainda não rodou
     bool otimiza(std::string& erro);
-    // Grava o objeto
-    bool emiteObjeto(const std::string& caminho, std::string& erro);
+    // Grava o objeto em `caminho`; em -O2, as funções enormes (que vão sem otimização) num
+    // segundo objeto, gerado em -O0. `objetos` recebe os arquivos gravados, para a ligação.
+    bool emiteObjeto(const std::string& caminho, std::vector<std::string>& objetos, std::string& erro);
     // O IR em texto (cinzac --emit-llvm)
     std::string textoIR() const;
 

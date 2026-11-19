@@ -1942,6 +1942,36 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
   > de `int` de propósito). Conferidos também: o ASan acusa um estouro de buffer de propósito, o IR com
   > `--asan` chama as rotinas do ASan, e o `--confere-layout` vale com a `libc++` do clang. Resultado:
   > 684/684, nenhum relato do ASan nem do UBSan (no compilador, no runtime e no código gerado).
+  > **Programas grandes** (`tests/fuzz/grandes.py`): 20 famílias em tamanhos crescentes — 20 mil
+  > funções, cadeias de 2 mil chamadas, um `main` de 100 mil linhas, 70 mil locais, aninhamento até o
+  > limite e além (parênteses, blocos, `if`, operadores, chamadas, listas), 5 mil classes, structs de
+  > 10 mil campos, enum de 100 mil valores, literais de 10 MB e de 1 milhão de elementos, 50 mil
+  > literais distintos, identificador de 1 milhão de caracteres, 10 mil parâmetros — no `cinza` e no
+  > `cinzac` -O0 e -O2, com tempo, pico de memória e a saída nativa comparada com a da CVM. Defeito é
+  > queda, erro interno, tempo esgotado, diferença entre os backends ou tempo que cresce mais que o
+  > dobro do tamanho. O front-end e a CVM não caem em nada e respondem em menos de 1 s em tudo; os
+  > limites (2000 níveis, 65535 registradores da CVM) dão a mensagem deles. Achados e corrigidos:
+  > - o front-end conferia valor repetido de enum comparando cada um com todos os anteriores (100 mil
+  >   valores: 20 s → 0,1 s);
+  > - o `cinzac` procurava cada string literal numa lista (`Modulo::literal`), quadrático, e criava os
+  >   literais com uma chamada `cz_str_literal` por literal na partida: agora um índice, uma tabela
+  >   constante e uma chamada `cz_literais`; num vetor de literal grande a string literal vai como
+  >   marca constante (`CZ_TIPO_LITERAL` com o índice), e o `embrulha` de um literal só vira código onde
+  >   é usado (dict de 100 mil chaves: 58 s e 1,6 GB → 1,9 s e 330 MB em -O0; em -O2, de tempo
+  >   esgotado a 3,3 s);
+  > - em -O2, o refcount em linha põe 5 blocos em cada `solta`, e com centenas de temporários vivos
+  >   ao mesmo tempo o alocador de registradores do LLVM ficava quadrático (lista de 1000 níveis:
+  >   114 s → 0,6 s): acima de 256 `solta` a função usa as chamadas do runtime;
+  > - em -O2, uma função de milhares de blocos deixava o alocador e o *machine sinking* do LLVM
+  >   quadráticos (5 mil classes usadas no `main`: tempo esgotado → 9,5 s; `main` de 100 mil linhas:
+  >   tempo esgotado → 15 s): acima de 3000 instruções da CIR a função vai com `optnone` e, depois dos
+  >   passes, num segundo objeto gerado em -O0 (`emiteObjeto` divide o módulo; llvm/DESENHO.md 4).
+  > Testes novos: `enum/enum_grande`, `enum/enum_grande_repetido`, `nativo/q2_lista_funda`,
+  > `nativo/q2_funcao_enorme` (passa pelo segundo objeto, com erro não pego e o trace) e
+  > `nativo/q2_literais`; 689/689 na CVM, no `cinzac` -O0 e -O2 e com ASan/UBSan. Custos que ficam,
+  > lineares: o -O2 leva ~1,7 ms por função pequena e ~13 ms por função numa cadeia de chamadas (o
+  > inliner); o `cinzac` usa ~23 KB de memória por linha de um `main` enorme (2,3 GB para 100 mil
+  > linhas em -O0) — o IR de cada linha, com a conferência de erro e a posição de cada operação.
 - [ ] Q3. Biblioteca padrão da 1.0. **[decidir o escopo]** Hoje: `Strings`, `Files`, `Math`,
   `Random`, `Convert`, `Lists`, `Time`. Candidatos: JSON (texto ↔ `dict`/`list`), ambiente e
   processo (variáveis de ambiente, rodar um comando), pastas (listar, criar, apagar), o que faltar

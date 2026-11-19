@@ -147,7 +147,8 @@ int main(int argc, char* argv[]) {
     }
     if (saida.empty()) saida = textoCaminho(caminhoUtf8(arquivo).replace_extension(".exe"));
     const std::string objeto = saida + ".o";
-    if (!emissor.emiteObjeto(objeto, erro)) {
+    std::vector<std::string> objetos;   // o segundo, com as funções enormes, se houver
+    if (!emissor.emiteObjeto(objeto, objetos, erro)) {
         std::cerr << "Erro interno do cinzac: " << erro << "\n";
         return 1;
     }
@@ -158,8 +159,12 @@ int main(int argc, char* argv[]) {
     const std::filesystem::path pasta = caminhoUtf8(caminhoDoExecutavel()).parent_path();
     std::string gxx = "g++";
     ambienteUtf8("CINZA_GXX", gxx);
-    std::vector<std::string> ligacao{gxx, objeto, textoCaminho(pasta / "libcinzart.a"), "-o", saida,
-                                     "-static-libstdc++", "-static-libgcc", "-Wl,--stack,67108864"};
+    std::vector<std::string> ligacao{gxx};
+    ligacao.insert(ligacao.end(), objetos.begin(), objetos.end());
+    for (const std::string& a : {textoCaminho(pasta / "libcinzart.a"), std::string("-o"), saida,
+                                 std::string("-static-libstdc++"), std::string("-static-libgcc"),
+                                 std::string("-Wl,--stack,67108864")})
+        ligacao.push_back(a);
     std::string extra;
     if (ambienteUtf8("CINZA_LIGACAO", extra)) {
         std::istringstream partes(extra);
@@ -168,7 +173,7 @@ int main(int argc, char* argv[]) {
     const int ligou = executaProcesso(ligacao);
     if (!manter_objeto) {
         std::error_code ec;
-        std::filesystem::remove(caminhoUtf8(objeto), ec);
+        for (const std::string& o : objetos) std::filesystem::remove(caminhoUtf8(o), ec);
     }
     if (ligou != 0) {
         std::cerr << "Erro: a ligação com o " << gxx << " falhou"

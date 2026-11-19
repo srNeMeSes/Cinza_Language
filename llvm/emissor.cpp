@@ -19,6 +19,7 @@
 #include <cstring>
 #include <map>
 #include <tuple>
+#include <unordered_map>
 #include <vector>
 
 namespace cinza::llvm {
@@ -111,6 +112,11 @@ std::vector<bool> podemFalhar(const cir::Modulo& m) {
 
 }  // namespace
 
+// Instruções da CIR acima das quais uma função não é otimizada (Emissor::Impl::funcao)
+constexpr std::size_t LIMITE_OTIMIZA = 3000;
+// Soltas acima das quais o refcount da função vai pelo runtime, não em linha
+constexpr std::size_t LIMITE_SOLTAS_EM_LINHA = 256;
+
 struct Emissor::Impl {
     bool                 otimiza = false;
     bool                 asan = false;   // sanitize_address em toda função e o passo asan
@@ -133,8 +139,10 @@ struct Emissor::Impl {
     struct FnRt { LLVMTypeRef tipo; LLVMValueRef fn; };
     std::map<std::string, FnRt> runtime;
 
-    std::vector<LLVMValueRef> literais;   // @cz.lit.N: ptr para a CzString
-    std::vector<LLVMValueRef> bytes;      // @cz.lit.N.bytes
+    // @cz.literais: [N x ptr] para as CzString, preenchido no início por uma chamada só
+    // (cz_literais, com a tabela constante @cz.literais.tab); literais[i] é o endereço do i-ésimo
+    std::vector<LLVMValueRef> literais;
+    LLVMValueRef              tabela_literais = nullptr;
     std::vector<LLVMValueRef> nativas;    // @cz.nat.N: ptr para a NativeFn
     std::vector<std::pair<LLVMValueRef, LLVMValueRef>> nomes_nativas;   // módulo, nome
     std::vector<LLVMValueRef> globais;    // os const do nível superior
@@ -147,6 +155,7 @@ struct Emissor::Impl {
     std::vector<bool>         pode_falhar;    // a função pode voltar com erro pendente
     LLVMValueRef quadro_vazio{};          // o quadro da função oculta sem chamador (a dos const)
     std::size_t  vetores = 0;             // os globais dos literais grandes (cz.vetor.N)
+    std::unordered_map<std::uint32_t, std::uint32_t> literal_de;   // temporário embrulhado → literal
     std::map<std::tuple<int, int, int>, LLVMValueRef> posicoes;   // os CzPos
 
     // A função em tradução
@@ -157,6 +166,7 @@ struct Emissor::Impl {
     std::vector<LLVMBasicBlockRef> blocos;
     LLVMValueRef quadro{};          // o quadro desta função na sombra da pilha
     LLVMBasicBlockRef tratador{};   // o bloco tratador da instrução em tradução
+    bool em_linha = false;          // o refcount em linha (-O2, função de tamanho normal)
 
     // ── utilitários ──────────────────────────────────────────────────────
     void atributo(LLVMValueRef f, const char* nome) {
@@ -295,7 +305,15 @@ struct Emissor::Impl {
 
     LLVMValueRef val(const cir::Operando& o) {
         switch (o.k) {
-            case cir::Operando::K::Temp:    return temps[o.indice];
+            case cir::Operando::K::Temp: {
+                // o embrulha de um literal só vira código onde é usado: no vetor de um literal
+                // grande ele vai como marca constante e não deixa instruções mortas para trás
+                if (temps[o.indice]) return temps[o.indice];
+                cir::Operando lit;
+                lit.k = cir::Operando::K::Literal;
+                lit.indice = literal_de.at(o.indice);
+                return embrulha(lit);
+            }
             case cir::Operando::K::I32:     return ci32(static_cast<std::int32_t>(o.i));
             case cir::Operando::K::I64:     return ci64(o.i);
             case cir::Operando::K::F32:     return LLVMConstReal(tF32, o.f);
@@ -597,6 +615,11 @@ struct Emissor::Impl {
                 break;
             case Op::Converte: temps[in.dst] = converte(in); break;
             case Op::Embrulha:
+                if (in.args[0].k == cir::Operando::K::Literal) {   // fica para o uso (val)
+                    literal_de[in.dst] = in.args[0].indice;
+                    temps[in.dst] = nullptr;
+                    break;
+                }
                 temps[in.dst] = cir::ehValorDireto(tipoOp(in.args[0])) ? val(in.args[0]) : embrulha(in.args[0]);
                 break;
             case Op::Desembrulha:   // enum e tipo já são o CzValor inteiro
@@ -632,17 +655,20 @@ struct Emissor::Impl {
                 break;
             }
             case Op::Retem:
-                if (otimiza) retemEmLinha(val(in.args[0]));
+                if (em_linha) retemEmLinha(val(in.args[0]));
                 else chamaRt(rt("cz_retem", tVoid, {tPtr}), {val(in.args[0])});
                 break;
             case Op::Solta: {
-                if (cir::ehRef(tipoOp(in.args[0]))) {   // nulo (slot vazio): nada a soltar
+                if (cir::ehRef(tipoOp(in.args[0]))) {
                     LLVMValueRef p = val(in.args[0]);
+                    if (!em_linha) {   // o cz_solta ignora o nulo (slot vazio)
+                        chamaRt(rt("cz_solta", tVoid, {tPtr}), {p});
+                        break;
+                    }
                     LLVMBasicBlockRef sim = novoBloco("solta"), segue = novoBloco("soltou");
                     LLVMBuildCondBr(b, LLVMBuildICmp(b, LLVMIntNE, p, LLVMConstNull(tPtr), ""), sim, segue);
                     LLVMPositionBuilderAtEnd(b, sim);
-                    if (otimiza) soltaEmLinha(p);
-                    else chamaRt(rt("cz_solta", tVoid, {tPtr}), {p});
+                    soltaEmLinha(p);
                     LLVMBuildBr(b, segue);
                     LLVMPositionBuilderAtEnd(b, segue);
                     break;
@@ -794,7 +820,15 @@ struct Emissor::Impl {
                 std::vector<LLVMValueRef> vs;
                 bool constantes = true;
                 for (std::size_t i = 0; i < n; ++i) {
-                    vs.push_back(val(in.args[info.params.size() + i]));
+                    const cir::Operando& a = in.args[info.params.size() + i];
+                    auto lit = a.k == cir::Operando::K::Temp ? literal_de.find(a.indice) : literal_de.end();
+                    if (n >= 8 && lit != literal_de.end()) {   // a string literal como marca constante
+                        LLVMValueRef c[] = {LLVMConstInt(tI8, CZ_TIPO_LITERAL, 0), LLVMConstNull(LLVMArrayType2(tI8, 3)),
+                                            ci32(lit->second), ci64(0)};
+                        vs.push_back(LLVMConstNamedStruct(tValor, c, 4));
+                    } else {
+                        vs.push_back(val(a));
+                    }
                     constantes = constantes && LLVMIsConstant(vs.back());
                 }
                 if (n >= 8) {
@@ -858,10 +892,30 @@ struct Emissor::Impl {
         cf = &f;
         fn = fns[i];
         temps.assign(f.temps.size(), nullptr);
+        literal_de.clear();
         slots.clear();
         blocos.clear();
         quadro = nullptr;
         tratador = nullptr;
+        // Uma função enorme (o main de um programa gerado, uma tabela escrita à mão) vai sem
+        // otimização mesmo em -O2: o alocador de registradores e o machine sinking do LLVM
+        // crescem mais que linear com milhares de blocos (o main de 1000 linhas com objetos
+        // levava 11 s, uma lista com 400 níveis 11 s, 1000 níveis 114 s). Ela roda o mesmo,
+        // só não é otimizada nem expandida nas outras.
+        // O refcount em linha põe 5 blocos em cada solta: com centenas delas vivas ao mesmo
+        // tempo (os temporários de uma expressão funda) o alocador também cresce mais que
+        // linear, e a função fica com as chamadas do runtime.
+        std::size_t tamanho = 0, soltas = 0;
+        for (const cir::Bloco& bl : f.blocos) {
+            tamanho += bl.instr.size();
+            for (const cir::Instr& in : bl.instr) soltas += in.op == cir::Op::Solta;
+        }
+        const bool enorme = tamanho > LIMITE_OTIMIZA;
+        em_linha = otimiza && !enorme && soltas <= LIMITE_SOLTAS_EM_LINHA;
+        if (otimiza && enorme) {
+            atributo(fn, "noinline");
+            atributo(fn, "optnone");
+        }
 
         LLVMBasicBlockRef entrada = novoBloco("entrada");
         LLVMPositionBuilderAtEnd(be, entrada);
@@ -928,10 +982,19 @@ struct Emissor::Impl {
         }
         chamaRt(rt("cz_arquivos", tVoid, {tPtr, tI64}), {tabela, ci64(static_cast<std::int64_t>(nomes.size()))});
 
-        for (std::size_t i = 0; i < m.literais.size(); ++i)
-            LLVMBuildStore(b, chamaRt(rt("cz_str_literal", tPtr, {tPtr, tI64}),
-                                      {bytes[i], ci64(static_cast<std::int64_t>(m.literais[i].size()))}),
-                           literais[i]);
+        if (!m.literais.empty()) {   // { bytes, tamanho } de cada literal, na ordem do módulo
+            LLVMTypeRef tpar = LLVMStructTypeInContext(ctx, std::vector<LLVMTypeRef>{tPtr, tI64}.data(), 2, 0);
+            std::vector<LLVMValueRef> pares;
+            for (std::size_t i = 0; i < m.literais.size(); ++i) {
+                LLVMValueRef c[] = {textoC(m.literais[i], "cz.lit." + std::to_string(i)),
+                                    ci64(static_cast<std::int64_t>(m.literais[i].size()))};
+                pares.push_back(LLVMConstStructInContext(ctx, c, 2, 0));
+            }
+            LLVMValueRef arr = LLVMConstArray2(tpar, pares.data(), pares.size());
+            chamaRt(rt("cz_literais", tVoid, {tPtr, tI64, tPtr}),
+                    {global(LLVMTypeOf(arr), "cz.literais.tab", arr, true),
+                     ci64(static_cast<std::int64_t>(m.literais.size())), tabela_literais});
+        }
         for (std::size_t i = 0; i < m.nativas.size(); ++i)
             LLVMBuildStore(b, chamaRt(rt("cz_nativa_resolve", tPtr, {tPtr, tPtr}),
                                       {nomes_nativas[i].first, nomes_nativas[i].second}),
@@ -1026,9 +1089,13 @@ bool Emissor::gera(const cir::Modulo& m, std::string& erro) {
     if (m.main < 0) { erro = "o programa não tem main"; return false; }
     e.cm = &m;
     try {
-        for (std::size_t i = 0; i < m.literais.size(); ++i) {
-            e.bytes.push_back(e.textoC(m.literais[i], "cz.lit." + std::to_string(i) + ".bytes"));
-            e.literais.push_back(e.global(e.tPtr, "cz.lit." + std::to_string(i), LLVMConstNull(e.tPtr), false));
+        if (!m.literais.empty()) {
+            LLVMTypeRef tv = LLVMArrayType2(e.tPtr, m.literais.size());
+            e.tabela_literais = e.global(tv, "cz.literais", LLVMConstNull(tv), false);
+            for (std::size_t i = 0; i < m.literais.size(); ++i) {
+                LLVMValueRef idx[] = {e.ci64(0), e.ci64(static_cast<std::int64_t>(i))};
+                e.literais.push_back(LLVMConstInBoundsGEP2(tv, e.tabela_literais, idx, 2));
+            }
         }
         for (std::size_t i = 0; i < m.nativas.size(); ++i) {
             const std::string n = std::to_string(i);
@@ -1109,16 +1176,110 @@ bool Emissor::otimiza(std::string& erro) {
     return true;
 }
 
-bool Emissor::emiteObjeto(const std::string& caminho, std::string& erro) {
-    Impl& e = *impl;
-    if (!otimiza(erro)) return false;
+namespace {
+
+bool gravaObjeto(LLVMTargetMachineRef tm, LLVMModuleRef mod, const std::string& caminho, std::string& erro) {
     char* msg = nullptr;
     std::string arquivo = caminho;   // a llvm-c pede char* (UTF-8)
-    if (LLVMTargetMachineEmitToFile(e.tm, e.mod, arquivo.data(), LLVMObjectFile, &msg)) {
+    if (LLVMTargetMachineEmitToFile(tm, mod, arquivo.data(), LLVMObjectFile, &msg)) {
         erro = std::string("geração do objeto: ") + (msg ? msg : "");
         LLVMDisposeMessage(msg);
         return false;
     }
+    return true;
+}
+
+bool temAtributo(LLVMValueRef f, const char* nome) {
+    const unsigned k = LLVMGetEnumAttributeKindForName(nome, std::strlen(nome));
+    return LLVMGetEnumAttributeAtIndex(f, LLVMAttributeFunctionIndex, k) != nullptr;
+}
+
+// Tira o corpo da função: ela vira a declaração do que está no outro objeto
+void apagaCorpo(LLVMValueRef f) {
+    std::vector<LLVMValueRef> instrs;
+    for (LLVMBasicBlockRef bb = LLVMGetFirstBasicBlock(f); bb; bb = LLVMGetNextBasicBlock(bb))
+        for (LLVMValueRef i = LLVMGetFirstInstruction(bb); i; i = LLVMGetNextInstruction(i)) {
+            if (LLVMGetTypeKind(LLVMTypeOf(i)) != LLVMVoidTypeKind)
+                LLVMReplaceAllUsesWith(i, LLVMGetUndef(LLVMTypeOf(i)));
+            instrs.push_back(i);
+        }
+    for (LLVMValueRef i : instrs) LLVMInstructionEraseFromParent(i);
+    while (LLVMBasicBlockRef bb = LLVMGetFirstBasicBlock(f)) LLVMDeleteBasicBlock(bb);
+    LLVMSetLinkage(f, LLVMExternalLinkage);
+}
+
+bool local(LLVMValueRef g) {
+    const LLVMLinkage l = LLVMGetLinkage(g);
+    return l == LLVMInternalLinkage || l == LLVMPrivateLinkage;
+}
+
+}  // namespace
+
+// As funções enormes vão com optnone (Impl::funcao), mas a geração de código do -O2 ainda
+// roda nelas — e o alocador de registradores dele é quadrático com dezenas de milhares de
+// blocos (um main de 50 mil linhas passava de 100 s; em -O0, 14 s). Então, depois dos passes
+// (as assinaturas e as convenções de chamada já estão fixadas), o módulo se divide em dois:
+// o primeiro fica com tudo menos o corpo das enormes, o segundo só com elas (e as
+// declarações do resto), gerado em -O0. Os nomes locais ficam externos para os dois objetos
+// se enxergarem — só dentro do executável, que não exporta nada.
+bool Emissor::emiteObjeto(const std::string& caminho, std::vector<std::string>& objetos, std::string& erro) {
+    Impl& e = *impl;
+    if (!otimiza(erro)) return false;
+    std::vector<std::string> enormes;
+    if (e.otimiza && !e.asan)   // no ASan (depuração) o módulo fica inteiro: ele cria construtores
+        for (LLVMValueRef f = LLVMGetFirstFunction(e.mod); f; f = LLVMGetNextFunction(f))
+            if (!LLVMIsDeclaration(f) && temAtributo(f, "optnone")) {
+                std::size_t n = 0;
+                enormes.emplace_back(LLVMGetValueName2(f, &n), n);
+            }
+    if (enormes.empty()) {
+        if (!gravaObjeto(e.tm, e.mod, caminho, erro)) return false;
+        objetos.push_back(caminho);
+        return true;
+    }
+
+    std::size_t sem_nome = 0;
+    auto externo = [&](LLVMValueRef g) {
+        if (LLVMIsDeclaration(g) || !local(g)) return;
+        std::size_t n = 0;
+        LLVMGetValueName2(g, &n);
+        if (n == 0) {
+            const std::string nome = "cz.sem.nome." + std::to_string(sem_nome++);
+            LLVMSetValueName2(g, nome.data(), nome.size());
+        }
+        LLVMSetLinkage(g, LLVMExternalLinkage);
+    };
+    for (LLVMValueRef g = LLVMGetFirstGlobal(e.mod); g; g = LLVMGetNextGlobal(g)) externo(g);
+    for (LLVMValueRef f = LLVMGetFirstFunction(e.mod); f; f = LLVMGetNextFunction(f)) externo(f);
+
+    LLVMModuleRef grandes = LLVMCloneModule(e.mod);
+    for (const std::string& nome : enormes) apagaCorpo(LLVMGetNamedFunction(e.mod, nome.c_str()));
+    std::vector<LLVMValueRef> outras;
+    for (LLVMValueRef f = LLVMGetFirstFunction(grandes); f; f = LLVMGetNextFunction(f))
+        if (!LLVMIsDeclaration(f) && !temAtributo(f, "optnone")) outras.push_back(f);
+    for (LLVMValueRef f : outras) apagaCorpo(f);
+    for (LLVMValueRef g = LLVMGetFirstGlobal(grandes); g; g = LLVMGetNextGlobal(g))
+        if (!LLVMIsDeclaration(g)) LLVMSetInitializer(g, nullptr);   // definidos no primeiro
+
+    char* msg = nullptr;
+    for (LLVMModuleRef m : {e.mod, grandes})
+        if (LLVMVerifyModule(m, LLVMReturnStatusAction, &msg)) {
+            erro = std::string("IR inválido ao dividir o módulo: ") + (msg ? msg : "");
+            LLVMDisposeMessage(msg);
+            LLVMDisposeModule(grandes);
+            return false;
+        } else {
+            LLVMDisposeMessage(msg);
+            msg = nullptr;
+        }
+    LLVMTargetMachineRef tm0 = criaMaquina(false, erro);
+    const std::string segundo = caminho.substr(0, caminho.size() - 2) + ".grandes.o";
+    const bool ok = tm0 && gravaObjeto(e.tm, e.mod, caminho, erro) && gravaObjeto(tm0, grandes, segundo, erro);
+    if (tm0) LLVMDisposeTargetMachine(tm0);
+    LLVMDisposeModule(grandes);
+    if (!ok) return false;
+    objetos.push_back(caminho);
+    objetos.push_back(segundo);
     return true;
 }
 
@@ -1157,6 +1318,8 @@ bool Emissor::confereLayout(std::string& relato) {
             {offsetof(CzObjeto, refs), offsetof(CzObjeto, gc_kind), offsetof(CzObjeto, marcas),
              offsetof(CzObjeto, _reservado), offsetof(CzObjeto, desc), offsetof(CzObjeto, ant),
              offsetof(CzObjeto, prox)});
+    confere("CzTextoLiteral", {ptr, i64}, sizeof(CzTextoLiteral),
+            {offsetof(CzTextoLiteral, bytes), offsetof(CzTextoLiteral, n)});
     confere("CzPos", {i32, i32, i32}, sizeof(CzPos),
             {offsetof(CzPos, arquivo), offsetof(CzPos, linha), offsetof(CzPos, coluna)});
     confere("CzFuncao", {ptr, i32, i32, i32}, sizeof(CzFuncao),
