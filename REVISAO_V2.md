@@ -1918,7 +1918,10 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
   > `CINZA_VAZAMENTOS=1`) e no `cinzac --emit-cir`; uma amostra é compilada e comparada com a CVM.
   > Defeito é queda, erro interno, travamento do front-end, vazamento ou diferença entre os
   > backends; cada um é gravado minimizado (delta debugging por linhas e por símbolos). Primeira
-  > sessão (15 min, 6 trabalhos): 14.550 mutantes, 274 no diferencial, nenhum defeito.
+  > sessão (15 min, 6 trabalhos): 14.550 mutantes, 274 no diferencial, nenhum defeito. Segunda, com
+  > as mutações de números e operadores: 9.990 mutantes, 412 no diferencial, nenhum defeito. O fuzzer
+  > foi conferido com um `cinza` falso que cai com 0xC0000005 em programas com `while`: acusou as duas
+  > quedas e minimizou cada uma até `while`.
 - [ ] Q3. Biblioteca padrão da 1.0. **[decidir o escopo]** Hoje: `Strings`, `Files`, `Math`,
   `Random`, `Convert`, `Lists`, `Time`. Candidatos: JSON (texto ↔ `dict`/`list`), ambiente e
   processo (variáveis de ambiente, rodar um comando), pastas (listar, criar, apagar), o que faltar
