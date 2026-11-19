@@ -25,9 +25,17 @@ bool ambienteUtf8(const char* nome, std::string& valor);
 // Usado pelo cinza e pelos programas gerados pelo cinzac (cz_inicio).
 void preparaConsole();
 
-// Roda um programa (args[0], procurado no PATH) com os argumentos, esperando o fim;
-// devolve o código de saída, ou -1 se não conseguiu iniciar. Argumentos em UTF-8.
+// Roda um programa (args[0], procurado no PATH) com os argumentos, sem shell, esperando o
+// fim; devolve o código de saída, ou -1 se não conseguiu iniciar. Argumentos em UTF-8.
 int executaProcesso(const std::vector<std::string>& args);
+
+// O mesmo, com o código em `codigo` (no POSIX, morto por um sinal: 128 + o sinal) e false
+// só se não conseguiu iniciar o programa. Com `saida`, a saída padrão dele vem para ela, em
+// bytes (a entrada e a saída de erro continuam as do terminal). Usado por Process (Q3).
+bool executa(const std::vector<std::string>& args, int& codigo, std::string* saida = nullptr);
+
+// Todas as variáveis de ambiente, (nome, valor) em UTF-8 (Env.all)
+std::vector<std::pair<std::string, std::string>> ambienteTodo();
 
 // Caminho do executável em execução, em UTF-8 (o cinzac acha a libcinzart ao lado)
 std::string caminhoDoExecutavel();

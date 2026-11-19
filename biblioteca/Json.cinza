@@ -1,0 +1,399 @@
+// Json — ler e gravar JSON (REVISAO_V2.md, Q3; spec/06-biblioteca.md, Json).
+//
+// Um módulo da biblioteca escrito na própria Cinza, embutido no cinza e no cinzac
+// (biblioteca.cpp): `import Json;` o carrega como qualquer módulo, e ele vale nos dois
+// backends sem trabalho a mais.
+//
+// Um valor JSON é um Json.Value, com o tipo em Json.Kind. A Cinza não tem null nem
+// tipo dinâmico: o null do JSON é o Kind.Null, e ler um valor como o tipo errado
+// (as_text de um número) lança ValueError. O número guarda o texto dele, para as_i64
+// ser exato em toda a faixa de i64 (um f64 só é exato até 2^53). O objeto guarda as
+// chaves na ordem em que entraram, e gravar uma chave que já existe troca o valor no
+// mesmo lugar. Os valores são objetos: guardar um valor em outro não o copia.
+import Strings;
+import Convert;
+import Regex;
+
+pub enum Kind { Null, Bool, Number, Text, List, Object }
+
+// Aninhamento máximo de parse (abaixo do limite de 2000 chamadas da linguagem, para um
+// texto fundo demais dar ValueError, e não StackOverflowError)
+const i32 MAX_NIVEIS = 500;
+
+fn nome(Kind k) -> string {
+  if (k == Kind.Null) { return "null"; }
+  if (k == Kind.Bool) { return "bool"; }
+  if (k == Kind.Number) { return "número"; }
+  if (k == Kind.Text) { return "texto"; }
+  if (k == Kind.List) { return "lista"; }
+  return "objeto";
+}
+
+fn numero_valido(string s) -> bool {
+  return Regex.matches(s, "-?(0|[1-9][0-9]*)(\\.[0-9]+)?([eE][+-]?[0-9]+)?");
+}
+
+// O texto entre aspas, com os escapes do JSON (os de controle como \u00XX)
+fn aspas(string s, list<string> saida) {
+  saida.add("\"");
+  for (string c in Strings.chars(s)) {
+    if (c == "\"") { saida.add("\\\""); }
+    else if (c == "\\") { saida.add("\\\\"); }
+    else if (c == "\n") { saida.add("\\n"); }
+    else if (c == "\r") { saida.add("\\r"); }
+    else if (c == "\t") { saida.add("\\t"); }
+    else if (Strings.ord(c) < 32) {
+      i32 o = Strings.ord(c);
+      if (o == 8) { saida.add("\\b"); }
+      else if (o == 12) { saida.add("\\f"); }
+      else { saida.add("\\u" + Strings.pad_left(Convert.to_hex(o), 4, "0")); }
+    }
+    else { saida.add(c); }
+  }
+  saida.add("\"");
+}
+
+pub class Value {
+  Kind tipo = Kind.Null;
+  string texto = "";          // Bool: "true"/"false"; Number: como no JSON; Text: o texto
+  list<Value> itens;          // List
+  list<string> chaves;        // Object: as chaves, na ordem em que entraram
+  dict<string, Value> campos; // Object
+
+  fn confere(Kind k, string fn_nome) {
+    if (tipo != k) {
+      throw ValueError("Json: '" + fn_nome + "' de um valor " + nome(tipo) + " (é para " + nome(k) + ")");
+    }
+  }
+
+  // O texto, em partes (recuo -1: compacto)
+  fn escreve(list<string> saida, i64 recuo, i64 nivel) {
+    if (nivel >= MAX_NIVEIS) { throw ValueError("Json: valor com mais de " + cast<string>(MAX_NIVEIS) + " níveis (ou um valor dentro dele mesmo)"); }
+    if (tipo == Kind.Null) { saida.add("null"); return; }
+    if (tipo == Kind.Bool || tipo == Kind.Number) { saida.add(texto); return; }
+    if (tipo == Kind.Text) { aspas(texto, saida); return; }
+    string abre = "[";
+    string fecha = "]";
+    i32 n = itens.size();
+    if (tipo == Kind.Object) { abre = "{"; fecha = "}"; n = chaves.size(); }
+    saida.add(abre);
+    if (n == 0) { saida.add(fecha); return; }
+    string quebra = "";
+    string dentro = "";
+    string fora = "";
+    if (recuo >= 0) {
+      dentro = "\n" + Strings.repeat(" ", recuo * (nivel + 1));
+      fora = "\n" + Strings.repeat(" ", recuo * nivel);
+    }
+    for (i32 i in range(0, n)) {
+      if (i > 0) { saida.add(","); }
+      saida.add(dentro);
+      if (tipo == Kind.List) {
+        itens[i].escreve(saida, recuo, nivel + 1);
+      } else {
+        aspas(chaves[i], saida);
+        saida.add(":");
+        if (recuo >= 0) { saida.add(" "); }
+        campos[chaves[i]].escreve(saida, recuo, nivel + 1);
+      }
+    }
+    saida.add(fora);
+    saida.add(fecha);
+  }
+
+  pub {
+    // O valor do tipo `k` com o texto dele: "" em Null, List e Object; "true" ou "false" em
+    // Bool; um número do JSON em Number (-12, 3.5, 1e-3); qualquer texto em Text
+    Value(Kind k, string t) {
+      tipo = k;
+      texto = t;
+      if ((k == Kind.Null || k == Kind.List || k == Kind.Object) && t != "") {
+        throw ValueError("Json: um valor " + nome(k) + " não tem texto (recebeu '" + t + "')");
+      }
+      if (k == Kind.Bool && t != "true" && t != "false") {
+        throw ValueError("Json: bool é 'true' ou 'false' (recebeu '" + t + "')");
+      }
+      if (k == Kind.Number && !numero_valido(t)) {
+        throw ValueError("Json: '" + t + "' não é um número do JSON");
+      }
+    }
+
+    fn kind() -> Kind { return tipo; }
+    fn is_null() -> bool { return tipo == Kind.Null; }
+
+    fn as_bool() -> bool {
+      confere(Kind.Bool, "as_bool");
+      return texto == "true";
+    }
+    fn as_f64() -> f64 {
+      confere(Kind.Number, "as_f64");
+      return cast<f64>(texto);
+    }
+    // Exato em toda a faixa de i64; um número com ponto ou expoente não é inteiro
+    fn as_i64() -> i64 {
+      confere(Kind.Number, "as_i64");
+      if (Strings.contains(texto, ".") || Strings.contains(texto, "e") || Strings.contains(texto, "E")) {
+        throw ValueError("Json: 'as_i64': " + texto + " não é um número inteiro");
+      }
+      return cast<i64>(texto);
+    }
+    fn as_text() -> string {
+      confere(Kind.Text, "as_text");
+      return texto;
+    }
+
+    // Lista e objeto
+    fn size() -> i32 {
+      if (tipo == Kind.List) { return itens.size(); }
+      confere(Kind.Object, "size");
+      return chaves.size();
+    }
+    fn at(i64 i) -> Value {
+      confere(Kind.List, "at");
+      if (i < 0 || i >= itens.size()) {
+        throw IndexError("Json: 'at': índice " + cast<string>(i) + " fora dos limites (tamanho: " + cast<string>(itens.size()) + ")");
+      }
+      return itens[i];
+    }
+    fn items() -> list<Value> {
+      confere(Kind.List, "items");
+      list<Value> r;
+      for (Value v in itens) { r.add(v); }
+      return r;
+    }
+    fn add(Value v) {
+      confere(Kind.List, "add");
+      itens.add(v);
+    }
+    fn has(string k) -> bool {
+      confere(Kind.Object, "has");
+      return campos.has(k);
+    }
+    fn get(string k) -> Value {
+      confere(Kind.Object, "get");
+      if (!campos.has(k)) { throw KeyError("Json: 'get': a chave '" + k + "' não existe"); }
+      return campos[k];
+    }
+    fn get_or(string k, Value padrao) -> Value {
+      confere(Kind.Object, "get_or");
+      if (!campos.has(k)) { return padrao; }
+      return campos[k];
+    }
+    fn keys() -> list<string> {
+      confere(Kind.Object, "keys");
+      list<string> r;
+      for (string k in chaves) { r.add(k); }
+      return r;
+    }
+    fn set(string k, Value v) {
+      confere(Kind.Object, "set");
+      if (!campos.has(k)) { chaves.add(k); }
+      campos.add({k, v});
+    }
+    fn remove(string k) {
+      confere(Kind.Object, "remove");
+      if (!campos.has(k)) { throw KeyError("Json: 'remove': a chave '" + k + "' não existe"); }
+      campos.remove(k);
+      list<string> resto;
+      for (string c in chaves) { if (c != k) { resto.add(c); } }
+      chaves = resto;
+    }
+
+    // O JSON em texto: compacto, ou com `recuo` espaços por nível e uma entrada por linha
+    fn to_text() -> string {
+      list<string> saida;
+      escreve(saida, -1, 0);
+      return Strings.join(saida, "");
+    }
+    fn to_text_pretty(i64 recuo) -> string {
+      if (recuo < 0 || recuo > 16) { throw ValueError("Json: 'to_text_pretty': recuo de 0 a 16 (recebeu " + cast<string>(recuo) + ")"); }
+      list<string> saida;
+      escreve(saida, recuo, 0);
+      return Strings.join(saida, "");
+    }
+
+  }
+}
+
+pub fn null_value() -> Value { return new Value(Kind.Null, ""); }
+pub fn from_bool(bool b) -> Value {
+  if (b) { return new Value(Kind.Bool, "true"); }
+  return new Value(Kind.Bool, "false");
+}
+pub fn from_i64(i64 n) -> Value { return new Value(Kind.Number, cast<string>(n)); }
+pub fn from_f64(f64 x) -> Value { return new Value(Kind.Number, cast<string>(x)); }
+pub fn from_text(string s) -> Value { return new Value(Kind.Text, s); }
+pub fn new_list() -> Value { return new Value(Kind.List, ""); }
+pub fn new_object() -> Value { return new Value(Kind.Object, ""); }
+
+// ── Leitura ────────────────────────────────────────────────────────────────
+
+class Leitor {
+  list<string> c;
+  i32 i = 0;
+
+  // A mensagem com a linha e a coluna da posição atual
+  fn onde(string motivo) -> string {
+    i32 linha = 1;
+    i32 coluna = 1;
+    for (i32 k in range(0, i)) {
+      if (c[k] == "\n") { linha += 1; coluna = 1; } else { coluna += 1; }
+    }
+    return "Json.parse: " + motivo + " (linha " + cast<string>(linha) + ", coluna " + cast<string>(coluna) + ")";
+  }
+
+  fn pula() {
+    while (i < c.size() && (c[i] == " " || c[i] == "\t" || c[i] == "\n" || c[i] == "\r")) { i += 1; }
+  }
+
+  fn espera(string x) {
+    if (i >= c.size() || c[i] != x) {
+      string achou = "o fim do texto";
+      if (i < c.size()) { achou = "'" + c[i] + "'"; }
+      throw ValueError(onde("esperado '" + x + "', mas veio " + achou));
+    }
+    i += 1;
+  }
+
+  fn palavra(string p) {
+    for (string x in Strings.chars(p)) {
+      if (i >= c.size() || c[i] != x) { throw ValueError(onde("valor inválido (esperado '" + p + "')")); }
+      i += 1;
+    }
+  }
+
+  fn hex4() -> i32 {
+    if (i + 4 > c.size()) { throw ValueError(onde("escape \\u com menos de 4 dígitos")); }
+    string h = c[i] + c[i + 1] + c[i + 2] + c[i + 3];
+    if (!Regex.matches(h, "[0-9a-fA-F]{4}")) { throw ValueError(onde("escape \\u inválido: '" + h + "'")); }
+    i += 4;
+    return cast<i32>(Convert.from_base(h, 16));
+  }
+
+  fn texto() -> string {
+    espera("\"");
+    list<string> partes;
+    while (true) {
+      if (i >= c.size()) { throw ValueError(onde("texto sem as aspas do fim")); }
+      string x = c[i];
+      i += 1;
+      if (x == "\"") { return Strings.join(partes, ""); }
+      if (Strings.ord(x) < 32) {
+        i -= 1;
+        throw ValueError(onde("caractere de controle dentro do texto (use um escape, como \\n)"));
+      }
+      if (x != "\\") { partes.add(x); continue; }
+      if (i >= c.size()) { throw ValueError(onde("escape no fim do texto")); }
+      string e = c[i];
+      i += 1;
+      if (e == "\"") { partes.add("\""); }
+      else if (e == "\\") { partes.add("\\"); }
+      else if (e == "/") { partes.add("/"); }
+      else if (e == "n") { partes.add("\n"); }
+      else if (e == "r") { partes.add("\r"); }
+      else if (e == "t") { partes.add("\t"); }
+      else if (e == "b") { partes.add(Strings.chr(8)); }
+      else if (e == "f") { partes.add(Strings.chr(12)); }
+      else if (e == "u") {
+        i32 u = hex4();
+        if (u >= 55296 && u <= 56319) {   // o primeiro de um par substituto (D800-DBFF)
+          if (i + 1 >= c.size() || c[i] != "\\" || c[i + 1] != "u") {
+            throw ValueError(onde("par substituto \\u incompleto"));
+          }
+          i += 2;
+          i32 baixo = hex4();
+          if (baixo < 56320 || baixo > 57343) { throw ValueError(onde("par substituto \\u inválido")); }
+          u = 65536 + (u - 55296) * 1024 + (baixo - 56320);
+        } else if (u >= 56320 && u <= 57343) {
+          throw ValueError(onde("par substituto \\u sem o primeiro"));
+        }
+        if (u == 0) { throw ValueError(onde("o caractere nulo (\\u0000) não cabe numa string da Cinza")); }
+        partes.add(Strings.chr(u));
+      }
+      else {
+        i -= 1;
+        throw ValueError(onde("escape desconhecido '\\" + e + "'"));
+      }
+    }
+  }
+
+  fn numero() -> Value {
+    i32 ini = i;
+    while (i < c.size() && Strings.contains("+-.eE0123456789", c[i])) { i += 1; }
+    list<string> partes;
+    for (i32 k in range(ini, i)) { partes.add(c[k]); }
+    string t = Strings.join(partes, "");
+    if (!numero_valido(t)) {
+      i = ini;
+      throw ValueError(onde("número inválido: '" + t + "'"));
+    }
+    return new Value(Kind.Number, t);
+  }
+
+  fn valor(i32 nivel) -> Value {
+    if (nivel >= MAX_NIVEIS) { throw ValueError(onde("mais de " + cast<string>(MAX_NIVEIS) + " níveis de aninhamento")); }
+    pula();
+    if (i >= c.size()) { throw ValueError(onde("fim do texto antes de um valor")); }
+    string x = c[i];
+    if (x == "{") {
+      i += 1;
+      Value o = new Value(Kind.Object, "");
+      pula();
+      if (i < c.size() && c[i] == "}") { i += 1; return o; }
+      while (true) {
+        pula();
+        if (i >= c.size() || c[i] != "\"") { throw ValueError(onde("esperada uma chave entre aspas")); }
+        i32 inicio = i;
+        string k = texto();
+        if (o.has(k)) {
+          i = inicio;
+          throw ValueError(onde("a chave '" + k + "' aparece mais de uma vez"));
+        }
+        pula();
+        espera(":");
+        o.set(k, valor(nivel + 1));
+        pula();
+        if (i < c.size() && c[i] == ",") { i += 1; continue; }
+        espera("}");
+        return o;
+      }
+    }
+    if (x == "[") {
+      i += 1;
+      Value l = new Value(Kind.List, "");
+      pula();
+      if (i < c.size() && c[i] == "]") { i += 1; return l; }
+      while (true) {
+        l.add(valor(nivel + 1));
+        pula();
+        if (i < c.size() && c[i] == ",") { i += 1; continue; }
+        espera("]");
+        return l;
+      }
+    }
+    if (x == "\"") { return new Value(Kind.Text, texto()); }
+    if (x == "t") { palavra("true"); return new Value(Kind.Bool, "true"); }
+    if (x == "f") { palavra("false"); return new Value(Kind.Bool, "false"); }
+    if (x == "n") { palavra("null"); return new Value(Kind.Null, ""); }
+    if (x == "-" || Strings.is_digit(x)) { return numero(); }
+    throw ValueError(onde("caractere inesperado '" + x + "'"));
+  }
+
+  pub {
+    Leitor(string t) { c = Strings.chars(t); }
+
+    fn documento() -> Value {
+      Value v = valor(0);
+      pula();
+      if (i < c.size()) { throw ValueError(onde("texto depois do fim do JSON")); }
+      return v;
+    }
+  }
+}
+
+// O valor do texto JSON (RFC 8259: um valor qualquer, com espaços em volta); texto
+// inválido lança ValueError com a linha e a coluna
+pub fn parse(string texto) -> Value {
+  Leitor l = new Leitor(texto);
+  return l.documento();
+}

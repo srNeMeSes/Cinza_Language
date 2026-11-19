@@ -1,0 +1,7 @@
+// Dicts (Q3): as funções que alteram o dict (update, pop, clear) não aceitam dict const.
+import Dicts;
+fn main() {
+  const dict<string, i32> d = {{"a", 1}};
+  Dicts.clear(d);
+}
+// expect-error: 'Dicts.clear' altera o dict, mas 'd' é const. Dicts const não podem ser modificados.

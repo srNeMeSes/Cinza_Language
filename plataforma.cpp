@@ -14,6 +14,7 @@
 #endif
 #include <windows.h>
 #include <shellapi.h>
+#include <cwchar>
 
 namespace cinza {
 
@@ -64,8 +65,8 @@ std::wstring citado(const std::wstring& a) {
 }
 }  // namespace
 
-int executaProcesso(const std::vector<std::string>& args) {
-    if (args.empty()) return -1;
+bool executa(const std::vector<std::string>& args, int& codigo, std::string* saida) {
+    if (args.empty()) return false;
     std::wstring linha;
     for (const auto& a : args) {
         if (!linha.empty()) linha += L' ';
@@ -73,15 +74,55 @@ int executaProcesso(const std::vector<std::string>& args) {
     }
     STARTUPINFOW si{};
     si.cb = sizeof si;
+    HANDLE ler = nullptr, escrever = nullptr;
+    if (saida) {   // a saída padrão por um pipe; só a ponta de escrita é herdada
+        SECURITY_ATTRIBUTES sa{sizeof sa, nullptr, TRUE};
+        if (!CreatePipe(&ler, &escrever, &sa, 0)) return false;
+        SetHandleInformation(ler, HANDLE_FLAG_INHERIT, 0);
+        si.dwFlags    = STARTF_USESTDHANDLES;
+        si.hStdInput  = GetStdHandle(STD_INPUT_HANDLE);
+        si.hStdOutput = escrever;
+        si.hStdError  = GetStdHandle(STD_ERROR_HANDLE);
+    }
     PROCESS_INFORMATION pi{};
-    if (!CreateProcessW(nullptr, linha.data(), nullptr, nullptr, TRUE, 0, nullptr, nullptr, &si, &pi))
-        return -1;
+    const BOOL iniciou = CreateProcessW(nullptr, linha.data(), nullptr, nullptr, TRUE, 0, nullptr, nullptr, &si, &pi);
+    if (escrever) CloseHandle(escrever);   // senão o ReadFile nunca vê o fim
+    if (!iniciou) {
+        if (ler) CloseHandle(ler);
+        return false;
+    }
+    if (saida) {
+        char buf[65536];
+        DWORD n = 0;
+        while (ReadFile(ler, buf, sizeof buf, &n, nullptr) && n > 0) saida->append(buf, n);
+        CloseHandle(ler);
+    }
     WaitForSingleObject(pi.hProcess, INFINITE);
-    DWORD codigo = 1;
-    GetExitCodeProcess(pi.hProcess, &codigo);
+    DWORD c = 1;
+    GetExitCodeProcess(pi.hProcess, &c);
     CloseHandle(pi.hThread);
     CloseHandle(pi.hProcess);
-    return static_cast<int>(codigo);
+    codigo = static_cast<int>(c);
+    return true;
+}
+
+int executaProcesso(const std::vector<std::string>& args) {
+    int codigo = 0;
+    return executa(args, codigo) ? codigo : -1;
+}
+
+std::vector<std::pair<std::string, std::string>> ambienteTodo() {
+    std::vector<std::pair<std::string, std::string>> r;
+    wchar_t* bloco = GetEnvironmentStringsW();
+    if (!bloco) return r;
+    for (const wchar_t* p = bloco; *p; p += std::wcslen(p) + 1) {
+        const std::wstring e = p;
+        const std::size_t igual = e.find(L'=', 1);   // "=C:=C:\..." são do cmd, sem nome
+        if (e[0] == L'=' || igual == std::wstring::npos) continue;
+        r.emplace_back(utf8(e.substr(0, igual).c_str()), utf8(e.substr(igual + 1).c_str()));
+    }
+    FreeEnvironmentStringsW(bloco);
+    return r;
 }
 
 std::string caminhoDoExecutavel() {
@@ -123,8 +164,12 @@ bool dataModificacao(const std::filesystem::path& p, std::int64_t& segundos) {
 #include <chrono>
 #include <cstdlib>
 #include <climits>
+#include <cerrno>
+#include <fcntl.h>
 #include <sys/wait.h>
 #include <unistd.h>
+
+extern char** environ;
 
 namespace cinza {
 
@@ -134,20 +179,71 @@ std::vector<std::string> argumentosUtf8(int argc, char* argv[]) {
 
 void preparaConsole() {}
 
-int executaProcesso(const std::vector<std::string>& args) {
-    if (args.empty()) return -1;
+bool executa(const std::vector<std::string>& args, int& codigo, std::string* saida) {
+    if (args.empty()) return false;
+    // falha do execvp: o errno volta por um pipe que o exec fecha (O_CLOEXEC) se der certo
+    int aviso[2];
+    if (pipe(aviso) < 0) return false;
+    fcntl(aviso[0], F_SETFD, FD_CLOEXEC);
+    fcntl(aviso[1], F_SETFD, FD_CLOEXEC);
+    int saida_fd[2] = {-1, -1};
+    if (saida && pipe(saida_fd) < 0) {
+        close(aviso[0]);
+        close(aviso[1]);
+        return false;
+    }
+    std::vector<char*> v;
+    for (const auto& a : args) v.push_back(const_cast<char*>(a.c_str()));
+    v.push_back(nullptr);
     const pid_t pid = fork();
-    if (pid < 0) return -1;
     if (pid == 0) {
-        std::vector<char*> v;
-        for (const auto& a : args) v.push_back(const_cast<char*>(a.c_str()));
-        v.push_back(nullptr);
+        close(aviso[0]);
+        if (saida) {
+            dup2(saida_fd[1], STDOUT_FILENO);
+            close(saida_fd[0]);
+            close(saida_fd[1]);
+        }
         execvp(v[0], v.data());
+        const int e = errno;
+        (void)!write(aviso[1], &e, sizeof e);
         _exit(127);
     }
+    close(aviso[1]);
+    if (saida) close(saida_fd[1]);
+    if (pid < 0) {
+        close(aviso[0]);
+        if (saida) close(saida_fd[0]);
+        return false;
+    }
+    int e = 0;
+    const ssize_t lido = read(aviso[0], &e, sizeof e);
+    close(aviso[0]);
+    if (saida) {
+        char buf[65536];
+        for (ssize_t n; (n = read(saida_fd[0], buf, sizeof buf)) > 0;) saida->append(buf, static_cast<std::size_t>(n));
+        close(saida_fd[0]);
+    }
     int estado = 0;
-    if (waitpid(pid, &estado, 0) < 0) return -1;
-    return WIFEXITED(estado) ? WEXITSTATUS(estado) : -1;
+    if (waitpid(pid, &estado, 0) < 0) return false;
+    if (lido == static_cast<ssize_t>(sizeof e)) return false;   // o exec falhou
+    codigo = WIFEXITED(estado) ? WEXITSTATUS(estado) : 128 + WTERMSIG(estado);
+    return true;
+}
+
+int executaProcesso(const std::vector<std::string>& args) {
+    int codigo = 0;
+    return executa(args, codigo) ? codigo : -1;
+}
+
+std::vector<std::pair<std::string, std::string>> ambienteTodo() {
+    std::vector<std::pair<std::string, std::string>> r;
+    for (char** p = environ; p && *p; ++p) {
+        const std::string e = *p;
+        const std::size_t igual = e.find('=');
+        if (igual == std::string::npos || igual == 0) continue;
+        r.emplace_back(e.substr(0, igual), e.substr(igual + 1));
+    }
+    return r;
 }
 
 std::string caminhoDoExecutavel() {

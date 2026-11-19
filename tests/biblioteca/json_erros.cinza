@@ -1,0 +1,32 @@
+// Json (Q3): texto inválido lança ValueError com o motivo, a linha e a coluna (vírgula no fim,
+// chave repetida, zero à esquerda, texto sem fim, par substituto incompleto...); ler um valor como
+// o tipo errado, uma chave ausente e um índice fora da lista também lançam erro.
+import Json;
+fn main() {
+  Json.Value v = Json.parse("{\"nome\": \"Ana\", \"idade\": 30, \"notas\": [9.5, 8, -1e3], \"ativo\": true, \"chefe\": null, \"ação\": \"\\u00e7\\ud83d\\ude00\\n\"}");
+  Json.Value notas = v.get("notas");
+  try { Json.parse("{\"a\": 1,}"); } except (ValueError e) { print(e.message); }
+  try { Json.parse("[1, 2\n, x]"); } except (ValueError e) { print(e.message); }
+  try { Json.parse("{\"a\": 1, \"a\": 2}"); } except (ValueError e) { print(e.message); }
+  try { Json.parse("01"); } except (ValueError e) { print(e.message); }
+  try { Json.parse("\"abc"); } except (ValueError e) { print(e.message); }
+  try { Json.parse("[1] 2"); } except (ValueError e) { print(e.message); }
+  try { Json.parse("\"\\ud83d\""); } except (ValueError e) { print(e.message); }
+  try { print(v.get("nome").as_i64()); } except (ValueError e) { print(e.message); }
+  try { print(v.get("zz")); } except (KeyError e) { print(e.message); }
+  try { print(notas.at(5)); } except (IndexError e) { print(e.message); }
+  try { print(notas.at(0).as_i64()); } except (ValueError e) { print(e.message); }
+  try { Json.Value x = new Json.Value(Json.Kind.Number, "1.2.3"); } except (ValueError e) { print(e.message); }
+}
+// expect: Json.parse: esperada uma chave entre aspas (linha 1, coluna 9)
+// expect: Json.parse: caractere inesperado 'x' (linha 2, coluna 3)
+// expect: Json.parse: a chave 'a' aparece mais de uma vez (linha 1, coluna 10)
+// expect: Json.parse: número inválido: '01' (linha 1, coluna 1)
+// expect: Json.parse: texto sem as aspas do fim (linha 1, coluna 5)
+// expect: Json.parse: texto depois do fim do JSON (linha 1, coluna 5)
+// expect: Json.parse: par substituto \u incompleto (linha 1, coluna 8)
+// expect: Json: 'as_i64' de um valor texto (é para número)
+// expect: Json: 'get': a chave 'zz' não existe
+// expect: Json: 'at': índice 5 fora dos limites (tamanho: 3)
+// expect: Json: 'as_i64': 9.5 não é um número inteiro
+// expect: Json: '1.2.3' não é um número do JSON

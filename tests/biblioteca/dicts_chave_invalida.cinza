@@ -1,0 +1,8 @@
+// Dicts (Q3): invert de um dict com valores f64 daria um dict com chave f64 — erro na
+// compilação, com a mesma regra das chaves da linguagem.
+import Dicts;
+fn main() {
+  dict<string, f64> d = {{"a", 1.5ff}};
+  print(Dicts.invert(d));
+}
+// expect-error: 'Dicts.invert' devolveria um dict com chave 'f64'. Chave de dict não pode ser 'f64'

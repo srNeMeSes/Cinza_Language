@@ -2324,13 +2324,22 @@ TypeRef SemanticAnalyzer::analyzeNativeCall(CallExpr* expr, const NativeFn& fn) 
     // Fase 7: nativa que altera um argumento (Lists.sort, Lists.sort_by) não aceita const
     for (size_t i = 0; i < n && i < 32; ++i) {
         if (!(fn.mutates & (1u << i))) continue;
-        if (const Symbol* root = constRoot(expr->arguments[i].get()))
-            throwError("'" + nome + "' altera a lista, mas '" + root->name + "' é const. "
-                       "Listas const não podem ser modificadas.", expr->token);
+        if (const Symbol* root = constRoot(expr->arguments[i].get())) {
+            const bool dict = expr->arguments[i]->resolved_type &&
+                              expr->arguments[i]->resolved_type->is(TK::Dict);
+            throwError("'" + nome + "' altera " + (dict ? "o dict" : "a lista") + ", mas '" + root->name +
+                       "' é const. " + (dict ? "Dicts const não podem ser modificados."
+                                                         : "Listas const não podem ser modificadas."),
+                       expr->token);
+        }
     }
 
     TypeRef ret = substitute(fn.ret, binds);
     if (!ret) throwError("Erro interno: retorno de '" + nome + "' ficou sem tipo", expr->token);
+    // Q3: o dict devolvido precisa de uma chave válida (Dicts.invert de um dict<string, f64>)
+    if (TypeRef bad = invalidDictKey(ret))
+        throwError("'" + nome + "' devolveria um dict com chave '" + bad->str() + "'. " + dictKeyMessage(bad),
+                   expr->token);
     return expr->resolved_type = ret;
 }
 

@@ -1,0 +1,13 @@
+// Json (Q3): um erro não pego dentro do módulo mostra o trace com o arquivo da biblioteca.
+import Json;
+fn le(string t) -> i64 {
+  return Json.parse(t).get("n").as_i64();
+}
+fn main() {
+  print(le("{\"n\": 3}"));
+  print(le("{\"n\": \"x\"}"));
+}
+// expect: 3
+// expect-error: ValueError: Json: 'as_i64' de um valor texto (é para número)
+// expect-error: <biblioteca>/Json.cinza
+// expect-error: em le (tests/biblioteca/json_erro_trace.cinza:4)

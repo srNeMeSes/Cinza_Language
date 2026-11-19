@@ -1,0 +1,13 @@
+// Regex (Q3): tempo linear — padrões que levam um motor com retrocesso a tempo exponencial
+// ((a+)+b, (a|a)*b, (a*)*b) em textos de milhares de caracteres respondem na hora, e um texto
+// de 200 mil caracteres não estoura a pilha (o motor não é recursivo).
+import Regex as re;
+import Strings;
+fn main() {
+  string a = Strings.repeat("a", 5000);
+  print(re.matches(a, "(a+)+b"), re.contains(a, "(a|a)*b"), re.count(a + "!", "(a*)*!"));
+  string x = Strings.repeat("xy", 100000);
+  print(re.matches(x, "(xy|x|y)*"), re.find_all(x + "z", "(?:xy)+z").size(), re.split(x, "y").size());
+}
+// expect: false false 1
+// expect: true 1 100001

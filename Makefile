@@ -7,7 +7,7 @@ CXX = g++
 CXXFLAGS = -std=c++20 -O3 -Wall -Wextra -pedantic
 DEPFLAGS = -MMD -MP
 TARGET = cinza
-SOURCES = main.cpp lexer.cpp parser.cpp ast.cpp semantic.cpp operacoes.cpp natives.cpp stdlib.cpp plataforma.cpp module_loader.cpp \
+SOURCES = main.cpp lexer.cpp parser.cpp ast.cpp semantic.cpp operacoes.cpp natives.cpp stdlib.cpp regex.cpp plataforma.cpp module_loader.cpp biblioteca.cpp \
           cvm/compiler.cpp cvm/vm.cpp cvm/disasm.cpp
 OBJECTS = $(SOURCES:.cpp=.o)
 DEPS = $(OBJECTS:.o=.d)
@@ -107,8 +107,8 @@ LLVM_PREFIX ?= C:/msys64/clang64
 LLVM_BIN    = llvm/bin
 CINZAC_BIN  = $(LLVM_BIN)/cinzac$(EXE)
 LIBCINZART  = $(LLVM_BIN)/libcinzart.a
-RUNTIME_OBJ = operacoes.o natives.o stdlib.o plataforma.o llvm/cinzart.o
-CINZAC_OBJ  = lexer.o parser.o ast.o semantic.o module_loader.o operacoes.o natives.o stdlib.o \
+RUNTIME_OBJ = operacoes.o natives.o stdlib.o regex.o plataforma.o llvm/cinzart.o
+CINZAC_OBJ  = lexer.o parser.o ast.o semantic.o module_loader.o biblioteca.o operacoes.o natives.o stdlib.o regex.o \
               plataforma.o llvm/cir.o llvm/gera_cir.o llvm/emissor.o llvm/cinzac.o
 LLVM_DLLS   = libLLVM-20.dll libc++.dll libffi-8.dll libiconv-2.dll liblzma-5.dll libxml2-16.dll \
               libzstd.dll zlib1.dll

@@ -1,0 +1,37 @@
+// Regex (Q3): o motor próprio, no estilo do RE2 — classes, grupos (com nome), repetições
+// gulosas e preguiçosas, âncoras e \b, (?i), em caracteres ("." casa "ç"); várias ocorrências
+// como o RE2 (vazias inclusive); troca com $1, ${nome} e $$; e em tempo linear: padrões que
+// explodem num motor com retrocesso, como (a+)+b, respondem na hora.
+import Regex as re;
+import Strings;
+fn main() {
+  print(re.matches("2026-11-19", "\\d{4}-\\d\\d-\\d\\d"), re.matches("x2026-11-19", "\\d{4}-\\d\\d-\\d\\d"));
+  print(re.contains("ação", "ç"), re.find("coração", "ção"), re.find("abc", "z"), re.find("aç bç", "\\bb"));
+  print(re.find_all("a1 b22 c333", "\\d+"), re.count("banana", "a"), re.find_all("aaa", "a*?"));
+  print(re.groups("tel: 11-9876", "(\\d+)-(\\d+)"), re.groups("nada", "(\\d+)"), re.groups("ab", "(x)?(a)"));
+  print(re.groups_all("a=1, b=2", "(\\w)=(\\d)"));
+  print(re.named("2026-11-19", "(?<ano>\\d{4})-(?<mes>\\d\\d)-(?<dia>\\d\\d)"));
+  print(re.replace_all("João e Maria", "(\\w+) e (\\w+)", "$2 e $1"), re.replace_all("a.b.c", "\\.", "$$"));
+  print(re.replace_first("aaa", "a", "b"), re.replace_all("abc", "", "-"), re.replace_all("abxd", "x*", "-"));
+  print(re.replace_all("2026-11-19", "(?<a>\\d+)-(?<m>\\d+)-(?<d>\\d+)", "${d}/${m}/${a}"));
+  print(re.split("a, b;c  d", "[,;\\s]+"), re.split("abc", ""), re.split("", ","), re.split("a,", ","));
+  print(re.matches("AÇÃO", "(?i)ação"), re.matches("Ação", "[a-zà-ÿA-Z]+"), re.matches("ç", "."), re.matches("\n", "."));
+  print(re.escape("1+1=2? (sim)"), re.is_valid("a(b"), re.is_valid("[a-z]+"), re.matches("1+1", re.escape("1+1")));
+  print(re.find_all("<a><b>", "<.+?>"), re.find_all("<a><b>", "<.+>"), re.matches("aaa", "a{2,3}"), re.matches("aaaa", "a{2,3}"));
+  string longo = Strings.repeat("a", 30);
+  print(re.matches(longo, "(a+)+b"), re.matches(longo + "b", "(a|a)*b"), re.matches(Strings.repeat("x", 100000), "(x|y)*"));
+}
+// expect: true false
+// expect: true 4 -1 3
+// expect: ["1", "22", "333"] 3 ["", "", "", ""]
+// expect: ["11-9876", "11", "9876"] [] ["a", "", "a"]
+// expect: [["a=1", "a", "1"], ["b=2", "b", "2"]]
+// expect: {"ano": "2026", "dia": "19", "mes": "11"}
+// expect: Maria e João a$b$c
+// expect: baa -a-b-c- -a-b-d-
+// expect: 19/11/2026
+// expect: ["a", "b", "c", "d"] ["a", "b", "c"] [""] ["a", ""]
+// expect: true true true false
+// expect: 1\+1=2\? \(sim\) false true true
+// expect: ["<a>", "<b>"] ["<a><b>"] true false
+// expect: false true true

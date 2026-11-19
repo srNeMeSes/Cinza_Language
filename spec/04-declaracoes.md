@@ -384,7 +384,10 @@ sem `pub` de outro módulo é erro.
 
 ### Módulos nativos
 
-`Strings`, `Files`, `Math`, `Random`, `Convert`, `Lists` e `Time` são módulos da biblioteca padrão,
-importados como qualquer outro (`import Math;`, `import Strings as st;`) e descritos no capítulo
-6. Esses nomes são reservados: um arquivo do programa com o nome de um módulo nativo
-(`Math.cinza`...) é erro, inclusive se estiver no caminho de busca de um `import Math;`.
+`Strings`, `Files`, `Math`, `Random`, `Convert`, `Lists`, `Dicts`, `Env`, `Process`, `Regex` e `Time`
+são módulos da biblioteca padrão, importados como qualquer outro (`import Math;`, `import Strings as
+st;`) e descritos no capítulo 6. `Json` também, mas escrito na própria Cinza: vem embutido no
+compilador e é um módulo comum (com `pub class Value` e `pub enum Kind`), que aparece como
+`<biblioteca>/Json.cinza` nas mensagens. Esses nomes são reservados: um arquivo do programa com o
+nome de um deles (`Math.cinza`, `Json.cinza`...) é erro, inclusive se estiver no caminho de busca
+de um `import Math;`.

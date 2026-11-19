@@ -1,0 +1,6 @@
+// Json (Q3): o módulo é conferido como qualquer outro — o tipo errado é erro na compilação.
+import Json;
+fn main() {
+  Json.Value v = Json.parse(12);
+}
+// expect-error: Argumento 1 de 'parse': esperado 'string', mas recebeu 'i32'

@@ -1,4 +1,5 @@
 #include "module_loader.h"
+#include "biblioteca.h"
 #include "parser.h"
 #include "source_files.h"
 #include "plataforma.h"   // caminhos em UTF-8
@@ -122,7 +123,9 @@ std::vector<std::string> ModuleLoader::resolve(const ImportDecl& imp,
 long ModuleLoader::visit(const std::string& path, const std::string& display,
                          const std::string* code, const std::string& prefix,
                          const Token* import_tok) {
-    const std::string canon = canonico(caminhoUtf8(path));
+    // Q3: um módulo da biblioteca em Cinza tem o caminho "<biblioteca>/Nome.cinza", fora do disco
+    const bool da_biblioteca = path.rfind("<biblioteca>/", 0) == 0;
+    const std::string canon = da_biblioteca ? path : canonico(caminhoUtf8(path));
 
     auto est = estados.find(canon);
     if (est != estados.end()) {
@@ -148,11 +151,12 @@ long ModuleLoader::visit(const std::string& path, const std::string& display,
         prefixos_usados[pref] = canon;
     }
 
-    // Fase 7: arquivo do usuário com o nome de um módulo nativo é erro
+    // Fase 7: arquivo do usuário com o nome de um módulo nativo (ou da biblioteca, Q3) é erro
     const std::string stem = textoCaminho(caminhoUtf8(path).stem());
-    if (findNativeModule(stem)) {
-        const std::string msg = "o arquivo '" + display + "' tem o nome do módulo nativo '" +
-                                stem + "'; renomeie o arquivo";
+    if (!da_biblioteca && (findNativeModule(stem) || fonteDaBiblioteca(stem))) {
+        const std::string msg = "o arquivo '" + display + "' tem o nome do módulo " +
+                                (findNativeModule(stem) ? "nativo" : "da biblioteca") + " '" + stem +
+                                "'; renomeie o arquivo";
         if (import_tok) importError(msg, *import_tok);
         else diagnostics().report("ImportError", msg, SourceLocation{0, 0, 0});
         return -1;
@@ -212,6 +216,21 @@ long ModuleLoader::visit(const std::string& path, const std::string& display,
                     return -1;
                 }
                 mod.imports.emplace_back(imp.alias, nativeIndex(*nm));
+                continue;
+            }
+
+        // Q3: módulo da biblioteca escrito em Cinza (import Json;), embutido no executável
+        if (imp.path.size() == 1)
+            if (const std::string* fonte = fonteDaBiblioteca(imp.path[0])) {
+                if (!achado.empty()) {
+                    importError("o arquivo '" + achado + "' tem o nome do módulo da biblioteca '" +
+                                imp.path[0] + "'; renomeie o arquivo", imp.token);
+                    return -1;
+                }
+                const std::string caminho = caminhoDaBiblioteca(imp.path[0]);
+                const long idx = visit(caminho, caminho, fonte, imp.path[0], &imp.token);
+                if (idx < 0) return -1;
+                mod.imports.emplace_back(imp.alias, static_cast<size_t>(idx));
                 continue;
             }
 

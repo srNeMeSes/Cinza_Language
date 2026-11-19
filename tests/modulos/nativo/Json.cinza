@@ -1,0 +1,2 @@
+// Um arquivo com o nome de um módulo da biblioteca (q3_biblioteca_arquivo_no_caminho).
+pub fn f() { }

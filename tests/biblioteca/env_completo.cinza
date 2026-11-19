@@ -1,0 +1,19 @@
+// Env (Q3): o ambiente do programa, só para ler — get (KeyError se não existir), get_or,
+// has e all; os valores em UTF-8; nome vazio ou com '=' é ValueError.
+// env: CINZA_TESTE_ENV=ação e água
+import Env;
+fn main() {
+  print(Env.get("CINZA_TESTE_ENV"), Env.has("CINZA_TESTE_ENV"), Env.has("CINZA_NAO_EXISTE_Q3"));
+  print(Env.get_or("CINZA_NAO_EXISTE_Q3", "padrão"), Env.get_or("CINZA_TESTE_ENV", "x"));
+  dict<string, string> tudo = Env.all();
+  print(tudo["CINZA_TESTE_ENV"], tudo.size() > 1);
+  try { print(Env.get("CINZA_NAO_EXISTE_Q3")); } except (KeyError e) { print(e.message); }
+  try { print(Env.has("")); } except (ValueError e) { print(e.message); }
+  try { print(Env.get_or("A=B", "")); } except (ValueError e) { print(e.message); }
+}
+// expect: ação e água true false
+// expect: padrão ação e água
+// expect: ação e água true
+// expect: 'get': a variável de ambiente 'CINZA_NAO_EXISTE_Q3' não existe
+// expect: 'has': nome de variável de ambiente inválido: ''
+// expect: 'get_or': nome de variável de ambiente inválido: 'A=B'

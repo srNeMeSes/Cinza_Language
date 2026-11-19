@@ -1,0 +1,6 @@
+// Regex (Q3): o padrão é uma string — o tipo errado é erro na compilação.
+import Regex as re;
+fn main() {
+  print(re.matches("a", 1));
+}
+// expect-error: Argumento 2 de 'Regex.matches': esperado 'string', mas recebeu 'i32'

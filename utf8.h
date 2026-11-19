@@ -86,6 +86,27 @@ inline std::string codifica(const std::u32string& cps) {
     return out;
 }
 
+// Letras, maiúsculas e espaço em branco da biblioteca (Strings e Regex): as letras do ASCII e as
+// acentuadas do Latin-1 (á é ç ã õ ... ↔ Á É Ç Ã Õ ...); espaço é \t \n \r \f \v e o espaço
+inline char32_t maiuscula(char32_t c) {
+    if (c >= U'a' && c <= U'z') return c - 32;
+    if (c >= 0xE0 && c <= 0xFE && c != 0xF7) return c - 32;
+    return c;
+}
+inline char32_t minuscula(char32_t c) {
+    if (c >= U'A' && c <= U'Z') return c + 32;
+    if (c >= 0xC0 && c <= 0xDE && c != 0xD7) return c + 32;
+    return c;
+}
+inline bool letra(char32_t c) {
+    return (c >= U'a' && c <= U'z') || (c >= U'A' && c <= U'Z') ||
+           (c >= 0xC0 && c <= 0xFF && c != 0xD7 && c != 0xF7);
+}
+inline bool digito(char32_t c) { return c >= U'0' && c <= U'9'; }
+inline bool branco(char32_t c) {
+    return c == U' ' || c == U'\t' || c == U'\n' || c == U'\r' || c == U'\f' || c == U'\v';
+}
+
 } // namespace cinza::utf8
 
 #endif // CINZA_UTF8_H

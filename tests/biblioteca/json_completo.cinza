@@ -1,0 +1,51 @@
+// Json (Q3): ler (parse) e gravar (to_text, to_text_pretty) JSON com o tipo Json.Value — o tipo
+// do valor em Json.Kind (o null do JSON é Kind.Null, não um null da Cinza), números exatos em
+// i64 (o texto do número é guardado), escapes \u com pares substitutos, as chaves do objeto na
+// ordem em que entraram, e o texto gravado lido de volta igual. O módulo é escrito em Cinza e
+// vem embutido no compilador.
+import Json;
+fn main() {
+  Json.Value v = Json.parse("{\"nome\": \"Ana\", \"idade\": 30, \"notas\": [9.5, 8, -1e3], \"ativo\": true, \"chefe\": null, \"ação\": \"\\u00e7\\ud83d\\ude00\\n\"}");
+  print(v.kind(), v.size(), v.keys());
+  print(v.get("nome").as_text(), v.get("idade").as_i64(), v.get("idade").as_f64(), v.get("ativo").as_bool(), v.get("chefe").is_null());
+  Json.Value notas = v.get("notas");
+  print(notas.size(), notas.at(0).as_f64(), notas.at(2).as_f64(), notas.at(1).kind() == Json.Kind.Number);
+  print(v.get("ação").as_text());
+  print(v.to_text());
+  Json.Value o = Json.new_object();
+  o.set("b", Json.from_i64(9223372036854775807));
+  o.set("a", Json.from_text("aspas \" e \\ e \t"));
+  Json.Value l = Json.new_list();
+  l.add(Json.from_bool(false));
+  l.add(Json.null_value());
+  l.add(Json.from_f64(0.1ff));
+  l.add(Json.new_object());
+  o.set("l", l);
+  o.set("b", Json.from_i64(1));
+  print(o.to_text());
+  print(o.to_text_pretty(2));
+  print(Json.parse(o.to_text()).to_text() == o.to_text(), Json.parse("  [ ]  ").size(), Json.parse("\"x\"").as_text(), Json.parse("12").as_i64());
+  print(Json.parse("9223372036854775807").as_i64(), o.get_or("z", Json.from_i64(-1)).as_i64(), o.has("a"));
+  o.remove("a");
+  print(o.keys());
+}
+// expect: Kind.Object 6 ["nome", "idade", "notas", "ativo", "chefe", "ação"]
+// expect: Ana 30 30 true true
+// expect: 3 9.5 -1000 true
+// expect: ç😀
+// expect:
+// expect: {"nome":"Ana","idade":30,"notas":[9.5,8,-1e3],"ativo":true,"chefe":null,"ação":"ç😀\n"}
+// expect: {"b":1,"a":"aspas \" e \\ e \t","l":[false,null,0.1,{}]}
+// expect: {
+// expect:   "b": 1,
+// expect:   "a": "aspas \" e \\ e \t",
+// expect:   "l": [
+// expect:     false,
+// expect:     null,
+// expect:     0.1,
+// expect:     {}
+// expect:   ]
+// expect: }
+// expect: true 0 x 12
+// expect: 9223372036854775807 -1 true
+// expect: ["b", "l"]

@@ -1972,11 +1972,45 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
   > lineares: o -O2 leva ~1,7 ms por função pequena e ~13 ms por função numa cadeia de chamadas (o
   > inliner); o `cinzac` usa ~23 KB de memória por linha de um `main` enorme (2,3 GB para 100 mil
   > linhas em -O0) — o IR de cada linha, com a conferência de erro e a posição de cada operação.
-- [ ] Q3. Biblioteca padrão da 1.0. **[decidir o escopo]** Hoje: `Strings`, `Files`, `Math`,
+- [x] Q3. Biblioteca padrão da 1.0. Hoje: `Strings`, `Files`, `Math`,
   `Random`, `Convert`, `Lists`, `Time`. Candidatos: JSON (texto ↔ `dict`/`list`), ambiente e
   processo (variáveis de ambiente, rodar um comando), pastas (listar, criar, apagar), o que faltar
   em datas e em texto. Cada função na spec (capítulo 6) com exemplo; as nativas valem nos dois
   backends sem trabalho a mais. Nada que precise de closure (Q1c).
+  > Feito (2026-11-19), com o escopo decidido pelo autor: entram `Dicts`, `Env`, `Process`, `Regex`
+  > e `Json` (as pastas já estavam em `Files`). Na spec (capítulo 6), cada um com exemplo:
+  > - **`Dicts`** (nativo): `get_or`, `contains_value`, `keys_of`, `items`, `is_empty`, `update`,
+  >   `pop`, `clear`, `merge`, `copy`, `from_lists`, `from_pairs`, `invert`. Chave repetida ao
+  >   montar e valor repetido ao inverter são `ValueError`; o dict devolvido precisa de uma chave
+  >   válida (`invert` de um `dict<string, f64>` é erro na compilação, pela regra das chaves).
+  > - **`Env`** (nativo): `get` (`KeyError` se não existir), `get_or`, `has`, `all` — só para
+  >   ler: mudar o ambiente seria um estado global.
+  > - **`Process`** (nativo): `run` (o programa escreve no terminal; devolve o código de saída) e
+  >   `capture` (`pair<i32, string>`: o código e a saída padrão), **sem shell** — o programa e a
+  >   lista de argumentos (opcional), sem interpretação; `.bat`/`.cmd` (que o Windows roda pelo
+  >   `cmd`) são `ValueError`, para o shell ser pedido explicitamente. `plataforma.cpp` ganhou
+  >   `executa` (com a saída por um pipe, e "não iniciou" separado do código de saída; no POSIX o
+  >   erro do `execvp` volta por um pipe com `O_CLOEXEC`) e `ambienteTodo`.
+  > - **`Regex`** (nativo, motor próprio em `regex.cpp`, no estilo do RE2): uma máquina de Pike em
+  >   tempo linear para qualquer padrão, sobre os code points; classes, `\d \w \s` (letras e
+  >   espaço como em `Strings`, regras agora em `utf8.h`), grupos com nome, repetições gulosas e
+  >   preguiçosas até 1000, `^ $ \b`, `(?i)`; sem `\1` nem lookaround. `matches`, `contains`,
+  >   `find`, `find_all`, `count`, `groups`, `groups_all`, `named`, `replace_all`/`replace_first`
+  >   (`$1`, `${nome}`, `$$`; referência inválida é erro), `split`, `escape`, `is_valid`; as várias
+  >   ocorrências seguem o RE2. Conferido com `tests/fuzz/regex_dif.py` contra o `re` do Python:
+  >   30 mil padrões e textos aleatórios, nenhuma diferença (a ferramenta acusou uma sabotagem do
+  >   guloso); `(a+)+b` em 5000 letras responde na hora; ~4 MB/s numa busca com captura.
+  > - **`Json`** — o primeiro módulo da biblioteca **escrito em Cinza** (`biblioteca/Json.cinza`,
+  >   embutido com `#embed` por `biblioteca.cpp`; o carregador o acha depois dos nativos, como
+  >   `<biblioteca>/Json.cinza`, e o nome é reservado). `Json.Value` com `Json.Kind` (o null do
+  >   JSON é `Kind.Null`); `parse` com linha e coluna nos erros, chave repetida é erro, 500 níveis;
+  >   o número guarda o texto (`as_i64` exato); o objeto mantém a ordem das chaves; `to_text` e
+  >   `to_text_pretty`. Vale nos dois backends sem uma linha de código neles. Custo: ~1 MB/s no
+  >   `parse` (as chamadas ao runtime por caractere); se pesar em uso real, um leitor nativo.
+  > Testes: `tests/biblioteca/{dicts,env,process,regex,json}_*` e
+  > `tests/importacao/q3_biblioteca_*`; 711/711 na CVM, no `cinzac` -O0 e -O2, e com ASan/UBSan
+  > (CVM e nativo). A mensagem de erro de argumento de uma função de módulo em Cinza cita só o
+  > nome (`'parse'`, sem `Json.`), como nos módulos do usuário.
 - [ ] Q4. Portabilidade.
   - Linux nos dois backends: a CVM com GCC e Clang; o `cinzac` com o triple do sistema
     (`LLVMGetDefaultTargetTriple`) no lugar do `x86_64-w64-windows-gnu` fixo em `emissor.cpp`, e
@@ -2067,6 +2101,7 @@ antes da prévia (Q8), e a 1.0 (Q9) só depois de um período de uso real.
 | 2026-10-04 | J2 | `Files.read_bytes(caminho) -> list<int>` e `Files.write_bytes(caminho, list<int>)`, bytes de 0 a 255 (fora disso, `ValueError`). | Decisão do autor da linguagem; formatos binários sem passar por texto UTF-8. |
 | 2026-10-03 | I4 | `menor_int % -1` dá `0` (revê A5); `-0.0` continua `-0` no `print`; decimais extremos continuam em notação científica. | Decisão do autor da linguagem; `x % -1` cabe sempre em `int`. |
 | 2026-10-03 | H3 | `exit([código])`: padrão 0, de 0 a 255; roda os `finally` pendentes e nenhum `except` o captura; encerra o caminho na análise de fluxo. | Decisão do autor da linguagem; 0–255 dá o mesmo resultado em todo sistema. |
+| 2026-11-19 | Q3 | A biblioteca da 1.0 ganha `Dicts`, `Env`, `Process`, `Regex` e `Json`. `Json` é uma classe da biblioteca (`Json.Value` com `Json.Kind`; o null do JSON é um `Kind`, não um null da Cinza). `Process` roda programas sem shell (programa e lista de argumentos). `Regex` usa um motor próprio no estilo do RE2 (tempo linear, em caracteres, sem `\1` nem lookaround). | Decisões do autor: JSON e processos são o que programas reais mais pedem; sem shell não há injeção de comando e o resultado é igual em todo sistema; um motor com retrocesso (o `std::regex`) trabalha em bytes e derruba o programa com textos longos, contra o Q2. |
 | 2026-11-19 | Q | O congelamento da linguagem (Q9) só depois de as classes genéricas estarem implementadas de forma segura e consistente; o sistema de módulos é revisto antes da 1.0 (Q1f); o `cinzac` deixa de depender do MSYS2 e do `g++`, como outras linguagens fazem (o ligador e o runtime distribuídos com ele, Q5). | Decisões do autor ao ler o roteiro: a 1.0 é a promessa de estabilidade, e as classes genéricas e os módulos ainda podem mudar a linguagem; quem usa o `cinzac` não deve precisar instalar um ambiente de compilação. |
 | 2026-11-19 | P10 | As duas implementações ficam: `cinza` (CVM) roda na hora, `cinzac` (LLVM) gera o executável; toda mudança da linguagem entra nas duas, e a suíte roda nas duas. Campos de objeto e struct com um caminho rápido em linha para os sem referência, no layout da CVM; sem campos tipados nem listas especializadas por enquanto. | Decisão do autor, com as medições do P10: a CVM começa a rodar na hora (o `cinzac` leva ~0,5 s, quase tudo na ligação pelo `g++`); o caminho rápido dá o grosso do ganho (getters 16× a CVM) sem mexer no runtime inteiro. |
 | 2026-11-18 | P | Backend nativo: API em C do LLVM 20 (`llvm-c`); CIR própria entre a AST e o LLVM, com a CVM compilando da AST; contagem de referências não atômica embutida no objeto + coleta de ciclos; erros por retorno explícito com estado de execução encapsulado; CVM mantida até o `cinzac` passar a suíte; `cinza` e `cinzac` separados. Erro lançado no `finally` substitui o fluxo pendente (spec 5.6, como a CVM já fazia). | Decisão do autor depois de duas revisões externas: o LLVM é só backend; posse, erros e o runtime são contratos da Cinza, comuns aos dois backends. |

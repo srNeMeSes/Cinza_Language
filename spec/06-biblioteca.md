@@ -540,6 +540,248 @@ fn main() {
 // expect: ["Bia", "Ana", "Caio"] [18, 25, 30]
 ```
 
+### `Dicts`
+
+Funções de `dict`, como `Lists` faz para `list` (os métodos continuam `size`, `add`, `remove`, `has`,
+`keys` e `values`). O dict é ordenado pela chave, e o que as funções devolvem segue essa ordem.
+Nada falha em silêncio: chave ausente no `pop` lança `KeyError`; chave repetida ao montar um dict
+e valor repetido ao inverter lançam `ValueError` (em vez de ficar só com um deles).
+
+**Ler**
+
+| Função | Descrição |
+|--------|-----------|
+| `get_or(dict<K, V> d, K chave, V padrao) -> V` | o valor da chave, ou `padrao` se ela não existir |
+| `contains_value(dict<K, V> d, V v) -> bool` | `true` se alguma chave tem o valor `v` |
+| `keys_of(dict<K, V> d, V v) -> list<K>` | as chaves com o valor `v`, em ordem (nenhuma: `[]`) |
+| `items(dict<K, V> d) -> list<pair<K, V>>` | as entradas como pares, em ordem de chave |
+| `is_empty(dict<K, V> d) -> bool` | `true` se não tem entradas |
+
+**Alterar no lugar**
+
+| Função | Descrição |
+|--------|-----------|
+| `update(dict<K, V> d, dict<K, V> outra)` | as entradas de `outra` entram em `d`; numa chave dos dois fica o valor de `outra` |
+| `pop(dict<K, V> d, K chave) -> V` | remove a chave e devolve o valor dela; chave ausente lança `KeyError` |
+| `clear(dict<K, V> d)` | remove todas as entradas |
+
+**Criar**
+
+| Função | Descrição |
+|--------|-----------|
+| `merge(dict<K, V> a, dict<K, V> b) -> dict<K, V>` | **novo** dict com as entradas dos dois; numa chave dos dois fica o valor de `b` |
+| `copy(dict<K, V> d) -> dict<K, V>` | uma cópia (rasa: objetos dentro continuam compartilhados; structs, como sempre, são valores) |
+| `from_lists(list<K> chaves, list<V> valores) -> dict<K, V>` | a chave `i` com o valor `i`; tamanhos diferentes ou chave repetida lançam `ValueError` |
+| `from_pairs(list<pair<K, V>> pares) -> dict<K, V>` | um dict dos pares; chave repetida lança `ValueError` |
+| `invert(dict<K, V> d) -> dict<V, K>` | os valores viram as chaves; valor repetido lança `ValueError`; `V` precisa poder ser chave (`i32`, `i64`, `string`, `bool` ou enum), senão é erro na compilação |
+
+As funções que alteram o dict (`update`, `pop`, `clear`) são erro num dict `const`.
+
+```cinza
+import Dicts;
+fn main() {
+  dict<string, i32> estoque = {{"pera", 3}, {"maçã", 0}, {"uva", 3}};
+  print(Dicts.get_or(estoque, "kiwi", 0), Dicts.keys_of(estoque, 3), Dicts.contains_value(estoque, 0));
+  Dicts.update(estoque, {{"kiwi", 5}, {"uva", 1}});
+  print(estoque, Dicts.pop(estoque, "maçã"));
+  print(Dicts.invert({{"um", 1}, {"dois", 2}}), Dicts.from_lists(["a", "b"], [true, false]));
+  for (pair<string, i32> p in Dicts.items(estoque)) { printf("{p.first}: {p.second}"); }
+}
+// expect: 0 ["pera", "uva"] true
+// expect: {"kiwi": 5, "pera": 3, "uva": 1} 0
+// expect: {1: "um", 2: "dois"} {"a": true, "b": false}
+// expect: kiwi: 5
+// expect: pera: 3
+// expect: uva: 1
+```
+
+### `Env`
+
+As variáveis de ambiente do programa, **só para ler**: o programa não muda o ambiente (seria um
+estado global). Nomes e valores em UTF-8. No Windows os nomes não diferenciam maiúsculas de
+minúsculas (`Path` e `PATH` são a mesma); nos outros sistemas, diferenciam.
+
+| Função | Descrição |
+|--------|-----------|
+| `get(string nome) -> string` | o valor da variável; se ela não existir, `KeyError` |
+| `get_or(string nome, string padrao) -> string` | o valor, ou `padrao` se ela não existir |
+| `has(string nome) -> bool` | `true` se a variável existe (mesmo vazia) |
+| `all() -> dict<string, string>` | todas as variáveis, por nome |
+
+Nome vazio ou com `=` lança `ValueError`.
+
+### `Process`
+
+Roda outro programa e espera ele terminar, **sem shell**: o programa e a lista de argumentos vão
+como estão — espaços, aspas, `*`, `|`, `%PATH%` e `$HOME` não têm significado nenhum (sem injeção
+de comando, e igual em todo sistema). O programa é procurado como o sistema procura (no `PATH`;
+no Windows, antes dele, na pasta do executável em execução, na pasta atual e nas do sistema, e
+`.exe` pode ser omitido). A entrada e a saída de erro do
+programa são as do terminal; o que a Cinza já imprimiu sai antes do que ele imprimir.
+
+| Função | Descrição |
+|--------|-----------|
+| `run(string programa[, list<string> args]) -> i32` | roda o programa, que escreve direto no terminal; devolve o código de saída dele |
+| `capture(string programa[, list<string> args]) -> pair<i32, string>` | roda o programa e devolve o código de saída e o que ele escreveu na saída padrão (`first` e `second`) |
+
+Os códigos de saída são os do sistema: no Windows, o valor de 32 bits do processo (um programa
+que cai dá um código negativo, como `-1073741819`); nos outros, de `0` a `255`, e `128 + n` se o
+programa foi terminado pelo sinal `n`. Programa que não existe ou não pode ser executado lança
+`IOError`; nome vazio, ou um argumento com o caractere nulo, `ValueError`. Um script `.bat` ou `.cmd`
+o Windows só roda pelo `cmd`, com as regras de shell dele — por isso é `ValueError`, e precisa ser
+pedido explicitamente: `Process.run("cmd", ["/c", "instala.bat"])`.
+
+```
+import Process;
+fn main() {
+  i32 c = Process.run("git", ["commit", "-m", "mensagem com espaços"]);
+  pair<i32, string> r = Process.capture("git", ["status", "--short"]);
+  if (r.first == 0) { print(r.second); }
+}
+```
+
+### `Regex`
+
+Expressões regulares com um motor próprio, no estilo do RE2: a busca leva **tempo linear** no
+tamanho do texto para qualquer padrão (nenhum padrão faz o programa travar, como `(a+)+b` faz nos
+motores com retrocesso), e trabalha em **caracteres** — `.` casa `ç` inteiro, e as posições contam
+caracteres, como em `Strings`. Por isso não há referência a um grupo dentro do padrão (`\1`) nem
+lookaround (`(?=...)`, `(?<=...)`). Como em `Strings`, o texto vem primeiro e o padrão depois.
+
+Numa string da Cinza a barra invertida se escreve `\\`: o padrão `\d+` é `"\\d+"`.
+
+**Sintaxe**
+
+| Padrão | Casa |
+|--------|------|
+| `a`, `ç`, `\.`, `\*`, `\\` ... | o próprio caractere (pontuação com `\` antes é literal) |
+| `.` | qualquer caractere, menos a quebra de linha `\n` |
+| `[abc]`, `[a-z]`, `[^0-9]` | um caractere da classe (com `^`, fora dela); `]` logo depois do `[` e `-` no começo ou no fim são caracteres |
+| `\d`, `\w`, `\s` | dígito `0`–`9`; letra (como em `Strings`: ASCII e as acentuadas do Latin-1), dígito ou `_`; espaço em branco |
+| `\D`, `\W`, `\S` | o contrário de cada um (valem também dentro de `[...]`) |
+| `\n`, `\t`, `\r`, `\f`, `\v` | quebra de linha, tabulação, retorno, avanço de página, tabulação vertical |
+| `(...)`, `(?<nome>...)`, `(?:...)` | grupo com captura, com captura e nome, sem captura |
+| `a\|b` | `a` ou `b` (a primeira que casar) |
+| `*`, `+`, `?` | zero ou mais, um ou mais, zero ou um — o máximo possível |
+| `{n}`, `{n,}`, `{n,m}` | exatamente `n`, ao menos `n`, de `n` a `m` (até 1000) |
+| `*?`, `+?`, `??`, `{n,m}?` | as mesmas, o mínimo possível |
+| `^`, `$` | o começo e o fim do texto |
+| `\b`, `\B` | uma borda de palavra (entre `\w` e não `\w`) e o contrário |
+| `(?i)` no começo | sem diferenciar maiúsculas de minúsculas (`(?i)ação` casa `AÇÃO`) |
+
+Um padrão inválido lança `ValueError` com o motivo e a posição (`'(' sem o ')' correspondente (na
+posição 1 de 'a(b')`), em qualquer função. Um padrão grande demais (repetições que passam de 100
+mil instruções, como `(a{1000}){1000}`) também.
+
+**Funções**
+
+| Função | Descrição |
+|--------|-----------|
+| `matches(string s, string padrao) -> bool` | `true` se o padrão casa o texto **inteiro** |
+| `contains(string s, string padrao) -> bool` | `true` se casa em algum lugar |
+| `find(string s, string padrao) -> i32` | o índice da primeira ocorrência, ou `-1` |
+| `find_all(string s, string padrao) -> list<string>` | todas as ocorrências, sem sobreposição |
+| `count(string s, string padrao) -> i32` | quantas ocorrências |
+| `groups(string s, string padrao) -> list<string>` | a primeira ocorrência e os seus grupos (`[0]` é a ocorrência inteira; um grupo que não participou é `""`); sem ocorrência, `[]` |
+| `groups_all(string s, string padrao) -> list<list<string>>` | o mesmo, para cada ocorrência |
+| `named(string s, string padrao) -> dict<string, string>` | os grupos com nome da primeira ocorrência; sem ocorrência, `{}` |
+| `replace_all(string s, string padrao, string troca) -> string` | troca cada ocorrência |
+| `replace_first(string s, string padrao, string troca) -> string` | troca só a primeira |
+| `split(string s, string padrao) -> list<string>` | as partes entre as ocorrências |
+| `escape(string s) -> string` | o texto como padrão literal (`escape("1+1")` → `"1\\+1"`) |
+| `is_valid(string padrao) -> bool` | `true` se o padrão é válido |
+
+No texto de troca, `$1` (ou `${1}`) é o grupo 1, `${nome}` o grupo com aquele nome e `$$` um `$`;
+qualquer outra coisa depois de um `$`, ou um grupo que não existe, lança `ValueError`. Com várias
+ocorrências (`find_all`, `count`, `groups_all`, as trocas e `split`), depois de uma ocorrência vazia
+a busca anda um caractere, e uma ocorrência vazia logo depois da anterior não conta: trocar `x*`
+por `-` em `"abxd"` dá `"-a-b-d-"`. `split` segue as mesmas regras de `Strings.split` (separadores
+seguidos geram partes vazias; um separador no fim, uma parte vazia no fim; texto vazio, `[""]`), e
+um padrão que casa o vazio divide em caracteres.
+
+```cinza
+import Regex as re;
+fn main() {
+  print(re.matches("2026-11-19", "\\d{4}-\\d{2}-\\d{2}"), re.find_all("a1 b22 c333", "\\d+"));
+  print(re.groups("tel: 11-9876", "(\\d+)-(\\d+)"), re.named("19/11", "(?<dia>\\d+)/(?<mes>\\d+)"));
+  print(re.replace_all("João e Maria", "(\\w+) e (\\w+)", "$2 e $1"), re.split("a, b;c", "[,;]\\s*"));
+  print(re.matches("AÇÃO", "(?i)ação"), re.find_all("<a><b>", "<.+?>"), re.count("banana", "an"));
+}
+// expect: true ["1", "22", "333"]
+// expect: ["11-9876", "11", "9876"] {"dia": "19", "mes": "11"}
+// expect: Maria e João ["a", "b", "c"]
+// expect: true ["<a>", "<b>"] 2
+```
+
+### `Json`
+
+Ler e gravar JSON ([RFC 8259](https://www.rfc-editor.org/rfc/rfc8259)). Um valor JSON é um
+`Json.Value`, e o tipo dele é um `Json.Kind`: `Null`, `Bool`, `Number`, `Text`, `List` ou `Object`.
+A Cinza não tem null nem tipo dinâmico: o `null` do JSON é um valor de tipo `Kind.Null`, e ler um
+valor como o tipo errado (`as_text` de um número) lança `ValueError`. `Json` é um módulo da
+biblioteca escrito na própria Cinza (vem embutido no `cinza` e no `cinzac`; nas mensagens e nos
+traces aparece como `<biblioteca>/Json.cinza`), e é usado como qualquer módulo: `Json.Value`,
+`Json.Kind.Text`, `Json.parse(...)`.
+
+**Criar e ler**
+
+| Função | Descrição |
+|--------|-----------|
+| `parse(string texto) -> Value` | o valor do texto (um valor qualquer, com espaços em volta); texto inválido lança `ValueError` com o motivo, a linha e a coluna |
+| `null_value() -> Value` | o `null` |
+| `from_bool(bool b) -> Value`, `from_i64(i64 n)`, `from_f64(f64 x)`, `from_text(string s)` | um valor de cada tipo |
+| `new_list() -> Value`, `new_object() -> Value` | uma lista e um objeto vazios |
+| `new Value(Kind k, string texto)` | o valor com o texto dele: `""` em `Null`, `List` e `Object`; `"true"` ou `"false"` em `Bool`; um número do JSON em `Number` (`"-12"`, `"3.5e-2"`); qualquer texto em `Text` — outro texto lança `ValueError` |
+
+**Métodos de `Value`**
+
+| Método | Descrição |
+|--------|-----------|
+| `kind() -> Kind`, `is_null() -> bool` | o tipo do valor; `true` se é o `null` |
+| `as_bool() -> bool`, `as_text() -> string` | o valor de um `Bool` / de um `Text` |
+| `as_f64() -> f64` | o número (o mais próximo em `f64`; grande demais, `OverflowError`) |
+| `as_i64() -> i64` | o número inteiro, **exato** em toda a faixa de `i64` (o texto do número é guardado); com ponto ou expoente, `ValueError` |
+| `size() -> i32` | os elementos de uma lista ou as chaves de um objeto |
+| `at(i64 i) -> Value`, `items() -> list<Value>`, `add(Value v)` | lista: o elemento `i` (`IndexError` fora dela), todos, acrescentar no fim |
+| `get(string k) -> Value`, `get_or(string k, Value padrao) -> Value`, `has(string k) -> bool` | objeto: o valor da chave (`KeyError` se não existir), ou `padrao`; se ela existe |
+| `keys() -> list<string>`, `set(string k, Value v)`, `remove(string k)` | objeto: as chaves, **na ordem em que entraram**; gravar (uma chave que já existe troca o valor no mesmo lugar); apagar (`KeyError` se não existir) |
+| `to_text() -> string` | o JSON compacto |
+| `to_text_pretty(i64 recuo) -> string` | o JSON com uma entrada por linha e `recuo` espaços por nível (de 0 a 16) |
+
+O método de um tipo em outro (`at` num objeto, `set` numa lista) lança `ValueError`. Os valores
+são objetos: guardar um valor numa lista ou num objeto não o copia, e mudar ele depois aparece nos
+dois lugares. `parse` não aceita mais de 500 níveis de aninhamento, nem chave repetida num objeto
+(`ValueError`: nada fica com só um dos valores em silêncio), nem o caractere nulo (`\u0000`, que
+não cabe numa string da Cinza); gravar um valor com mais de 500 níveis — ou um valor dentro dele
+mesmo — também lança `ValueError`. O texto gravado usa os escapes do JSON (`\"`, `\\`, `\n`,
+`\u001b`...) e mantém os outros caracteres em UTF-8.
+
+```cinza
+import Json;
+fn main() {
+  Json.Value v = Json.parse("{\"nome\": \"Ana\", \"notas\": [9.5, 8], \"chefe\": null}");
+  print(v.get("nome").as_text(), v.get("notas").size(), v.get("notas").at(0).as_f64());
+  print(v.get("chefe").is_null(), v.get("notas").kind() == Json.Kind.List, v.keys());
+  Json.Value p = Json.new_object();
+  p.set("id", Json.from_i64(7));
+  p.set("tags", Json.new_list());
+  p.get("tags").add(Json.from_text("novo"));
+  print(p.to_text());
+  print(p.to_text_pretty(2));
+  try { Json.parse("[1, 2,]"); } except (ValueError e) { print(e.message); }
+}
+// expect: Ana 2 9.5
+// expect: true true ["nome", "notas", "chefe"]
+// expect: {"id":7,"tags":["novo"]}
+// expect: {
+// expect:   "id": 7,
+// expect:   "tags": [
+// expect:     "novo"
+// expect:   ]
+// expect: }
+// expect: Json.parse: caractere inesperado ']' (linha 1, coluna 7)
+```
+
 ### `Time`
 
 Um **instante** é um `i64`: os segundos desde 1970-01-01 00:00 UTC (negativo antes disso). Por ser

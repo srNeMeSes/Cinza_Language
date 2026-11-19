@@ -1,0 +1,62 @@
+// Dicts (Q3): as funções de dict — ler (get_or, contains_value, keys_of, is_empty, items),
+// alterar no lugar (update, pop, clear) e criar (merge, copy, from_lists, from_pairs, invert).
+// O dict é ordenado pela chave; structs dentro são valores; objetos continuam compartilhados.
+import Dicts;
+
+struct P {
+  i32 x = 0;
+}
+
+class Caixa {
+  i32 n = 0;
+  pub {
+    fn soma() { n += 1; }
+    fn valor() -> i32 { return n; }
+  }
+}
+
+fn main() {
+  dict<string, i32> d = {{"b", 2}, {"a", 1}, {"c", 2}};
+  print(Dicts.get_or(d, "a", 0), Dicts.get_or(d, "z", -1), Dicts.contains_value(d, 2), Dicts.contains_value(d, 9));
+  print(Dicts.keys_of(d, 2), Dicts.keys_of(d, 7), Dicts.items(d), Dicts.is_empty(d));
+  for (pair<string, i32> p in Dicts.items(d)) { print(p.first + "=" + cast<string>(p.second)); }
+
+  dict<string, i32> e = {{"c", 30}, {"d", 4}};
+  dict<string, i32> m = Dicts.merge(d, e);
+  print(m, d, e);
+  Dicts.update(d, e);
+  print(d);
+  print(Dicts.pop(d, "d"), d);
+  Dicts.update(d, d);
+  print(d);
+
+  dict<i32, string> inv = Dicts.invert({{"um", 1}, {"dois", 2}});
+  print(inv, Dicts.from_lists([3, 1, 2], ["c", "a", "b"]), Dicts.from_pairs([{"k", true}, {"j", false}]));
+  dict<string, string> vazio = Dicts.from_lists(["x"], ["y"]);
+  Dicts.clear(vazio);
+  print(vazio, Dicts.is_empty(vazio), Dicts.from_pairs([{"a", 1}]).size());
+
+  // copy é rasa: o struct é copiado (valor), o objeto é o mesmo
+  dict<string, P> ps = {{"p", new P(1)}};
+  dict<string, P> ps2 = Dicts.copy(ps);
+  ps["p"] = new P(9);
+  print(ps["p"].x, ps2["p"].x);
+  Caixa cx = new Caixa();
+  dict<i32, Caixa> cs = {{1, cx}};
+  dict<i32, Caixa> cs2 = Dicts.copy(cs);
+  cx.soma();
+  print(cs2[1].valor(), Dicts.get_or(cs, 2, new Caixa()).valor());
+}
+// expect: 1 -1 true false
+// expect: ["b", "c"] [] [{"a", 1}, {"b", 2}, {"c", 2}] false
+// expect: a=1
+// expect: b=2
+// expect: c=2
+// expect: {"a": 1, "b": 2, "c": 30, "d": 4} {"a": 1, "b": 2, "c": 2} {"c": 30, "d": 4}
+// expect: {"a": 1, "b": 2, "c": 30, "d": 4}
+// expect: 4 {"a": 1, "b": 2, "c": 30}
+// expect: {"a": 1, "b": 2, "c": 30}
+// expect: {1: "um", 2: "dois"} {1: "a", 2: "b", 3: "c"} {"j": false, "k": true}
+// expect: {} true 1
+// expect: 9 1
+// expect: 1 0

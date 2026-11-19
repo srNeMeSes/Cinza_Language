@@ -1,0 +1,27 @@
+// Regex (Q3): padrão inválido e referência inválida no texto de troca lançam ValueError, com o
+// motivo e a posição; repetição acima de 1000 e programa grande demais também.
+import Regex as re;
+fn main() {
+  try { re.find("a", "a(b"); } except (ValueError e) { print(e.message); }
+  try { re.find("a", "*a"); } except (ValueError e) { print(e.message); }
+  try { re.find("a", "a**"); } except (ValueError e) { print(e.message); }
+  try { re.find("a", "\\q"); } except (ValueError e) { print(e.message); }
+  try { re.find("a", "(?=a)"); } except (ValueError e) { print(e.message); }
+  try { re.find("a", "[z-a]"); } except (ValueError e) { print(e.message); }
+  try { re.replace_all("a", "(a)", "$2"); } except (ValueError e) { print(e.message); }
+  try { re.replace_all("a", "a", "${x}"); } except (ValueError e) { print(e.message); }
+  try { re.replace_all("a", "a", "$x"); } except (ValueError e) { print(e.message); }
+  try { re.find("a", "a{1001}"); } except (ValueError e) { print(e.message); }
+  try { re.find("a", "(a{1000}){1000}"); } except (ValueError e) { print(e.message); }
+}
+// expect: 'find': padrão inválido: '(' sem o ')' correspondente (na posição 1 de 'a(b')
+// expect: 'find': padrão inválido: quantificador sem nada antes para repetir (na posição 0 de '*a')
+// expect: 'find': padrão inválido: quantificador repetido (para repetir de novo, use um grupo: (?:a*)*) (na posição 2 de 'a**')
+// expect: 'find': padrão inválido: escape desconhecido '\q' (na posição 1 de '\q')
+// expect: 'find': padrão inválido: grupo '(?' desconhecido (há (?:...) e (?<nome>...); sem lookaround) (na posição 2 de '(?=a)')
+// expect: 'find': padrão inválido: faixa invertida na classe (na posição 3 de '[z-a]')
+// expect: 'replace_all': referência inválida no texto de troca: '$2' (use $1, ${1}, ${nome}, ou $$ para um '$')
+// expect: 'replace_all': referência inválida no texto de troca: '${x}' (use $1, ${1}, ${nome}, ou $$ para um '$')
+// expect: 'replace_all': referência inválida no texto de troca: '$x' (use $1, ${1}, ${nome}, ou $$ para um '$')
+// expect: 'find': padrão inválido: repetição acima de 1000 (na posição 5 de 'a{1001}')
+// expect: 'find': padrão inválido: padrão grande demais (na posição 0 de '(a{1000}){1000}')

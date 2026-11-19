@@ -1,0 +1,15 @@
+// Json (Q3): aninhamento acima de 500 níveis é ValueError (e não StackOverflowError), ao ler e ao
+// gravar; 500 níveis ainda valem.
+import Json;
+import Strings;
+fn main() {
+  Json.Value v = Json.parse(Strings.repeat("[", 500) + Strings.repeat("]", 500));
+  print(v.size(), v.to_text().size());
+  try { Json.parse(Strings.repeat("[", 501) + Strings.repeat("]", 501)); } except (ValueError e) { print(e.message); }
+  Json.Value l = Json.new_list();
+  l.add(l);
+  try { print(l.to_text()); } except (ValueError e) { print(e.message); }
+}
+// expect: 1 1000
+// expect: Json.parse: mais de 500 níveis de aninhamento (linha 1, coluna 501)
+// expect: Json: valor com mais de 500 níveis (ou um valor dentro dele mesmo)

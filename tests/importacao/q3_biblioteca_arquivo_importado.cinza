@@ -1,0 +1,4 @@
+// Q3: arquivo importado com o nome de um módulo da biblioteca escrito em Cinza (Json) é erro.
+import modulos.lib.Json;
+fn main() { }
+// expect-error: o arquivo 'tests/modulos/lib/Json.cinza' tem o nome do módulo da biblioteca 'Json'

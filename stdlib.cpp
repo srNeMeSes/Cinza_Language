@@ -1,6 +1,7 @@
 #include "natives.h"
 #include "operacoes.h"   // convertValue, doubleToF32 (seção K)
 #include "plataforma.h"
+#include "regex.h"
 #include "runtime_error.h"
 #include "utf8.h"
 #include <algorithm>
@@ -10,11 +11,15 @@
 #include <ctime>
 #include <thread>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <limits>
+#include <map>
+#include <memory>
 #include <random>
 #include <set>
 #include <sstream>
@@ -43,17 +48,9 @@ namespace fs = std::filesystem;
 using utf8::decodifica;
 using utf8::codifica;
 
-// Maiúsculas/minúsculas: ASCII e Latin-1 (á é ç ã õ ... ↔ Á É Ç Ã Õ ...)
-char32_t paraMaiuscula(char32_t c) {
-    if (c >= U'a' && c <= U'z') return c - 32;
-    if (c >= 0xE0 && c <= 0xFE && c != 0xF7) return c - 32;
-    return c;
-}
-char32_t paraMinuscula(char32_t c) {
-    if (c >= U'A' && c <= U'Z') return c + 32;
-    if (c >= 0xC0 && c <= 0xDE && c != 0xD7) return c + 32;
-    return c;
-}
+// Maiúsculas/minúsculas: ASCII e Latin-1 (utf8.h, as mesmas do Regex)
+char32_t paraMaiuscula(char32_t c) { return utf8::maiuscula(c); }
+char32_t paraMinuscula(char32_t c) { return utf8::minuscula(c); }
 
 // Número (inteiro ou ponto flutuante) como double
 double numero(const Value& v) { return v.asNumber(); }
@@ -371,11 +368,8 @@ Value strCenter(Args a) {
 }
 
 // Letras: ASCII e as acentuadas do Latin-1 (as mesmas de upper/lower)
-bool ehLetra(char32_t c) {
-    return (c >= U'a' && c <= U'z') || (c >= U'A' && c <= U'Z') ||
-           (c >= 0xC0 && c <= 0xFF && c != 0xD7 && c != 0xF7);
-}
-bool ehDigito(char32_t c) { return c >= U'0' && c <= U'9'; }
+bool ehLetra(char32_t c) { return utf8::letra(c); }
+bool ehDigito(char32_t c) { return utf8::digito(c); }
 bool ehBranco(char32_t c) { return c < 0x80 && std::strchr(BRANCOS, static_cast<char>(c)) && c != 0; }
 bool ehMaiuscula(char32_t c) { return ehLetra(c) && paraMinuscula(c) != c; }
 // ß e ÿ são minúsculas sem maiúscula no Latin-1 (sem elas, "ÿ" passava por maiúsculo)
@@ -1681,6 +1675,386 @@ Value filesModified(Args a) {
     return Value(t);
 }
 
+// ============================================================================
+// Dicts (Q3) — funções de dict, como Lists faz para list. O dict é ordenado pela
+// chave (std::map); nada falha em silêncio: chave repetida ao montar um dict e
+// valor repetido ao inverter lançam ValueError, chave ausente lança KeyError.
+// ============================================================================
+
+std::map<Value, Value>& entradas(const Value& d) { return d.asDict()->entries; }
+
+Value dictGetOr(Args a) {
+    const auto& e = entradas(a[0]);
+    auto it = e.find(a[1]);
+    return it == e.end() ? a[2] : it->second;
+}
+
+Value dictContainsValue(Args a) {
+    for (const auto& [k, v] : entradas(a[0]))
+        if (v == a[1]) return Value(true);
+    return Value(false);
+}
+
+// keys_of(d, v): as chaves com o valor v, em ordem
+Value dictKeysOf(Args a) {
+    std::vector<Value> out;
+    for (const auto& [k, v] : entradas(a[0]))
+        if (v == a[1]) out.push_back(k);
+    return makeList(std::move(out));
+}
+
+Value dictIsEmpty(Args a) { return Value(entradas(a[0]).empty()); }
+
+Value dictItems(Args a) {
+    std::vector<Value> out;
+    for (const auto& [k, v] : entradas(a[0])) out.push_back(makePair(k, v));
+    return makeList(std::move(out));
+}
+
+// update(d, outra): as entradas de outra entram em d (as chaves repetidas ficam com o valor de outra)
+Value dictUpdate(Args a) {
+    const std::map<Value, Value> outra = entradas(a[1]);   // cópia: outra pode ser d
+    for (const auto& [k, v] : outra) entradas(a[0])[k] = v;
+    return Value();
+}
+
+// pop(d, k): remove a chave e devolve o valor
+Value dictPop(Args a) {
+    auto& e = entradas(a[0]);
+    auto it = e.find(a[1]);
+    if (it == e.end()) falha("KeyError: 'pop': a chave '" + a[1].toString() + "' não existe");
+    Value v = std::move(it->second);
+    e.erase(it);
+    return v;
+}
+
+Value dictClear(Args a) {
+    entradas(a[0]).clear();
+    return Value();
+}
+
+Value dictMerge(Args a) {
+    Value r = makeDict();
+    entradas(r) = entradas(a[0]);
+    for (const auto& [k, v] : entradas(a[1])) entradas(r)[k] = v;
+    return r;
+}
+
+Value dictCopy(Args a) {
+    Value r = makeDict();
+    entradas(r) = entradas(a[0]);
+    return r;
+}
+
+// insere sem substituir: chave repetida é ValueError (o dict perderia um valor calado)
+void insereNova(std::map<Value, Value>& e, const Value& k, const Value& v, const char* fn) {
+    if (!e.emplace(k, v).second)
+        falha(std::string("ValueError: '") + fn + "': a chave '" + k.toString() + "' aparece mais de uma vez");
+}
+
+Value dictFromLists(Args a) {
+    const auto& ks = a[0].asList()->elements;
+    const auto& vs = a[1].asList()->elements;
+    if (ks.size() != vs.size())
+        falha("ValueError: 'from_lists': " + std::to_string(ks.size()) + " chaves e " +
+              std::to_string(vs.size()) + " valores");
+    Value r = makeDict();
+    for (size_t i = 0; i < ks.size(); ++i) insereNova(entradas(r), ks[i], vs[i], "from_lists");
+    return r;
+}
+
+Value dictFromPairs(Args a) {
+    Value r = makeDict();
+    for (const Value& p : a[0].asList()->elements)
+        insereNova(entradas(r), p.asPair()->first, p.asPair()->second, "from_pairs");
+    return r;
+}
+
+// invert(d): os valores viram as chaves; valor repetido é ValueError
+Value dictInvert(Args a) {
+    Value r = makeDict();
+    for (const auto& [k, v] : entradas(a[0]))
+        if (!entradas(r).emplace(v, k).second)
+            falha("ValueError: 'invert': o valor '" + v.toString() + "' aparece em mais de uma chave");
+    return r;
+}
+
+// ============================================================================
+// Env e Process (Q3) — o ambiente, só para ler (mudá-lo seria um estado global), e
+// rodar outro programa sem shell: o programa e a lista de argumentos, sem nenhuma
+// interpretação (sem injeção de comando, igual em todo sistema).
+// ============================================================================
+
+std::string nomeDeAmbiente(const Value& v, const char* fn) {
+    const std::string n = v.asString();
+    if (n.empty() || n.find('=') != std::string::npos || n.find('\0') != std::string::npos)
+        falha(std::string("ValueError: '") + fn + "': nome de variável de ambiente inválido: '" + n + "'");
+    return n;
+}
+
+Value envGet(Args a) {
+    const std::string n = nomeDeAmbiente(a[0], "get");
+    std::string v;
+    if (!ambienteUtf8(n.c_str(), v)) falha("KeyError: 'get': a variável de ambiente '" + n + "' não existe");
+    return Value(v);
+}
+
+Value envGetOr(Args a) {
+    const std::string n = nomeDeAmbiente(a[0], "get_or");
+    std::string v;
+    return ambienteUtf8(n.c_str(), v) ? Value(v) : a[1];
+}
+
+Value envHas(Args a) {
+    const std::string n = nomeDeAmbiente(a[0], "has");
+    std::string v;
+    return Value(ambienteUtf8(n.c_str(), v));
+}
+
+Value envAll(Args) {
+    Value r = makeDict();
+    for (auto& [n, v] : ambienteTodo()) r.asDict()->entries[Value(n)] = Value(v);
+    return r;
+}
+
+// O programa e os argumentos, conferidos: um script .bat/.cmd o Windows roda pelo cmd,
+// com as regras de shell dele — sem shell, ele precisa ser pedido explicitamente
+std::vector<std::string> comando(Args a, const char* fn) {
+    const std::string prog = a[0].asString();
+    if (prog.empty()) falha(std::string("ValueError: '") + fn + "': o nome do programa está vazio");
+    std::string ext = textoCaminho(caminhoUtf8(prog).extension());
+    for (char& c : ext) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (ext == ".bat" || ext == ".cmd")
+        falha(std::string("ValueError: '") + fn + "': '" + prog + "' é um script do cmd; rode-o pelo "
+              "cmd explicitamente: Process." + fn + "(\"cmd\", [\"/c\", \"" + prog + "\"])");
+    std::vector<std::string> cmd{prog};
+    if (a.size() > 1)   // os argumentos são opcionais: Process.run("programa")
+        for (const Value& x : a[1].asList()->elements) cmd.push_back(x.asString());
+    for (const std::string& s : cmd)
+        if (s.find('\0') != std::string::npos)
+            falha(std::string("ValueError: '") + fn + "': um argumento tem o caractere nulo");
+    return cmd;
+}
+
+int roda(Args a, const char* fn, std::string* saida) {
+    const std::vector<std::string> cmd = comando(a, fn);
+    std::cout.flush();   // o que o programa já imprimiu sai antes do outro
+    std::fflush(stdout);
+    int codigo = 0;
+    if (!executa(cmd, codigo, saida)) falhaIO(std::string("'") + fn + "': não foi possível executar", cmd[0]);
+    return codigo;
+}
+
+Value procRun(Args a) { return i32Valor(roda(a, "run", nullptr)); }
+
+Value procCapture(Args a) {
+    std::string saida;
+    const int codigo = roda(a, "capture", &saida);
+    return makePair(i32Valor(codigo), Value(saida));
+}
+
+// ============================================================================
+// Regex (Q3) — o motor próprio de regex.h (tempo linear, em caracteres). Como em
+// Strings, o texto vem primeiro e as posições contam caracteres. Várias
+// ocorrências seguem o RE2: depois de uma vazia a busca anda um caractere, e uma
+// vazia logo depois da anterior não conta.
+// ============================================================================
+
+// O padrão compilado, guardado: um laço que repete o mesmo padrão não recompila
+const regex::Regex& padrao(const Value& v, const char* fn) {
+    static std::map<std::string, std::unique_ptr<regex::Regex>> cache;
+    const std::string p = v.asString();
+    auto it = cache.find(p);
+    if (it != cache.end()) return *it->second;
+    std::unique_ptr<regex::Regex> re;
+    try {
+        re = std::make_unique<regex::Regex>(decodifica(p));
+    } catch (const regex::ErroDePadrao& e) {
+        falha(std::string("ValueError: '") + fn + "': padrão inválido: " + e.what() + " (na posição " +
+              std::to_string(e.posicao) + " de '" + p + "')");
+    }
+    if (cache.size() >= 64) cache.clear();
+    return *cache.emplace(p, std::move(re)).first->second;
+}
+
+std::string trecho(const std::u32string& s, int a, int b) {
+    return a < 0 ? std::string() : codifica(s.substr(static_cast<std::size_t>(a), static_cast<std::size_t>(b - a)));
+}
+
+// Todas as ocorrências (as posições de cada uma), no máximo `limite` (-1: todas)
+std::vector<std::vector<int>> ocorrencias(const regex::Regex& re, const std::u32string& s, int limite = -1) {
+    std::vector<std::vector<int>> r;
+    const int n = static_cast<int>(s.size());
+    int anterior = -1;
+    for (int pos = 0; pos <= n && (limite < 0 || static_cast<int>(r.size()) < limite);) {
+        std::vector<int> caps;
+        if (!re.procura(s, static_cast<std::size_t>(pos), caps)) break;
+        const bool aceita = !(caps[1] == caps[0] && caps[0] == anterior);
+        pos = caps[1] > caps[0] ? caps[1] : caps[1] + 1;
+        anterior = caps[1];
+        if (aceita) r.push_back(std::move(caps));
+    }
+    return r;
+}
+
+Value rxMatches(Args a) {
+    std::vector<int> caps;
+    return Value(padrao(a[1], "matches").procura(decodifica(a[0].asString()), 0, caps, true));
+}
+
+Value rxContains(Args a) {
+    std::vector<int> caps;
+    return Value(padrao(a[1], "contains").procura(decodifica(a[0].asString()), 0, caps));
+}
+
+Value rxFind(Args a) {
+    std::vector<int> caps;
+    return i32Valor(padrao(a[1], "find").procura(decodifica(a[0].asString()), 0, caps) ? caps[0] : -1);
+}
+
+Value rxFindAll(Args a) {
+    const std::u32string s = decodifica(a[0].asString());
+    std::vector<Value> out;
+    for (const auto& c : ocorrencias(padrao(a[1], "find_all"), s)) out.push_back(Value(trecho(s, c[0], c[1])));
+    return makeList(std::move(out));
+}
+
+Value rxCount(Args a) {
+    return i32Valor(static_cast<std::int64_t>(ocorrencias(padrao(a[1], "count"), decodifica(a[0].asString())).size()));
+}
+
+// A ocorrência e os grupos (o que não participou é "")
+Value gruposDe(const std::u32string& s, const std::vector<int>& c) {
+    std::vector<Value> g;
+    for (std::size_t i = 0; i + 1 < c.size(); i += 2) g.push_back(Value(trecho(s, c[i], c[i + 1])));
+    return makeList(std::move(g));
+}
+
+Value rxGroups(Args a) {
+    const std::u32string s = decodifica(a[0].asString());
+    std::vector<int> caps;
+    if (!padrao(a[1], "groups").procura(s, 0, caps)) return makeList();
+    return gruposDe(s, caps);
+}
+
+Value rxGroupsAll(Args a) {
+    const std::u32string s = decodifica(a[0].asString());
+    std::vector<Value> out;
+    for (const auto& c : ocorrencias(padrao(a[1], "groups_all"), s)) out.push_back(gruposDe(s, c));
+    return makeList(std::move(out));
+}
+
+Value rxNamed(Args a) {
+    const std::u32string s = decodifica(a[0].asString());
+    const regex::Regex& re = padrao(a[1], "named");
+    Value r = makeDict();
+    std::vector<int> caps;
+    if (!re.procura(s, 0, caps)) return r;
+    for (std::size_t g = 0; g < re.grupos(); ++g)
+        if (!re.nomes()[g].empty())
+            r.asDict()->entries[Value(re.nomes()[g])] = Value(trecho(s, caps[2 * (g + 1)], caps[2 * (g + 1) + 1]));
+    return r;
+}
+
+// O texto de troca, com $1, ${1}, ${nome} e $$ — uma referência inválida é erro
+std::string expande(const std::u32string& troca, const regex::Regex& re, const std::u32string& s,
+                    const std::vector<int>& c, const char* fn) {
+    std::u32string out;
+    auto grupo = [&](std::size_t g) {
+        if (c[2 * g] >= 0) out += s.substr(static_cast<std::size_t>(c[2 * g]), static_cast<std::size_t>(c[2 * g + 1] - c[2 * g]));
+    };
+    auto invalida = [&](const std::u32string& ref) {
+        falha(std::string("ValueError: '") + fn + "': referência inválida no texto de troca: '" + codifica(ref) +
+              "' (use $1, ${1}, ${nome}, ou $$ para um '$')");
+    };
+    for (std::size_t i = 0; i < troca.size(); ++i) {
+        if (troca[i] != U'$') { out += troca[i]; continue; }
+        if (i + 1 >= troca.size()) invalida(U"$");
+        const char32_t d = troca[i + 1];
+        if (d == U'$') { out += U'$'; ++i; continue; }
+        std::u32string nome;
+        std::size_t fim = i + 1;
+        if (d == U'{') {
+            const std::size_t fecha = troca.find(U'}', i + 2);
+            if (fecha == std::u32string::npos) invalida(troca.substr(i));
+            nome = troca.substr(i + 2, fecha - i - 2);
+            fim = fecha;
+        } else if (utf8::digito(d)) {
+            while (fim < troca.size() && utf8::digito(troca[fim])) nome += troca[fim++];
+            --fim;
+        } else {
+            invalida(troca.substr(i, 2));
+        }
+        const std::u32string ref = troca.substr(i, fim - i + 1);
+        if (nome.empty()) invalida(ref);
+        if (std::all_of(nome.begin(), nome.end(), utf8::digito)) {
+            const std::string n8 = codifica(nome);
+            if (n8.size() > 6 || std::stoul(n8) > re.grupos()) invalida(ref);
+            grupo(std::stoul(n8));
+        } else {
+            auto it = std::find(re.nomes().begin(), re.nomes().end(), codifica(nome));
+            if (it == re.nomes().end()) invalida(ref);
+            grupo(static_cast<std::size_t>(it - re.nomes().begin()) + 1);
+        }
+        i = fim;
+    }
+    return codifica(out);
+}
+
+Value troca(Args a, const char* fn, int limite) {
+    const std::u32string s = decodifica(a[0].asString());
+    const regex::Regex& re = padrao(a[1], fn);
+    const std::u32string t = decodifica(a[2].asString());
+    std::string out;
+    int ate = 0;
+    for (const auto& c : ocorrencias(re, s, limite)) {
+        out += codifica(s.substr(static_cast<std::size_t>(ate), static_cast<std::size_t>(c[0] - ate)));
+        out += expande(t, re, s, c, fn);
+        ate = c[1];
+    }
+    out += codifica(s.substr(static_cast<std::size_t>(ate)));
+    return Value(out);
+}
+
+Value rxReplaceAll(Args a) { return troca(a, "replace_all", -1); }
+Value rxReplaceFirst(Args a) { return troca(a, "replace_first", 1); }
+
+// split: as partes entre as ocorrências (como o RE2: uma ocorrência vazia no começo
+// não gera parte vazia; texto vazio dá [""])
+Value rxSplit(Args a) {
+    const std::u32string s = decodifica(a[0].asString());
+    const regex::Regex& re = padrao(a[1], "split");
+    if (s.empty()) return makeList({Value(std::string())});
+    std::vector<Value> out;
+    int ini = 0, fim = 0;
+    for (const auto& c : ocorrencias(re, s)) {
+        fim = c[0];
+        if (c[1] != 0) out.push_back(Value(trecho(s, ini, fim)));
+        ini = c[1];
+    }
+    if (fim != static_cast<int>(s.size())) out.push_back(Value(trecho(s, ini, static_cast<int>(s.size()))));
+    return makeList(std::move(out));
+}
+
+// escape: o texto como padrão literal
+Value rxEscape(Args a) {
+    std::string out;
+    for (char c : a[0].asString()) {
+        if (std::strchr("\\.+*?()|[]{}^$-", c) && c != '\0') out += '\\';
+        out += c;
+    }
+    return Value(out);
+}
+
+Value rxIsValid(Args a) {
+    try {
+        regex::Regex re(decodifica(a[0].asString()));
+        return Value(true);
+    } catch (const regex::ErroDePadrao&) {
+        return Value(false);
+    }
+}
+
 std::vector<NativeModule> criaModulos() {
     auto& t = TypeContext::instance();
     const TypeRef I = t.i64Type(), D = t.f64Type(), S = t.stringType(),
@@ -1880,6 +2254,54 @@ std::vector<NativeModule> criaModulos() {
         {"unique",        {t.list(T)},             t.list(T), listUnique},
         {"repeat",        {T, I},                  t.list(T), listRepeat},
         {"copy",          {t.list(T)},             t.list(T), listCopy},
+    }, {}});
+
+    {
+        const TypeRef K = t.typeVar("K"), W = t.typeVar("V");
+        const TypeRef DKW = t.dict(K, W);
+        m.push_back({"Dicts", {
+            {"get_or",         {DKW, K, W},              W,                  dictGetOr},
+            {"contains_value", {DKW, W},                 B,                  dictContainsValue},
+            {"keys_of",        {DKW, W},                 t.list(K),          dictKeysOf},
+            {"is_empty",       {DKW},                    B,                  dictIsEmpty},
+            {"items",          {DKW},                    t.list(t.pair(K, W)), dictItems},
+            {"update",         {DKW, DKW},               V,                  dictUpdate, 0, false, 1},
+            {"pop",            {DKW, K},                 W,                  dictPop,    0, false, 1},
+            {"clear",          {DKW},                    V,                  dictClear,  0, false, 1},
+            {"merge",          {DKW, DKW},               DKW,                dictMerge},
+            {"copy",           {DKW},                    DKW,                dictCopy},
+            {"from_lists",     {t.list(K), t.list(W)},   DKW,                dictFromLists},
+            {"from_pairs",     {t.list(t.pair(K, W))},   DKW,                dictFromPairs},
+            {"invert",         {DKW},                    t.dict(W, K),       dictInvert},
+        }, {}});
+    }
+
+    m.push_back({"Env", {
+        {"get",    {S},    S,               envGet},
+        {"get_or", {S, S}, S,               envGetOr},
+        {"has",    {S},    B,               envHas},
+        {"all",    {},     t.dict(S, S),    envAll},
+    }, {}});
+
+    m.push_back({"Process", {
+        {"run",     {S, t.list(S)}, I32,              procRun,     1},
+        {"capture", {S, t.list(S)}, t.pair(I32, S),   procCapture, 1},
+    }, {}});
+
+    m.push_back({"Regex", {
+        {"matches",       {S, S},    B,                    rxMatches},
+        {"contains",      {S, S},    B,                    rxContains},
+        {"find",          {S, S},    I32,                  rxFind},
+        {"find_all",      {S, S},    t.list(S),            rxFindAll},
+        {"count",         {S, S},    I32,                  rxCount},
+        {"groups",        {S, S},    t.list(S),            rxGroups},
+        {"groups_all",    {S, S},    t.list(t.list(S)),    rxGroupsAll},
+        {"named",         {S, S},    t.dict(S, S),         rxNamed},
+        {"replace_all",   {S, S, S}, S,                    rxReplaceAll},
+        {"replace_first", {S, S, S}, S,                    rxReplaceFirst},
+        {"split",         {S, S},    t.list(S),            rxSplit},
+        {"escape",        {S},       S,                    rxEscape},
+        {"is_valid",      {S},       B,                    rxIsValid},
     }, {}});
 
     m.push_back({"Time", {

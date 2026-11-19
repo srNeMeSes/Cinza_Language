@@ -1,0 +1,35 @@
+// Process (Q3): rodar outro programa sem shell — o programa e a lista de argumentos, sem
+// interpretação (espaços, aspas e acentos chegam como estão). run deixa o programa escrever
+// no terminal e devolve o código de saída; capture devolve o código e a saída padrão.
+// O teste roda a si mesmo pelo cinza, com o argumento "filho".
+import Files;
+import Process;
+
+fn cinza() -> string {
+  if (Files.exists("cinza.exe")) { return "./cinza.exe"; }
+  return "./cinza";
+}
+
+fn main(list<string> args) {
+  if (args.size() > 0 && args[0] == "filho") {
+    print("filho:", args.size() - 2, args[2], args[3], args[4]);
+    exit(cast<i32>(args[1]));
+  }
+  string eu = "tests/biblioteca/process_completo.cinza";
+  print("antes");
+  i32 c = Process.run(cinza(), [eu, "filho", "3", "a b", "x\"y", "ação"]);
+  print("código:", c);
+  pair<i32, string> r = Process.capture(cinza(), [eu, "filho", "0", "", "-", "%PATH%"]);
+  print(r.first, r.second);
+  try { Process.run("cinza_programa_que_nao_existe_q3"); } except (IOError e) { print(e.message); }
+  try { Process.capture("instala.bat"); } except (ValueError e) { print(e.message); }
+  try { Process.run(""); } except (ValueError e) { print(e.message); }
+}
+// expect: antes
+// expect: filho: 3 a b x"y ação
+// expect: código: 3
+// expect: 0 filho: 3  - %PATH%
+// expect:
+// expect: 'run': não foi possível executar 'cinza_programa_que_nao_existe_q3'
+// expect: 'capture': 'instala.bat' é um script do cmd; rode-o pelo cmd explicitamente: Process.capture("cmd", ["/c", "instala.bat"])
+// expect: 'run': o nome do programa está vazio

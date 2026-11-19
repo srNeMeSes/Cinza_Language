@@ -1,0 +1,18 @@
+// Dicts (Q3): nada falha em silêncio — chave ausente no pop, chave repetida ao montar um dict
+// e valor repetido ao inverter lançam erro, e o dict fica como estava.
+import Dicts;
+fn main() {
+  dict<string, i32> d = {{"a", 1}, {"b", 1}};
+  try { print(Dicts.pop(d, "z")); } except (KeyError e) { print(e.message); }
+  try { print(Dicts.invert(d)); } except (ValueError e) { print(e.message); }
+  try { print(Dicts.from_lists(["a", "b"], [1])); } except (ValueError e) { print(e.message); }
+  try { print(Dicts.from_lists(["a", "a"], [1, 2])); } except (ValueError e) { print(e.message); }
+  try { print(Dicts.from_pairs([{1, "x"}, {1, "y"}])); } except (ValueError e) { print(e.message); }
+  print(d);
+}
+// expect: 'pop': a chave 'z' não existe
+// expect: 'invert': o valor '1' aparece em mais de uma chave
+// expect: 'from_lists': 2 chaves e 1 valores
+// expect: 'from_lists': a chave 'a' aparece mais de uma vez
+// expect: 'from_pairs': a chave '1' aparece mais de uma vez
+// expect: {"a": 1, "b": 1}

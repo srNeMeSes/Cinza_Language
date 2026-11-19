@@ -1,0 +1,6 @@
+// Process (Q3): os argumentos são uma list<string> (sem shell não há linha de comando).
+import Process;
+fn main() {
+  print(Process.run("git", "status"));
+}
+// expect-error: Argumento 2 de 'Process.run': esperado 'list<string>', mas recebeu 'string'

@@ -130,7 +130,7 @@
             },
             {
               "name": "support.class.module.native.cinza",
-              "match": "\\b(Strings|Files|Math|Random|Convert|Lists|Time)\\b"
+              "match": "\\b(Strings|Files|Math|Random|Convert|Lists|Dicts|Env|Process|Regex|Json|Time)\\b"
             },
             {
               "name": "entity.name.namespace.cinza",
@@ -592,7 +592,7 @@
       "patterns": [
         {
           "name": "support.class.module.native.cinza",
-          "match": "\\b(Strings|Files|Math|Random|Convert|Lists|Time)\\b(?=\\s*\\.)"
+          "match": "\\b(Strings|Files|Math|Random|Convert|Lists|Dicts|Env|Process|Regex|Json|Time)\\b(?=\\s*\\.)"
         }
       ]
     },
