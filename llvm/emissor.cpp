@@ -63,6 +63,10 @@ std::uint8_t kindDe(cir::Tipo t) {
         case cir::Tipo::Lista: return kind(Value::Kind::LIST);
         case cir::Tipo::Dict:  return kind(Value::Kind::DICT);
         case cir::Tipo::Par:   return kind(Value::Kind::PAIR);
+        case cir::Tipo::Struct: return kind(Value::Kind::STRUCT);
+        case cir::Tipo::Obj:   return kind(Value::Kind::INSTANCE);
+        case cir::Tipo::Enum:  return kind(Value::Kind::ENUM);
+        case cir::Tipo::TipoV: return kind(Value::Kind::TYPE);
         default:               return kind(Value::Kind::VOID_VAL);
     }
 }
@@ -103,6 +107,9 @@ struct Emissor::Impl {
     std::vector<LLVMValueRef> fns;        // as funções da Cinza
     std::vector<LLVMTypeRef>  tfns;
     std::vector<LLVMValueRef> descs;      // o CzFuncao de cada uma
+    std::vector<LLVMValueRef> descs_struct, descs_classe, descs_enum, tipos;   // ptr, preenchidos na partida
+    std::vector<LLVMValueRef> tabelas;    // as tabelas de métodos de interface
+    LLVMValueRef quadro_vazio{};          // o quadro da função oculta sem chamador (a dos const)
     std::map<std::tuple<int, int, int>, LLVMValueRef> posicoes;   // os CzPos
 
     // A função em tradução
@@ -163,6 +170,8 @@ struct Emissor::Impl {
             case cir::Tipo::Str:   return tPtr;
             case cir::Tipo::Valor: return tValor;
             case cir::Tipo::Lista: case cir::Tipo::Dict: case cir::Tipo::Par: return tPtr;
+            case cir::Tipo::Struct: case cir::Tipo::Obj: case cir::Tipo::Desc: return tPtr;
+            case cir::Tipo::Enum: case cir::Tipo::TipoV: return tValor;
         }
         return tVoid;
     }
@@ -240,6 +249,9 @@ struct Emissor::Impl {
             case cir::Operando::K::Literal: return cir::Tipo::Str;
             case cir::Operando::K::Nulo:    return cir::Tipo::Str;
             case cir::Operando::K::Vazio:   return cir::Tipo::Valor;
+            case cir::Operando::K::DescStruct: case cir::Operando::K::DescClasse: return cir::Tipo::Desc;
+            case cir::Operando::K::Enum:    return cir::Tipo::Enum;
+            case cir::Operando::K::TipoLit: return cir::Tipo::TipoV;
         }
         return cir::Tipo::Void;
     }
@@ -259,8 +271,23 @@ struct Emissor::Impl {
                                          LLVMConstNull(LLVMArrayType2(tI8, 3)), ci32(0), ci64(0)};
                 return LLVMConstNamedStruct(tValor, campos, 4);
             }
+            case cir::Operando::K::DescStruct: return LLVMBuildLoad2(b, tPtr, descs_struct[o.indice], "desc");
+            case cir::Operando::K::DescClasse: return LLVMBuildLoad2(b, tPtr, descs_classe[o.indice], "desc");
+            case cir::Operando::K::Enum:   // { ENUM, extra = o índice do valor, u = o descritor }
+                return valorDireto(kind(Value::Kind::ENUM), static_cast<std::uint32_t>(o.i),
+                                   LLVMBuildLoad2(b, tPtr, descs_enum[o.indice], "desc"));
+            case cir::Operando::K::TipoLit:   // { TYPE, u = o TypeInfo }
+                return valorDireto(kind(Value::Kind::TYPE), 0, LLVMBuildLoad2(b, tPtr, tipos[o.indice], "tipo"));
         }
         return nullptr;
+    }
+
+    LLVMValueRef valorDireto(std::uint8_t k, std::uint32_t extra, LLVMValueRef ptr) {
+        LLVMValueRef v = LLVMGetUndef(tValor);
+        v = LLVMBuildInsertValue(b, v, LLVMConstInt(tI8, k, 0), 0, "");
+        v = LLVMBuildInsertValue(b, v, LLVMConstNull(LLVMArrayType2(tI8, 3)), 1, "");
+        v = LLVMBuildInsertValue(b, v, LLVMConstInt(tI32, extra, 0), 2, "");
+        return LLVMBuildInsertValue(b, v, LLVMBuildPtrToInt(b, ptr, tI64, ""), 3, "");
     }
 
     // Um valor como os bits do campo `u` do CzValor (os altos zerados, como no Value)
@@ -272,6 +299,7 @@ struct Emissor::Impl {
             case cir::Tipo::F64:  return LLVMBuildBitCast(b, v, tI64, "");
             case cir::Tipo::Bool: return LLVMBuildZExt(b, v, tI64, "");
             case cir::Tipo::Str: case cir::Tipo::Lista: case cir::Tipo::Dict: case cir::Tipo::Par:
+            case cir::Tipo::Struct: case cir::Tipo::Obj:
                 return LLVMBuildPtrToInt(b, v, tI64, "");
             default:              throw ErroEmissor{"embrulho de um tipo sem valor"};
         }
@@ -284,6 +312,7 @@ struct Emissor::Impl {
             case cir::Tipo::F64:  return LLVMBuildBitCast(b, u, tF64, "");
             case cir::Tipo::Bool: return LLVMBuildICmp(b, LLVMIntNE, u, ci64(0), "");
             case cir::Tipo::Str: case cir::Tipo::Lista: case cir::Tipo::Dict: case cir::Tipo::Par:
+            case cir::Tipo::Struct: case cir::Tipo::Obj:
                 return LLVMBuildIntToPtr(b, u, tPtr, "");
             default:              throw ErroEmissor{"desembrulho para um tipo sem valor"};
         }
@@ -487,9 +516,13 @@ struct Emissor::Impl {
                 temps[in.dst] = LLVMBuildXor(b, val(in.args[0]), LLVMConstInt(tI1, 1, 0), "nao");
                 break;
             case Op::Converte: temps[in.dst] = converte(in); break;
-            case Op::Embrulha: temps[in.dst] = embrulha(in.args[0]); break;
-            case Op::Desembrulha:
-                temps[in.dst] = deBits(LLVMBuildExtractValue(b, val(in.args[0]), 3, ""), cf->temps[in.dst]);
+            case Op::Embrulha:
+                temps[in.dst] = cir::ehValorDireto(tipoOp(in.args[0])) ? val(in.args[0]) : embrulha(in.args[0]);
+                break;
+            case Op::Desembrulha:   // enum e tipo já são o CzValor inteiro
+                temps[in.dst] = cir::ehValorDireto(cf->temps[in.dst])
+                                    ? val(in.args[0])
+                                    : deBits(LLVMBuildExtractValue(b, val(in.args[0]), 3, ""), cf->temps[in.dst]);
                 break;
             case Op::ChamaNativa: {
                 LLVMValueRef vetor = LLVMConstNull(tPtr);
@@ -542,6 +575,23 @@ struct Emissor::Impl {
                 if (cir::infoRt(static_cast<cir::Rt>(in.aux)).ret != cir::Tipo::Void) temps[in.dst] = r;
                 break;
             }
+            case Op::ChamaIface: {
+                // o método pela classe real do objeto: a tabela do método, pelo índice da classe
+                const cir::TabelaIface& t = cm->tabelas[in.aux];
+                if (quadro) LLVMBuildStore(b, posicao(in.pos), LLVMBuildStructGEP2(b, tQuadro(), quadro, 1, ""));
+                std::vector<LLVMValueRef> args;
+                for (const auto& a : in.args) args.push_back(val(a));
+                LLVMValueRef ci = chamaRt(rt("cz_classe_de", tI32, {tPtr}), {args[0]});
+                LLVMTypeRef tt = LLVMArrayType2(tPtr, cm->classes.size());
+                LLVMValueRef idx[] = {ci64(0), LLVMBuildSExt(b, ci, tI64, "")};
+                LLVMValueRef fp = LLVMBuildLoad2(b, tPtr, LLVMBuildInBoundsGEP2(b, tt, tabelas[in.aux], idx, 2, ""), "metodo");
+                std::vector<LLVMTypeRef> ps;
+                for (cir::Tipo p : t.params) ps.push_back(tipo(p));
+                LLVMTypeRef tf = LLVMFunctionType(tipo(t.ret), ps.data(), static_cast<unsigned>(ps.size()), 0);
+                LLVMValueRef r = LLVMBuildCall2(b, tf, fp, args.data(), static_cast<unsigned>(args.size()), "");
+                if (t.ret != cir::Tipo::Void) temps[in.dst] = r;
+                break;
+            }
             case Op::Chama: {
                 if (quadro)   // a posição da chamada, para o stack trace
                     LLVMBuildStore(b, posicao(in.pos), LLVMBuildStructGEP2(b, tQuadro(), quadro, 1, ""));
@@ -571,7 +621,7 @@ struct Emissor::Impl {
             case Op::Br:  LLVMBuildBr(b, blocos[in.alvo]); break;
             case Op::BrC: LLVMBuildCondBr(b, val(in.args[0]), blocos[in.alvo], blocos[in.senao]); break;
             case Op::Ret:
-                if (quadro) {   // sai da sombra da pilha
+                if (quadro && !cf->oculta) {   // sai da sombra da pilha
                     LLVMValueRef pp = LLVMBuildStructGEP2(b, tExec, gExec, 1, "");
                     LLVMValueRef prof = LLVMBuildLoad2(b, tI32, pp, "prof");
                     LLVMBuildStore(b, LLVMBuildSub(b, prof, ci32(1), ""), pp);
@@ -585,6 +635,18 @@ struct Emissor::Impl {
 
     LLVMTypeRef tQuadro() { return LLVMGetTypeByName2(ctx, "CzQuadro"); }
 
+    // Um alloca no main do C (no começo do bloco de entrada)
+    LLVMBasicBlockRef main_entrada{};
+    LLVMValueRef reservaMain(LLVMTypeRef t) {
+        LLVMBuilderRef x = LLVMCreateBuilderInContext(ctx);
+        LLVMValueRef primeira = LLVMGetFirstInstruction(main_entrada);
+        if (primeira) LLVMPositionBuilderBefore(x, primeira);
+        else LLVMPositionBuilderAtEnd(x, main_entrada);
+        LLVMValueRef a = LLVMBuildAlloca(x, t, "params");
+        LLVMDisposeBuilder(x);
+        return a;
+    }
+
     // call.rt: a assinatura em C sai da tabela da CIR (cir::infoRt) — `valor` por
     // ponteiro, o resultado `valor` por um ponteiro de saída, a posição no fim das que
     // podem falhar; bool volta como int32
@@ -594,7 +656,7 @@ struct Emissor::Impl {
         std::vector<LLVMValueRef> args;
         for (std::size_t i = 0; i < info.params.size(); ++i) {
             const cir::Tipo t = info.params[i];
-            if (t == cir::Tipo::Valor) {
+            if (cir::ehValorDireto(t)) {   // por ponteiro (const CzValor*)
                 LLVMValueRef v = reserva(tValor, "arg");
                 LLVMBuildStore(b, val(in.args[i]), v);
                 ps.push_back(tPtr);
@@ -689,6 +751,17 @@ struct Emissor::Impl {
             LLVMBuildStore(b, LLVMConstNull(tPtr), LLVMBuildStructGEP2(b, tQuadro(), quadro, 1, ""));
             LLVMBuildStore(b, LLVMBuildAdd(b, prof, ci32(1), ""), pp);
         }
+        if (f.oculta) {
+            // a função oculta (inicializador de campos, const) não tem quadro; as chamadas
+            // dela gravam a posição no quadro de quem a chamou, como o call_line que a CVM
+            // guarda no quadro seguinte ao oculto (sem chamador: num quadro de descarte)
+            LLVMValueRef prof = LLVMBuildLoad2(b, tI32, LLVMBuildStructGEP2(b, tExec, gExec, 1, ""), "prof");
+            LLVMValueRef topo = LLVMBuildSub(b, prof, ci32(1), "");
+            LLVMValueRef idx[] = {ci32(0), ci32(3), LLVMBuildSelect(b, LLVMBuildICmp(b, LLVMIntSGT, prof, ci32(0), ""),
+                                                                    topo, ci32(0), "")};
+            LLVMValueRef q = LLVMBuildInBoundsGEP2(b, tExec, gExec, idx, 3, "");
+            quadro = LLVMBuildSelect(b, LLVMBuildICmp(b, LLVMIntSGT, prof, ci32(0), ""), q, quadro_vazio, "quadro");
+        }
         LLVMBuildBr(b, blocos.front());
 
         for (std::size_t k = 0; k < f.blocos.size(); ++k) {
@@ -706,7 +779,8 @@ struct Emissor::Impl {
         LLVMTypeRef params[] = {tI32, tPtr};
         LLVMValueRef f = LLVMAddFunction(mod, "main", LLVMFunctionType(tI32, params, 2, 0));
         atributo(f, "nounwind");
-        LLVMPositionBuilderAtEnd(b, LLVMAppendBasicBlockInContext(ctx, f, "entrada"));
+        main_entrada = LLVMAppendBasicBlockInContext(ctx, f, "entrada");
+        LLVMPositionBuilderAtEnd(b, main_entrada);
         chamaRt(rt("cz_inicio", tVoid, {tI32, tPtr}), {LLVMGetParam(f, 0), LLVMGetParam(f, 1)});
 
         std::vector<LLVMValueRef> nomes;
@@ -727,8 +801,54 @@ struct Emissor::Impl {
             LLVMBuildStore(b, chamaRt(rt("cz_nativa_resolve", tPtr, {tPtr, tPtr}),
                                       {nomes_nativas[i].first, nomes_nativas[i].second}),
                            nativas[i]);
+        // os descritores e os tipos do programa
+        auto textos = [&](const std::vector<std::string>& v, const std::string& nome) {
+            std::vector<LLVMValueRef> ps;
+            for (std::size_t i = 0; i < v.size(); ++i) ps.push_back(textoC(v[i], nome + "." + std::to_string(i)));
+            if (ps.empty()) return LLVMConstNull(tPtr);
+            LLVMValueRef arr = LLVMConstArray2(tPtr, ps.data(), ps.size());
+            return global(LLVMTypeOf(arr), nome, arr, true);
+        };
+        for (std::size_t i = 0; i < m.structs.size(); ++i) {
+            const std::string n = "cz.ds." + std::to_string(i);
+            LLVMValueRef d = chamaRt(rt("cz_desc_struct", tPtr, {tPtr, tPtr, tI64}),
+                                     {textoC(m.structs[i].nome, n + ".nome"), textos(m.structs[i].campos, n + ".campos"),
+                                      ci64(static_cast<std::int64_t>(m.structs[i].campos.size()))});
+            LLVMBuildStore(b, d, descs_struct[i]);
+        }
+        for (std::size_t i = 0; i < m.classes.size(); ++i) {
+            LLVMValueRef d = chamaRt(rt("cz_desc_classe", tPtr, {tPtr, tI32, tI32}),
+                                     {textoC(m.classes[i].nome, "cz.dc." + std::to_string(i) + ".nome"),
+                                      ci32(static_cast<std::int64_t>(i)), ci32(m.classes[i].campos)});
+            LLVMBuildStore(b, d, descs_classe[i]);
+        }
+        for (std::size_t i = 0; i < m.enums.size(); ++i) {
+            const std::string n = "cz.de." + std::to_string(i);
+            LLVMValueRef d = chamaRt(rt("cz_desc_enum", tPtr, {tPtr, tPtr, tI64}),
+                                     {textoC(m.enums[i].nome, n + ".nome"), textos(m.enums[i].valores, n + ".valores"),
+                                      ci64(static_cast<std::int64_t>(m.enums[i].valores.size()))});
+            LLVMBuildStore(b, d, descs_enum[i]);
+        }
+        for (std::size_t i = 0; i < m.tipos.size(); ++i) {   // os parâmetros vêm antes na tabela
+            const cir::DescTipo& t = m.tipos[i];
+            LLVMValueRef params = LLVMConstNull(tPtr);
+            if (!t.params.empty()) {
+                LLVMTypeRef tv = LLVMArrayType2(tPtr, t.params.size());
+                params = reservaMain(tv);
+                for (std::size_t k = 0; k < t.params.size(); ++k) {
+                    LLVMValueRef idx[] = {ci64(0), ci64(static_cast<std::int64_t>(k))};
+                    LLVMBuildStore(b, LLVMBuildLoad2(b, tPtr, tipos[t.params[k]], ""),
+                                   LLVMBuildInBoundsGEP2(b, tv, params, idx, 2, ""));
+                }
+            }
+            LLVMValueRef r = chamaRt(rt("cz_tipo", tPtr, {tI8, tPtr, tPtr, tI64}),
+                                     {LLVMConstInt(tI8, t.kind, 0), textoC(t.nome, "cz.t." + std::to_string(i) + ".nome"),
+                                      params, ci64(static_cast<std::int64_t>(t.params.size()))});
+            LLVMBuildStore(b, r, tipos[i]);
+        }
         if (m.init >= 0) LLVMBuildCall2(b, tfns[m.init], fns[m.init], nullptr, 0, "");
         LLVMBuildCall2(b, tfns[m.main], fns[m.main], nullptr, 0, "");
+        chamaRt(rt("cz_gc_estatisticas", tVoid, {}), {});   // CINZA_GC_STATS=1, como a CVM
         if (m.fim >= 0) LLVMBuildCall2(b, tfns[m.fim], fns[m.fim], nullptr, 0, "");
         LLVMBuildRet(b, chamaRt(rt("cz_fim", tI32, {}), {}));
     }
@@ -764,7 +884,23 @@ bool Emissor::gera(const cir::Modulo& m, std::string& erro) {
         for (std::size_t i = 0; i < m.globais.size(); ++i)
             e.globais.push_back(e.global(e.tipo(m.globais[i]), "cz.global." + std::to_string(i),
                                          LLVMConstNull(e.tipo(m.globais[i])), false));
+        auto ptrs = [&](std::vector<LLVMValueRef>& v, std::size_t n, const std::string& nome) {
+            for (std::size_t i = 0; i < n; ++i)
+                v.push_back(e.global(e.tPtr, nome + std::to_string(i), LLVMConstNull(e.tPtr), false));
+        };
+        ptrs(e.descs_struct, m.structs.size(), "cz.desc.s.");
+        ptrs(e.descs_classe, m.classes.size(), "cz.desc.c.");
+        ptrs(e.descs_enum, m.enums.size(), "cz.desc.e.");
+        ptrs(e.tipos, m.tipos.size(), "cz.tipo.");
+        e.quadro_vazio = e.global(LLVMGetTypeByName2(e.ctx, "CzQuadro"), "cz.quadro.vazio",
+                                  LLVMConstNull(LLVMGetTypeByName2(e.ctx, "CzQuadro")), false);
         for (std::size_t i = 0; i < m.funcoes.size(); ++i) e.declaraFuncao(i, m.funcoes[i]);
+        for (std::size_t i = 0; i < m.tabelas.size(); ++i) {   // a função de cada classe (ou nulo)
+            std::vector<LLVMValueRef> fs;
+            for (int fi : m.tabelas[i].funcoes) fs.push_back(fi < 0 ? LLVMConstNull(e.tPtr) : e.fns[fi]);
+            LLVMValueRef arr = LLVMConstArray2(e.tPtr, fs.data(), fs.size());
+            e.tabelas.push_back(e.global(LLVMTypeOf(arr), "cz.iface." + std::to_string(i), arr, true));
+        }
         for (std::size_t i = 0; i < m.funcoes.size(); ++i) e.funcao(i, m.funcoes[i]);
         e.mainC(m);
     } catch (const ErroEmissor& x) {

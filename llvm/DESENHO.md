@@ -402,6 +402,33 @@ mesmo sem class ou struct), então a coleta só tem trabalho no P7; ela já é c
 código nativo, porque só lê as contagens e os filhos dos contêineres — as referências dos
 slots nativos entram na contagem como as dos registradores da CVM.
 
+**Implementado no P7** (structs, classes, interfaces, enums, `type()`), ainda com o layout do
+runtime de hoje — os campos tipados da seção 8.1 ficam para o P10:
+
+- **struct** é um ponteiro para o `StructValue` do runtime, com a regra de valor da spec 5.1
+  feita pela posse: **cada slot tem o seu struct**. Guardar um struct emprestado (variável,
+  `return`, parâmetro na entrada da função) o clona (`cz_struct_copia`), em vez do `retem`; um
+  struct com posse (recém-criado, lido de uma lista ou de um campo — leituras que já copiam)
+  passa direto. Gravar um campo de um struct local muda o do slot, no lugar; um caminho com
+  níveis de struct (`l[0].p.x = 1`, `obj.p.x += 1`) lê cada nível como cópia, grava e devolve ao
+  nível de cima, como o `assignPlace` da CVM. As funções do runtime que mudam um objeto
+  (`cz_grava_campo`) não passam pelo `Value::empresta`, que clonaria o struct alvo;
+- **objeto de classe e valor de interface** são o mesmo ponteiro para o `ClassInstance`, com
+  `retem`/`solta`. Um método é uma função com o self como primeiro parâmetro; o construtor
+  ("new Classe" no trace) e o inicializador dos campos (oculto, como na CVM) também. A chamada
+  por interface lê o índice da classe do objeto (`cz_classe_de`) e chama pela tabela do método
+  (uma constante: a função de cada classe, ou nulo);
+- **enum e tipo** são o `CzValor` inteiro (sem referência): o descritor do enum ou o `TypeInfo`
+  e o índice. Os `TypeInfo` de `type()` e dos literais de tipo são refeitos na partida pelo
+  `TypeContext` (o tipo, o nome e os parâmetros, numa tabela do módulo), então `type(x) == T`
+  compara os mesmos ponteiros que na CVM;
+- os **descritores** (`CzStructDesc`, `CzClasseDesc`, `CzEnumDesc`) são criados na partida e
+  vivem até o fim do processo; `cz_struct_novo` e `cz_obj_novo` são os pontos da coleta de
+  ciclos, como o `NEWSTRUCT`/`NEWOBJ`;
+- **função oculta e o stack trace**: uma chamada feita de dentro do inicializador de campos
+  grava a posição no quadro de quem fez o `new` — o `call_line` que a CVM guarda no quadro
+  seguinte ao oculto; o trace sai igual (teste `tests/nativo/p7_erro_init`).
+
 ## 5. Erros
 
 ### 5.1 Um mecanismo só

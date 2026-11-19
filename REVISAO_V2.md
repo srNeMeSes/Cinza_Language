@@ -1772,7 +1772,26 @@ depois de um debate com duas revisões externas:
   > ainda não suportados (try 54, struct 49, class 37, `type()` 26, import 23). Velocidade: 2
   > milhões de `add`, um `for` e 2 milhões de leituras por índice em 184 ms (244 na CVM), depois de
   > tirar a alocação de um vetor por chamada de método (era 286 ms).
-- [ ] P7. Structs, classes, interfaces e enums.
+- [x] P7. Structs, classes, interfaces e enums. — feito em 2026-11-18
+  > Nota: também o `type()` e os tipos escritos como valor (26 testes dependiam dele), e os
+  > structs genéricos (as cópias do N5, structs comuns). O desenho está no DESENHO 4.4 (nota do
+  > P7): struct como ponteiro com a regra de valor feita pela posse — cada slot tem o seu, guardar
+  > um emprestado clona —, objeto e interface como ponteiro compartilhado, métodos com o self
+  > primeiro, chamada por interface pela tabela do método, enum e tipo como `CzValor` sem
+  > referência, os `TypeInfo` refeitos na partida pelo `TypeContext`. **Encontrado no caminho**: a
+  > posição de uma chamada feita de dentro do inicializador de campos (oculto) precisa ir para o
+  > quadro de quem fez o `new`, senão o trace mostra a linha do `new` em vez da linha da chamada,
+  > que é a da CVM (teste `p7_erro_init`). **Testes**: `tests/nativo/p7_structs` (cópias em
+  > atribuição, parâmetro, retorno e lista; caminhos com níveis de struct, campo de objeto que é
+  > struct, criação pelo nome, genérico), `p7_classes` (inicializador antes do construtor,
+  > métodos públicos, privados e sem o objeto, `self`, compartilhamento, interface com a classe
+  > real), `p7_enum_tipo`, `p7_ciclos` (3 mil ciclos de objetos com struct, lista e string dentro:
+  > o mesmo resumo do `CINZA_GC_STATS` da CVM) e dois de erro (`p7_erro_init`, `p7_erro_metodo`),
+  > nos dois backends, no modo sem vazamento e com a `libcinzart` de `CINZA_CONFERE_REFS`. Os testes
+  > `tests/gc/` que não usam `try` rodam como executável nativo. 675/675 na CVM; pelo `cinzac` 0
+  > falhas, 577 passaram (244 como executável nativo, eram 129), 98 ainda não suportados (`try` 67,
+  > `import` 23, `throw` 4, `main(args)` 4). Velocidade (bench/, -O2, melhor de 3): `fib` 23 ms
+  > (CVM 61), `laco` 23 (153), `objetos` 41 (86), `ciclos` 570 (620).
 - [ ] P8. Erros completos: `throw`, `try`/`except`/`finally`, erros de runtime, stack trace,
   profundidade de 2000, `exit`.
 - [ ] P9. Módulos, genéricos (as cópias), biblioteca nativa, `input`/`args`/`env`: a suíte

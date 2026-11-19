@@ -1,0 +1,41 @@
+// P7: a coleta de ciclos com o código nativo (cinzac): ciclos de objetos (com struct,
+// lista e string dentro) criados e abandonados numa função chamada muitas vezes; o
+// resumo do CINZA_GC_STATS é o mesmo da CVM e nada sobra ao sair (modo sem vazamento).
+// Roda nos dois backends.
+// env: CINZA_GC_STATS=1
+struct Rotulo {
+  string texto = "";
+  list<No> vizinhos;
+}
+
+class No {
+  Rotulo rotulo = new Rotulo();
+  list<No> filhos;
+  pub {
+    fn liga(No o) { filhos.add(o); }
+    fn marca(No o) { rotulo.vizinhos.add(o); rotulo.texto += "x"; }
+    fn quantos() -> i32 { return filhos.size(); }
+  }
+}
+
+fn faz_ciclo(i32 i) {
+  No a = new No();
+  No b = new No();
+  a.liga(b);
+  b.liga(a);
+  a.marca(a);
+  if (i % 2 == 0) {
+    b.marca(a);
+  }
+}
+
+fn main() {
+  No fica = new No();
+  fica.liga(fica);
+  for (i32 i in range(0, 3000)) {
+    faz_ciclo(i);
+  }
+  print("fim", fica.quantos());
+}
+// expect: fim 1
+// expect: [gc] liberados em ciclos: 24004, contêineres vivos: 0

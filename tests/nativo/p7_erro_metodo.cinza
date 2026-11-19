@@ -1,0 +1,28 @@
+// P7: erro num método chamado por interface e num construtor, no código nativo: o
+// stack trace com "Classe.metodo" e "new Classe", como na CVM. Roda nos dois backends.
+interface Medida {
+  fn razao(i32 d) -> i32;
+}
+
+class Fixa : Medida {
+  i32 n = 10;
+  pub {
+    Fixa(i32 inicio) { n = n / inicio; }
+    fn razao(i32 d) -> i32 { return n % d; }
+  }
+}
+
+fn mede(Medida m, i32 d) -> i32 {
+  return m.razao(d);
+}
+
+fn main() {
+  Medida m = new Fixa(2);
+  print(mede(m, 3));
+  print(mede(m, 0));
+}
+// expect: 2
+// expect-error: p7_erro_metodo.cinza:11:39: ZeroDivisionError: módulo por zero
+// expect-error: em Fixa.razao (tests/nativo/p7_erro_metodo.cinza:11)
+// expect-error: em mede (tests/nativo/p7_erro_metodo.cinza:16)
+// expect-error: em main (tests/nativo/p7_erro_metodo.cinza:22)

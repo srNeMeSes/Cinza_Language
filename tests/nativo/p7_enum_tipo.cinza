@@ -1,0 +1,49 @@
+// P7: enum e type() no código nativo (cinzac) — valores, igualdade, chave de dict, for
+// numa lista de enum; type() de valores e de interface, tipos escritos como valor (com
+// genéricos e structs genéricos). Roda nos dois backends.
+enum Naipe { Copas, Espadas, Ouros, Paus }
+
+struct Carta {
+  i32 valor = 1;
+  Naipe naipe = Naipe.Copas;
+}
+
+struct Caixa[T] {
+  T dentro;
+}
+
+fn vermelha(Naipe n) -> bool {
+  return n == Naipe.Copas || n == Naipe.Ouros;
+}
+
+fn main() {
+  Naipe n = Naipe.Paus;
+  print(n, n == Naipe.Paus, n != Naipe.Copas, vermelha(n), vermelha(Naipe.Ouros));
+  dict<Naipe, i32> conta = {{Naipe.Ouros, 2}, {Naipe.Copas, 1}};
+  conta[Naipe.Copas] += 5;
+  print(conta);
+  list<Naipe> todos = [Naipe.Copas, Naipe.Espadas, Naipe.Ouros, Naipe.Paus];
+  i32 vermelhas = 0;
+  for (Naipe x in todos) {
+    if (vermelha(x)) {
+      vermelhas += 1;
+    }
+  }
+  print(vermelhas, todos);
+  Carta c = new Carta(naipe: Naipe.Espadas);
+  print(c, c.naipe == Naipe.Espadas);
+  // type(): o tipo de cada valor e os tipos escritos
+  list<i64> l;
+  dict<string, list<i32>> d;
+  print(type(1) == i32, type(1.5ff) == f64, type("x") == string, type(l) == list<i64>);
+  print(type(d) == dict<string, list<i32>>, type(c) == Carta, type(n) == Naipe, type(n));
+  Caixa[Carta] cx = new Caixa[Carta](dentro: c);
+  print(type(cx) == Caixa[Carta], type(cx) == Caixa[i32], type(cx), type(l));
+}
+// expect: Naipe.Paus true true false true
+// expect: {Naipe.Copas: 6, Naipe.Ouros: 2}
+// expect: 2 [Naipe.Copas, Naipe.Espadas, Naipe.Ouros, Naipe.Paus]
+// expect: Carta{valor: 1, naipe: Naipe.Espadas} true
+// expect: true true true true
+// expect: true true true Naipe
+// expect: true false Caixa[Carta] list<i64>

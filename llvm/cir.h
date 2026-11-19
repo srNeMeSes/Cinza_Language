@@ -19,6 +19,8 @@
 // (`pos`) do token que a CVM usa na mesma operação: erros e stack trace iguais.
 // P4: números, bool, funções, if/while/for range, print, const globais.
 // P6: list, dict e pair (objetos do runtime, com os elementos como CzValor).
+// P7: structs (valor: guardar uma cópia emprestada a clona), objetos de classe e
+// interface (ponteiro), enum e tipo (CzValor sem referência), métodos e type().
 // P5: strings e a posse (llvm/DESENHO.md 4.3): um slot de tipo com referência é
 // dono do valor e começa vazio; a tradução escreve cada retem/solta (o emissor não
 // decide nada sobre posse).
@@ -38,12 +40,22 @@ enum class Tipo : std::uint8_t {
     Lista,   // ponteiro para CinzaList
     Dict,    // ponteiro para CinzaDict
     Par,     // ponteiro para CinzaPair
+    Struct,  // ponteiro para StructValue (cada slot tem o seu: guardar clona)
+    Obj,     // ponteiro para ClassInstance (objeto de classe ou valor de interface)
+    Enum,    // CzValor do enum (descritor e índice), sem referência
+    TipoV,   // CzValor de type() e dos literais de tipo, sem referência
+    Desc,    // ponteiro para um descritor do runtime (struct, classe)
 };
 
 inline bool ehInteiro(Tipo t)   { return t == Tipo::I32 || t == Tipo::I64; }
 inline bool ehFlutuante(Tipo t) { return t == Tipo::F32 || t == Tipo::F64; }
 // Tipo com referência (um ponteiro para objeto do runtime, com posse)
-inline bool ehRef(Tipo t) { return t == Tipo::Str || t == Tipo::Lista || t == Tipo::Dict || t == Tipo::Par; }
+inline bool ehRef(Tipo t) {
+    return t == Tipo::Str || t == Tipo::Lista || t == Tipo::Dict || t == Tipo::Par || t == Tipo::Struct ||
+           t == Tipo::Obj;
+}
+// Representado como um CzValor inteiro (embrulhar não muda nada)
+inline bool ehValorDireto(Tipo t) { return t == Tipo::Valor || t == Tipo::Enum || t == Tipo::TipoV; }
 
 // Um operando: constante ou temporário
 struct Operando {
@@ -52,6 +64,9 @@ struct Operando {
         Literal,   // str: uma string do módulo (imortal)
         Nulo,      // str: o ponteiro nulo (slot vazio)
         Vazio,     // valor: o CzValor void (parte omitida de uma fatia)
+        DescStruct, DescClasse,   // desc: o descritor `indice`
+        Enum,      // enum: o valor `i` do enum `indice` (Modulo::enums)
+        TipoLit,   // tipo: o tipo `indice` da tabela (Modulo::tipos)
     } k = K::Temp;
     std::uint32_t indice = 0;   // Temp: o temporário; Literal: a string do módulo
     std::int64_t  i      = 0;
@@ -66,6 +81,10 @@ struct Operando {
     static Operando f64(double v)            { Operando o; o.k = K::F64; o.f = v; return o; }
     static Operando nulo()                   { Operando o; o.k = K::Nulo; return o; }
     static Operando vazio()                  { Operando o; o.k = K::Vazio; return o; }
+    static Operando descStruct(std::uint32_t d) { Operando o; o.k = K::DescStruct; o.indice = d; return o; }
+    static Operando descClasse(std::uint32_t d) { Operando o; o.k = K::DescClasse; o.indice = d; return o; }
+    static Operando enumerado(std::uint32_t e, std::int64_t v) { Operando o; o.k = K::Enum; o.indice = e; o.i = v; return o; }
+    static Operando tipoLit(std::uint32_t t) { Operando o; o.k = K::TipoLit; o.indice = t; return o; }
 };
 
 enum class Op : std::uint8_t {
@@ -83,6 +102,7 @@ enum class Op : std::uint8_t {
     ChamaNativa,   // dst: valor = call.nativa N(args...) — aux: N; o resultado tem posse
     ConverteValor, // dst: valor = a convertido no runtime para o kind de `tipo` (nativas genéricas)
     Chama,         // [dst =] call F(args...) — aux: F
+    ChamaIface,    // [dst =] call.iface T(obj, args...) — aux: a tabela; o método pela classe do obj
     Retem,         // retem a (str): uma referência a mais
     Solta,         // solta a — str: solta a referência (nulo: nada); valor: a que ele segura
     ChamaRt,       // [dst =] call.rt R(args...) — aux: o Rt (tabela abaixo)
@@ -124,6 +144,13 @@ enum class Rt : std::uint8_t {
     ListaElem,       // valor (lista, i64 i): uma cópia do elemento
     IndiceLugar,     // valor (valor obj, valor k): o lugar obj[k] para gravar (B5) — falha
     GravaIndice,     // void (valor obj, valor k, valor v): obj[k] = v — falha
+    StructNovo,      // struct (desc, valor...): os campos na ordem
+    ObjNovo,         // obj (desc): os campos vazios (o inicializador e o construtor vêm depois)
+    Campo,           // valor (valor obj, i32 i): uma cópia do campo (struct ou objeto)
+    GravaCampo,      // void (valor obj, i32 i, valor v): no próprio objeto (sem clonar o struct)
+    StructCopia,     // struct (struct): a cópia rasa (a regra da cópia de struct da spec 5.1)
+    ClasseDe,        // i32 (obj): o índice da classe do objeto
+    TipoDe,          // valor (valor x, tipo estático): type(x) (runtimeType)
 };
 struct InfoRt {
     const char*       nome;     // o símbolo em C
@@ -175,8 +202,42 @@ struct Nativa {
     std::string nome;
 };
 
+// Os descritores do runtime, criados na partida (CzStructDesc, CzClasseDesc, CzEnumDesc)
+struct DescStruct {
+    std::string              nome;
+    std::vector<std::string> campos;
+};
+struct DescClasse {
+    std::string   nome;
+    std::uint32_t campos = 0;
+};
+struct DescEnum {
+    std::string              nome;
+    std::vector<std::string> valores;
+};
+// Um tipo para type() e os literais de tipo, refeito na partida pelo TypeContext: o
+// TypeInfo::Kind, o nome e os parâmetros (índices de tipos anteriores na tabela)
+struct DescTipo {
+    std::uint8_t               kind = 0;
+    std::string                nome;
+    std::vector<std::uint32_t> params;
+};
+// Um método de interface: a função de cada classe (pelo índice da classe; -1 se não
+// cumpre) e a assinatura comum (self primeiro)
+struct TabelaIface {
+    std::string       nome;     // "Forma.area"
+    std::vector<Tipo> params;
+    Tipo              ret = Tipo::Void;
+    std::vector<int>  funcoes;
+};
+
 struct Modulo {
     std::vector<std::string> arquivos;   // os nomes dos arquivos, na ordem dos file_id
+    std::vector<DescStruct>  structs;
+    std::vector<DescClasse>  classes;    // o índice é o da classe no runtime
+    std::vector<DescEnum>    enums;
+    std::vector<DescTipo>    tipos;
+    std::vector<TabelaIface> tabelas;
     std::vector<std::string> literais;   // as strings do programa (imortais)
     std::vector<Nativa>      nativas;
     std::vector<Tipo>        globais;    // os const do nível superior

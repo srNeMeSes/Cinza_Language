@@ -1,0 +1,92 @@
+// P7: classes e interfaces no código nativo (cinzac) — os campos iniciados antes do
+// construtor, métodos (públicos, privados, chamados sem o objeto), self, objetos
+// compartilhados (atribuir não copia), chamada por interface com a classe real, uma
+// lista de interface e type() de um valor de interface. Roda nos dois backends.
+interface Animal {
+  fn som() -> string;
+  fn patas() -> i32;
+}
+
+class Cachorro : Animal {
+  string nome = "sem nome";
+  list<string> truques;
+  i32 latidos = 0;
+
+  fn prefixo() -> string { return nome + ": "; }
+
+  pub {
+    Cachorro(string n) {
+      nome = n;
+      truques.add("senta");
+    }
+    fn som() -> string {
+      latidos += 1;
+      return prefixo() + "au" + cast<string>(latidos);
+    }
+    fn patas() -> i32 { return 4; }
+    fn aprende(string t) -> Cachorro {
+      truques.add(t);
+      return self;
+    }
+    fn truques_() -> list<string> { return truques; }
+  }
+}
+
+class Passaro : Animal {
+  pub {
+    fn som() -> string { return "piu"; }
+    fn patas() -> i32 { return 2; }
+  }
+}
+
+class Contador {
+  i32 n = inicial();
+  pub {
+    fn mais() { n += 1; }
+    fn valor() -> i32 { return n; }
+  }
+}
+
+fn inicial() -> i32 {
+  return 10;
+}
+
+fn total_patas(list<Animal> bichos) -> i32 {
+  i32 t = 0;
+  for (Animal a in bichos) {
+    t += a.patas();
+  }
+  return t;
+}
+
+fn main() {
+  Cachorro rex = new Cachorro("Rex");
+  print(rex.som(), rex.som());
+  rex.aprende("rola").aprende("fica");
+  print(rex.truques_());
+  // objetos são compartilhados
+  Cachorro mesmo = rex;
+  mesmo.aprende("pula");
+  print(rex.truques_().size(), rex.som());
+  list<Animal> bichos = [rex, new Passaro(), new Cachorro("Bob")];
+  for (Animal a in bichos) {
+    print(a.som(), type(a) == Cachorro, type(a) == Passaro);
+  }
+  print(total_patas(bichos));
+  Animal qualquer = bichos[1];
+  print(qualquer.som(), type(qualquer));
+  Contador c = new Contador();
+  for (i32 i in range(0, 5)) {
+    c.mais();
+  }
+  print(c.valor());
+}
+// expect: Rex: au1 Rex: au2
+// expect: ["senta", "rola", "fica"]
+// expect: 4 Rex: au3
+// expect: Rex: au4 true false
+// expect: piu false true
+// expect: Bob: au1 true false
+// expect: 10
+// expect: piu Passaro
+// expect: 15

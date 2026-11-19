@@ -156,6 +156,26 @@ CZ_FALHA void cz_indice_lugar(const cinza::CzValor* o, const cinza::CzValor* k, 
 CZ_FALHA void cz_grava_indice(const cinza::CzValor* o, const cinza::CzValor* k, const cinza::CzValor* v,
                               const cinza::CzPos* p) noexcept;
 
+// ── Structs, objetos, enums e tipos ───────────────────────────────────────
+// Os descritores do programa, criados na partida (vivem até o fim do processo)
+const void* cz_desc_struct(const char* nome, const char* const* campos, std::uint64_t n) noexcept;
+const void* cz_desc_classe(const char* nome, std::uint32_t indice, std::uint32_t campos) noexcept;
+const void* cz_desc_enum(const char* nome, const char* const* valores, std::uint64_t n) noexcept;
+// Um tipo de type() pelo TypeContext: o TypeInfo::Kind, o nome e os parâmetros (já feitos)
+const void* cz_tipo(std::uint8_t kind, const char* nome, const void* const* params, std::uint64_t n) noexcept;
+// Um struct novo com os campos (copiados) / um objeto com os campos vazios; os dois são
+// pontos da coleta de ciclos, como o NEWSTRUCT e o NEWOBJ da CVM
+cinza::CzObjeto* cz_struct_novo(const void* desc, const cinza::CzValor* campos, std::uint64_t n) noexcept;
+cinza::CzObjeto* cz_obj_novo(const void* desc) noexcept;
+// Uma cópia do campo i (um struct dentro é clonado); a gravação muda o próprio objeto
+void             cz_campo(const cinza::CzValor* o, std::int32_t i, cinza::CzValor* r) noexcept;
+void             cz_grava_campo(const cinza::CzValor* o, std::int32_t i, const cinza::CzValor* v) noexcept;
+cinza::CzObjeto* cz_struct_copia(cinza::CzObjeto* s) noexcept;
+std::int32_t     cz_classe_de(cinza::CzObjeto* o) noexcept;
+void             cz_tipo_de(const cinza::CzValor* x, const cinza::CzValor* estatico, cinza::CzValor* r) noexcept;
+// CINZA_GC_STATS=1: a coleta final e o resumo, como a CVM depois da main
+void             cz_gc_estatisticas() noexcept;
+
 // P4: todo erro é fatal, como um erro não capturado na CVM — relata o erro pendente
 // (ou sai com o código do exit) e encerra o processo. Até o P8 os slots das funções em
 // andamento não são soltos nesse caminho, então a conferência de vazamentos não roda nele

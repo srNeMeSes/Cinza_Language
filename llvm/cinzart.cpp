@@ -468,6 +468,145 @@ extern "C" void cz_grava_indice(const CzValor* o, const CzValor* k, const CzValo
     }, p);
 }
 
+// ── Structs, objetos, enums e tipos ───────────────────────────────────────
+
+namespace {
+
+std::vector<std::unique_ptr<CzStructDesc>> descs_struct;   // vivem até o fim do processo
+std::vector<std::unique_ptr<CzClasseDesc>> descs_classe;
+std::vector<std::unique_ptr<CzEnumDesc>>   descs_enum;
+
+// Os campos de um objeto ou struct, sem copiar o dono (um struct não é clonado)
+std::vector<Value>& camposDe(const CzValor* o) {
+    if (o->tipo == static_cast<std::uint8_t>(Value::Kind::STRUCT)) return static_cast<StructValue*>(o->u.obj)->fields;
+    return static_cast<ClassInstance*>(o->u.obj)->fields;
+}
+
+}  // namespace
+
+extern "C" const void* cz_desc_struct(const char* nome, const char* const* campos, std::uint64_t n) noexcept {
+    const void* r = nullptr;
+    fronteira([&] {
+        auto d = std::make_unique<CzStructDesc>();
+        d->nome = nome;
+        for (std::uint64_t i = 0; i < n; ++i) d->campos.emplace_back(campos[i]);
+        r = d.get();
+        descs_struct.push_back(std::move(d));
+    });
+    return r;
+}
+
+extern "C" const void* cz_desc_classe(const char* nome, std::uint32_t indice, std::uint32_t campos) noexcept {
+    const void* r = nullptr;
+    fronteira([&] {
+        descs_classe.push_back(std::make_unique<CzClasseDesc>(CzClasseDesc{nome, indice, campos}));
+        r = descs_classe.back().get();
+    });
+    return r;
+}
+
+extern "C" const void* cz_desc_enum(const char* nome, const char* const* valores, std::uint64_t n) noexcept {
+    const void* r = nullptr;
+    fronteira([&] {
+        auto d = std::make_unique<CzEnumDesc>();
+        d->nome = nome;
+        for (std::uint64_t i = 0; i < n; ++i) d->valores.emplace_back(valores[i]);
+        r = d.get();
+        descs_enum.push_back(std::move(d));
+    });
+    return r;
+}
+
+extern "C" const void* cz_tipo(std::uint8_t kind, const char* nome, const void* const* params, std::uint64_t n) noexcept {
+    const void* r = nullptr;
+    fronteira([&] {
+        using K = TypeInfo::Kind;
+        auto& t = TypeContext::instance();
+        auto p = [&](std::uint64_t i) { return static_cast<TypeRef>(params[i]); };
+        const std::string nm = nome;
+        switch (static_cast<K>(kind)) {
+            case K::I64:       r = t.i64Type(); break;
+            case K::F64:       r = t.f64Type(); break;
+            case K::I32:       r = t.i32Type(); break;
+            case K::F32:       r = t.f32Type(); break;
+            case K::String:    r = t.stringType(); break;
+            case K::Bool:      r = t.boolType(); break;
+            case K::Void:      r = t.voidType(); break;
+            case K::Var:       r = t.varType(); break;
+            case K::List:      r = t.list(p(0)); break;
+            case K::Dict:      r = t.dict(p(0), p(1)); break;
+            case K::Pair:      r = t.pair(p(0), p(1)); break;
+            case K::Class:     r = t.classType(nm); break;
+            case K::Struct:    r = t.structType(nm); break;
+            case K::Error:     r = t.errorType(nm); break;
+            case K::TypeVar:   r = t.typeVar(nm); break;
+            case K::Type:      r = t.typeType(); break;
+            case K::Enum:      r = t.enumType(nm); break;
+            case K::Interface: r = t.interfaceType(nm); break;
+        }
+        (void)n;
+    });
+    return r;
+}
+
+extern "C" CzObjeto* cz_struct_novo(const void* desc, const CzValor* campos, std::uint64_t n) noexcept {
+    CzObjeto* r = nullptr;
+    fronteira([&] {
+        gcMaybeCollect();   // ponto seguro da coleta, como o NEWSTRUCT
+        auto sv = novo<StructValue>(static_cast<const CzStructDesc*>(desc));
+        sv->fields.reserve(static_cast<std::size_t>(n));
+        for (std::uint64_t i = 0; i < n; ++i) sv->fields.push_back(Value::empresta(campos[i]));
+        r = sv.solta();
+    });
+    return r;
+}
+
+extern "C" CzObjeto* cz_obj_novo(const void* desc) noexcept {
+    CzObjeto* r = nullptr;
+    fronteira([&] {
+        gcMaybeCollect();   // como o NEWOBJ
+        r = makeInstance(static_cast<const CzClasseDesc*>(desc)).entrega().u.obj;
+    });
+    return r;
+}
+
+extern "C" void cz_campo(const CzValor* o, std::int32_t i, CzValor* r) noexcept {
+    *r = Value().entrega();
+    fronteira([&] { *r = Value(camposDe(o)[static_cast<std::size_t>(i)]).entrega(); });
+}
+
+extern "C" void cz_grava_campo(const CzValor* o, std::int32_t i, const CzValor* v) noexcept {
+    fronteira([&] { camposDe(o)[static_cast<std::size_t>(i)] = Value::empresta(*v); });
+}
+
+extern "C" CzObjeto* cz_struct_copia(CzObjeto* s) noexcept {
+    CzObjeto* r = nullptr;
+    fronteira([&] { r = novo<StructValue>(*static_cast<StructValue*>(s)).solta(); });
+    return r;
+}
+
+extern "C" std::int32_t cz_classe_de(CzObjeto* o) noexcept {
+    return static_cast<std::int32_t>(static_cast<ClassInstance*>(o)->classe()->indice);
+}
+
+extern "C" void cz_tipo_de(const CzValor* x, const CzValor* estatico, CzValor* r) noexcept {
+    *r = Value().entrega();
+    fronteira([&] {
+        const TypeRef st = static_cast<TypeRef>(estatico->u.ptr);
+        *r = Value(runtimeType(Value::empresta(*x), st)).entrega();
+    });
+}
+
+extern "C" void cz_gc_estatisticas() noexcept {
+    fronteira([&] {
+        if (const char* e = std::getenv("CINZA_GC_STATS"); e && *e) {
+            gcCollect();
+            std::cout << "[gc] liberados em ciclos: " << gc_stats.liberados
+                      << ", contêineres vivos: " << gc_registro.vivos << "\n";
+        }
+    });
+}
+
 extern "C" void cz_metodo0(std::int32_t b, const CzValor* o, CzValor* r, const CzPos* p) noexcept {
     metodo(b, o, {}, r, p);
 }

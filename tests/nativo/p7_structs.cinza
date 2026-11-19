@@ -1,0 +1,80 @@
+// P7: structs no código nativo (cinzac) — valor (spec 5.1): atribuir, passar, devolver e
+// guardar numa lista copiam; gravar um campo muda só aquela cópia, inclusive por caminhos
+// (lista[i].campo, struct dentro de struct, campo de objeto); criação posicional, pelo
+// nome e com valores iniciais; struct genérico; igualdade. Roda nos dois backends.
+struct Ponto {
+  i32 x = 0;
+  i32 y = 0;
+}
+
+struct Segmento {
+  Ponto a;
+  Ponto b;
+  string nome = "seg";
+}
+
+struct Par[A, B] {
+  A primeiro;
+  B segundo;
+}
+
+class Desenho {
+  Segmento base = new Segmento(a: new Ponto(), b: new Ponto(1, 1));
+  pub {
+    fn estica(i32 d) { base.b.x += d; }
+    fn base_atual() -> Segmento { return base; }
+  }
+}
+
+fn desloca(Ponto p, i32 d) -> Ponto {
+  p.x += d;
+  p.y += d;
+  return p;
+}
+
+fn main() {
+  Ponto a = new Ponto(1, 2);
+  Ponto b = a;
+  b.x = 99;
+  Ponto c = desloca(a, 10);
+  print(a, b, c);
+  // na lista: cada elemento é uma cópia, e a leitura também
+  list<Ponto> pts = [a, a];
+  pts[0].y = 50;
+  Ponto lido = pts[1];
+  lido.x = -1;
+  print(pts, lido, a);
+  // struct dentro de struct, pelo caminho e com valores iniciais
+  Segmento s = new Segmento(a: a, b: new Ponto(y: 9));
+  s.b.x = 7;
+  s.a.y += 1;
+  Segmento t = s;
+  t.a.x = 1000;
+  print(s, t.a, s.nome);
+  // campo de objeto que é struct
+  Desenho d = new Desenho();
+  d.estica(5);
+  Segmento copia = d.base_atual();
+  copia.b.x = 0;
+  print(d.base_atual().b, copia.b);
+  // genérico, igualdade e dict
+  Par[string, Ponto] par = new Par[string, Ponto](primeiro: "p", segundo: a);
+  par.segundo.x = 3;
+  print(par, a == new Ponto(1, 2), a != b, par.segundo == new Ponto(3, 2));
+  dict<string, Ponto> nomeados = {{"o", new Ponto()}};
+  nomeados["o"].x = 4;
+  print(nomeados);
+  // um struct que é reescrito numa volta de laço
+  Ponto acc = new Ponto();
+  for (i32 i in range(0, 1000)) {
+    acc = desloca(acc, 1);
+  }
+  print(acc);
+}
+// expect: Ponto{x: 1, y: 2} Ponto{x: 99, y: 2} Ponto{x: 11, y: 12}
+// expect: [Ponto{x: 1, y: 50}, Ponto{x: 1, y: 2}] Ponto{x: -1, y: 2} Ponto{x: 1, y: 2}
+// expect: Segmento{a: Ponto{x: 1, y: 3}, b: Ponto{x: 7, y: 9}, nome: "seg"} Ponto{x: 1000, y: 3} seg
+// expect: Ponto{x: 6, y: 1} Ponto{x: 0, y: 1}
+// expect: Par[string, Ponto]{primeiro: "p", segundo: Ponto{x: 3, y: 2}} true true true
+// expect: {"o": Ponto{x: 4, y: 0}}
+// expect: Ponto{x: 1000, y: 1000}

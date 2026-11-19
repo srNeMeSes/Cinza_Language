@@ -1,0 +1,25 @@
+// P7: erro numa função chamada pelo inicializador de campos (oculto, fora do trace,
+// como na CVM): o quadro de quem fez o new mostra a linha da chamada feita dentro do
+// inicializador, como o call_line da CVM. Roda nos dois backends.
+fn divide(i32 a, i32 b) -> i32 {
+  return a / b;
+}
+
+class Conta {
+  i32 base = 1;
+  i32 taxa = divide(base, base - 1);
+}
+
+fn abre() -> Conta {
+  return new Conta();
+}
+
+fn main() {
+  print("antes");
+  Conta c = abre();
+}
+// expect: antes
+// expect-error: p7_erro_init.cinza:5:12: ZeroDivisionError: divisão por zero
+// expect-error: em divide (tests/nativo/p7_erro_init.cinza:5)
+// expect-error: em abre (tests/nativo/p7_erro_init.cinza:10)
+// expect-error: em main (tests/nativo/p7_erro_init.cinza:19)

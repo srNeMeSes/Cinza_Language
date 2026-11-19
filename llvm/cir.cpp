@@ -44,6 +44,13 @@ const InfoRt& infoRt(Rt r) {
         {"cz_lista_elem",        T::Valor, {T::Lista, T::I64}, false},
         {"cz_indice_lugar",      T::Valor, {T::Valor, T::Valor}, true},
         {"cz_grava_indice",      T::Void,  {T::Valor, T::Valor, T::Valor}, true},
+        {"cz_struct_novo",       T::Struct, {T::Desc}, false, true},
+        {"cz_obj_novo",          T::Obj,   {T::Desc}, false},
+        {"cz_campo",             T::Valor, {T::Valor, T::I32}, false},
+        {"cz_grava_campo",       T::Void,  {T::Valor, T::I32, T::Valor}, false},
+        {"cz_struct_copia",      T::Struct, {T::Struct}, false},
+        {"cz_classe_de",         T::I32,   {T::Obj}, false},
+        {"cz_tipo_de",           T::Valor, {T::Valor, T::TipoV}, false},
     };
     return tabela[static_cast<std::size_t>(r)];
 }
@@ -61,6 +68,11 @@ const char* nomeTipo(Tipo t) {
         case Tipo::Lista: return "lista";
         case Tipo::Dict:  return "dict";
         case Tipo::Par:   return "par";
+        case Tipo::Struct: return "struct";
+        case Tipo::Obj:   return "obj";
+        case Tipo::Enum:  return "enum";
+        case Tipo::TipoV: return "tipo";
+        case Tipo::Desc:  return "desc";
     }
     return "?";
 }
@@ -94,6 +106,10 @@ std::string operando(const Modulo& m, const Operando& o) {
         case Operando::K::Literal: return "str " + citado(m.literais[o.indice]);
         case Operando::K::Nulo:    return "str nulo";
         case Operando::K::Vazio:   return "valor vazio";
+        case Operando::K::DescStruct: return "desc " + m.structs[o.indice].nome;
+        case Operando::K::DescClasse: return "desc " + m.classes[o.indice].nome;
+        case Operando::K::Enum:    return m.enums[o.indice].nome + "." + m.enums[o.indice].valores[static_cast<std::size_t>(o.i)];
+        case Operando::K::TipoLit: return "tipo T" + std::to_string(o.indice);
     }
     return "?";
 }
@@ -159,6 +175,10 @@ std::string texto(const Modulo& m) {
                     case Op::Chama:
                         if (m.funcoes[in.aux].ret != Tipo::Void) dst();
                         out << "call F" << in.aux << "("; args(); out << ")";
+                        break;
+                    case Op::ChamaIface:
+                        if (m.tabelas[in.aux].ret != Tipo::Void) dst();
+                        out << "call.iface " << m.tabelas[in.aux].nome << "("; args(); out << ")";
                         break;
                     case Op::Retem:    out << "retem "; args(); break;
                     case Op::Solta:    out << "solta "; args(); break;

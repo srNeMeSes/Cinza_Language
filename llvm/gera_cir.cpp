@@ -1,7 +1,7 @@
 // AST analisada → CIR. P4: números, bool, funções, if/while/for range, print (e as
 // nativas de valores simples), const globais. P5: strings e a posse. P6: list, dict e
-// pair. O resto é NaoSuportado, com a posição: as etapas P7 a P9 (REVISAO_V2.md, seção P)
-// vão ampliando.
+// pair. P7: structs, classes, interfaces, enums e type(). O resto é NaoSuportado, com a
+// posição: as etapas P8 e P9 (REVISAO_V2.md, seção P) vão ampliando.
 //
 // A ordem de avaliação e as posições dos erros são as do compilador da CVM
 // (cvm/compiler.cpp): mesma posição de token em cada operação que pode falhar.
@@ -43,7 +43,7 @@ const char* nomeDeclaracao(NodeKind k) {
     }
 }
 
-// O tipo da CIR de um tipo da linguagem (P6: escalares, string, list, dict e pair)
+// O tipo da CIR de um tipo da linguagem
 Tipo tipoDe(TypeRef t, const Token& tok) {
     if (!t) naoSuportado("expressão sem tipo (erro interno)", tok);
     switch (t->kind) {
@@ -57,6 +57,11 @@ Tipo tipoDe(TypeRef t, const Token& tok) {
         case TK::List:   return Tipo::Lista;
         case TK::Dict:   return Tipo::Dict;
         case TK::Pair:   return Tipo::Par;
+        case TK::Struct: return Tipo::Struct;
+        case TK::Class: case TK::Interface: return Tipo::Obj;
+        case TK::Enum:   return Tipo::Enum;
+        case TK::Type:   return Tipo::TipoV;
+        case TK::Error:  naoSuportado("erros como valor", tok);
         default:         naoSuportado("o tipo '" + t->str() + "'", tok);
     }
 }
@@ -99,20 +104,59 @@ public:
         for (const auto& [slot, c] : layout.natives) consts_nativos[slot] = c;
     }
 
-    // 1ª passada: a assinatura de cada função (chamadas podem ir para as de depois)
-    void declara(const FunctionDecl& fn) {
-        Funcao f;
-        f.nome       = "cz:::" + fn.name;
-        f.nome_trace = fn.trace_name;
-        f.decl       = fn.token;
-        for (const Parameter& p : fn.parameters) f.params.push_back(tipoDe(TypeChecker::fromAst(p.type.get()), p.token));
-        f.ret = tipoDe(TypeChecker::fromAst(fn.return_type.get()), fn.token);
-        funcao_de[&fn] = static_cast<std::uint32_t>(m.funcoes.size());
-        if (fn.name == "main") {
+    // Os descritores do runtime (antes das funções: os tipos dos parâmetros os usam)
+    void registraStruct(const StructDecl& st) {
+        struct_de[st.name] = static_cast<std::uint32_t>(m.structs.size());
+        DescStruct d{st.name, {}};
+        for (const auto& c : st.fields) d.campos.push_back(c.name);
+        m.structs.push_back(std::move(d));
+        struct_decl.push_back(&st);
+    }
+    void registraClasse(const ClassDecl& c) {
+        classe_de[c.class_name] = static_cast<std::uint32_t>(m.classes.size());
+        m.classes.push_back({c.class_name, static_cast<std::uint32_t>(c.fields.size())});
+        classe_decl.push_back(&c);
+    }
+    void registraEnum(const EnumDecl& e) {
+        enum_de[&e] = static_cast<std::uint32_t>(m.enums.size());
+        m.enums.push_back({e.name, e.members});
+    }
+
+    // 1ª passada: a assinatura de cada função (chamadas podem ir para as de depois). Um
+    // método recebe o self (o objeto) antes dos parâmetros
+    void declara(const FunctionDecl& fn, const ClassDecl* cls = nullptr) {
+        std::vector<Tipo> ps;
+        if (cls) ps.push_back(Tipo::Obj);
+        for (const Parameter& p : fn.parameters) ps.push_back(tipoDe(TypeChecker::fromAst(p.type.get()), p.token));
+        const std::uint32_t fi = novaFuncao("cz:::" + (cls ? cls->class_name + "." : std::string()) + fn.name,
+                                            fn.trace_name, fn.token, std::move(ps),
+                                            tipoDe(TypeChecker::fromAst(fn.return_type.get()), fn.token), false);
+        funcao_de[&fn] = fi;
+        if (!cls && fn.name == "main") {
             if (!fn.parameters.empty()) naoSuportado("main(list<string> args)", fn.token);
-            m.main = static_cast<int>(m.funcoes.size());
+            m.main = static_cast<int>(fi);
         }
-        m.funcoes.push_back(std::move(f));
+    }
+    // Os métodos, o construtor ("new Classe" no trace) e o inicializador dos campos (oculto,
+    // fora da pilha e do trace, como na CVM)
+    void declaraClasse(const ClassDecl& c) {
+        for (const FunctionDecl* mt : metodos(c)) declara(*mt, &c);
+        if (c.constructor) {
+            std::vector<Tipo> ps{Tipo::Obj};
+            for (const Parameter& p : c.constructor->parameters)
+                ps.push_back(tipoDe(TypeChecker::fromAst(p.type.get()), p.token));
+            funcao_de[c.constructor.get()] = novaFuncao("cz:::" + c.class_name + ".new", c.constructor->trace_name,
+                                                        c.constructor->token, std::move(ps), Tipo::Void, false);
+        }
+        if (!c.fields.empty())
+            init_de[&c] = novaFuncao("cz:::" + c.class_name + ".init", "", c.token, {Tipo::Obj}, Tipo::Void, true);
+    }
+    static std::vector<const FunctionDecl*> metodos(const ClassDecl& c) {
+        std::vector<const FunctionDecl*> v;
+        for (const auto* lista : {&c.priv_methods, &c.pub_methods})
+            for (const auto& mt : *lista)
+                if (mt->node_kind == NodeKind::FunctionDecl) v.push_back(static_cast<const FunctionDecl*>(mt.get()));
+        return v;
     }
 
     // const do nível superior: um global, escrito pela função de inicialização
@@ -124,23 +168,35 @@ public:
     }
 
     // 2ª passada: o corpo
-    void corpo(const FunctionDecl& fn) {
-        comeca(funcao_de.at(&fn));
-        const Token& tok = fn.token;
-        // os parâmetros chegam emprestados; a função fica dona deles no próprio slot
-        for (std::size_t i = 0; i < fn.parameters.size(); ++i) {
-            const std::uint32_t s = f->novoSlot(f->params[i]);
-            slot_de[{static_cast<std::uint32_t>(i), f->params[i]}] = s;
+    void corpo(const FunctionDecl& fn) { corpoDe(funcao_de.at(&fn), fn.parameters, *fn.body, fn.token); }
+    void corpoClasse(const ClassDecl& c) {
+        for (const FunctionDecl* mt : metodos(c)) corpo(*mt);
+        if (c.constructor)
+            corpoDe(funcao_de.at(c.constructor.get()), c.constructor->parameters, *c.constructor->body,
+                    c.constructor->token);
+        if (!c.fields.empty()) corpoInit(c);
+    }
+
+    void corpoDe(std::uint32_t fi, const std::vector<Parameter>& parametros, const Stmt& corpo_, const Token& tok) {
+        comeca(fi);
+        // os parâmetros chegam emprestados; a função fica dona deles no próprio slot (um
+        // struct é clonado: a cópia da spec 5.1). Num método, o self vem antes (slot 0)
+        const std::size_t off = f->params.size() - parametros.size();
+        for (std::size_t i = 0; i < f->params.size(); ++i) f->novoSlot(f->params[i]);
+        if (off) self_slot = 0;
+        for (std::size_t i = 0; i < parametros.size(); ++i)
+            slot_de[{static_cast<std::uint32_t>(i), f->params[i + off]}] = static_cast<std::uint32_t>(i + off);
+        for (std::uint32_t i = 0; i < f->params.size(); ++i) {
+            if (f->params[i] == Tipo::Struct) grava(i, chamaRt(Rt::StructCopia, {carrega(i, tok)}, tok), tok);
+            else if (ehRef(f->params[i])) retem(carrega(i, tok), tok);
         }
-        for (std::size_t i = 0; i < fn.parameters.size(); ++i)
-            if (ehRef(f->params[i])) retem(carrega(static_cast<std::uint32_t>(i), tok), tok);
         saida = f->novoBloco("saida");
         ret_slot = f->ret != Tipo::Void ? f->novoSlot(f->ret) : UINT32_MAX;
-        instrucao(*fn.body);
+        instrucao(corpo_);
         if (!terminado) {
             // o semântico garante o return nas funções com valor
-            if (f->ret == Tipo::Void) br(saida, fn.body->token);
-            else poe(Op::Inalcancavel, fn.body->token);
+            if (f->ret == Tipo::Void) br(saida, corpo_.token);
+            else poe(Op::Inalcancavel, corpo_.token);
         }
         // a saída: solta os slots donos (os temporários já estão vazios aqui)
         entra(saida);
@@ -148,6 +204,22 @@ public:
             if (ehRef(f->slots[s]) && s != ret_slot && !slots_temp.count(s)) limpa(s, tok);
         if (ret_slot != UINT32_MAX) poe(Op::Ret, tok).args = {carrega(ret_slot, tok)};
         else poe(Op::Ret, tok);
+    }
+
+    // O inicializador dos campos de uma classe (classInit da CVM): oculto, com o self
+    // emprestado (o new segura o objeto); os campos na ordem da declaração
+    void corpoInit(const ClassDecl& c) {
+        comeca(init_de.at(&c));
+        self_slot = f->novoSlot(Tipo::Obj);
+        for (std::size_t i = 0; i < c.fields.size(); ++i) {
+            const auto& campo = c.fields[i];
+            const Operando v = campo.initializer ? expr(*campo.initializer) : vazioDe(*campo.type, campo.token);
+            chamaRt(Rt::GravaCampo, {embrulha(carrega(self_slot, campo.token), campo.token),
+                                     Operando::i32(static_cast<std::int32_t>(i)), embrulha(v, campo.token)},
+                    campo.token);
+            fimInstrucao(campo.token);
+        }
+        poe(Op::Ret, c.token);
     }
 
     // A função oculta que inicializa os const, na ordem em que aparecem
@@ -191,7 +263,15 @@ private:
     bool terminado = false;       // o bloco atual já terminou (br, ret...)
     std::uint32_t saida = 0;      // o bloco de saída da função
     std::uint32_t ret_slot = UINT32_MAX;
-    std::unordered_map<const FunctionDecl*, std::uint32_t> funcao_de;
+    std::unordered_map<const void*, std::uint32_t>        funcao_de;   // FunctionDecl ou Constructor
+    std::unordered_map<const ClassDecl*, std::uint32_t>   init_de;
+    std::unordered_map<std::string, std::uint32_t>        struct_de, classe_de;
+    std::vector<const StructDecl*>                        struct_decl;
+    std::vector<const ClassDecl*>                         classe_decl;
+    std::unordered_map<const EnumDecl*, std::uint32_t>    enum_de;
+    std::map<TypeRef, std::uint32_t>                      tipo_de;
+    std::map<std::pair<const InterfaceDecl*, int>, std::uint32_t> tabela_de;
+    std::uint32_t self_slot = UINT32_MAX;
     std::unordered_map<std::uint32_t, std::uint32_t>       global_de;        // slot do B2 → global
     std::unordered_map<std::uint32_t, const NativeConst*>  consts_nativos;   // Math.pi...
     std::map<std::pair<std::uint32_t, Tipo>, std::uint32_t> slot_de;         // (slot do B2, tipo) → slot
@@ -210,8 +290,59 @@ private:
         temps_livres.clear();
         slots_temp.clear();
         ret_slot = UINT32_MAX;
+        self_slot = UINT32_MAX;
         atual = f->novoBloco("b");
         terminado = false;
+    }
+
+    std::uint32_t novaFuncao(std::string nome, std::string trace, const Token& decl, std::vector<Tipo> params,
+                             Tipo ret, bool oculta_) {
+        Funcao fn;
+        fn.nome       = std::move(nome);
+        fn.nome_trace = std::move(trace);
+        fn.decl       = decl;
+        fn.params     = std::move(params);
+        fn.ret        = ret;
+        fn.oculta     = oculta_;
+        m.funcoes.push_back(std::move(fn));
+        return static_cast<std::uint32_t>(m.funcoes.size() - 1);
+    }
+
+    // Um tipo para type() e os literais de tipo: a tabela do módulo, refeita na partida
+    std::uint32_t tipoIdx(TypeRef t) {
+        if (auto it = tipo_de.find(t); it != tipo_de.end()) return it->second;
+        DescTipo d;
+        d.kind = static_cast<std::uint8_t>(t->kind);
+        d.nome = t->name;
+        for (TypeRef p : t->params) d.params.push_back(tipoIdx(p));
+        const auto i = static_cast<std::uint32_t>(m.tipos.size());
+        m.tipos.push_back(std::move(d));
+        tipo_de[t] = i;
+        return i;
+    }
+
+    // A tabela do método k da interface: a função de cada classe que a cumpre
+    std::uint32_t tabela(const InterfaceDecl* iface, int k) {
+        auto [it, novo] = tabela_de.try_emplace({iface, k}, 0);
+        if (!novo) return it->second;
+        const auto& mt = iface->methods[static_cast<std::size_t>(k)];
+        TabelaIface t;
+        t.nome = iface->name + "." + mt.name;
+        t.params.push_back(Tipo::Obj);
+        for (const Parameter& p : mt.parameters) t.params.push_back(tipoDe(TypeChecker::fromAst(p.type.get()), p.token));
+        t.ret = tipoDe(TypeChecker::fromAst(mt.return_type.get()), mt.token);
+        t.funcoes.assign(m.classes.size(), -1);
+        for (std::size_t ci = 0; ci < classe_decl.size(); ++ci)
+            for (const auto& [i, fns] : classe_decl[ci]->itables)
+                if (i == iface) t.funcoes[ci] = static_cast<int>(funcao_de.at(fns[static_cast<std::size_t>(k)]));
+        it->second = static_cast<std::uint32_t>(m.tabelas.size());
+        m.tabelas.push_back(std::move(t));
+        return it->second;
+    }
+
+    // list<T> e dict<K, V> sem inicializador: vazios (com posse, num temporário)
+    Operando vazioDe(const Type& t, const Token& tok) {
+        return emprestado({chamaRt(t.kind == Type::Kind::DICT ? Rt::DictNovo : Rt::ListaNova, {}, tok), true}, tok);
     }
 
     int oculta(const char* nome, const Token& tok) {
@@ -270,6 +401,9 @@ private:
             case Operando::K::Literal: return Tipo::Str;
             case Operando::K::Nulo:    return Tipo::Str;
             case Operando::K::Vazio:   return Tipo::Valor;
+            case Operando::K::DescStruct: case Operando::K::DescClasse: return Tipo::Desc;
+            case Operando::K::Enum:    return Tipo::Enum;
+            case Operando::K::TipoLit: return Tipo::TipoV;
         }
         return Tipo::Void;
     }
@@ -316,9 +450,14 @@ private:
         }
         return v.o;
     }
-    // Um valor que vai ser guardado: com posse (retem, se era emprestado)
+    // Um valor que vai ser guardado: com posse — retem, se era emprestado; um struct
+    // emprestado é clonado (struct é valor: cada slot tem o seu, e mudar um campo não
+    // aparece em outro lugar)
     Operando comPosse(const Val& v, const Token& tok) {
-        if (ehRef(tipoOperando(v.o)) && !v.dono) retem(v.o, tok);
+        const Tipo t = tipoOperando(v.o);
+        if (!ehRef(t) || v.dono) return v.o;
+        if (t == Tipo::Struct) return chamaRt(Rt::StructCopia, {v.o}, tok);
+        retem(v.o, tok);
         return v.o;
     }
     // Fim de uma instrução da Cinza: solta os temporários dela
@@ -349,7 +488,7 @@ private:
         return Operando::temp(in.dst);
     }
     Operando embrulha(const Operando& o, const Token& tok) {
-        if (tipoOperando(o) == Tipo::Valor) return o;
+        if (ehValorDireto(tipoOperando(o))) return o;   // valor, enum, tipo: já é um CzValor
         return Operando::temp(temp(Op::Embrulha, Tipo::Valor, {o}, tok));
     }
     // Um resultado `valor` com posse do runtime, no tipo estático
@@ -383,7 +522,12 @@ private:
     Val valor(const Expr& e) {
         switch (e.node_kind) {
             case NodeKind::Literal:    return literal(static_cast<const LiteralExpr&>(e));
-            case NodeKind::Identifier: return {identificador(static_cast<const IdentifierExpr&>(e)), false};
+            case NodeKind::Identifier: {
+                const auto& id = static_cast<const IdentifierExpr&>(e);
+                if (id.res.kind == Resolution::Kind::Field)   // campo do objeto atual: uma cópia
+                    return campo(self(id.token), id.res.slot, tipoDe(id.resolved_type, id.token), id.token);
+                return {identificador(id), false};
+            }
             case NodeKind::Binary:     return binaria(static_cast<const BinaryExpr&>(e));
             case NodeKind::Unary: {
                 const auto& u = static_cast<const UnaryExpr&>(e);
@@ -397,7 +541,7 @@ private:
             case NodeKind::Call:       return chamada(static_cast<const CallExpr&>(e));
             case NodeKind::IndexAccess: {   // list, dict e string: a regra da CVM (indexGet)
                 const auto& ix = static_cast<const IndexAccessExpr&>(e);
-                if (ix.eh_tipo) naoSuportado("tipo usado como valor", e.token);
+                if (ix.eh_tipo) return valor(*ix.como_tipo);   // N5: Caixa[Ponto] escrito como valor
                 const Operando o = expr(*ix.object);
                 const Operando k = expr(*ix.index);
                 const Operando r = chamaRt(Rt::Indice, {embrulha(o, e.token), embrulha(k, e.token)}, e.token);
@@ -425,8 +569,18 @@ private:
             }
             case NodeKind::MemberAccess: {
                 const auto& ma = static_cast<const MemberAccessExpr&>(e);
-                if (ma.enum_decl || !ma.object->resolved_type || !ma.object->resolved_type->is(TK::Pair))
-                    naoSuportado("acesso a membro", e.token);
+                if (ma.enum_decl) {   // Cor.Verde: uma constante
+                    auto en = enum_de.find(ma.enum_decl);
+                    if (en == enum_de.end()) naoSuportado("enum de outro módulo", e.token);
+                    return {Operando::enumerado(en->second, ma.field_index)};
+                }
+                TypeRef ot = ma.object->resolved_type;
+                if (ot && ot->is(TK::Error)) naoSuportado("campos de erro", e.token);
+                if (ot && (ot->is(TK::Struct) || ot->is(TK::Class))) {   // objeto ou struct: o índice do campo
+                    const Operando o = expr(*ma.object);
+                    return campo(o, static_cast<std::uint32_t>(ma.field_index), tipoDe(e.resolved_type, e.token), e.token);
+                }
+                if (!ot || !ot->is(TK::Pair)) naoSuportado("acesso a membro", e.token);
                 const Operando p = embrulha(expr(*ma.object), e.token);
                 const Operando r = chamaRt(Rt::ParCampo, {p, Operando::i32(ma.member_name == "first" ? 0 : 1)}, e.token);
                 return desembrulha(r, tipoDe(e.resolved_type, e.token), e.token);
@@ -439,8 +593,9 @@ private:
                 return desembrulha(chamaRt(Rt::Fatia, std::move(args), e.token), Tipo::Str, e.token);
             }
             case NodeKind::MethodCall: return metodo(static_cast<const MethodCallExpr&>(e));
-            case NodeKind::New:          naoSuportado("new", e.token);
-            case NodeKind::TypeLiteral:  naoSuportado("tipo usado como valor", e.token);
+            case NodeKind::New:          return novo(static_cast<const NewExpr&>(e));
+            case NodeKind::TypeLiteral:   // i64, list<i64>... escrito como valor
+                return {Operando::tipoLit(tipoIdx(static_cast<const TypeLiteralExpr&>(e).value))};
             default:                     naoSuportado("esta expressão", e.token);
         }
     }
@@ -486,10 +641,12 @@ private:
                 in.aux = g->second;
                 return Operando::temp(in.dst);
             }
-            case Resolution::Kind::Field: case Resolution::Kind::Self:
-                naoSuportado("campos e self", id.token);
-            case Resolution::Kind::Type:
-                naoSuportado("tipo usado como valor", id.token);
+            case Resolution::Kind::Self:
+                return self(id.token);
+            case Resolution::Kind::Type:   // Pessoa, Cor... usado como valor (type(x) == Pessoa)
+                return Operando::tipoLit(tipoIdx(id.type_value));
+            case Resolution::Kind::Field:
+                naoSuportado("campo lido como lugar (erro interno)", id.token);
             case Resolution::Kind::None:
                 break;
         }
@@ -523,7 +680,8 @@ private:
         if (e.op == TokenType::OP_PLUS && texto) return concatena(a, expr(*e.right), e.token);
         const Operando b = exprTipo(*e.right, t);   // o semântico já deu aos dois o mesmo tipo
         const auto op = static_cast<std::uint32_t>(e.op);
-        if (ehRef(t) && t != Tipo::Str) {   // list, dict, pair: o == da CVM, que desce nos elementos
+        // list, dict, pair, struct, objeto, enum e tipo: o == da CVM (desce nos contêineres)
+        if ((ehRef(t) && t != Tipo::Str) || t == Tipo::Enum || t == Tipo::TipoV) {
             const Operando ig = chamaRt(Rt::Igual, {embrulha(a, e.token), embrulha(b, e.token)}, e.token);
             if (e.op == TokenType::OP_EQUAL) return {ig};
             if (e.op == TokenType::OP_NOT_EQUAL) return {Operando::temp(temp(Op::Nao, Tipo::Bool, {ig}, e.token))};
@@ -576,25 +734,20 @@ private:
     }
 
     Val chamada(const CallExpr& c) {
-        if (c.type_of) naoSuportado("type()", c.token);
+        if (c.type_of) {   // type(x): o tipo real, com o estático (runtimeType)
+            const Operando x = embrulha(expr(*c.arguments[0]), c.token);
+            const Operando r = chamaRt(Rt::TipoDe, {x, Operando::tipoLit(tipoIdx(c.type_of))}, c.token);
+            return desembrulha(r, Tipo::TipoV, c.token);
+        }
         if (c.interpolated) return interpolacao(c);
         if (!c.native && !c.target) naoSuportado("criação de erro", c.token);
-        if (c.implicit_method) naoSuportado("chamada de método", c.token);
 
         if (c.target) {   // função da Cinza: argumentos emprestados, na ordem; resultado com posse
             auto it = funcao_de.find(c.target);
             if (it == funcao_de.end()) naoSuportado("chamada a '" + c.function_name + "'", c.token);
-            const std::uint32_t fi = it->second;
             std::vector<Operando> args;
-            for (std::size_t i = 0; i < c.arguments.size(); ++i)
-                args.push_back(exprTipo(*c.arguments[i], m.funcoes[fi].params[i]));
-            const Tipo ret = m.funcoes[fi].ret;
-            Instr& in = poe(Op::Chama, c.token);
-            in.aux = fi;
-            in.args = std::move(args);
-            if (ret == Tipo::Void) return {Operando::boolean(false)};   // sem valor (ExprStmt)
-            in.dst = f->novoTemp(ret);
-            return {Operando::temp(in.dst), ehRef(ret)};
+            if (c.implicit_method) args.push_back(self(c.token));   // m() dentro de um método
+            return chamaFuncao(it->second, std::move(args), c.arguments, c.token);
         }
 
         // nativa: cada argumento embrulhado (emprestado), o resultado com posse
@@ -645,6 +798,26 @@ private:
     // compartilhado)
     Val metodo(const MethodCallExpr& mc) {
         TypeRef ot = mc.object->resolved_type;
+        if (ot && (ot->is(TK::Class) || ot->is(TK::Interface))) {
+            // o objeto vira o self, antes dos argumentos; pela interface, o método sai da
+            // tabela da classe do objeto
+            std::vector<Operando> args{exprTipo(*mc.object, Tipo::Obj)};
+            if (!mc.iface) {
+                auto it = funcao_de.find(mc.target);
+                if (it == funcao_de.end()) naoSuportado("chamada a '" + mc.method_name + "'", mc.token);
+                return chamaFuncao(it->second, std::move(args), mc.arguments, mc.token);
+            }
+            const std::uint32_t ti = tabela(mc.iface, mc.iface_method);
+            for (std::size_t i = 0; i < mc.arguments.size(); ++i)
+                args.push_back(exprTipo(*mc.arguments[i], m.tabelas[ti].params[i + 1]));
+            const Tipo ret = m.tabelas[ti].ret;
+            Instr& in = poe(Op::ChamaIface, mc.token);
+            in.aux = ti;
+            in.args = std::move(args);
+            if (ret == Tipo::Void) return {Operando::boolean(false)};
+            in.dst = f->novoTemp(ret);
+            return {Operando::temp(in.dst), ehRef(ret)};
+        }
         if (!ot || !(ot->is(TK::String) || ot->is(TK::List) || ot->is(TK::Dict)))
             naoSuportado("chamada de método", mc.token);
         if (mc.arguments.size() > 2) naoSuportado("método com mais de dois argumentos", mc.token);
@@ -657,6 +830,90 @@ private:
         const Rt r = mc.arguments.empty() ? Rt::Metodo0 : mc.arguments.size() == 1 ? Rt::Metodo1 : Rt::Metodo2;
         const Tipo ret = mc.resolved_type ? tipoDe(mc.resolved_type, mc.token) : Tipo::Void;
         return desembrulha(chamaRt(r, std::move(args), mc.token), ret, mc.token);
+    }
+
+    // Uma chamada de função da Cinza: os `antes` (o self) e os argumentos emprestados, na
+    // ordem; o resultado com posse
+    Val chamaFuncao(std::uint32_t fi, std::vector<Operando> args, const std::vector<ExprPtr>& argumentos,
+                    const Token& tok) {
+        const std::size_t off = args.size();
+        for (std::size_t i = 0; i < argumentos.size(); ++i)
+            args.push_back(exprTipo(*argumentos[i], m.funcoes[fi].params[i + off]));
+        const Tipo ret = m.funcoes[fi].ret;
+        Instr& in = poe(Op::Chama, tok);
+        in.aux = fi;
+        in.args = std::move(args);
+        if (ret == Tipo::Void) return {Operando::boolean(false)};   // sem valor (ExprStmt)
+        in.dst = f->novoTemp(ret);
+        return {Operando::temp(in.dst), ehRef(ret)};
+    }
+
+    Operando self(const Token& tok) {
+        if (self_slot == UINT32_MAX) naoSuportado("self fora de um método (erro interno)", tok);
+        return carrega(self_slot, tok);
+    }
+    // obj.campo (objeto ou struct): uma cópia do campo, com posse
+    Val campo(const Operando& obj, std::uint32_t i, Tipo t, const Token& tok) {
+        const Operando r = chamaRt(Rt::Campo, {embrulha(obj, tok), Operando::i32(static_cast<std::int32_t>(i))}, tok);
+        return desembrulha(r, t, tok);
+    }
+    void gravaCampo(const Operando& obj, std::uint32_t i, const Operando& v, const Token& tok) {
+        chamaRt(Rt::GravaCampo, {embrulha(obj, tok), Operando::i32(static_cast<std::int32_t>(i)), embrulha(v, tok)}, tok);
+    }
+
+    // new Struct(...) / new Classe(...), na ordem do compilador da CVM
+    Val novo(const NewExpr& n) {
+        const Token& tok = n.token;
+        if (auto it = struct_de.find(n.class_name); it != struct_de.end()) {
+            // struct: os campos na ordem — os argumentos, ou os valores iniciais (que só
+            // enxergam os const globais); pelo nome (N5): os informados na ordem escrita,
+            // depois os omitidos
+            const StructDecl& st = *struct_decl[it->second];
+            std::vector<Operando> campos(st.fields.size());
+            auto inicial = [&](std::size_t i) {
+                const auto& c = st.fields[i];
+                campos[i] = embrulha(c.initializer ? expr(*c.initializer) : vazioDe(*c.type, c.token), c.token);
+            };
+            if (!n.arg_fields.empty()) {
+                std::vector<bool> dado(st.fields.size(), false);
+                for (std::size_t i = 0; i < n.arguments.size(); ++i) {
+                    const auto k = static_cast<std::size_t>(n.arg_fields[i]);
+                    campos[k] = embrulha(expr(*n.arguments[i]), tok);
+                    dado[k] = true;
+                }
+                for (std::size_t i = 0; i < st.fields.size(); ++i)
+                    if (!dado[i]) inicial(i);
+            } else if (!n.arguments.empty()) {
+                for (std::size_t i = 0; i < n.arguments.size(); ++i) campos[i] = embrulha(expr(*n.arguments[i]), tok);
+            } else {
+                for (std::size_t i = 0; i < st.fields.size(); ++i) inicial(i);
+            }
+            std::vector<Operando> args{Operando::descStruct(it->second)};
+            args.insert(args.end(), campos.begin(), campos.end());
+            return {chamaRt(Rt::StructNovo, std::move(args), tok), true};
+        }
+        // classe: argumentos → objeto → campos (inicializador) → construtor
+        auto ci = classe_de.find(n.class_name);
+        if (ci == classe_de.end()) naoSuportado("new de '" + n.class_name + "'", tok);
+        const ClassDecl& c = *classe_decl[ci->second];
+        std::vector<Operando> args;
+        if (c.constructor) {
+            const Funcao& ctor = m.funcoes[funcao_de.at(c.constructor.get())];
+            for (std::size_t i = 0; i < n.arguments.size(); ++i) args.push_back(exprTipo(*n.arguments[i], ctor.params[i + 1]));
+        }
+        const Operando o = chamaRt(Rt::ObjNovo, {Operando::descClasse(ci->second)}, tok);   // com posse: o resultado
+        if (auto in = init_de.find(&c); in != init_de.end()) {
+            Instr& ch = poe(Op::Chama, tok);
+            ch.aux = in->second;
+            ch.args = {o};
+        }
+        if (c.constructor) {
+            args.insert(args.begin(), o);
+            Instr& ch = poe(Op::Chama, tok);
+            ch.aux = funcao_de.at(c.constructor.get());
+            ch.args = std::move(args);
+        }
+        return {o, true};
     }
 
     // ── instruções ───────────────────────────────────────────────────────
@@ -766,10 +1023,23 @@ private:
     }
 
     void atribuicao(const AssignStmt& s) {
-        if (s.target->node_kind == NodeKind::IndexAccess) { atribuicaoIndice(s); return; }
-        if (s.target->node_kind != NodeKind::Identifier) naoSuportado("atribuição a campo", s.token);
+        if (s.target->node_kind == NodeKind::IndexAccess || s.target->node_kind == NodeKind::MemberAccess) {
+            atribuicaoLugar(s);
+            return;
+        }
         const auto& id = static_cast<const IdentifierExpr&>(*s.target);
-        if (id.res.kind != Resolution::Kind::Local) naoSuportado("atribuição a campo", s.token);
+        if (id.res.kind == Resolution::Kind::Field) {   // campo do objeto atual
+            const Tipo t = tipoDe(id.resolved_type, s.token);
+            Operando v = s.op == TokenType::OP_ASSIGN ? exprTipo(*s.value, t) : expr(*s.value);
+            if (s.op != TokenType::OP_ASSIGN) {   // o valor atual, lido depois do valor (spec 5.2)
+                const Operando atual_ = emprestado(campo(self(s.token), id.res.slot, t, s.token), s.token);
+                v = emprestado(contaComposta(s.op, t, atual_, v, s.token), s.token);
+            }
+            gravaCampo(self(s.token), id.res.slot, v, s.token);
+            fimInstrucao(s.token);
+            return;
+        }
+        if (id.res.kind != Resolution::Kind::Local) naoSuportado("atribuição a este alvo", s.token);
         const Tipo t = tipoDe(id.resolved_type, s.token);
         const std::uint32_t slot = slotVar(id.res.slot, t);
         if (s.op == TokenType::OP_ASSIGN) {
@@ -801,40 +1071,72 @@ private:
         return {Operando::temp(temp(Op::Arit, t, {atual_, v}, tok, static_cast<std::uint32_t>(compoundBaseOp(op))))};
     }
 
-    // x[i][j] = v, d[k] += v (B5): a ordem da spec 5.2, como o assignPlace da CVM — a base e
-    // os índices da esquerda para a direita, depois o valor; só então o caminho até o lugar
-    // (cada nível intermediário é um list/dict: a mudança vale no objeto compartilhado), o
-    // valor atual (atribuição composta) e a gravação
-    void atribuicaoIndice(const AssignStmt& s) {
+    // x[i].c = v, o.lista[0] += v, self.p.x = v (B5): a ordem da spec 5.2, como o
+    // assignPlace da CVM — a base e os índices da esquerda para a direita, depois o valor;
+    // só então o caminho até o lugar, o valor atual (atribuição composta) e a gravação.
+    // Struct é valor: cada nível que é struct é lido como cópia, alterado e devolvido ao
+    // nível de cima; list, dict e objeto são compartilhados (a mudança vale no lugar). A
+    // base local é o próprio slot (um struct local muda no lugar: o slot é o dono único)
+    void atribuicaoLugar(const AssignStmt& s) {
         const Token& tok = s.token;
-        std::vector<const IndexAccessExpr*> passos;   // da base para o alvo
+        std::vector<const Expr*> passos;   // da base para o alvo (IndexAccess ou MemberAccess)
         const Expr* e = s.target.get();
-        while (e->node_kind == NodeKind::IndexAccess) {
-            passos.insert(passos.begin(), static_cast<const IndexAccessExpr*>(e));
-            e = static_cast<const IndexAccessExpr*>(e)->object.get();
+        while (e->node_kind == NodeKind::IndexAccess || e->node_kind == NodeKind::MemberAccess) {
+            passos.insert(passos.begin(), e);
+            e = e->node_kind == NodeKind::IndexAccess ? static_cast<const IndexAccessExpr*>(e)->object.get()
+                                                      : static_cast<const MemberAccessExpr*>(e)->object.get();
         }
-        if (e->node_kind != NodeKind::Identifier) naoSuportado("atribuição por campo", tok);
-        const auto& id = static_cast<const IdentifierExpr&>(*e);
-        if (id.res.kind != Resolution::Kind::Local && id.res.kind != Resolution::Kind::Global)
-            naoSuportado("atribuição por campo", tok);
-        const Operando base = identificador(id);
-        std::vector<Operando> chaves;
-        for (const auto* p : passos) chaves.push_back(embrulha(expr(*p->index), p->token));
+        auto indiceDoCampo = [](const Expr* p) {
+            return static_cast<std::uint32_t>(static_cast<const MemberAccessExpr*>(p)->field_index);
+        };
+        for (const Expr* p : passos)
+            if (p->node_kind == NodeKind::MemberAccess) {
+                TypeRef ot = static_cast<const MemberAccessExpr*>(p)->object->resolved_type;
+                if (!ot || !(ot->is(TK::Struct) || ot->is(TK::Class))) naoSuportado("atribuição a este membro", p->token);
+            }
+        // a base: um campo do objeto atual é lido depois do valor (e devolvido, se struct)
+        const bool campo_base = e->node_kind == NodeKind::Identifier &&
+                                static_cast<const IdentifierExpr*>(e)->res.kind == Resolution::Kind::Field;
+        const std::uint32_t campo_idx = campo_base ? static_cast<const IdentifierExpr*>(e)->res.slot : 0;
+        const Tipo tb = tipoDe(e->resolved_type, tok);
+        Operando base = campo_base ? Operando{} : expr(*e);
+        std::vector<Operando> chaves(passos.size());
+        for (std::size_t i = 0; i < passos.size(); ++i)
+            if (passos[i]->node_kind == NodeKind::IndexAccess)
+                chaves[i] = embrulha(expr(*static_cast<const IndexAccessExpr*>(passos[i])->index), passos[i]->token);
         const Tipo tt = tipoDe(s.target->resolved_type, tok);
         Operando v = expr(*s.value);
+        if (campo_base) base = emprestado(campo(self(tok), campo_idx, tb, tok), tok);
 
-        Operando nivel = embrulha(base, tok);
-        for (std::size_t i = 0; i + 1 < passos.size(); ++i) {
-            const Operando r = chamaRt(Rt::IndiceLugar, {nivel, chaves[i]}, passos[i]->token);
-            nivel = embrulha(emprestado(desembrulha(r, tipoDe(passos[i]->resolved_type, tok), tok), tok), tok);
-        }
-        const auto* ult = passos.back();
+        auto ler = [&](std::size_t i, const Operando& de) {
+            const Expr* p = passos[i];
+            const Tipo tp = tipoDe(p->resolved_type, tok);
+            if (p->node_kind == NodeKind::IndexAccess) {
+                const Operando r = chamaRt(Rt::IndiceLugar, {embrulha(de, tok), chaves[i]}, p->token);
+                return emprestado(desembrulha(r, tp, tok), tok);
+            }
+            return emprestado(campo(de, indiceDoCampo(p), tp, p->token), tok);
+        };
+        auto gravar = [&](std::size_t i, const Operando& em, const Operando& valor_) {
+            const Expr* p = passos[i];
+            if (p->node_kind == NodeKind::IndexAccess)
+                chamaRt(Rt::GravaIndice, {embrulha(em, tok), chaves[i], embrulha(valor_, tok)}, p->token);
+            else
+                gravaCampo(em, indiceDoCampo(p), valor_, p->token);
+        };
+
+        std::vector<Operando> nivel{base};   // nivel[i]: o valor de que parte o passo i
+        for (std::size_t i = 0; i + 1 < passos.size(); ++i) nivel.push_back(ler(i, nivel[i]));
+        const std::size_t ult = passos.size() - 1;
         if (s.op != TokenType::OP_ASSIGN) {   // o valor atual, lido depois do lado direito
-            const Operando r = chamaRt(Rt::IndiceLugar, {nivel, chaves.back()}, ult->token);
-            const Operando atual_ = emprestado(desembrulha(r, tt, tok), tok);
+            const Operando atual_ = ler(ult, nivel[ult]);
             v = emprestado(contaComposta(s.op, tt, atual_, v, tok), tok);
         }
-        chamaRt(Rt::GravaIndice, {nivel, chaves.back(), embrulha(v, tok)}, ult->token);   // retém o valor
+        gravar(ult, nivel[ult], v);   // a gravação copia (retém, ou clona um struct)
+        // devolve, de dentro para fora, cada nível que é struct
+        for (std::size_t j = ult; j >= 1; --j)
+            if (passos[j - 1]->resolved_type->is(TK::Struct)) gravar(j - 1, nivel[j - 1], nivel[j]);
+        if (campo_base && e->resolved_type->is(TK::Struct)) gravaCampo(self(tok), campo_idx, base, tok);
         fimInstrucao(tok);
     }
 
@@ -1006,6 +1308,7 @@ Modulo gera(const std::vector<Module>& modulos, const GlobalLayout& layout,
 
     std::vector<const FunctionDecl*> funcoes;
     std::vector<const VarDeclStmt*> consts;
+    std::vector<const ClassDecl*> classes;
     for (const auto& s : prog.statements) {
         switch (s->node_kind) {
             case NodeKind::FunctionDecl: {
@@ -1014,22 +1317,33 @@ Modulo gera(const std::vector<Module>& modulos, const GlobalLayout& layout,
                 break;
             }
             case NodeKind::VarDecl: consts.push_back(static_cast<const VarDeclStmt*>(s.get())); break;
+            case NodeKind::StructDecl: {
+                const auto* st = static_cast<const StructDecl*>(s.get());
+                if (st->type_params.empty()) g.registraStruct(*st);   // N5: só as cópias existem
+                break;
+            }
+            case NodeKind::ClassDecl: classes.push_back(static_cast<const ClassDecl*>(s.get())); break;
+            case NodeKind::EnumDecl: g.registraEnum(*static_cast<const EnumDecl*>(s.get())); break;
+            case NodeKind::InterfaceDecl: break;   // as tabelas saem das classes
             case NodeKind::ErrorDecl: break;   // só um nome de tipo: nada a gerar
             default: naoSuportado(nomeDeclaracao(s->node_kind), s->token);
         }
     }
-    for (const auto& s : prog.instancias) {   // N2: cópias das genéricas
-        if (s->node_kind != NodeKind::FunctionDecl) naoSuportado("structs genéricos", s->token);
-        funcoes.push_back(static_cast<const FunctionDecl*>(s.get()));
+    for (const auto& s : prog.instancias) {   // N2/N5: cópias das funções e dos structs genéricos
+        if (s->node_kind == NodeKind::StructDecl) g.registraStruct(*static_cast<const StructDecl*>(s.get()));
+        else funcoes.push_back(static_cast<const FunctionDecl*>(s.get()));
     }
+    for (const auto* c : classes) g.registraClasse(*c);
 
     for (const auto* fn : funcoes) g.declara(*fn);
+    for (const auto* c : classes) g.declaraClasse(*c);
     for (const auto* v : consts) g.declaraGlobal(*v);
     if (!consts.empty()) {
         g.inicializacao(consts);
         g.finalizacao(consts.front()->token);
     }
     for (const auto* fn : funcoes) g.corpo(*fn);
+    for (const auto* c : classes) g.corpoClasse(*c);
     return m;
 }
 
