@@ -1852,6 +1852,108 @@ dados aninhados, que estavam aqui como risco, viraram o P1b e foram corrigidas.)
 
 ---
 
+## Q. Roteiro até a 1.0 (2026-11-19)
+
+**Onde a Cinza está.** Especificação escrita (`spec/`, oito capítulos, com os exemplos executados
+pela suíte); duas implementações permanentes com a mesma semântica — a CVM (`cinza`) e o
+compilador nativo pelo LLVM (`cinzac`) —, as 684 provas da suíte passando nas duas, sem
+vazamento; tipos numéricos rigorosos, structs, classes, interfaces, enums, erros com
+`try`/`finally`, genéricos em funções e structs, módulos, sete módulos nativos; a extensão do VS
+Code no repositório, com teste da gramática.
+
+**O que "1.0" quer dizer aqui: a promessa de estabilidade.** Um programa válido na 1.0 continua
+válido e faz a mesma coisa em toda a 1.x. Por isso a 1.0 vem depois de fechar o núcleo da
+linguagem, e não antes. Até lá continua valendo a regra atual (sem compatibilidade com versões
+antigas: o que muda, muda de vez); a última etapa (Q9) é a que a troca.
+
+**Regras das etapas**, as mesmas de sempre: a suíte verde nos dois backends (`make test`, `make
+test-llvm`, `run_tests.py --cinzac --O2`), um teste para cada correção, a spec atualizada quando a
+linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
+
+- [ ] Q1. Fechar o núcleo da linguagem. **[decidir]**
+  - Q1a. **Classes e interfaces genéricas** (pausadas em 2026-11-15, seção N). Já decidido: tipos
+    sempre escritos (`Pilha[i32]`; `No[T]` dentro da própria classe; o construtor com o nome puro);
+    campo sem valor inicial, em toda classe, obriga um construtor que o atribua no nível de cima
+    antes de ler o campo, chamar método ou usar `self`; só os métodos chamados são conferidos
+    (modelo C++/Zig); `type(p) == Pilha[i32]`; interfaces genéricas entram (`interface
+    Comparavel[T]`); métodos genéricos e restrições (`T: Forma`) ficam fora; struct nunca cumpre
+    interface. Falta responder as oito incoerências levantadas: (1) o que conta como método
+    "usado" — chamado, exigido por uma interface, chamado por um usado; (2) assinaturas
+    conferidas já e corpos só se usados; (3) o parser aceitar qualquer tipo em `new`, `except` e
+    `throw`; (4) valores iniciais sem `self` quando há campo obrigatório; (5) a lista completa da
+    regra do construtor; (6) tirar dos structs a proibição de valor inicial num campo `T`; (7) no
+    máximo uma cópia de cada interface genérica por classe; (8) classe com campo obrigatório do
+    próprio tipo (depende de Q1b).
+  - Q1b. **Ausência de valor.** A Cinza não tem `null` (filosofia); opcionais (`T?`) foram
+    discutidos em 2026-11-15, sem decisão. Entram na 1.0, e como? Ou ficam fora de vez (e uma
+    lista vazia continua sendo o jeito de dizer "nenhum", como em `list<No>`)?
+  - Q1c. **O que fica fora da 1.0 por filosofia**, registrado como decisão para quem chegar:
+    closures e funções como valor (e com elas `map`/`filter` que recebem função), herança, `null`
+    (conforme Q1b), métodos genéricos, restrições nos genéricos, threads. Confirmar a lista.
+  - Q1d. **Limpar as pendências do documento**: os itens da seção E já decididos com a caixa
+    aberta (campo e método com o mesmo nome, `dict.add`, comentário de bloco, expoente nos
+    literais, `7 / 2` num decimal), o P0 aberto (revisão do desenho do backend pelo autor) e o
+    "CVM" da seção D (feito, com outro desenho: seção F).
+  - Q1e. **Varredura final da linguagem**: programas-sonda para cada capítulo da spec, atrás de
+    lacunas e incoerências entre a spec e as duas implementações, como a revisão bruta (E).
+- [ ] Q2. Robustez.
+  - Fuzzing do front-end: nenhuma entrada derruba o `cinza` nem o `cinzac` (um erro interno ou uma
+    queda é defeito), começando por mutações dos programas da suíte.
+  - Teste diferencial com programas gerados: as duas implementações são o oráculo uma da outra
+    (a mesma saída, os mesmos erros, o mesmo stack trace).
+  - ASan/UBSan no `cinzac` e na `libcinzart` (pendente desde o P3: o build de depuração é pelo
+    clang do CLANG64, que liga com a `libc++`).
+  - Limites: programas grandes (milhares de funções, arquivos de 100 mil linhas) — tempo de
+    compilação, memória, a pilha do parser.
+- [ ] Q3. Biblioteca padrão da 1.0. **[decidir o escopo]** Hoje: `Strings`, `Files`, `Math`,
+  `Random`, `Convert`, `Lists`, `Time`. Candidatos: JSON (texto ↔ `dict`/`list`), ambiente e
+  processo (variáveis de ambiente, rodar um comando), pastas (listar, criar, apagar), o que faltar
+  em datas e em texto. Cada função na spec (capítulo 6) com exemplo; as nativas valem nos dois
+  backends sem trabalho a mais. Nada que precise de closure (Q1c).
+- [ ] Q4. Portabilidade.
+  - Linux nos dois backends: a CVM com GCC e Clang; o `cinzac` com o triple do sistema
+    (`LLVMGetDefaultTargetTriple`) no lugar do `x86_64-w64-windows-gnu` fixo em `emissor.cpp`, e
+    o LLVM e o ligador configuráveis (hoje o caminho do MSYS2 está no Makefile).
+  - macOS: **[decidir]** se entra na 1.0.
+  - Integração contínua (GitHub Actions): a suíte nos dois backends, em Windows e Linux, a cada push.
+- [ ] Q5. Distribuição.
+  - Versão: `cinza --version` e `cinzac --version` com a versão da linguagem e do compilador; a
+    spec com a mesma versão.
+  - `cinzac` sem MSYS2 nem `g++` (fora da seção P): ligação pelo `lld`, a `libcinzart`
+    pré-compilada; o pacote do LLVM (hoje ~145 MB de DLLs ao lado do `cinzac`) reduzido —
+    **[decidir]** LLVM estático ou só as DLLs necessárias.
+  - Releases no GitHub: um zip ou instalador para Windows e um pacote para Linux, com o `cinza`,
+    o `cinzac`, a biblioteca e a extensão empacotada (`.vsix`); **[decidir]** publicar a extensão
+    no Marketplace.
+- [ ] Q6. Ferramentas.
+  - Servidor de linguagem (LSP) mínimo, com o front-end de hoje: os erros enquanto se digita;
+    depois ir para a definição, o tipo ao passar o mouse e completar nomes. A extensão passa a
+    usá-lo (hoje ela só colore).
+  - Formatador (`cinza fmt`): **[decidir]** se entra na 1.0, e o estilo.
+  - Fora da 1.0 **[confirmar]**: depurador (informação de depuração no `cinzac`), gerenciador de
+    pacotes (o `czm.mod` continua só o marcador da raiz do projeto).
+- [ ] Q7. Documentação.
+  - O livro (tutorial) reescrito para a linguagem atual, com os exemplos executados pela suíte,
+    como os da spec; ele leva as pendências do livro deste documento (Fase 2.5: o Apêndice A em
+    EBNF; C1: a divisão inteira e o sinal do `%`, a tabela de precedência).
+  - Guia de instalação e de uso dos dois comandos; o README em português e em inglês.
+  - As mensagens de erro (spec, capítulo 7) revistas como referência.
+- [ ] Q8. Prévia pública (0.9). Divulgar como prévia: o que funciona e por que é interessante,
+  que mudanças incompatíveis ainda podem acontecer, o que falta. Um canal de retorno (issues do
+  GitHub). Pelo menos alguns programas reais escritos por outras pessoas; os defeitos e as
+  lacunas que eles mostrarem entram como itens desta seção.
+- [ ] Q9. Congelamento e 1.0. **[decidir]** Um período sem mudança incompatível (a candidata a
+  1.0); a política de compatibilidade da 1.x escrita na spec — o que é estável (sintaxe, tipos,
+  semântica, biblioteca) e o que não é (o texto das mensagens, o desempenho, o bytecode da CVM, a
+  CIR); a regra "sem compatibilidade com versões antigas" sai do CLAUDE.md e da memória do
+  projeto; a tag `v1.0.0` e as notas da versão.
+
+**Ordem sugerida.** Q1 primeiro: sem o núcleo fechado, o resto pode ter de ser refeito. O fuzzing
+do Q2 pode começar já, porque não depende de decisão. Q3 e Q4 podem correr juntos. Q5, Q6 e Q7
+antes da prévia (Q8), e a 1.0 (Q9) só depois de um período de uso real.
+
+---
+
 ## Registro de decisões
 
 | Data | Item | Decisão | Motivo |
