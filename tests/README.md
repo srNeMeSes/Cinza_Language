@@ -44,6 +44,7 @@ código 70 e falha como "vazamento de memória" (`--sem-vazamentos` desliga a co
 | `gc/` | memória: coleta de ciclos, contagem de referências, cadeias longas |
 | `programas/` | programas maiores (rede neural, lista ligada) |
 | `projetos/` | projetos de várias pastas, cada um com `czm.mod` próprio (`crud_contatos/`: CRUD de contatos em arquivo) |
+| `fuzz/` | o fuzzer (`python tests/fuzz/fuzz.py --tempo 300`): mutações dos programas da suíte contra os dois backends; não faz parte do `make test` |
 
 O prefixo do nome (`a5_`, `k3_`, `gen_`...) é o item do `REVISAO_V2.md` que criou o teste.
 

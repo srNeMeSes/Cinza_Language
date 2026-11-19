@@ -1896,6 +1896,12 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
     "CVM" da seção D (feito, com outro desenho: seção F).
   - Q1e. **Varredura final da linguagem**: programas-sonda para cada capítulo da spec, atrás de
     lacunas e incoerências entre a spec e as duas implementações, como a revisão bruta (E).
+  - Q1f. **Sistema de módulos.** O autor considera a modularização confusa (2026-11-19) e quer
+    revê-la antes da 1.0. **[decidir]** Levantar com o autor o que confunde — os nomes completos
+    (`util.texto::soma`) e os apelidos, `pub`, a raiz do projeto (`czm.mod` vazio ou a pasta do
+    principal) e o `CINZA_PATH`, os módulos nativos com `import` obrigatório, o que um módulo pode
+    declarar no nível de cima, a ordem de inicialização dos `const` — e propor um desenho, nos dois
+    backends.
 - [ ] Q2. Robustez.
   - Fuzzing do front-end: nenhuma entrada derruba o `cinza` nem o `cinzac` (um erro interno ou uma
     queda é defeito), começando por mutações dos programas da suíte.
@@ -1905,6 +1911,14 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
     clang do CLANG64, que liga com a `libc++`).
   - Limites: programas grandes (milhares de funções, arquivos de 100 mil linhas) — tempo de
     compilação, memória, a pilha do parser.
+  > Andamento (2026-11-19): o fuzzer `tests/fuzz/fuzz.py` cobre os dois primeiros itens. Mutantes de
+  > 1 a 3 mutações dos programas da suíte (apagar, duplicar, trocar e inserir símbolos e linhas,
+  > enxertar linhas de outro programa, cortar, aninhamento fundo, bytes inválidos e, para o
+  > diferencial, números de borda e operadores da mesma família) rodam no `cinza` (com
+  > `CINZA_VAZAMENTOS=1`) e no `cinzac --emit-cir`; uma amostra é compilada e comparada com a CVM.
+  > Defeito é queda, erro interno, travamento do front-end, vazamento ou diferença entre os
+  > backends; cada um é gravado minimizado (delta debugging por linhas e por símbolos). Primeira
+  > sessão (15 min, 6 trabalhos): 14.550 mutantes, 274 no diferencial, nenhum defeito.
 - [ ] Q3. Biblioteca padrão da 1.0. **[decidir o escopo]** Hoje: `Strings`, `Files`, `Math`,
   `Random`, `Convert`, `Lists`, `Time`. Candidatos: JSON (texto ↔ `dict`/`list`), ambiente e
   processo (variáveis de ambiente, rodar um comando), pastas (listar, criar, apagar), o que faltar
@@ -1919,9 +1933,14 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
 - [ ] Q5. Distribuição.
   - Versão: `cinza --version` e `cinzac --version` com a versão da linguagem e do compilador; a
     spec com a mesma versão.
-  - `cinzac` sem MSYS2 nem `g++` (fora da seção P): ligação pelo `lld`, a `libcinzart`
-    pré-compilada; o pacote do LLVM (hoje ~145 MB de DLLs ao lado do `cinzac`) reduzido —
-    **[decidir]** LLVM estático ou só as DLLs necessárias.
+  - **`cinzac` sem MSYS2 nem `g++`** — decisão do autor (2026-11-19): eliminar as duas
+    dependências como outras linguagens fazem. Rust leva o próprio ligador (`rust-lld`) e as
+    bibliotecas de partida; Zig leva o `lld` e a libc; Go tem um ligador próprio. Para a Cinza: o
+    `lld` junto do `cinzac` (ligado pela `llvm-c`/`lld` como biblioteca, ou um executável ao lado),
+    a `libcinzart` e o que ela precisa do C++ (libstdc++, libgcc, mingw-w64) já compilados e
+    distribuídos com ele, e o `cinzac` sem precisar do MSYS2 para rodar (hoje ele usa ~145 MB de DLLs
+    do LLVM do CLANG64). **[decidir]** LLVM estático ou só as DLLs necessárias; e se o runtime
+    continua em C++ com a libstdc++ estática ou passa a depender só do C.
   - Releases no GitHub: um zip ou instalador para Windows e um pacote para Linux, com o `cinza`,
     o `cinzac`, a biblioteca e a extensão empacotada (`.vsix`); **[decidir]** publicar a extensão
     no Marketplace.
@@ -1942,14 +1961,16 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
   que mudanças incompatíveis ainda podem acontecer, o que falta. Um canal de retorno (issues do
   GitHub). Pelo menos alguns programas reais escritos por outras pessoas; os defeitos e as
   lacunas que eles mostrarem entram como itens desta seção.
-- [ ] Q9. Congelamento e 1.0. **[decidir]** Um período sem mudança incompatível (a candidata a
-  1.0); a política de compatibilidade da 1.x escrita na spec — o que é estável (sintaxe, tipos,
+- [ ] Q9. Congelamento e 1.0. **Decisão do autor (2026-11-19): o congelamento só acontece
+  depois de as classes genéricas (Q1a) estarem implementadas de forma segura e consistente.**
+  Depois disso: um período sem mudança incompatível (a candidata a 1.0); a política de compatibilidade da 1.x escrita na spec — o que é estável (sintaxe, tipos,
   semântica, biblioteca) e o que não é (o texto das mensagens, o desempenho, o bytecode da CVM, a
   CIR); a regra "sem compatibilidade com versões antigas" sai do CLAUDE.md e da memória do
   projeto; a tag `v1.0.0` e as notas da versão.
 
 **Ordem sugerida.** Q1 primeiro: sem o núcleo fechado, o resto pode ter de ser refeito. O fuzzing
-do Q2 pode começar já, porque não depende de decisão. Q3 e Q4 podem correr juntos. Q5, Q6 e Q7
+do Q2 pode começar já, porque não depende de decisão (o autor pediu para começar por ele, em
+2026-11-19). Q3 e Q4 podem correr juntos. Q5, Q6 e Q7
 antes da prévia (Q8), e a 1.0 (Q9) só depois de um período de uso real.
 
 ---
@@ -1993,6 +2014,7 @@ antes da prévia (Q8), e a 1.0 (Q9) só depois de um período de uso real.
 | 2026-10-04 | J2 | `Files.read_bytes(caminho) -> list<int>` e `Files.write_bytes(caminho, list<int>)`, bytes de 0 a 255 (fora disso, `ValueError`). | Decisão do autor da linguagem; formatos binários sem passar por texto UTF-8. |
 | 2026-10-03 | I4 | `menor_int % -1` dá `0` (revê A5); `-0.0` continua `-0` no `print`; decimais extremos continuam em notação científica. | Decisão do autor da linguagem; `x % -1` cabe sempre em `int`. |
 | 2026-10-03 | H3 | `exit([código])`: padrão 0, de 0 a 255; roda os `finally` pendentes e nenhum `except` o captura; encerra o caminho na análise de fluxo. | Decisão do autor da linguagem; 0–255 dá o mesmo resultado em todo sistema. |
+| 2026-11-19 | Q | O congelamento da linguagem (Q9) só depois de as classes genéricas estarem implementadas de forma segura e consistente; o sistema de módulos é revisto antes da 1.0 (Q1f); o `cinzac` deixa de depender do MSYS2 e do `g++`, como outras linguagens fazem (o ligador e o runtime distribuídos com ele, Q5). | Decisões do autor ao ler o roteiro: a 1.0 é a promessa de estabilidade, e as classes genéricas e os módulos ainda podem mudar a linguagem; quem usa o `cinzac` não deve precisar instalar um ambiente de compilação. |
 | 2026-11-19 | P10 | As duas implementações ficam: `cinza` (CVM) roda na hora, `cinzac` (LLVM) gera o executável; toda mudança da linguagem entra nas duas, e a suíte roda nas duas. Campos de objeto e struct com um caminho rápido em linha para os sem referência, no layout da CVM; sem campos tipados nem listas especializadas por enquanto. | Decisão do autor, com as medições do P10: a CVM começa a rodar na hora (o `cinzac` leva ~0,5 s, quase tudo na ligação pelo `g++`); o caminho rápido dá o grosso do ganho (getters 16× a CVM) sem mexer no runtime inteiro. |
 | 2026-11-18 | P | Backend nativo: API em C do LLVM 20 (`llvm-c`); CIR própria entre a AST e o LLVM, com a CVM compilando da AST; contagem de referências não atômica embutida no objeto + coleta de ciclos; erros por retorno explícito com estado de execução encapsulado; CVM mantida até o `cinzac` passar a suíte; `cinza` e `cinzac` separados. Erro lançado no `finally` substitui o fluxo pendente (spec 5.6, como a CVM já fazia). | Decisão do autor depois de duas revisões externas: o LLVM é só backend; posse, erros e o runtime são contratos da Cinza, comuns aos dois backends. |
 | 2026-11-15 | N5 | Structs genéricos (`struct Par[A, B]`), usados sempre com os tipos escritos (`Par[i32, string]`, sem inferência). Em todo struct, campo sem valor inicial é obrigatório na criação (`list`/`dict` nascem vazios); criação também pelo nome, `new Ponto(y: 4)`, omitindo os campos com valor inicial. Um campo do tipo `T` não tem valor inicial. Classes continuam exigindo valor inicial. | Decisão do autor: resolve o campo `T` sem valor possível, mantendo "nenhum struct com campo sem valor"; sem repetir os padrões na criação. |
