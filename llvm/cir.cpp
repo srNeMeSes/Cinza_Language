@@ -51,8 +51,26 @@ const InfoRt& infoRt(Rt r) {
         {"cz_struct_copia",      T::Struct, {T::Struct}, false},
         {"cz_classe_de",         T::I32,   {T::Obj}, false},
         {"cz_tipo_de",           T::Valor, {T::Valor, T::TipoV}, false},
+        {"cz_erro_novo",         T::Erro,  {T::Str, T::Str, T::I32, T::I32, T::I32}, false},
+        {"cz_erro_campo",        T::Valor, {T::Erro, T::I32}, false},
+        {"cz_erro_casa",         T::Bool,  {T::Str}, false},
+        {"cz_pega_erro",         T::Erro,  {}, false},
+        {"cz_lanca",             T::Void,  {T::Erro}, true},
+        {"cz_relanca",           T::Void,  {T::Erro}, true},
     };
     return tabela[static_cast<std::size_t>(r)];
+}
+
+bool podeFalhar(const Instr& in) {
+    switch (in.op) {
+        case Op::Arit: case Op::Neg: case Op::Converte: case Op::ChamaNativa: case Op::ConverteValor:
+        case Op::Chama: case Op::ChamaIface: case Op::ConferePasso:
+            return true;
+        case Op::ChamaRt:
+            return infoRt(static_cast<Rt>(in.aux)).falha;
+        default:
+            return false;
+    }
 }
 
 const char* nomeTipo(Tipo t) {
@@ -73,6 +91,7 @@ const char* nomeTipo(Tipo t) {
         case Tipo::Enum:  return "enum";
         case Tipo::TipoV: return "tipo";
         case Tipo::Desc:  return "desc";
+        case Tipo::Erro:  return "erro";
     }
     return "?";
 }
@@ -192,8 +211,10 @@ std::string texto(const Modulo& m) {
                     case Op::BrC:      out << "brc "; args(); out << ", " << f.blocos[in.alvo].nome << ", "
                                            << f.blocos[in.senao].nome; break;
                     case Op::Ret:      out << "ret"; if (!in.args.empty()) { out << " "; args(); } break;
+                    case Op::RetErro:  out << "ret.erro"; break;
                     case Op::Inalcancavel: out << "inalcançável"; break;
                 }
+                if (podeFalhar(in)) out << "   ! " << f.blocos[in.erro].nome;
                 if (in.pos.line) out << "   ; " << in.pos.line << ":" << in.pos.column;
                 out << "\n";
             }

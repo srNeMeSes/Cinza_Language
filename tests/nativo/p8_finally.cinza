@@ -1,0 +1,31 @@
+// P8: as regras de saída do finally (spec 5.6) no código nativo: um erro lançado no
+// finally substitui o return pendente; um exit no finally substitui o erro pendente; o
+// finally roda no exit de dentro do try. Roda nos dois backends.
+fn substitui() -> i32 {
+  try {
+    return 1;
+  } finally {
+    throw KeyError("do finally");
+  }
+}
+
+fn main() {
+  try {
+    print(substitui());
+  } except (KeyError e) {
+    print("pegou:", e.message);
+  }
+  try {
+    try {
+      throw ValueError("pendente");
+    } finally {
+      print("finally com erro pendente");
+      exit(6);
+    }
+  } except (ValueError e) {
+    print("não chega");
+  }
+}
+// expect: pegou: do finally
+// expect: finally com erro pendente
+// expect-exit: 6

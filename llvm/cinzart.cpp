@@ -130,8 +130,6 @@ extern "C" void cz_inicio(int argc, char** argv) noexcept {
     });
 }
 
-bool morrendo = false;   // cz_morre: o fim por um erro fatal (sem conferir vazamentos)
-
 extern "C" int cz_fim() noexcept {
     int codigo = 0;
     fronteira([&] {
@@ -160,7 +158,7 @@ extern "C" int cz_fim() noexcept {
         }
         literais.clear();
         // CINZA_VAZAMENTOS=1: nenhum objeto do runtime pode sobrar (llvm/DESENHO.md 2.6)
-        if (const char* v = std::getenv("CINZA_VAZAMENTOS"); v && *v && !morrendo && gc_registro.objetos != 0) {
+        if (const char* v = std::getenv("CINZA_VAZAMENTOS"); v && *v && gc_registro.objetos != 0) {
             std::cout.flush();
             std::cerr << "[vazamentos] " << gc_registro.objetos
                       << " objeto(s) do runtime ainda vivo(s) ao sair:";
@@ -274,11 +272,62 @@ extern "C" void cz_conv_valor(CzValor* v, std::uint8_t kind, const CzPos* p) noe
     }, p);
 }
 
-extern "C" void cz_morre() noexcept {
-    // até o P8 o erro não desce pelas funções soltando os slots: o que elas seguram fica
-    // vivo, e a conferência de vazamentos seria falsa
-    morrendo = true;
-    std::exit(cz_fim());
+// ── Erros ─────────────────────────────────────────────────────────────────
+
+extern "C" CzObjeto* cz_erro_novo(CzObjeto* tipo, CzObjeto* msg, std::int32_t arquivo, std::int32_t linha,
+                                  std::int32_t coluna) noexcept {
+    CzObjeto* r = nullptr;
+    fronteira([&] {   // o NEWERROR da CVM: na posição da criação, sem stack trace
+        auto ev     = novo<ErrorValue>();
+        ev->kind    = static_cast<CzString*>(tipo)->texto;
+        ev->message = msg ? static_cast<CzString*>(msg)->texto : std::string();
+        ev->line    = linha;
+        ev->column  = coluna;
+        ev->file_id = arquivo;
+        r = ev.solta();
+    });
+    return r;
+}
+
+extern "C" void cz_erro_campo(CzObjeto* e, std::int32_t qual, CzValor* r) noexcept {
+    *r = Value().entrega();
+    fronteira([&] {   // o ERRFIELD da CVM
+        const auto* ev = static_cast<const ErrorValue*>(e);
+        switch (qual) {
+            case 0:  *r = Value(displayName(ev->kind)).entrega(); break;
+            case 1:  *r = Value(ev->message).entrega(); break;
+            case 2:  *r = Value::i32(static_cast<std::int32_t>(ev->line)).entrega(); break;
+            default: *r = Value::i32(static_cast<std::int32_t>(ev->column)).entrega(); break;
+        }
+    });
+}
+
+extern "C" std::int32_t cz_erro_casa(CzObjeto* tipo) noexcept {
+    const auto* e = static_cast<const ErrorValue*>(cz_exec.erro);
+    if (!e) return 0;
+    const std::string& t = static_cast<CzString*>(tipo)->texto;
+    return t == e->kind || (t == "Error" && e->kind != EXIT_KIND) ? 1 : 0;
+}
+
+extern "C" CzObjeto* cz_pega_erro() noexcept {
+    CzObjeto* e = cz_exec.erro;
+    cz_exec.erro = nullptr;
+    return e;
+}
+
+extern "C" void cz_lanca(CzObjeto* e, const CzPos* p) noexcept {
+    fronteira([&] {   // o THROW da CVM: relançar preserva tipo, posição e stack trace
+        const auto* ev = static_cast<const ErrorValue*>(e);
+        RuntimeError err(ev->kind, ev->message, static_cast<int>(ev->line), static_cast<int>(ev->column),
+                         ev->file_id);
+        err.trace = ev->trace;   // vazio num erro novo: o trace de agora
+        throw err;
+    }, p);
+}
+
+extern "C" void cz_relanca(CzObjeto* e, const CzPos*) noexcept {
+    if (cz_exec.erro) czRelease(cz_exec.erro);
+    cz_exec.erro = e;   // a posse volta ao estado
 }
 
 // ── Posse ─────────────────────────────────────────────────────────────────
@@ -598,6 +647,7 @@ extern "C" void cz_tipo_de(const CzValor* x, const CzValor* estatico, CzValor* r
 }
 
 extern "C" void cz_gc_estatisticas() noexcept {
+    if (cz_exec.erro) return;   // como a CVM: o resumo só sai se a main terminou
     fronteira([&] {
         if (const char* e = std::getenv("CINZA_GC_STATS"); e && *e) {
             gcCollect();

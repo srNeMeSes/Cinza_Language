@@ -1,0 +1,23 @@
+// P8: um erro relançado (throw e) que ninguém pega mantém a posição e o stack trace de
+// onde nasceu, como na CVM. Roda nos dois backends.
+fn fundo(string s) -> i32 {
+  return cast<i32>(s);
+}
+
+fn meio() -> i32 {
+  return fundo("x1");
+}
+
+fn main() {
+  try {
+    print(meio());
+  } except (ValueError e) {
+    print("relançando", e.line);
+    throw e;
+  }
+}
+// expect: relançando 4
+// expect-error: p8_relanca_trace.cinza:4:10: ValueError: cast<i32>("x1")
+// expect-error: em fundo (tests/nativo/p8_relanca_trace.cinza:4)
+// expect-error: em meio (tests/nativo/p8_relanca_trace.cinza:8)
+// expect-error: em main (tests/nativo/p8_relanca_trace.cinza:13)

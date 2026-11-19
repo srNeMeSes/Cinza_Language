@@ -21,6 +21,9 @@
 // P6: list, dict e pair (objetos do runtime, com os elementos como CzValor).
 // P7: structs (valor: guardar uma cópia emprestada a clona), objetos de classe e
 // interface (ponteiro), enum e tipo (CzValor sem referência), métodos e type().
+// P8: erros (llvm/DESENHO.md 5.3). Toda operação que pode falhar leva o bloco tratador
+// (`erro`): com erro pendente depois dela, o fluxo vai para lá — o except de um try da
+// função, ou a saída de erro, que solta os slots e volta ao chamador com o erro.
 // P5: strings e a posse (llvm/DESENHO.md 4.3): um slot de tipo com referência é
 // dono do valor e começa vazio; a tradução escreve cada retem/solta (o emissor não
 // decide nada sobre posse).
@@ -45,6 +48,7 @@ enum class Tipo : std::uint8_t {
     Enum,    // CzValor do enum (descritor e índice), sem referência
     TipoV,   // CzValor de type() e dos literais de tipo, sem referência
     Desc,    // ponteiro para um descritor do runtime (struct, classe)
+    Erro,    // ponteiro para ErrorValue (o erro como valor: except, Tipo("msg"))
 };
 
 inline bool ehInteiro(Tipo t)   { return t == Tipo::I32 || t == Tipo::I64; }
@@ -52,7 +56,7 @@ inline bool ehFlutuante(Tipo t) { return t == Tipo::F32 || t == Tipo::F64; }
 // Tipo com referência (um ponteiro para objeto do runtime, com posse)
 inline bool ehRef(Tipo t) {
     return t == Tipo::Str || t == Tipo::Lista || t == Tipo::Dict || t == Tipo::Par || t == Tipo::Struct ||
-           t == Tipo::Obj;
+           t == Tipo::Obj || t == Tipo::Erro;
 }
 // Representado como um CzValor inteiro (embrulhar não muda nada)
 inline bool ehValorDireto(Tipo t) { return t == Tipo::Valor || t == Tipo::Enum || t == Tipo::TipoV; }
@@ -112,6 +116,7 @@ enum class Op : std::uint8_t {
     Br,            // br alvo
     BrC,           // brc a, alvo, senao
     Ret,           // ret [a]
+    RetErro,       // volta ao chamador com o erro pendente (o valor de retorno não importa)
     Inalcancavel,  // fim de um caminho que o semântico garante que não chega
 };
 
@@ -151,6 +156,12 @@ enum class Rt : std::uint8_t {
     StructCopia,     // struct (struct): a cópia rasa (a regra da cópia de struct da spec 5.1)
     ClasseDe,        // i32 (obj): o índice da classe do objeto
     TipoDe,          // valor (valor x, tipo estático): type(x) (runtimeType)
+    ErroNovo,        // erro (str tipo, str mensagem ou nulo, i32 arquivo, i32 linha, i32 coluna): Tipo("msg")
+    ErroCampo,       // valor (erro, i32 qual): e.kind (0), e.message (1), e.line (2), e.column (3)
+    ErroCasa,        // bool (str tipo): o erro pendente casa com except (Tipo e)? (Error: todos, menos o exit)
+    PegaErro,        // erro (): tira o erro pendente do estado, com posse
+    Lanca,           // void (erro): throw — o erro pendente passa a ser uma cópia dele — falha
+    Relanca,         // void (erro com posse): devolve ao estado um erro tirado dele (o fim do finally) — falha
 };
 struct InfoRt {
     const char*       nome;     // o símbolo em C
@@ -170,6 +181,7 @@ struct Instr {
     std::uint32_t         alvo = 0, senao = 0;   // Br/BrC: os blocos
     Tipo                  tipo = Tipo::Void;     // ConverteValor: o tipo pedido
     Token                 pos;         // a posição do programa (erros, stack trace)
+    std::uint32_t         erro = 0;    // o bloco tratador, se a operação pode falhar
 };
 
 struct Bloco {
@@ -252,6 +264,8 @@ struct Modulo {
 
 // O texto da CIR (cinzac --emit-cir)
 std::string texto(const Modulo& m);
+// A instrução pode deixar erro pendente (e então segue para o bloco `erro`)
+bool podeFalhar(const Instr& in);
 const char* nomeTipo(Tipo t);
 
 }  // namespace cinza::cir

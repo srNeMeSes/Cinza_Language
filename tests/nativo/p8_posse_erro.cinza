@@ -1,0 +1,61 @@
+// P8: posse nos caminhos de erro do código nativo. O erro desce pelas funções soltando
+// os slots de cada uma (locais, parâmetros, temporários da instrução interrompida, o
+// objeto de um new cujo construtor falhou); a suíte roda no modo sem vazamento
+// (CINZA_VAZAMENTOS=1), então sobrar um objeto faz o teste falhar. Roda nos dois backends.
+class Pesado {
+  list<string> dados;
+  string nome = "pesado";
+  pub {
+    Pesado(i32 n) {
+      for (i32 i in range(0, n)) {
+        dados.add(cast<string>(i));
+      }
+      if (n > 3) {
+        throw ValueError("grande demais: " + cast<string>(n));
+      }
+    }
+  }
+}
+
+struct Caixa {
+  list<i32> itens;
+  string rotulo = "c";
+}
+
+fn falha_fundo(i32 nivel, string texto, list<i32> l) -> string {
+  string local = texto + cast<string>(nivel);
+  Caixa cx = new Caixa(itens: l);
+  if (nivel == 0) {
+    return local + cast<string>(l[100]);
+  }
+  return falha_fundo(nivel - 1, local, [nivel]);
+}
+
+fn main() {
+  i32 pegos = 0;
+  for (i32 i in range(0, 2000)) {
+    try {
+      // temporários no meio da expressão interrompida
+      string s = "a" + cast<string>(i) + falha_fundo(3, "x", [1, 2]) + "b";
+      print(s);
+    } except (IndexError e) {
+      pegos += 1;
+    }
+    try {
+      Pesado p = new Pesado(i % 6);
+    } except (ValueError e) {
+      pegos += 1;
+    }
+    try {
+      dict<string, list<string>> d = {{"k", ["v"]}};
+      list<string> v = d["k"];
+      v.add(cast<string>(10 / (i % 2)));
+    } except (ZeroDivisionError e) {
+      pegos += 1;
+    } finally {
+      pegos += 0;
+    }
+  }
+  print(pegos);
+}
+// expect: 3666

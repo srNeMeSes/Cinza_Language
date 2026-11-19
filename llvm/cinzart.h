@@ -176,10 +176,21 @@ void             cz_tipo_de(const cinza::CzValor* x, const cinza::CzValor* estat
 // CINZA_GC_STATS=1: a coleta final e o resumo, como a CVM depois da main
 void             cz_gc_estatisticas() noexcept;
 
-// P4: todo erro é fatal, como um erro não capturado na CVM — relata o erro pendente
-// (ou sai com o código do exit) e encerra o processo. Até o P8 os slots das funções em
-// andamento não são soltos nesse caminho, então a conferência de vazamentos não roda nele
-[[noreturn]] void cz_morre() noexcept;
+// ── Erros (llvm/DESENHO.md 5.3) ───────────────────────────────────────────
+// Tipo("msg"): um erro novo, na posição da chamada (msg nula: sem mensagem)
+cinza::CzObjeto* cz_erro_novo(cinza::CzObjeto* tipo, cinza::CzObjeto* msg, std::int32_t arquivo,
+                              std::int32_t linha, std::int32_t coluna) noexcept;
+// e.kind (0, sem o prefixo de módulo), e.message (1), e.line (2), e.column (3)
+void             cz_erro_campo(cinza::CzObjeto* e, std::int32_t qual, cinza::CzValor* r) noexcept;
+// O erro pendente casa com except (tipo e)? "Error" casa com todos, menos o exit
+std::int32_t     cz_erro_casa(cinza::CzObjeto* tipo) noexcept;
+// Tira o erro pendente do estado (a posse passa a quem chamou)
+cinza::CzObjeto* cz_pega_erro() noexcept;
+// throw e: o erro pendente passa a ser uma cópia de e (a posição dele; o stack trace dele,
+// ou o de agora, se ele ainda não tem)
+CZ_FALHA void    cz_lanca(cinza::CzObjeto* e, const cinza::CzPos* p) noexcept;
+// O fim de um finally com erro pendente: devolve ao estado o erro que cz_pega_erro tirou
+CZ_FALHA void    cz_relanca(cinza::CzObjeto* e, const cinza::CzPos* p) noexcept;
 
 }  // extern "C"
 

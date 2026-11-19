@@ -5,7 +5,8 @@
 // A tradução é mecânica: slots viram alloca (o mem2reg do -O2 os leva a registradores),
 // temporários viram valores SSA, os const globais viram globais internos. Cada operação
 // que pode falhar tem o caminho rápido em linha e, no desvio frio, a chamada ao runtime
-// que refaz a operação pela regra da CVM (a mesma mensagem) e o cz_morre (P4: todo erro
+// que refaz a operação pela regra da CVM (a mesma mensagem) e o desvio para o bloco
+// tratador da instrução (P8: o except de um try ou a saída de erro da função). Antes do P8,
 // é fatal).
 #include "emissor.h"
 #include "cinzart.h"
@@ -67,6 +68,7 @@ std::uint8_t kindDe(cir::Tipo t) {
         case cir::Tipo::Obj:   return kind(Value::Kind::INSTANCE);
         case cir::Tipo::Enum:  return kind(Value::Kind::ENUM);
         case cir::Tipo::TipoV: return kind(Value::Kind::TYPE);
+        case cir::Tipo::Erro:  return kind(Value::Kind::ERROR);
         default:               return kind(Value::Kind::VOID_VAL);
     }
 }
@@ -119,7 +121,7 @@ struct Emissor::Impl {
     std::vector<LLVMValueRef> temps, slots;
     std::vector<LLVMBasicBlockRef> blocos;
     LLVMValueRef quadro{};          // o quadro desta função na sombra da pilha
-    LLVMBasicBlockRef morre{};      // erro pendente depois de uma nativa: cz_morre
+    LLVMBasicBlockRef tratador{};   // o bloco tratador da instrução em tradução
 
     // ── utilitários ──────────────────────────────────────────────────────
     void atributo(LLVMValueRef f, const char* nome) {
@@ -170,7 +172,7 @@ struct Emissor::Impl {
             case cir::Tipo::Str:   return tPtr;
             case cir::Tipo::Valor: return tValor;
             case cir::Tipo::Lista: case cir::Tipo::Dict: case cir::Tipo::Par: return tPtr;
-            case cir::Tipo::Struct: case cir::Tipo::Obj: case cir::Tipo::Desc: return tPtr;
+            case cir::Tipo::Struct: case cir::Tipo::Obj: case cir::Tipo::Desc: case cir::Tipo::Erro: return tPtr;
             case cir::Tipo::Enum: case cir::Tipo::TipoV: return tValor;
         }
         return tVoid;
@@ -299,7 +301,7 @@ struct Emissor::Impl {
             case cir::Tipo::F64:  return LLVMBuildBitCast(b, v, tI64, "");
             case cir::Tipo::Bool: return LLVMBuildZExt(b, v, tI64, "");
             case cir::Tipo::Str: case cir::Tipo::Lista: case cir::Tipo::Dict: case cir::Tipo::Par:
-            case cir::Tipo::Struct: case cir::Tipo::Obj:
+            case cir::Tipo::Struct: case cir::Tipo::Obj: case cir::Tipo::Erro:
                 return LLVMBuildPtrToInt(b, v, tI64, "");
             default:              throw ErroEmissor{"embrulho de um tipo sem valor"};
         }
@@ -312,38 +314,35 @@ struct Emissor::Impl {
             case cir::Tipo::F64:  return LLVMBuildBitCast(b, u, tF64, "");
             case cir::Tipo::Bool: return LLVMBuildICmp(b, LLVMIntNE, u, ci64(0), "");
             case cir::Tipo::Str: case cir::Tipo::Lista: case cir::Tipo::Dict: case cir::Tipo::Par:
-            case cir::Tipo::Struct: case cir::Tipo::Obj:
+            case cir::Tipo::Struct: case cir::Tipo::Obj: case cir::Tipo::Erro:
                 return LLVMBuildIntToPtr(b, u, tPtr, "");
             default:              throw ErroEmissor{"desembrulho para um tipo sem valor"};
         }
     }
 
     // Desvio frio para o caminho de erro: `falha` chama o runtime (que deixa o erro
-    // pendente); depois, cz_morre. O código segue no bloco `ok`.
+    // pendente); depois, o tratador da instrução. O código segue no bloco `ok`.
     template <typename F>
     void seFalha(LLVMValueRef cond, F&& falha) {
         LLVMBasicBlockRef bf = novoBloco("falha"), ok = novoBloco("ok");
         LLVMBuildCondBr(b, cond, bf, ok);
         LLVMPositionBuilderAtEnd(b, bf);
         falha();
-        chamaRt(rt("cz_morre", tVoid, {}, true, true), {});
-        LLVMBuildUnreachable(b);
+        LLVMBuildBr(b, tratador);
         LLVMPositionBuilderAtEnd(b, ok);
     }
-    // Depois de uma chamada ao runtime que pode falhar: erro pendente → cz_morre
+    // Depois de uma chamada que pode falhar: erro pendente → o tratador
     void confereErro() {
-        if (!morre) {
-            LLVMBasicBlockRef aqui = LLVMGetInsertBlock(b);
-            morre = novoBloco("morre");
-            LLVMPositionBuilderAtEnd(b, morre);
-            chamaRt(rt("cz_morre", tVoid, {}, true, true), {});
-            LLVMBuildUnreachable(b);
-            LLVMPositionBuilderAtEnd(b, aqui);
-        }
         LLVMValueRef e = LLVMBuildLoad2(b, tPtr, gExec, "erro");   // o campo 0
         LLVMBasicBlockRef ok = novoBloco("ok");
-        LLVMBuildCondBr(b, LLVMBuildICmp(b, LLVMIntNE, e, LLVMConstNull(tPtr), ""), morre, ok);
+        LLVMBuildCondBr(b, LLVMBuildICmp(b, LLVMIntNE, e, LLVMConstNull(tPtr), ""), tratador, ok);
         LLVMPositionBuilderAtEnd(b, ok);
+    }
+    // Volta com o erro pendente: o valor de retorno não importa (o chamador confere antes)
+    void retornaComErro() {
+        LLVMTypeRef r = LLVMGetReturnType(LLVMGlobalGetValueType(fn));
+        if (LLVMGetTypeKind(r) == LLVMVoidTypeKind) LLVMBuildRetVoid(b);
+        else LLVMBuildRet(b, LLVMGetUndef(r));
     }
 
     LLVMValueRef naoFinito(LLVMValueRef r, LLVMTypeRef t) {
@@ -484,6 +483,7 @@ struct Emissor::Impl {
 
     void instrucao(const cir::Instr& in) {
         using cir::Op;
+        tratador = blocos[in.erro];
         switch (in.op) {
             case Op::Carrega:
                 temps[in.dst] = LLVMBuildLoad2(b, tipo(cf->slots[in.aux]), slots[in.aux], "");
@@ -590,6 +590,7 @@ struct Emissor::Impl {
                 LLVMTypeRef tf = LLVMFunctionType(tipo(t.ret), ps.data(), static_cast<unsigned>(ps.size()), 0);
                 LLVMValueRef r = LLVMBuildCall2(b, tf, fp, args.data(), static_cast<unsigned>(args.size()), "");
                 if (t.ret != cir::Tipo::Void) temps[in.dst] = r;
+                confereErro();
                 break;
             }
             case Op::Chama: {
@@ -600,6 +601,7 @@ struct Emissor::Impl {
                 LLVMValueRef r = LLVMBuildCall2(b, tfns[in.aux], fns[in.aux], args.data(),
                                                 static_cast<unsigned>(args.size()), "");
                 if (cm->funcoes[in.aux].ret != cir::Tipo::Void) temps[in.dst] = r;
+                confereErro();   // a função voltou com erro pendente?
                 break;
             }
             case Op::ConferePasso:
@@ -630,6 +632,14 @@ struct Emissor::Impl {
                 else LLVMBuildRet(b, val(in.args[0]));
                 break;
             case Op::Inalcancavel: LLVMBuildUnreachable(b); break;
+            case Op::RetErro:
+                if (quadro && !cf->oculta) {   // sai da sombra da pilha também no erro
+                    LLVMValueRef pp = LLVMBuildStructGEP2(b, tExec, gExec, 1, "");
+                    LLVMValueRef prof = LLVMBuildLoad2(b, tI32, pp, "prof");
+                    LLVMBuildStore(b, LLVMBuildSub(b, prof, ci32(1), ""), pp);
+                }
+                retornaComErro();
+                break;
         }
     }
 
@@ -724,7 +734,7 @@ struct Emissor::Impl {
         slots.clear();
         blocos.clear();
         quadro = nullptr;
-        morre = nullptr;
+        tratador = nullptr;
 
         LLVMBasicBlockRef entrada = novoBloco("entrada");
         LLVMPositionBuilderAtEnd(be, entrada);
@@ -742,9 +752,14 @@ struct Emissor::Impl {
             // chamada como na CVM (a main conta como a primeira)
             LLVMValueRef pp = LLVMBuildStructGEP2(b, tExec, gExec, 1, "");
             LLVMValueRef prof = LLVMBuildLoad2(b, tI32, pp, "prof");
-            seFalha(LLVMBuildICmp(b, LLVMIntSGE, prof, ci32(CZ_PROFUNDIDADE), "cheia"), [&] {
-                chamaRt(rt("cz_estouro", tVoid, {tPtr}, true), {descs[i]});
-            });
+            // cheia: o StackOverflowError fica pendente e a função volta sem entrar (nada
+            // foi retido ainda); quem chamou confere
+            LLVMBasicBlockRef cheia = novoBloco("cheia"), segue = novoBloco("entra");
+            LLVMBuildCondBr(b, LLVMBuildICmp(b, LLVMIntSGE, prof, ci32(CZ_PROFUNDIDADE), ""), cheia, segue);
+            LLVMPositionBuilderAtEnd(b, cheia);
+            chamaRt(rt("cz_estouro", tVoid, {tPtr}, true), {descs[i]});
+            retornaComErro();
+            LLVMPositionBuilderAtEnd(b, segue);
             LLVMValueRef idx[] = {ci32(0), ci32(3), prof};
             quadro = LLVMBuildInBoundsGEP2(b, tExec, gExec, idx, 3, "quadro");
             LLVMBuildStore(b, descs[i], LLVMBuildStructGEP2(b, tQuadro(), quadro, 0, ""));
@@ -846,8 +861,19 @@ struct Emissor::Impl {
                                       params, ci64(static_cast<std::int64_t>(t.params.size()))});
             LLVMBuildStore(b, r, tipos[i]);
         }
-        if (m.init >= 0) LLVMBuildCall2(b, tfns[m.init], fns[m.init], nullptr, 0, "");
+        LLVMBasicBlockRef roda = LLVMAppendBasicBlockInContext(ctx, f, "roda");
+        LLVMBasicBlockRef termina = LLVMAppendBasicBlockInContext(ctx, f, "termina");
+        if (m.init >= 0) {   // erro na inicialização dos const: a main não roda
+            LLVMBuildCall2(b, tfns[m.init], fns[m.init], nullptr, 0, "");
+            LLVMValueRef e = LLVMBuildLoad2(b, tPtr, gExec, "erro");
+            LLVMBuildCondBr(b, LLVMBuildICmp(b, LLVMIntNE, e, LLVMConstNull(tPtr), ""), termina, roda);
+        } else {
+            LLVMBuildBr(b, roda);
+        }
+        LLVMPositionBuilderAtEnd(b, roda);
         LLVMBuildCall2(b, tfns[m.main], fns[m.main], nullptr, 0, "");
+        LLVMBuildBr(b, termina);
+        LLVMPositionBuilderAtEnd(b, termina);
         chamaRt(rt("cz_gc_estatisticas", tVoid, {}), {});   // CINZA_GC_STATS=1, como a CVM
         if (m.fim >= 0) LLVMBuildCall2(b, tfns[m.fim], fns[m.fim], nullptr, 0, "");
         LLVMBuildRet(b, chamaRt(rt("cz_fim", tI32, {}), {}));

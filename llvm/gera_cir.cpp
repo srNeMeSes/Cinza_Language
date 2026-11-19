@@ -1,7 +1,14 @@
 // AST analisada → CIR. P4: números, bool, funções, if/while/for range, print (e as
 // nativas de valores simples), const globais. P5: strings e a posse. P6: list, dict e
-// pair. P7: structs, classes, interfaces, enums e type(). O resto é NaoSuportado, com a
-// posição: as etapas P8 e P9 (REVISAO_V2.md, seção P) vão ampliando.
+// pair. P7: structs, classes, interfaces, enums e type(). P8: erros — throw, try/except/
+// finally, valores de erro, exit. O resto é NaoSuportado, com a posição: a etapa P9
+// (REVISAO_V2.md, seção P) amplia.
+//
+// Erros (llvm/DESENHO.md 5.3): toda operação que pode falhar leva o bloco tratador do ponto
+// em que está (Instr::erro). Fora de um try é a saída de erro da função, que solta todos
+// os slots donos e volta ao chamador com o erro pendente; o chamador confere depois da
+// chamada. Dentro de um try, a captura: solta os temporários da instrução interrompida e
+// compara o erro com os except, na ordem.
 //
 // A ordem de avaliação e as posições dos erros são as do compilador da CVM
 // (cvm/compiler.cpp): mesma posição de token em cada operação que pode falhar.
@@ -61,7 +68,7 @@ Tipo tipoDe(TypeRef t, const Token& tok) {
         case TK::Class: case TK::Interface: return Tipo::Obj;
         case TK::Enum:   return Tipo::Enum;
         case TK::Type:   return Tipo::TipoV;
-        case TK::Error:  naoSuportado("erros como valor", tok);
+        case TK::Error:  return Tipo::Erro;
         default:         naoSuportado("o tipo '" + t->str() + "'", tok);
     }
 }
@@ -204,6 +211,17 @@ public:
             if (ehRef(f->slots[s]) && s != ret_slot && !slots_temp.count(s)) limpa(s, tok);
         if (ret_slot != UINT32_MAX) poe(Op::Ret, tok).args = {carrega(ret_slot, tok)};
         else poe(Op::Ret, tok);
+        fechaErro(tok);
+    }
+
+    // A saída de erro: solta todos os slots donos — os temporários da instrução que falhou,
+    // as locais, os parâmetros, um retorno pendente de um finally — e volta com o erro
+    void fechaErro(const Token& tok) {
+        entra(bloco_erro);
+        tratadores.clear();
+        for (std::uint32_t s = 0; s < f->slots.size(); ++s)
+            if (ehRef(f->slots[s]) && s != self_emprestado) limpa(s, tok);
+        poe(Op::RetErro, tok);
     }
 
     // O inicializador dos campos de uma classe (classInit da CVM): oculto, com o self
@@ -211,6 +229,7 @@ public:
     void corpoInit(const ClassDecl& c) {
         comeca(init_de.at(&c));
         self_slot = f->novoSlot(Tipo::Obj);
+        self_emprestado = self_slot;   // não é dono: a saída de erro não o solta
         for (std::size_t i = 0; i < c.fields.size(); ++i) {
             const auto& campo = c.fields[i];
             const Operando v = campo.initializer ? expr(*campo.initializer) : vazioDe(*campo.type, campo.token);
@@ -220,6 +239,7 @@ public:
             fimInstrucao(campo.token);
         }
         poe(Op::Ret, c.token);
+        fechaErro(c.token);
     }
 
     // A função oculta que inicializa os const, na ordem em que aparecem
@@ -234,6 +254,7 @@ public:
             in.args = {val};
         }
         poe(Op::Ret, consts.front()->token);
+        fechaErro(consts.front()->token);
     }
 
     // A função oculta que solta os const com referência, depois da main
@@ -254,6 +275,7 @@ public:
             solta(v, tok);
         }
         poe(Op::Ret, tok);
+        fechaErro(tok);
     }
 
 private:
@@ -277,6 +299,22 @@ private:
     std::map<std::pair<std::uint32_t, Tipo>, std::uint32_t> slot_de;         // (slot do B2, tipo) → slot
     struct Laco { std::uint32_t continua, sai; };
     std::vector<Laco> lacos;
+    // erros: a saída de erro da função e a pilha de tratadores (o do topo vale para as
+    // operações emitidas agora)
+    std::uint32_t bloco_erro = 0;
+    std::vector<std::uint32_t> tratadores;
+    std::uint32_t self_emprestado = UINT32_MAX;
+    // try com finally em tradução (desenho 5.3): o motivo pendente (0 normal, 1 return,
+    // 2 break, 3 continue, 4 erro) e o que ele leva
+    struct Finally {
+        std::size_t   lacos;          // lacos.size() quando o try começou
+        std::uint32_t bloco;          // o início do finally
+        std::uint32_t motivo;         // slot i32
+        std::uint32_t valor;          // slot do retorno pendente (UINT32_MAX: função void)
+        std::uint32_t erro;           // slot do erro pendente
+        bool usa_return = false, usa_break = false, usa_continue = false;
+    };
+    std::vector<Finally> finallys;
     // os temporários donos: os da instrução em andamento e os livres (vazios)
     std::vector<std::uint32_t> temps_uso;
     std::map<Tipo, std::vector<std::uint32_t>> temps_livres;   // por tipo
@@ -291,7 +329,11 @@ private:
         slots_temp.clear();
         ret_slot = UINT32_MAX;
         self_slot = UINT32_MAX;
+        self_emprestado = UINT32_MAX;
+        finallys.clear();
         atual = f->novoBloco("b");
+        bloco_erro = f->novoBloco("erro");
+        tratadores = {bloco_erro};
         terminado = false;
     }
 
@@ -368,7 +410,8 @@ private:
         b.instr.emplace_back();
         b.instr.back().op = op;
         b.instr.back().pos = pos;
-        terminado = terminador(op);
+        b.instr.back().erro = tratadores.empty() ? bloco_erro : tratadores.back();
+        terminado = terminador(op) || op == Op::RetErro;
         return b.instr.back();
     }
     std::uint32_t temp(Op op, Tipo t, std::vector<Operando> args, const Token& pos, std::uint32_t aux = 0) {
@@ -575,7 +618,13 @@ private:
                     return {Operando::enumerado(en->second, ma.field_index)};
                 }
                 TypeRef ot = ma.object->resolved_type;
-                if (ot && ot->is(TK::Error)) naoSuportado("campos de erro", e.token);
+                if (ot && ot->is(TK::Error)) {   // e.kind, e.message, e.line, e.column
+                    const Operando o = exprTipo(*ma.object, Tipo::Erro);
+                    const std::string& n = ma.member_name;
+                    const std::int32_t qual = n == "kind" ? 0 : n == "message" ? 1 : n == "line" ? 2 : 3;
+                    return desembrulha(chamaRt(Rt::ErroCampo, {o, Operando::i32(qual)}, e.token),
+                                       tipoDe(e.resolved_type, e.token), e.token);
+                }
                 if (ot && (ot->is(TK::Struct) || ot->is(TK::Class))) {   // objeto ou struct: o índice do campo
                     const Operando o = expr(*ma.object);
                     return campo(o, static_cast<std::uint32_t>(ma.field_index), tipoDe(e.resolved_type, e.token), e.token);
@@ -740,7 +789,12 @@ private:
             return desembrulha(r, Tipo::TipoV, c.token);
         }
         if (c.interpolated) return interpolacao(c);
-        if (!c.native && !c.target) naoSuportado("criação de erro", c.token);
+        if (!c.native && !c.target) {   // Tipo("mensagem"): um erro, na posição da chamada
+            const Operando msg = c.arguments.empty() ? Operando::nulo() : exprTipo(*c.arguments[0], Tipo::Str);
+            return {chamaRt(Rt::ErroNovo, {Operando::literal(m.literal(c.function_name)), msg,
+                                           Operando::i32(c.token.file_id), Operando::i32(c.token.line),
+                                           Operando::i32(c.token.column)}, c.token), true};
+        }
 
         if (c.target) {   // função da Cinza: argumentos emprestados, na ordem; resultado com posse
             auto it = funcao_de.find(c.target);
@@ -783,11 +837,12 @@ private:
                 pedaco = {chamaRt(Rt::Formata, {embrulha(v, tok), Operando::i32(parte.width),
                                                  Operando::i32(parte.precision)}, tok), true};
             }
-            if (i == 0) { acc = pedaco; continue; }
-            const Operando a = emprestado(acc, tok);
-            acc = concatena(a, emprestado(pedaco, tok), tok);
+            // cada pedaço num temporário assim que existe: o seguinte pode falhar
+            if (i == 0) { acc = {emprestado(pedaco, tok)}; continue; }
+            const Operando p = emprestado(pedaco, tok);
+            acc = {emprestado(concatena(acc.o, p, tok), tok)};
         }
-        if (!c.native) return acc;   // format: o texto
+        if (!c.native) return acc;   // format: o texto (emprestado do temporário)
         const Operando texto = emprestado(acc, tok);
         temp(Op::ChamaNativa, Tipo::Valor, {embrulha(texto, tok)}, tok, m.nativa("", c.native->name));
         return {Operando::boolean(false)};
@@ -901,7 +956,9 @@ private:
             const Funcao& ctor = m.funcoes[funcao_de.at(c.constructor.get())];
             for (std::size_t i = 0; i < n.arguments.size(); ++i) args.push_back(exprTipo(*n.arguments[i], ctor.params[i + 1]));
         }
-        const Operando o = chamaRt(Rt::ObjNovo, {Operando::descClasse(ci->second)}, tok);   // com posse: o resultado
+        // o objeto fica num temporário da instrução: se o inicializador ou o construtor
+        // falhar, a saída de erro o solta; o resultado é emprestado dele
+        const Operando o = emprestado({chamaRt(Rt::ObjNovo, {Operando::descClasse(ci->second)}, tok), true}, tok);
         if (auto in = init_de.find(&c); in != init_de.end()) {
             Instr& ch = poe(Op::Chama, tok);
             ch.aux = in->second;
@@ -913,7 +970,7 @@ private:
             ch.aux = funcao_de.at(c.constructor.get());
             ch.args = std::move(args);
         }
-        return {o, true};
+        return {o, false};
     }
 
     // ── instruções ───────────────────────────────────────────────────────
@@ -1000,26 +1057,160 @@ private:
             }
             case NodeKind::Return: {
                 const auto& r = static_cast<const ReturnStmt&>(s);
-                if (r.value) {
-                    const Operando v = posseTipo(*r.value, f->ret);   // o chamador recebe com posse
+                Operando v = Operando::boolean(false);
+                const bool tem = r.value != nullptr;
+                if (tem) {
+                    v = posseTipo(*r.value, f->ret);   // o chamador recebe com posse
                     fimInstrucao(s.token);
-                    grava(ret_slot, v, s.token);
                 }
-                poe(Op::Br, s.token).alvo = saida;
+                retorna(tem, v, s.token);
                 break;
             }
             case NodeKind::Break:
                 if (lacos.empty()) naoSuportado("break fora de laço (erro interno)", s.token);
-                poe(Op::Br, s.token).alvo = lacos.back().sai;
+                quebra(false, s.token);
                 break;
             case NodeKind::Continue:
                 if (lacos.empty()) naoSuportado("continue fora de laço (erro interno)", s.token);
-                poe(Op::Br, s.token).alvo = lacos.back().continua;
+                quebra(true, s.token);
                 break;
-            case NodeKind::Try:   naoSuportado("try/except", s.token);
-            case NodeKind::Throw: naoSuportado("throw", s.token);
+            case NodeKind::Try: tenta(static_cast<const TryStmt&>(s)); break;
+            case NodeKind::Throw: {   // throw e: o erro pendente passa a ser ele (a posição dele)
+                const Operando e = exprTipo(*static_cast<const ThrowStmt&>(s).value, Tipo::Erro);
+                chamaRt(Rt::Lanca, {e}, s.token);
+                poe(Op::Inalcancavel, s.token);
+                break;
+            }
             default:              naoSuportado("esta instrução", s.token);
         }
+    }
+
+    // ── saídas e try (desenho 5.3; o tryStmt da CVM) ─────────────────────
+
+    // return: dentro de um try com finally, guarda o valor e o motivo e vai para o finally
+    // (o despacho no fim dele faz o return de verdade, no contexto de fora)
+    void retorna(bool tem, const Operando& v, const Token& tok) {
+        if (!finallys.empty()) {
+            Finally& fz = finallys.back();
+            if (tem) gravaDono(fz.valor, v, tok);
+            grava(fz.motivo, Operando::i32(1), tok);
+            fz.usa_return = true;
+            poe(Op::Br, tok).alvo = fz.bloco;
+            return;
+        }
+        if (tem) grava(ret_slot, v, tok);
+        poe(Op::Br, tok).alvo = saida;
+    }
+
+    // break/continue: só passa pelo finally se sair do try (o laço é de fora dele)
+    void quebra(bool continua, const Token& tok) {
+        if (!finallys.empty() && finallys.back().lacos == lacos.size()) {
+            Finally& fz = finallys.back();
+            grava(fz.motivo, Operando::i32(continua ? 3 : 2), tok);
+            (continua ? fz.usa_continue : fz.usa_break) = true;
+            poe(Op::Br, tok).alvo = fz.bloco;
+            return;
+        }
+        poe(Op::Br, tok).alvo = continua ? lacos.back().continua : lacos.back().sai;
+    }
+
+    // Os temporários da instrução interrompida por um erro (os das outras estão vazios)
+    void limpaTemporarios(const Token& tok) {
+        for (std::uint32_t s : slots_temp) limpa(s, tok);
+    }
+
+    void tenta(const TryStmt& t) {
+        const Token& tok = t.token;
+        const std::uint32_t fora = tratadores.back();   // o tratador de fora do try
+        const bool tem_finally = t.finally_block != nullptr;
+        if (tem_finally) {
+            Finally fz;
+            fz.lacos  = lacos.size();
+            fz.bloco  = f->novoBloco("finally");
+            fz.motivo = f->novoSlot(Tipo::I32);
+            fz.valor  = f->ret != Tipo::Void ? f->novoSlot(f->ret) : UINT32_MAX;
+            fz.erro   = f->novoSlot(Tipo::Erro);
+            finallys.push_back(fz);
+        }
+        const std::uint32_t captura = f->novoBloco("captura");
+        // o pega-tudo do finally: um erro do try (sem except que case) ou de um except roda o
+        // finally e é relançado no fim dele
+        const std::uint32_t pega_tudo = tem_finally ? f->novoBloco("pegatudo") : 0;
+        const std::uint32_t fim = f->novoBloco("fimtry");
+        auto sair = [&] {   // fim normal do try ou de um except
+            if (tem_finally) {
+                grava(finallys.back().motivo, Operando::i32(0), tok);
+                poe(Op::Br, tok).alvo = finallys.back().bloco;
+            } else {
+                br(fim, tok);
+            }
+        };
+
+        tratadores.push_back(captura);
+        instrucao(*t.body);
+        tratadores.pop_back();
+        if (!terminado) sair();
+
+        // a captura: o erro pendente, comparado com os except na ordem
+        entra(captura);
+        tratadores.push_back(tem_finally ? pega_tudo : fora);
+        limpaTemporarios(tok);
+        for (const ExceptClause& h : t.handlers) {
+            const std::uint32_t corpo_h = f->novoBloco("except"), proximo = f->novoBloco("proximo");
+            const Operando casa = chamaRt(Rt::ErroCasa, {Operando::literal(m.literal(h.type_name))}, h.token);
+            brc(casa, corpo_h, proximo, h.token);
+            entra(corpo_h);
+            gravaDono(slotVar(h.var_slot, Tipo::Erro), chamaRt(Rt::PegaErro, {}, h.token), h.token);
+            instrucao(*h.body);
+            if (!terminado) sair();
+            entra(proximo);
+        }
+        // nenhum casou: o erro continua pendente
+        poe(Op::Br, tok).alvo = tem_finally ? pega_tudo : fora;
+        tratadores.pop_back();
+
+        if (tem_finally) {
+            Finally fz = finallys.back();
+            finallys.pop_back();   // o finally e o despacho são do contexto de fora
+            entra(pega_tudo);
+            limpaTemporarios(tok);
+            gravaDono(fz.erro, chamaRt(Rt::PegaErro, {}, tok), tok);
+            grava(fz.motivo, Operando::i32(4), tok);
+            br(fz.bloco, tok);
+
+            entra(fz.bloco);
+            instrucao(*t.finally_block);
+            if (!terminado) {
+                // o despacho do motivo pendente
+                const Operando motivo = carrega(fz.motivo, tok);
+                auto caso = [&](std::int32_t codigo, auto&& acao) {
+                    const std::uint32_t sim = f->novoBloco("motivo"), nao = f->novoBloco("outro");
+                    const Operando c = Operando::temp(temp(Op::Compara, Tipo::Bool, {motivo, Operando::i32(codigo)}, tok,
+                                                           static_cast<std::uint32_t>(TokenType::OP_EQUAL)));
+                    brc(c, sim, nao, tok);
+                    entra(sim);
+                    acao();
+                    entra(nao);
+                };
+                if (fz.usa_return)
+                    caso(1, [&] {
+                        if (fz.valor == UINT32_MAX) { retorna(false, Operando::boolean(false), tok); return; }
+                        const Operando v = carrega(fz.valor, tok);   // move: o slot fica vazio
+                        if (ehRef(f->slots[fz.valor])) grava(fz.valor, Operando::nulo(), tok);
+                        retorna(true, v, tok);
+                    });
+                if (fz.usa_break) caso(2, [&] { quebra(false, tok); });
+                if (fz.usa_continue) caso(3, [&] { quebra(true, tok); });
+                caso(4, [&] {   // o erro volta ao estado, com a posição e o trace de antes
+                    const Operando e = carrega(fz.erro, tok);
+                    grava(fz.erro, Operando::nulo(), tok);
+                    chamaRt(Rt::Relanca, {e}, tok);
+                    poe(Op::Inalcancavel, tok);
+                });
+                br(fim, tok);
+            }
+        }
+        entra(fim);
     }
 
     void atribuicao(const AssignStmt& s) {
@@ -1279,10 +1470,10 @@ private:
         brc(Operando::temp(acabou), fimb, corpo_, s.token);
         entra(corpo_);
         const Operando ch = chamaRt(Rt::StrCaractere, {texto, i}, s.token);   // com posse
+        gravaDono(iter, ch, s.token);   // antes de qualquer operação que possa falhar
         const Operando len = chamaRt(Rt::StrTamCaractere, {texto, i}, s.token);
         grava(pos, Operando::temp(temp(Op::Arit, Tipo::I64, {i, len}, s.token,
                                        static_cast<std::uint32_t>(TokenType::OP_PLUS))), s.token);
-        gravaDono(iter, ch, s.token);
         lacos.push_back({cabeca, fimb});
         instrucao(*s.body);
         lacos.pop_back();

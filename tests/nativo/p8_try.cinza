@@ -1,0 +1,140 @@
+// P8: try/except/finally e throw no código nativo (cinzac) — erros de runtime e lançados,
+// tipos declarados com error, a ordem dos except e o Error que pega todos, os campos do
+// erro, relançar (mesma posição), try aninhado, return/break/continue passando pelo
+// finally, erro no construtor e erro dentro de um except. Roda nos dois backends.
+error SaldoInsuficiente;
+error Outro;
+
+class Conta {
+  f64 saldo = 0.0ff;
+  pub {
+    Conta(f64 inicial) {
+      if (inicial < 0.0ff) {
+        throw ValueError("saldo inicial negativo");
+      }
+      saldo = inicial;
+    }
+    fn saca(f64 v) {
+      if (v > saldo) {
+        throw SaldoInsuficiente("faltam " + cast<string>(v - saldo));
+      }
+      saldo -= v;
+    }
+  }
+}
+
+fn divide(i32 a, i32 b) -> i32 {
+  return a / b;
+}
+
+fn tenta(i32 b) -> string {
+  try {
+    return "ok " + cast<string>(divide(10, b));
+  } except (ZeroDivisionError e) {
+    return "zero: " + e.message;
+  } finally {
+    print("finally de tenta", b);
+  }
+}
+
+fn laco() -> i32 {
+  i32 n = 0;
+  for (i32 i in range(0, 10)) {
+    try {
+      if (i == 2) {
+        continue;
+      }
+      if (i == 5) {
+        break;
+      }
+      n += i;
+    } finally {
+      n += 100;
+    }
+  }
+  return n;
+}
+
+fn relanca() {
+  try {
+    list<i32> l = [1];
+    print(l[3]);
+  } except (Error e) {
+    print("pegou", e.kind, e.line);
+    throw e;
+  }
+}
+
+fn qual(i32 k) -> string {
+  try {
+    if (k == 0) {
+      throw Outro("o");
+    }
+    if (k == 1) {
+      throw SaldoInsuficiente("s");
+    }
+    return cast<string>(10 / (k - 2));
+  } except (SaldoInsuficiente e) {
+    return "saldo";
+  } except (Outro e) {
+    return "outro";
+  } except (Error e) {
+    return "qualquer " + e.kind;
+  }
+}
+
+fn main() {
+  print(tenta(2), tenta(0));
+  print(laco());
+  Conta c = new Conta(10.0ff);
+  try {
+    c.saca(3.0ff);
+    c.saca(30.0ff);
+    print("não chega");
+  } except (SaldoInsuficiente e) {
+    print("erro:", e.kind, e.message, e.line, e.column);
+  }
+  try {
+    Conta ruim = new Conta(-1.0ff);
+  } except (ValueError e) {
+    print("construtor:", e.message);
+  }
+  try {
+    relanca();
+  } except (IndexError e) {
+    print("de novo:", e.message, e.line);
+  }
+  try {
+    try {
+      i64 x = 9223372036854775807;
+      x += 1;
+    } finally {
+      print("interno");
+    }
+  } except (OverflowError e) {
+    print("externo:", e.message);
+  }
+  // erro dentro de um except vai para o try de fora
+  try {
+    try {
+      throw Outro("primeiro");
+    } except (Outro e) {
+      throw ValueError("dentro do except");
+    }
+  } except (ValueError e) {
+    print("de fora:", e.message);
+  }
+  print(qual(0), qual(1), qual(2), qual(3));
+}
+// expect: finally de tenta 2
+// expect: finally de tenta 0
+// expect: ok 5 zero: divisão por zero
+// expect: 608
+// expect: erro: SaldoInsuficiente faltam 23 19 15
+// expect: construtor: saldo inicial negativo
+// expect: pegou IndexError 61
+// expect: de novo: índice 3 fora dos limites (tamanho: 1) 61
+// expect: interno
+// expect: externo: 9223372036854775807 + 1 excede a faixa de i64 (-9223372036854775808 a 9223372036854775807)
+// expect: de fora: dentro do except
+// expect: outro saldo qualquer ZeroDivisionError 10

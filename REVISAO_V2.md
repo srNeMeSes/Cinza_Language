@@ -1792,8 +1792,25 @@ depois de um debate com duas revisões externas:
   > falhas, 577 passaram (244 como executável nativo, eram 129), 98 ainda não suportados (`try` 67,
   > `import` 23, `throw` 4, `main(args)` 4). Velocidade (bench/, -O2, melhor de 3): `fib` 23 ms
   > (CVM 61), `laco` 23 (153), `objetos` 41 (86), `ciclos` 570 (620).
-- [ ] P8. Erros completos: `throw`, `try`/`except`/`finally`, erros de runtime, stack trace,
-  profundidade de 2000, `exit`.
+- [x] P8. Erros completos: `throw`, `try`/`except`/`finally`, erros de runtime, stack trace,
+  profundidade de 2000, `exit`. — feito em 2026-11-18
+  > Nota: a sombra da pilha, o stack trace e a regra das 2000 chamadas já tinham entrado no P4.
+  > Agora: cada operação que pode falhar leva o bloco tratador (DESENHO 5.3, nota do P8) — o
+  > `except` de um `try` da função ou a saída de erro, que solta os slots e volta ao chamador com
+  > o erro pendente; o chamador confere depois de toda chamada. `try`/`except`/`finally` com a
+  > ordem e o pega-tudo do `tryStmt` da CVM, as saídas `return`/`break`/`continue` pelo
+  > `finally`, `throw`, relançar com a mesma posição e trace, os tipos de `error`, `Tipo("msg")`,
+  > os campos `kind`/`message`/`line`/`column`, o `exit` que roda os `finally` e o erro na
+  > inicialização dos `const`. O `cz_morre` saiu, e com ele a exceção da conferência de
+  > vazamentos: os testes de erro voltam a conferir que nada sobra. **Testes**:
+  > `tests/nativo/p8_try`, `p8_posse_erro` (2000 voltas com erros no meio de expressões, em
+  > funções aninhadas com locais e structs vivos e num construtor), `p8_finally` (as regras da
+  > spec 5.6) e `p8_relanca_trace`, nos dois backends, no modo sem vazamento e com a `libcinzart`
+  > de `CINZA_CONFERE_REFS`; os 22 programas de erro do P4 continuam idênticos à CVM em -O0 e
+  > -O2. 679/679 na CVM; pelo `cinzac` 0 falhas, 652 passaram (319 como executável nativo, eram
+  > 244), 27 ainda não suportados (todos do P9: `import` 23, `main(args)` 4). Velocidade com as
+  > conferências depois das chamadas (bench/, -O2): `fib` 16 ms (CVM 41), `laco` 16 (111),
+  > `objetos` 33 (63), `ciclos` 330 (376).
 - [ ] P9. Módulos, genéricos (as cópias), biblioteca nativa, `input`/`args`/`env`: a suíte
   inteira passa nos dois backends, sem vazamento.
 - [ ] P10. Otimização: `-O2`, eliminar `retain`/`release` desnecessários, não testar erro depois

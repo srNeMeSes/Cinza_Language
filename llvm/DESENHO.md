@@ -375,8 +375,9 @@ o P10 pode afinar sem mudar a semântica:
 - **escopos**: toda saída da função (cada `return` e o fim do corpo) vai para um bloco `saida`
   único, que solta todos os slots donos — os de blocos internos também, por isso uma variável
   de um laço guarda a última string até a função sair (o valor de antes é solto a cada nova
-  gravação). Sem `try` (até o P8) as únicas saídas de escopo que não são da função são
-  `break`/`continue`, e nenhuma delas perde referência com essa regra;
+  gravação). As saídas de escopo que não são da função (`break`/`continue`, e o `except` de
+  um `try`, P8) não perdem referência com essa regra: o que fica nos slots é solto na próxima
+  gravação ou na saída da função;
 - **temporários**: um valor com posse que só é lido (o resultado de `a + b` passado ao
   `print`) vai para um slot temporário da instrução, solto e esvaziado no fim dela; o
   curto-circuito de `and`/`or` deixa o slot vazio quando o lado direito não roda. Um valor com
@@ -509,13 +510,22 @@ a convenção de chamada sem ganho para um programa de uma thread.
   passa a dizer isso explicitamente, sem mudança de comportamento.
 - **No topo:** o `main` gerado chama a `main` da Cinza; com erro pendente, imprime o relato (o
   mesmo formato da CVM: posição, tipo, mensagem, stack trace) e sai com código 1.
-- **Até o P8, todo erro é fatal.** Sem `try`, o tratador de todo ponto é o topo: o desvio frio
-  depois da operação que falhou chama `cz_morre`, que faz o relato do `cz_fim` (ou sai com o
-  código do `exit`) e encerra o processo. É o que um erro não capturado faz na CVM, então a
-  saída é a mesma; programas com `try` continuam "não suportados". O P8 troca o `cz_morre` pelo
-  desvio ao tratador e pelos `release` dos escopos. Enquanto isso, o que as funções em
-  andamento seguram não é solto nesse caminho, e o `cz_morre` desliga a conferência de
-  vazamentos (que acusaria esses objetos); os testes de erro voltam a conferir no P8.
+- **Implementado no P8** (no P4–P7 todo erro era fatal, por um `cz_morre` que não soltava
+  nada). Cada instrução da CIR que pode falhar leva o **bloco tratador** do ponto em que está
+  (`Instr::erro`); o emissor desvia para ele depois do caminho de erro de uma conta, de uma
+  chamada ao runtime que deixou erro pendente e de **toda chamada de função da Cinza** (a
+  função volta com o erro pendente; o valor de retorno não importa). Fora de um `try`, o
+  tratador é a **saída de erro** da função: solta todos os slots donos (os temporários da
+  instrução interrompida, as locais, os parâmetros, um retorno pendente de um `finally`), faz o
+  `sai` e volta (`ret.erro`). Dentro de um `try`, a **captura**: solta os temporários (os das
+  outras instruções estão vazios), compara o erro com os `except` na ordem (`cz_erro_casa`) e o
+  primeiro que casa tira o erro do estado para a variável (`cz_pega_erro`). Um `finally` guarda o
+  motivo pendente num slot (0 normal, 1 `return` com o valor noutro slot, 2 `break`, 3
+  `continue`, 4 erro — o erro tirado do estado num slot) e o despacha no fim, no contexto de
+  fora; o erro volta com `cz_relanca`, o mesmo objeto (mesma posição e trace). O
+  `StackOverflowError` sai do prólogo da função chamada, que volta antes de entrar. Um erro na
+  inicialização dos `const` pula a `main`. A conferência de vazamentos vale de novo também nos
+  programas que terminam com erro, como na CVM.
 - **Fronteira com o C++: nenhuma exceção do C++ escapa de uma função `cz_*`**, qualquer que
   seja. Cada uma termina num bloco que trata, na ordem:
   - `RuntimeError` → vira o erro pendente (o mesmo erro da linguagem que a CVM lançaria);
@@ -649,7 +659,8 @@ vazamentos), `cz_nativa_resolve` (pelo nome do módulo e da função, uma vez na
 `cz_arquivos` (os nomes na ordem dos `file_id` do front-end); o caminho de erro dos números
 (`cz_falha_binaria`, `cz_falha_neg`, `cz_falha_conv`, `cz_falha_passo`), que refaz a operação pelo
 `applyBinaryOp`/`negateOp`/`convertValue` da CVM para a mensagem ser a mesma; `cz_estouro`;
-`cz_conv_valor` (nativas genéricas); `cz_nativa` com a posição; e `cz_morre`. A tabela abaixo é o
+`cz_conv_valor` (nativas genéricas); `cz_nativa` com a posição; e `cz_morre` (que o P8 tirou:
+`cz_erro_novo`, `cz_erro_campo`, `cz_erro_casa`, `cz_pega_erro`, `cz_lanca`, `cz_relanca`). A tabela abaixo é o
 plano das etapas seguintes.
 
 ### 7.2 Grupos
