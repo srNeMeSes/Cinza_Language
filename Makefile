@@ -140,6 +140,11 @@ test-llvm: cinzac
 	./$(CINZAC_BIN) --confere-layout
 	$(PYTHON) tests/run_tests.py --cinzac
 
+# A gramática da extensão do VS Code (editor/vscode): os trechos que ela marca como
+# inválidos nos .cinza do repositório têm de ser os esperados (usa o VS Code instalado)
+test-vscode:
+	$(PYTHON) editor/vscode/teste/conferir.py
+
 # Testa mostrando tokens
 test-tokens: $(TARGET_BIN)
 	@echo "$(GREEN)Executando teste com tokens detalhados...$(NC)"
@@ -176,6 +181,7 @@ help:
 	@echo "  make debug        - Recompila com -O0 -g e sanitizers"
 	@echo "  make cinzac       - Compila o cinzac (backend LLVM) em llvm/bin/"
 	@echo "  make test-llvm    - Roda a suíte pelo cinzac"
+	@echo "  make test-vscode  - Confere a gramática da extensão do VS Code (editor/vscode)"
 	@echo "  make test-tokens  - Mostra tokens detalhados"
 	@echo "  make test-ast     - Mostra AST detalhada"
 	@echo "  make clean        - Remove arquivos compilados"
@@ -183,4 +189,4 @@ help:
 	@echo "  make deps         - Verifica dependências"
 	@echo "  make help         - Mostra esta ajuda"
 
-.PHONY: all clean test test-tokens test-ast rebuild deps help debug cinzac test-llvm
+.PHONY: all clean test test-tokens test-ast rebuild deps help debug cinzac test-llvm test-vscode

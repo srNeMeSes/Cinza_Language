@@ -1,0 +1,865 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Cinza",
+  "scopeName": "source.cinza",
+  "fileTypes": [
+    "cinza"
+  ],
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#import"
+    },
+    {
+      "include": "#declarations"
+    },
+    {
+      "include": "#interpolated-strings"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#invalid-identifiers"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#named-arguments"
+    },
+    {
+      "include": "#member-access"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#constants"
+    },
+    {
+      "include": "#types"
+    },
+    {
+      "include": "#error-types"
+    },
+    {
+      "include": "#native-modules"
+    },
+    {
+      "include": "#function-calls"
+    },
+    {
+      "include": "#const-names"
+    },
+    {
+      "include": "#user-types"
+    },
+    {
+      "include": "#operators"
+    },
+    {
+      "include": "#punctuation"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "comment": "Cinza só tem comentário de linha (spec 1.2)",
+          "name": "comment.line.double-slash.cinza",
+          "begin": "//",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.comment.cinza"
+            }
+          },
+          "end": "$",
+          "patterns": [
+            {
+              "match": "\\b(expect-error|expect-not|expect-exit|expect|args|env|stdin)(:)",
+              "captures": {
+                "1": {
+                  "name": "keyword.other.directive.expect.cinza"
+                },
+                "2": {
+                  "name": "punctuation.separator.cinza"
+                }
+              }
+            },
+            {
+              "name": "keyword.other.todo.cinza",
+              "match": "\\b(TODO|FIXME|XXX|NOTA|OBS)\\b"
+            }
+          ]
+        }
+      ]
+    },
+    "import": {
+      "patterns": [
+        {
+          "comment": "import a.b.c as apelido;",
+          "begin": "\\b(import)\\b",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.control.import.cinza"
+            }
+          },
+          "end": "(;)|(?=$)",
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.terminator.cinza"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "match": "\\b(as)\\s+([A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F]))",
+              "captures": {
+                "1": {
+                  "name": "keyword.control.import.as.cinza"
+                },
+                "2": {
+                  "name": "entity.name.namespace.alias.cinza"
+                }
+              }
+            },
+            {
+              "name": "support.class.module.native.cinza",
+              "match": "\\b(Strings|Files|Math|Random|Convert|Lists|Time)\\b"
+            },
+            {
+              "name": "entity.name.namespace.cinza",
+              "match": "[A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F])"
+            },
+            {
+              "name": "punctuation.accessor.cinza",
+              "match": "\\."
+            }
+          ]
+        }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "comment": "fn nome[T, U](...): função genérica — entre os colchetes, só os parâmetros de tipo",
+          "begin": "\\b(fn)\\s+([A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F]))\\s*(\\[)",
+          "beginCaptures": {
+            "1": {
+              "name": "storage.type.function.cinza"
+            },
+            "2": {
+              "name": "entity.name.function.cinza"
+            },
+            "3": {
+              "name": "punctuation.definition.typeparameters.begin.cinza"
+            }
+          },
+          "end": "\\]",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.typeparameters.end.cinza"
+            }
+          },
+          "patterns": [
+            {
+              "name": "punctuation.separator.comma.cinza",
+              "match": ","
+            },
+            {
+              "name": "entity.name.type.parameter.cinza",
+              "match": "[A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F])"
+            }
+          ]
+        },
+        {
+          "comment": "fn nome(",
+          "match": "\\b(fn)\\s+([A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F]))",
+          "captures": {
+            "1": {
+              "name": "storage.type.function.cinza"
+            },
+            "2": {
+              "name": "entity.name.function.cinza"
+            }
+          }
+        },
+        {
+          "comment": "class Nome : Interface1, apelido.Interface2",
+          "begin": "\\b(class)\\s+([A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F]))",
+          "beginCaptures": {
+            "1": {
+              "name": "storage.type.class.cinza"
+            },
+            "2": {
+              "name": "entity.name.type.class.cinza"
+            }
+          },
+          "end": "(?=\\{)|(?=$)",
+          "patterns": [
+            {
+              "name": "punctuation.separator.inheritance.cinza",
+              "match": ":"
+            },
+            {
+              "name": "punctuation.separator.comma.cinza",
+              "match": ","
+            },
+            {
+              "match": "([A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F]))(\\.)([A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F]))",
+              "captures": {
+                "1": {
+                  "name": "entity.name.namespace.cinza"
+                },
+                "2": {
+                  "name": "punctuation.accessor.cinza"
+                },
+                "3": {
+                  "name": "entity.other.inherited-class.interface.cinza"
+                }
+              }
+            },
+            {
+              "name": "entity.other.inherited-class.interface.cinza",
+              "match": "[A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F])"
+            }
+          ]
+        },
+        {
+          "comment": "struct Nome[T, U] { ... }: struct genérico — entre os colchetes, só os parâmetros de tipo",
+          "begin": "\\b(struct)\\s+([A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F]))\\s*(\\[)",
+          "beginCaptures": {
+            "1": {
+              "name": "storage.type.struct.cinza"
+            },
+            "2": {
+              "name": "entity.name.type.struct.cinza"
+            },
+            "3": {
+              "name": "punctuation.definition.typeparameters.begin.cinza"
+            }
+          },
+          "end": "\\]",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.typeparameters.end.cinza"
+            }
+          },
+          "patterns": [
+            {
+              "name": "punctuation.separator.comma.cinza",
+              "match": ","
+            },
+            {
+              "name": "entity.name.type.parameter.cinza",
+              "match": "[A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F])"
+            }
+          ]
+        },
+        {
+          "match": "\\b(struct)\\s+([A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F]))",
+          "captures": {
+            "1": {
+              "name": "storage.type.struct.cinza"
+            },
+            "2": {
+              "name": "entity.name.type.struct.cinza"
+            }
+          }
+        },
+        {
+          "match": "\\b(interface)\\s+([A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F]))",
+          "captures": {
+            "1": {
+              "name": "storage.type.interface.cinza"
+            },
+            "2": {
+              "name": "entity.name.type.interface.cinza"
+            }
+          }
+        },
+        {
+          "comment": "enum Cor { Vermelho, Verde }",
+          "begin": "\\b(enum)\\s+([A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F]))\\s*(\\{)",
+          "beginCaptures": {
+            "1": {
+              "name": "storage.type.enum.cinza"
+            },
+            "2": {
+              "name": "entity.name.type.enum.cinza"
+            },
+            "3": {
+              "name": "punctuation.section.block.begin.cinza"
+            }
+          },
+          "end": "\\}",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.block.end.cinza"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "name": "punctuation.separator.comma.cinza",
+              "match": ","
+            },
+            {
+              "name": "variable.other.enummember.cinza",
+              "match": "[A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F])"
+            }
+          ]
+        },
+        {
+          "match": "\\b(enum)\\s+([A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F]))",
+          "captures": {
+            "1": {
+              "name": "storage.type.enum.cinza"
+            },
+            "2": {
+              "name": "entity.name.type.enum.cinza"
+            }
+          }
+        },
+        {
+          "comment": "error SaldoInsuficiente;",
+          "match": "\\b(error)\\s+([A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F]))\\s*(?=;)",
+          "captures": {
+            "1": {
+              "name": "storage.type.error.cinza"
+            },
+            "2": {
+              "name": "entity.name.type.error.cinza"
+            }
+          }
+        },
+        {
+          "comment": "new Tipo(...) / new apelido.Tipo(...)",
+          "match": "\\b(new)\\s+(?:([A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F]))(\\.))?([A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F]))",
+          "captures": {
+            "1": {
+              "name": "keyword.operator.new.cinza"
+            },
+            "2": {
+              "name": "entity.name.namespace.cinza"
+            },
+            "3": {
+              "name": "punctuation.accessor.cinza"
+            },
+            "4": {
+              "name": "entity.name.type.cinza"
+            }
+          }
+        },
+        {
+          "comment": "except (Tipo e) / except (apelido.Tipo e)",
+          "match": "\\b(except)\\s*(\\()\\s*(?:([A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F]))(\\.))?([A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F]))\\s+([A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F]))\\s*(\\))",
+          "captures": {
+            "1": {
+              "name": "keyword.control.exception.cinza"
+            },
+            "2": {
+              "name": "punctuation.section.parens.begin.cinza"
+            },
+            "3": {
+              "name": "entity.name.namespace.cinza"
+            },
+            "4": {
+              "name": "punctuation.accessor.cinza"
+            },
+            "5": {
+              "name": "support.type.exception.cinza"
+            },
+            "6": {
+              "name": "variable.parameter.exception.cinza"
+            },
+            "7": {
+              "name": "punctuation.section.parens.end.cinza"
+            }
+          }
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "comment": "strings podem ocupar várias linhas; só os escapes \\n \\t \\r \\\\ \\\" são válidos",
+          "name": "string.quoted.double.cinza",
+          "begin": "\"",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.cinza"
+            }
+          },
+          "end": "\"",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.cinza"
+            }
+          },
+          "patterns": [
+            {
+              "name": "constant.character.escape.cinza",
+              "match": "\\\\[ntr\\\\\"]"
+            },
+            {
+              "name": "invalid.illegal.escape.cinza",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "comment": "1 (i32/i64), 1.5f e 1.f (f32), 1.5ff e 1.ff (f64); com ponto e sem sufixo é erro",
+      "patterns": [
+        {
+          "comment": "fora da faixa: f64 (mais de 1.8e308) e f32 (mais de 3.4e38), pela quantidade de dígitos antes do ponto",
+          "name": "invalid.illegal.numeric.range.cinza",
+          "match": "\\b(?:[0-9]{310,}\\.[0-9]*ff|[0-9]{40,}\\.[0-9]*f)\\b"
+        },
+        {
+          "name": "constant.numeric.float.f64.cinza",
+          "match": "\\b[0-9]+\\.[0-9]*ff\\b"
+        },
+        {
+          "name": "constant.numeric.float.f32.cinza",
+          "match": "\\b[0-9]+\\.[0-9]*f\\b"
+        },
+        {
+          "comment": "1.5 sem f/ff, 1f, 1.5fff: erro de compilação",
+          "name": "invalid.illegal.numeric.cinza",
+          "match": "\\b[0-9]+\\.[0-9]+(?:[A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F]))?\\b|\\b[0-9]+f+\\b"
+        },
+        {
+          "comment": "inteiro fora da faixa de i64 (acima de 9223372036854775808, o mínimo sem o sinal)",
+          "name": "invalid.illegal.numeric.range.cinza",
+          "match": "\\b0*(?:[1-9][0-9]{19,}|9[3-9][0-9]{17}|92[3-9][0-9]{16}|922[4-9][0-9]{15}|9223[4-9][0-9]{14}|92233[8-9][0-9]{13}|922337[3-9][0-9]{12}|9223372[1-9][0-9]{11}|92233720[4-9][0-9]{10}|922337203[7-9][0-9]{9}|9223372036[9-9][0-9]{8}|92233720368[6-9][0-9]{7}|922337203685[5-9][0-9]{6}|9223372036854[8-9][0-9]{5}|92233720368547[8-9][0-9]{4}|922337203685477[6-9][0-9]{3}|9223372036854775[9-9][0-9]{2}|92233720368547758[1-9][0-9]{1}|922337203685477580[9-9]|9223372036854775809)\\b"
+        },
+        {
+          "name": "constant.numeric.integer.cinza",
+          "match": "\\b[0-9]+\\b"
+        }
+      ]
+    },
+    "member-access": {
+      "comment": "Depois de '.', palavra reservada vale como nome (Random.i32, Random.f64)",
+      "patterns": [
+        {
+          "match": "(\\.)\\s*([A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F]))\\s*(?=\\()",
+          "captures": {
+            "1": {
+              "name": "punctuation.accessor.cinza"
+            },
+            "2": {
+              "name": "entity.name.function.member.cinza"
+            }
+          }
+        },
+        {
+          "comment": "apelido.f[i32](...): função genérica de módulo com tipos explícitos",
+          "match": "(\\.)\\s*([A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F]))\\s*(?=\\[[^\\[\\];{}]*\\]\\s*\\()",
+          "captures": {
+            "1": {
+              "name": "punctuation.accessor.cinza"
+            },
+            "2": {
+              "name": "entity.name.function.member.cinza"
+            }
+          }
+        },
+        {
+          "match": "(\\.)\\s*(first|second|kind|message|line|column)\\b",
+          "captures": {
+            "1": {
+              "name": "punctuation.accessor.cinza"
+            },
+            "2": {
+              "name": "support.variable.property.cinza"
+            }
+          }
+        },
+        {
+          "match": "(\\.)\\s*([A-Z][A-Z0-9_]*)\\b(?![a-z])",
+          "captures": {
+            "1": {
+              "name": "punctuation.accessor.cinza"
+            },
+            "2": {
+              "name": "variable.other.constant.cinza"
+            }
+          }
+        },
+        {
+          "match": "(\\.)\\s*([A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F]))",
+          "captures": {
+            "1": {
+              "name": "punctuation.accessor.cinza"
+            },
+            "2": {
+              "name": "variable.other.property.cinza"
+            }
+          }
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.flow.cinza",
+          "match": "\\b(return|break|continue)\\b"
+        },
+        {
+          "name": "keyword.control.conditional.cinza",
+          "match": "\\b(if|else)\\b"
+        },
+        {
+          "name": "keyword.control.loop.cinza",
+          "match": "\\b(while|for|in)\\b"
+        },
+        {
+          "name": "keyword.control.exception.cinza",
+          "match": "\\b(try|except|finally|throw)\\b"
+        },
+        {
+          "name": "keyword.control.import.cinza",
+          "match": "\\b(import|as)\\b"
+        },
+        {
+          "name": "keyword.operator.logical.word.cinza",
+          "match": "\\b(and|or|not)\\b"
+        },
+        {
+          "name": "keyword.operator.new.cinza",
+          "match": "\\bnew\\b"
+        },
+        {
+          "name": "storage.modifier.cinza",
+          "match": "\\b(pub|const)\\b"
+        },
+        {
+          "name": "storage.type.cinza",
+          "match": "\\b(fn|class|struct|enum|interface|error)\\b"
+        },
+        {
+          "name": "variable.language.self.cinza",
+          "match": "\\bself\\b"
+        },
+        {
+          "comment": "cast<T>(valor): conversão explícita entre i32, i64, f32, f64 e string",
+          "name": "keyword.operator.cast.cinza",
+          "match": "\\bcast\\b(?=\\s*<)"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.cinza",
+          "match": "\\b(true|false)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "storage.type.primitive.cinza",
+          "match": "\\b(i32|i64|f32|f64|string|str|bool|void|var)\\b"
+        },
+        {
+          "comment": "list<T>, dict<K, V>, pair<A, B>",
+          "name": "storage.type.generic.cinza",
+          "match": "\\b(list|dict|pair)\\b"
+        }
+      ]
+    },
+    "error-types": {
+      "patterns": [
+        {
+          "name": "support.type.exception.cinza",
+          "match": "\\b(Error|ValueError|IndexError|KeyError|ZeroDivisionError|OverflowError|IOError|StackOverflowError|TypeError)\\b"
+        }
+      ]
+    },
+    "native-modules": {
+      "patterns": [
+        {
+          "name": "support.class.module.native.cinza",
+          "match": "\\b(Strings|Files|Math|Random|Convert|Lists|Time)\\b(?=\\s*\\.)"
+        }
+      ]
+    },
+    "function-calls": {
+      "patterns": [
+        {
+          "comment": "funções embutidas (não são palavras reservadas)",
+          "match": "\\b(print|printf|format|input|range|type|exit)\\s*(?=\\()",
+          "captures": {
+            "1": {
+              "name": "support.function.builtin.cinza"
+            }
+          }
+        },
+        {
+          "comment": "chamada genérica com tipos explícitos: maior[i32](a, b) (os tipos entre os colchetes seguem as regras de tipo)",
+          "match": "\\b([A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F]))\\s*(?=\\[[^\\[\\];{}]*\\]\\s*\\()",
+          "captures": {
+            "1": {
+              "name": "entity.name.function.call.cinza"
+            }
+          }
+        },
+        {
+          "comment": "construtor de erro: Falha(\"msg\")",
+          "match": "\\b([A-Z][A-Za-z0-9_]*)\\s*(?=\\()",
+          "captures": {
+            "1": {
+              "name": "entity.name.type.cinza"
+            }
+          }
+        },
+        {
+          "match": "\\b([A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F]))\\s*(?=\\()",
+          "captures": {
+            "1": {
+              "name": "entity.name.function.call.cinza"
+            }
+          }
+        }
+      ]
+    },
+    "const-names": {
+      "patterns": [
+        {
+          "comment": "convenção: const globais em MAIÚSCULAS (LIMITE, MAX_ITENS)",
+          "name": "variable.other.constant.cinza",
+          "match": "\\b[A-Z][A-Z0-9_]*\\b"
+        }
+      ]
+    },
+    "user-types": {
+      "patterns": [
+        {
+          "comment": "nome de tipo com inicial maiúscula: Pessoa p, list<Ponto>, Cor.Verde",
+          "name": "entity.name.type.cinza",
+          "match": "\\b[A-Z][A-Za-z0-9_]*\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.arrow.cinza",
+          "match": "->"
+        },
+        {
+          "name": "keyword.operator.assignment.compound.cinza",
+          "match": "\\+=|-=|\\*=|/=|%="
+        },
+        {
+          "name": "keyword.operator.comparison.cinza",
+          "match": "==|!=|<=|>="
+        },
+        {
+          "name": "keyword.operator.logical.cinza",
+          "match": "&&|\\|\\||!"
+        },
+        {
+          "name": "keyword.operator.assignment.cinza",
+          "match": "="
+        },
+        {
+          "name": "keyword.operator.relational.cinza",
+          "match": "<|>"
+        },
+        {
+          "name": "keyword.operator.arithmetic.cinza",
+          "match": "\\+|-|\\*|/|%"
+        },
+        {
+          "name": "invalid.illegal.character.cinza",
+          "match": "[@$#`~^?'\\\\]|&|\\|"
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.terminator.cinza",
+          "match": ";"
+        },
+        {
+          "name": "punctuation.separator.comma.cinza",
+          "match": ","
+        },
+        {
+          "name": "punctuation.separator.colon.cinza",
+          "match": ":"
+        },
+        {
+          "name": "punctuation.section.block.cinza",
+          "match": "[{}]"
+        },
+        {
+          "name": "punctuation.section.brackets.cinza",
+          "match": "[\\[\\]]"
+        },
+        {
+          "name": "punctuation.section.parens.cinza",
+          "match": "[()]"
+        }
+      ]
+    },
+    "interpolated-strings": {
+      "comment": "printf(\"...\") e format(\"...\"): só o texto é string; cada {expr} é código, colorido como fora da string",
+      "patterns": [
+        {
+          "begin": "(?<=printf\\(|printf\\( |printf \\(|printf \\( |format\\(|format\\( |format \\(|format \\( )\"",
+          "beginCaptures": {
+            "0": {
+              "name": "string.quoted.double.cinza punctuation.definition.string.begin.cinza"
+            }
+          },
+          "end": "\"",
+          "endCaptures": {
+            "0": {
+              "name": "string.quoted.double.cinza punctuation.definition.string.end.cinza"
+            }
+          },
+          "name": "meta.interpolated-string.cinza",
+          "patterns": [
+            {
+              "name": "string.quoted.double.cinza constant.character.escape.cinza",
+              "match": "\\\\[ntr\\\\\"]"
+            },
+            {
+              "name": "string.quoted.double.cinza invalid.illegal.escape.cinza",
+              "match": "\\\\."
+            },
+            {
+              "comment": "{{ e }} escrevem uma chave",
+              "name": "string.quoted.double.cinza constant.character.escape.brace.cinza",
+              "match": "\\{\\{|\\}\\}"
+            },
+            {
+              "include": "#interpolation"
+            },
+            {
+              "comment": "} sem par: erro de compilação",
+              "name": "invalid.illegal.brace.cinza",
+              "match": "\\}"
+            },
+            {
+              "name": "string.quoted.double.cinza",
+              "match": "[^\"\\\\{}]+"
+            }
+          ],
+          "comment": "começa nas aspas logo depois de printf( ou format( (lookbehind: alternativas de tamanho fixo, permitidas pelo Oniguruma no nível de cima)"
+        }
+      ]
+    },
+    "interpolation": {
+      "comment": "{expr} ou {expr:formato} (largura e casas: {x:8.2f}); sem o }, termina nas aspas do texto (o erro é do compilador)",
+      "begin": "\\{",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.template-expression.begin.cinza"
+        }
+      },
+      "end": "(?:(:)([0-9]*(?:\\.[0-9]+f)?))?(\\})|(?=\")",
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.separator.format.cinza"
+        },
+        "2": {
+          "name": "constant.numeric.format.cinza"
+        },
+        "3": {
+          "name": "punctuation.definition.template-expression.end.cinza"
+        }
+      },
+      "name": "meta.embedded.expression.cinza",
+      "patterns": [
+        {
+          "comment": "texto dentro da expressão: \\\"...\\\"",
+          "name": "string.quoted.double.cinza",
+          "match": "\\\\\"(?:[^\"\\\\]|\\\\[^\"])*\\\\\""
+        },
+        {
+          "include": "#numbers"
+        },
+        {
+          "include": "#member-access"
+        },
+        {
+          "include": "#keywords"
+        },
+        {
+          "include": "#constants"
+        },
+        {
+          "include": "#types"
+        },
+        {
+          "include": "#native-modules"
+        },
+        {
+          "include": "#function-calls"
+        },
+        {
+          "include": "#const-names"
+        },
+        {
+          "include": "#user-types"
+        },
+        {
+          "include": "#operators"
+        },
+        {
+          "name": "punctuation.separator.comma.cinza",
+          "match": ","
+        },
+        {
+          "name": "punctuation.section.brackets.cinza",
+          "match": "[\\[\\]]"
+        },
+        {
+          "name": "punctuation.section.parens.cinza",
+          "match": "[()]"
+        }
+      ]
+    },
+    "named-arguments": {
+      "comment": "new Ponto(y: 4): o nome do campo, logo depois de '(' ou ',' (fatias s[a:b] não entram)",
+      "patterns": [
+        {
+          "match": "(?<=\\(|,)\\s*([A-Za-z_][A-Za-z0-9_]*(?![^\\x00-\\x7F]))\\s*(:)",
+          "captures": {
+            "1": {
+              "name": "variable.other.property.field.cinza"
+            },
+            "2": {
+              "name": "punctuation.separator.field.cinza"
+            }
+          }
+        }
+      ]
+    },
+    "invalid-identifiers": {
+      "comment": "A9: identificadores só em ASCII — 'ação' é erro léxico (a palavra inteira)",
+      "patterns": [
+        {
+          "name": "invalid.illegal.identifier.cinza",
+          "match": "(?<![A-Za-z0-9_])[A-Za-z0-9_]*[^\\x00-\\x7F\\s](?:[A-Za-z0-9_]|[^\\x00-\\x7F\\s])*"
+        }
+      ]
+    }
+  }
+}
