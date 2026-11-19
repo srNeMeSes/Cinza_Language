@@ -1754,7 +1754,24 @@ depois de um debate com duas revisões externas:
   > eram 55), 245 ainda não suportados (struct 49, try 46, class 37, import 23, `type()` 20,
   > list 40). Velocidade: 2 milhões de `cast<string>(i) + ";"` em 452 ms (580 na CVM) — o tempo é
   > do runtime comum aos dois; o `cz_texto` deixou de copiar a string que o `convertValue` cria.
-- [ ] P6. `list`, `dict`, `pair` e a coleta de ciclos.
+- [x] P6. `list`, `dict`, `pair` e a coleta de ciclos. — feito em 2026-11-18
+  > Nota: os três como ponteiros para os objetos do runtime de hoje, com a posse do P5 (DESENHO
+  > 4.4, nota do P6): literais, `first`/`second`, métodos embutidos, leitura e gravação por
+  > índice (aninhadas e compostas, com o caminho e as mensagens do `assignPlace`/`indexPlace` da
+  > CVM), `==` que desce nos elementos, `for` sobre a cópia dos elementos com o alargamento
+  > `i32 → i64`, nativas que recebem e devolvem listas (inclusive as que mudam a lista e as
+  > genéricas, como `Lists.first`), `range` como lista e `list`/`dict` declarados vazios.
+  > **Coleta de ciclos**: sem class ou struct não se forma ciclo na Cinza (nenhum tipo contém a
+  > si mesmo), então ela só tem trabalho a partir do P7; o algoritmo só lê as contagens e os
+  > filhos, e as referências dos slots nativos entram na contagem — nada a mudar nele. **Testes**:
+  > `tests/nativo/p6_colecoes`, `p6_posse` (compartilhamento da spec 5.1, a cópia do `for` da
+  > spec 5.5, return de dentro de um `for` em lista, 5 mil listas/dicts/pares por volta, temporários
+  > aninhados) e dois de erro (`IndexError` na gravação, `KeyError` na gravação de chave nova),
+  > nos dois backends, no modo sem vazamento e com a `libcinzart` de `CINZA_CONFERE_REFS`.
+  > 669/669 na CVM; pelo `cinzac` 0 falhas, 462 passaram (129 como executável nativo, eram 87), 207
+  > ainda não suportados (try 54, struct 49, class 37, `type()` 26, import 23). Velocidade: 2
+  > milhões de `add`, um `for` e 2 milhões de leituras por índice em 184 ms (244 na CVM), depois de
+  > tirar a alocação de um vetor por chamada de método (era 286 ms).
 - [ ] P7. Structs, classes, interfaces e enums.
 - [ ] P8. Erros completos: `throw`, `try`/`except`/`finally`, erros de runtime, stack trace,
   profundidade de 2000, `exit`.

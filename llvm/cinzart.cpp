@@ -312,9 +312,10 @@ void metodo(std::int32_t b, const CzValor* o, std::initializer_list<const CzValo
     *r = Value().entrega();
     fronteira([&] {
         Value obj = Value::empresta(*o);
-        std::vector<Value> vals;
-        for (const CzValor* a : args) vals.push_back(Value::empresta(*a));
-        *r = callBuiltin(static_cast<Builtin>(b), obj, std::span<const Value>(vals.data(), vals.size())).entrega();
+        Value vals[2];   // no máximo dois argumentos (cz_metodo0..2): sem alocar
+        std::size_t n = 0;
+        for (const CzValor* a : args) vals[n++] = Value::empresta(*a);
+        *r = callBuiltin(static_cast<Builtin>(b), obj, std::span<const Value>(vals, n)).entrega();
     }, p);
 }
 
@@ -391,6 +392,79 @@ extern "C" void cz_fatia(const CzValor* s, const CzValor* ini, const CzValor* fi
     fronteira([&] {
         *r = sliceGet(Value::empresta(*s), Value::empresta(*ini), Value::empresta(*fim),
                       Value::empresta(*passo)).entrega();
+    }, p);
+}
+
+// ── list, dict e pair ─────────────────────────────────────────────────────
+
+extern "C" CzObjeto* cz_lista_nova(const CzValor* elems, std::uint64_t n) noexcept {
+    CzObjeto* r = nullptr;
+    fronteira([&] {
+        std::vector<Value> v;
+        v.reserve(static_cast<std::size_t>(n));
+        for (std::uint64_t i = 0; i < n; ++i) v.push_back(Value::empresta(elems[i]));
+        r = makeList(std::move(v)).entrega().u.obj;
+    });
+    return r;
+}
+
+extern "C" CzObjeto* cz_dict_novo(const CzValor* kv, std::uint64_t n) noexcept {
+    CzObjeto* r = nullptr;
+    fronteira([&] {   // como o NEWDICT: na ordem, a última chave repetida vence
+        Value d = makeDict();
+        auto& entries = d.asDict()->entries;
+        for (std::uint64_t i = 0; i + 1 < n; i += 2) entries[Value::empresta(kv[i])] = Value::empresta(kv[i + 1]);
+        r = d.entrega().u.obj;
+    });
+    return r;
+}
+
+extern "C" CzObjeto* cz_par_novo(const CzValor* a, const CzValor* b) noexcept {
+    CzObjeto* r = nullptr;
+    fronteira([&] { r = makePair(Value::empresta(*a), Value::empresta(*b)).entrega().u.obj; });
+    return r;
+}
+
+extern "C" void cz_par_campo(const CzValor* p, std::int32_t qual, CzValor* r) noexcept {
+    *r = Value().entrega();
+    fronteira([&] {
+        const Value par = Value::empresta(*p);
+        *r = Value(qual == 0 ? par.asPair()->first : par.asPair()->second).entrega();
+    });
+}
+
+extern "C" std::int32_t cz_igual(const CzValor* a, const CzValor* b) noexcept {
+    std::int32_t r = 0;
+    fronteira([&] { r = Value::empresta(*a) == Value::empresta(*b) ? 1 : 0; });
+    return r;
+}
+
+extern "C" CzObjeto* cz_elementos(const CzValor* col, const CzPos* p) noexcept {
+    CzObjeto* r = nullptr;
+    fronteira([&] { r = makeList(forElements(Value::empresta(*col))).entrega().u.obj; }, p);
+    return r;
+}
+
+extern "C" std::int64_t cz_lista_tam(CzObjeto* l) noexcept {
+    return static_cast<std::int64_t>(static_cast<CinzaList*>(l)->elements.size());
+}
+
+extern "C" void cz_lista_elem(CzObjeto* l, std::int64_t i, CzValor* r) noexcept {
+    *r = Value(static_cast<CinzaList*>(l)->elements[static_cast<std::size_t>(i)]).entrega();
+}
+
+extern "C" void cz_indice_lugar(const CzValor* o, const CzValor* k, CzValor* r, const CzPos* p) noexcept {
+    *r = Value().entrega();
+    fronteira([&] {
+        Value obj = Value::empresta(*o);   // o mesmo objeto (compartilhado)
+        *r = Value(*indexPlace(obj, Value::empresta(*k))).entrega();
+    }, p);
+}
+
+extern "C" void cz_grava_indice(const CzValor* o, const CzValor* k, const CzValor* v, const CzPos* p) noexcept {
+    fronteira([&] {
+        Value obj = Value::empresta(*o);
+        *indexPlace(obj, Value::empresta(*k)) = Value::empresta(*v);
     }, p);
 }
 

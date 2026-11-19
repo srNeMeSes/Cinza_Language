@@ -1,0 +1,10 @@
+// P6: chave que não existe no código nativo — na leitura e na gravação (que só
+// atualiza: para inserir, .add), o KeyError da regra da CVM. Roda nos dois backends.
+fn main() {
+  dict<string, i32> d = {{"a", 1}};
+  d["a"] += 1;
+  print(d["a"]);
+  d["b"] = 5;
+}
+// expect: 2
+// expect-error: p6_erro_chave.cinza:7:4: KeyError

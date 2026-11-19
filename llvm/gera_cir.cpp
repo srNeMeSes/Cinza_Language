@@ -1,6 +1,7 @@
 // AST analisada → CIR. P4: números, bool, funções, if/while/for range, print (e as
-// nativas de valores simples), const globais. P5: strings e a posse. O resto é
-// NaoSuportado, com a posição: as etapas P6 a P9 (REVISAO_V2.md, seção P) vão ampliando.
+// nativas de valores simples), const globais. P5: strings e a posse. P6: list, dict e
+// pair. O resto é NaoSuportado, com a posição: as etapas P7 a P9 (REVISAO_V2.md, seção P)
+// vão ampliando.
 //
 // A ordem de avaliação e as posições dos erros são as do compilador da CVM
 // (cvm/compiler.cpp): mesma posição de token em cada operação que pode falhar.
@@ -42,7 +43,7 @@ const char* nomeDeclaracao(NodeKind k) {
     }
 }
 
-// O tipo da CIR de um tipo da linguagem (P5: escalares e string)
+// O tipo da CIR de um tipo da linguagem (P6: escalares, string, list, dict e pair)
 Tipo tipoDe(TypeRef t, const Token& tok) {
     if (!t) naoSuportado("expressão sem tipo (erro interno)", tok);
     switch (t->kind) {
@@ -53,11 +54,13 @@ Tipo tipoDe(TypeRef t, const Token& tok) {
         case TK::F32:    return Tipo::F32;
         case TK::F64:    return Tipo::F64;
         case TK::String: return Tipo::Str;
+        case TK::List:   return Tipo::Lista;
+        case TK::Dict:   return Tipo::Dict;
+        case TK::Pair:   return Tipo::Par;
         default:         naoSuportado("o tipo '" + t->str() + "'", tok);
     }
 }
 
-bool ehRef(Tipo t) { return t == Tipo::Str; }
 bool ehNumero(Tipo t) { return ehInteiro(t) || ehFlutuante(t); }
 
 std::uint8_t kindDe(Tipo t) {
@@ -195,7 +198,8 @@ private:
     struct Laco { std::uint32_t continua, sai; };
     std::vector<Laco> lacos;
     // os temporários donos: os da instrução em andamento e os livres (vazios)
-    std::vector<std::uint32_t> temps_uso, temps_livres;
+    std::vector<std::uint32_t> temps_uso;
+    std::map<Tipo, std::vector<std::uint32_t>> temps_livres;   // por tipo
     std::set<std::uint32_t>    slots_temp;
 
     void comeca(std::uint32_t fi) {
@@ -301,10 +305,12 @@ private:
 
     // Um valor com posse que só vai ser lido: fica num temporário da instrução
     Operando emprestado(const Val& v, const Token& tok) {
-        if (v.dono && ehRef(tipoOperando(v.o))) {
+        const Tipo t = tipoOperando(v.o);
+        if (v.dono && ehRef(t)) {
             std::uint32_t s;
-            if (!temps_livres.empty()) { s = temps_livres.back(); temps_livres.pop_back(); }
-            else { s = f->novoSlot(Tipo::Str); slots_temp.insert(s); }
+            auto& livres = temps_livres[t];
+            if (!livres.empty()) { s = livres.back(); livres.pop_back(); }
+            else { s = f->novoSlot(t); slots_temp.insert(s); }
             temps_uso.push_back(s);
             grava(s, v.o, tok);   // o temporário está vazio: nada a soltar
         }
@@ -319,7 +325,7 @@ private:
     void fimInstrucao(const Token& tok) {
         for (std::uint32_t s : temps_uso) {
             limpa(s, tok);
-            temps_livres.push_back(s);
+            temps_livres[f->slots[s]].push_back(s);
         }
         temps_uso.clear();
     }
@@ -389,15 +395,41 @@ private:
             }
             case NodeKind::Cast:       return conversao(static_cast<const CastExpr&>(e));
             case NodeKind::Call:       return chamada(static_cast<const CallExpr&>(e));
-            case NodeKind::IndexAccess: {
+            case NodeKind::IndexAccess: {   // list, dict e string: a regra da CVM (indexGet)
                 const auto& ix = static_cast<const IndexAccessExpr&>(e);
                 if (ix.eh_tipo) naoSuportado("tipo usado como valor", e.token);
-                if (!ix.object->resolved_type || !ix.object->resolved_type->is(TK::String))
-                    naoSuportado("acesso por índice em list e dict", e.token);
                 const Operando o = expr(*ix.object);
                 const Operando k = expr(*ix.index);
                 const Operando r = chamaRt(Rt::Indice, {embrulha(o, e.token), embrulha(k, e.token)}, e.token);
-                return desembrulha(r, Tipo::Str, e.token);
+                return desembrulha(r, tipoDe(e.resolved_type, e.token), e.token);
+            }
+            case NodeKind::ListLiteral: {   // os elementos na ordem do fonte
+                std::vector<Operando> args;
+                for (const auto& el : static_cast<const ListLiteralExpr&>(e).elements)
+                    args.push_back(embrulha(expr(*el), el->token));
+                return {chamaRt(Rt::ListaNova, std::move(args), e.token), true};
+            }
+            case NodeKind::DictLiteral: {   // chave e valor, par a par
+                std::vector<Operando> args;
+                for (const auto& [k, v] : static_cast<const DictLiteralExpr&>(e).pairs) {
+                    args.push_back(embrulha(expr(*k), k->token));
+                    args.push_back(embrulha(expr(*v), v->token));
+                }
+                return {chamaRt(Rt::DictNovo, std::move(args), e.token), true};
+            }
+            case NodeKind::PairLiteral: {
+                const auto& pr = static_cast<const PairLiteralExpr&>(e);
+                const Operando a = embrulha(expr(*pr.first), e.token);
+                const Operando b = embrulha(expr(*pr.second), e.token);
+                return {chamaRt(Rt::ParNovo, {a, b}, e.token), true};
+            }
+            case NodeKind::MemberAccess: {
+                const auto& ma = static_cast<const MemberAccessExpr&>(e);
+                if (ma.enum_decl || !ma.object->resolved_type || !ma.object->resolved_type->is(TK::Pair))
+                    naoSuportado("acesso a membro", e.token);
+                const Operando p = embrulha(expr(*ma.object), e.token);
+                const Operando r = chamaRt(Rt::ParCampo, {p, Operando::i32(ma.member_name == "first" ? 0 : 1)}, e.token);
+                return desembrulha(r, tipoDe(e.resolved_type, e.token), e.token);
             }
             case NodeKind::Slice: {   // na ordem do fonte (spec 5.2); omitida = void
                 const auto& sl = static_cast<const SliceExpr&>(e);
@@ -407,9 +439,6 @@ private:
                 return desembrulha(chamaRt(Rt::Fatia, std::move(args), e.token), Tipo::Str, e.token);
             }
             case NodeKind::MethodCall: return metodo(static_cast<const MethodCallExpr&>(e));
-            case NodeKind::ListLiteral: case NodeKind::DictLiteral: case NodeKind::PairLiteral:
-                naoSuportado("list, dict e pair", e.token);
-            case NodeKind::MemberAccess: naoSuportado("acesso a membro", e.token);
             case NodeKind::New:          naoSuportado("new", e.token);
             case NodeKind::TypeLiteral:  naoSuportado("tipo usado como valor", e.token);
             default:                     naoSuportado("esta expressão", e.token);
@@ -494,6 +523,12 @@ private:
         if (e.op == TokenType::OP_PLUS && texto) return concatena(a, expr(*e.right), e.token);
         const Operando b = exprTipo(*e.right, t);   // o semântico já deu aos dois o mesmo tipo
         const auto op = static_cast<std::uint32_t>(e.op);
+        if (ehRef(t) && t != Tipo::Str) {   // list, dict, pair: o == da CVM, que desce nos elementos
+            const Operando ig = chamaRt(Rt::Igual, {embrulha(a, e.token), embrulha(b, e.token)}, e.token);
+            if (e.op == TokenType::OP_EQUAL) return {ig};
+            if (e.op == TokenType::OP_NOT_EQUAL) return {Operando::temp(temp(Op::Nao, Tipo::Bool, {ig}, e.token))};
+            naoSuportado("este operador em " + std::string(nomeTipo(t)), e.token);
+        }
         if (t == Tipo::Str) {
             switch (e.op) {
                 case TokenType::OP_EQUAL:
@@ -564,7 +599,6 @@ private:
 
         // nativa: cada argumento embrulhado (emprestado), o resultado com posse
         const NativeFn* fn = c.native;
-        if (fn == findPrelude("range")) naoSuportado("range fora do for", c.token);
         std::vector<Operando> args;
         for (const auto& a : c.arguments) args.push_back(embrulha(expr(*a), a->token));
         const Tipo ret = c.resolved_type ? tipoDe(c.resolved_type, c.token) : Tipo::Void;
@@ -606,14 +640,17 @@ private:
         return {Operando::boolean(false)};
     }
 
-    // Método embutido de string (spec 5.7): o objeto avaliado antes dos argumentos
+    // Método embutido de list, dict ou string (spec 5.7): o objeto avaliado antes dos
+    // argumentos; a regra é o callBuiltin da CVM (add e remove mudam o objeto, que é
+    // compartilhado)
     Val metodo(const MethodCallExpr& mc) {
-        if (!mc.object->resolved_type || !mc.object->resolved_type->is(TK::String))
-            naoSuportado(mc.object->resolved_type && (mc.object->resolved_type->is(TK::List) ||
-                                                      mc.object->resolved_type->is(TK::Dict))
-                             ? "métodos de list e dict" : "chamada de método", mc.token);
+        TypeRef ot = mc.object->resolved_type;
+        if (!ot || !(ot->is(TK::String) || ot->is(TK::List) || ot->is(TK::Dict)))
+            naoSuportado("chamada de método", mc.token);
         if (mc.arguments.size() > 2) naoSuportado("método com mais de dois argumentos", mc.token);
-        const Builtin b = builtinFor(Value::Kind::STRING, mc.method_name);
+        const Value::Kind k = ot->is(TK::List) ? Value::Kind::LIST
+                            : ot->is(TK::Dict) ? Value::Kind::DICT : Value::Kind::STRING;
+        const Builtin b = builtinFor(k, mc.method_name);
         std::vector<Operando> args{Operando::i32(static_cast<std::int32_t>(b)),
                                    embrulha(expr(*mc.object), mc.token)};
         for (const auto& a : mc.arguments) args.push_back(embrulha(expr(*a), mc.token));
@@ -633,7 +670,12 @@ private:
             case NodeKind::VarDecl: {
                 const auto& v = static_cast<const VarDeclStmt&>(s);
                 if (v.res.kind != Resolution::Kind::Local) naoSuportado("variável não local (erro interno)", s.token);
-                if (!v.initializer) naoSuportado("list e dict", s.token);
+                if (!v.initializer) {   // list<T> e dict<K, V> nascem vazios
+                    const Tipo t = tipoDe(TypeChecker::fromAst(v.type.get()), s.token);
+                    const Operando vazio = chamaRt(t == Tipo::Dict ? Rt::DictNovo : Rt::ListaNova, {}, s.token);
+                    gravaDono(slotVar(v.res.slot, t), vazio, s.token);
+                    break;
+                }
                 const Tipo t = v.type->kind == Type::Kind::VAR
                                    ? tipoDe(v.initializer->resolved_type, s.token)
                                    : tipoDe(TypeChecker::fromAst(v.type.get()), s.token);
@@ -696,7 +738,7 @@ private:
                 else if (fs.iterable->resolved_type && fs.iterable->resolved_type->is(TK::String))
                     paraTexto(fs);
                 else
-                    naoSuportado("for em list e dict", s.token);
+                    paraColecao(fs);
                 break;
             }
             case NodeKind::Return: {
@@ -724,7 +766,8 @@ private:
     }
 
     void atribuicao(const AssignStmt& s) {
-        if (s.target->node_kind != NodeKind::Identifier) naoSuportado("atribuição a campo ou índice", s.token);
+        if (s.target->node_kind == NodeKind::IndexAccess) { atribuicaoIndice(s); return; }
+        if (s.target->node_kind != NodeKind::Identifier) naoSuportado("atribuição a campo", s.token);
         const auto& id = static_cast<const IdentifierExpr&>(*s.target);
         if (id.res.kind != Resolution::Kind::Local) naoSuportado("atribuição a campo", s.token);
         const Tipo t = tipoDe(id.resolved_type, s.token);
@@ -749,6 +792,94 @@ private:
                                      static_cast<std::uint32_t>(compoundBaseOp(s.op)));
         grava(slot, Operando::temp(r), s.token);
         fimInstrucao(s.token);
+    }
+
+    // a op b, com os valores já avaliados (a conta de uma atribuição composta)
+    Val contaComposta(TokenType op, Tipo t, const Operando& atual_, const Operando& v, const Token& tok) {
+        if (t == Tipo::Str) return concatena(atual_, v, tok);
+        if (!ehNumero(t)) naoSuportado("atribuição composta neste tipo", tok);
+        return {Operando::temp(temp(Op::Arit, t, {atual_, v}, tok, static_cast<std::uint32_t>(compoundBaseOp(op))))};
+    }
+
+    // x[i][j] = v, d[k] += v (B5): a ordem da spec 5.2, como o assignPlace da CVM — a base e
+    // os índices da esquerda para a direita, depois o valor; só então o caminho até o lugar
+    // (cada nível intermediário é um list/dict: a mudança vale no objeto compartilhado), o
+    // valor atual (atribuição composta) e a gravação
+    void atribuicaoIndice(const AssignStmt& s) {
+        const Token& tok = s.token;
+        std::vector<const IndexAccessExpr*> passos;   // da base para o alvo
+        const Expr* e = s.target.get();
+        while (e->node_kind == NodeKind::IndexAccess) {
+            passos.insert(passos.begin(), static_cast<const IndexAccessExpr*>(e));
+            e = static_cast<const IndexAccessExpr*>(e)->object.get();
+        }
+        if (e->node_kind != NodeKind::Identifier) naoSuportado("atribuição por campo", tok);
+        const auto& id = static_cast<const IdentifierExpr&>(*e);
+        if (id.res.kind != Resolution::Kind::Local && id.res.kind != Resolution::Kind::Global)
+            naoSuportado("atribuição por campo", tok);
+        const Operando base = identificador(id);
+        std::vector<Operando> chaves;
+        for (const auto* p : passos) chaves.push_back(embrulha(expr(*p->index), p->token));
+        const Tipo tt = tipoDe(s.target->resolved_type, tok);
+        Operando v = expr(*s.value);
+
+        Operando nivel = embrulha(base, tok);
+        for (std::size_t i = 0; i + 1 < passos.size(); ++i) {
+            const Operando r = chamaRt(Rt::IndiceLugar, {nivel, chaves[i]}, passos[i]->token);
+            nivel = embrulha(emprestado(desembrulha(r, tipoDe(passos[i]->resolved_type, tok), tok), tok), tok);
+        }
+        const auto* ult = passos.back();
+        if (s.op != TokenType::OP_ASSIGN) {   // o valor atual, lido depois do lado direito
+            const Operando r = chamaRt(Rt::IndiceLugar, {nivel, chaves.back()}, ult->token);
+            const Operando atual_ = emprestado(desembrulha(r, tt, tok), tok);
+            v = emprestado(contaComposta(s.op, tt, atual_, v, tok), tok);
+        }
+        chamaRt(Rt::GravaIndice, {nivel, chaves.back(), embrulha(v, tok)}, ult->token);   // retém o valor
+        fimInstrucao(tok);
+    }
+
+    // for (T x in lista/dict): os elementos copiados no início (spec 5.5; o FORPREP da
+    // CVM), percorridos por índice; for (i64 x in list<i32>) alarga cada um
+    void paraColecao(const ForStmt& s) {
+        TypeRef ct = s.iterable->resolved_type;
+        if (!ct || !(ct->is(TK::List) || ct->is(TK::Dict))) naoSuportado("for neste tipo", s.token);
+        const Tipo te = ct->is(TK::Dict) ? Tipo::Par : tipoDe(ct->params[0], s.token);   // o elemento
+        const Tipo ti = s.widen_to ? tipoDe(s.widen_to, s.token)
+                      : s.type_iterator->kind == Type::Kind::VAR ? te
+                      : tipoDe(TypeChecker::fromAst(s.type_iterator.get()), s.token);
+        const std::uint32_t col = f->novoSlot(Tipo::Lista), idx = f->novoSlot(Tipo::I64);
+        const Operando c0 = embrulha(expr(*s.iterable), s.token);
+        gravaDono(col, chamaRt(Rt::Elementos, {c0}, s.token), s.token);
+        fimInstrucao(s.token);
+        grava(idx, Operando::i64(0), s.token);
+        const std::uint32_t iter = slotVar(s.iter_slot, ti);
+
+        const std::uint32_t cabeca = f->novoBloco("paracol");
+        const std::uint32_t corpo_ = f->novoBloco("corpo");
+        const std::uint32_t fimb = f->novoBloco("fimparacol");
+        br(cabeca, s.token);
+        entra(cabeca);
+        const Operando lista = carrega(col, s.token);
+        const Operando i = carrega(idx, s.token);
+        const Operando n = chamaRt(Rt::ListaTam, {lista}, s.token);
+        const std::uint32_t acabou = temp(Op::Compara, Tipo::Bool, {i, n}, s.token,
+                                          static_cast<std::uint32_t>(TokenType::OP_GREATER_EQUAL));
+        brc(Operando::temp(acabou), fimb, corpo_, s.token);
+        entra(corpo_);
+        Operando el = desembrulha(chamaRt(Rt::ListaElem, {lista, i}, s.token), te, s.token).o;   // com posse
+        if (ti != te) {
+            if (!ehNumero(ti) || !ehNumero(te)) naoSuportado("for com conversão (erro interno)", s.token);
+            el = Operando::temp(temp(Op::Converte, ti, {el}, s.token));
+        }
+        gravaDono(iter, el, s.token);
+        grava(idx, Operando::temp(temp(Op::Arit, Tipo::I64, {i, Operando::i64(1)}, s.token,
+                                       static_cast<std::uint32_t>(TokenType::OP_PLUS))), s.token);
+        lacos.push_back({cabeca, fimb});
+        instrucao(*s.body);
+        lacos.pop_back();
+        br(cabeca, s.token);
+        entra(fimb);
+        limpa(col, s.token);
     }
 
     // for (T i in range(ini, fim[, passo])): conta direto, como o FORRANGE da CVM — o

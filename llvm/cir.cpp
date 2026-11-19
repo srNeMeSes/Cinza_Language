@@ -34,6 +34,16 @@ const InfoRt& infoRt(Rt r) {
         {"cz_metodo0",           T::Valor, {T::I32, T::Valor}, true},
         {"cz_metodo1",           T::Valor, {T::I32, T::Valor, T::Valor}, true},
         {"cz_metodo2",           T::Valor, {T::I32, T::Valor, T::Valor, T::Valor}, true},
+        {"cz_lista_nova",        T::Lista, {}, false, true},
+        {"cz_dict_novo",         T::Dict,  {}, false, true},
+        {"cz_par_novo",          T::Par,   {T::Valor, T::Valor}, false},
+        {"cz_par_campo",         T::Valor, {T::Valor, T::I32}, false},
+        {"cz_igual",             T::Bool,  {T::Valor, T::Valor}, false},
+        {"cz_elementos",         T::Lista, {T::Valor}, true},
+        {"cz_lista_tam",         T::I64,   {T::Lista}, false},
+        {"cz_lista_elem",        T::Valor, {T::Lista, T::I64}, false},
+        {"cz_indice_lugar",      T::Valor, {T::Valor, T::Valor}, true},
+        {"cz_grava_indice",      T::Void,  {T::Valor, T::Valor, T::Valor}, true},
     };
     return tabela[static_cast<std::size_t>(r)];
 }
@@ -48,6 +58,9 @@ const char* nomeTipo(Tipo t) {
         case Tipo::F64:   return "f64";
         case Tipo::Str:   return "str";
         case Tipo::Valor: return "valor";
+        case Tipo::Lista: return "lista";
+        case Tipo::Dict:  return "dict";
+        case Tipo::Par:   return "par";
     }
     return "?";
 }

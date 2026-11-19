@@ -139,6 +139,23 @@ CZ_FALHA void cz_metodo1(std::int32_t b, const cinza::CzValor* o, const cinza::C
 CZ_FALHA void cz_metodo2(std::int32_t b, const cinza::CzValor* o, const cinza::CzValor* a,
                          const cinza::CzValor* x, cinza::CzValor* r, const cinza::CzPos* p) noexcept;
 
+// ── list, dict e pair (as regras da CVM: operacoes.cpp) ────────────────────
+// Os elementos são CzValor copiados (retain); objetos devolvidos com posse.
+cinza::CzObjeto* cz_lista_nova(const cinza::CzValor* elems, std::uint64_t n) noexcept;
+cinza::CzObjeto* cz_dict_novo(const cinza::CzValor* chaves_valores, std::uint64_t n) noexcept;   // n: quantos CzValor (2 por item)
+cinza::CzObjeto* cz_par_novo(const cinza::CzValor* a, const cinza::CzValor* b) noexcept;
+void             cz_par_campo(const cinza::CzValor* p, std::int32_t qual, cinza::CzValor* r) noexcept;
+std::int32_t     cz_igual(const cinza::CzValor* a, const cinza::CzValor* b) noexcept;
+// A cópia dos elementos de um for (forElements: lista; dict em pares, na ordem das chaves)
+CZ_FALHA cinza::CzObjeto* cz_elementos(const cinza::CzValor* col, const cinza::CzPos* p) noexcept;
+std::int64_t     cz_lista_tam(cinza::CzObjeto* l) noexcept;
+void             cz_lista_elem(cinza::CzObjeto* l, std::int64_t i, cinza::CzValor* r) noexcept;
+// O lugar obj[k] para gravar (indexPlace: list com índice válido, dict com chave que existe)
+CZ_FALHA void cz_indice_lugar(const cinza::CzValor* o, const cinza::CzValor* k, cinza::CzValor* r,
+                              const cinza::CzPos* p) noexcept;
+CZ_FALHA void cz_grava_indice(const cinza::CzValor* o, const cinza::CzValor* k, const cinza::CzValor* v,
+                              const cinza::CzPos* p) noexcept;
+
 // P4: todo erro é fatal, como um erro não capturado na CVM — relata o erro pendente
 // (ou sai com o código do exit) e encerra o processo. Até o P8 os slots das funções em
 // andamento não são soltos nesse caminho, então a conferência de vazamentos não roda nele

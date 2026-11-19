@@ -1,0 +1,78 @@
+// P6: posse com list, dict e pair no código nativo. A suíte roda no modo sem vazamento
+// (CINZA_VAZAMENTOS=1): sobrar uma lista, um dict, um par ou uma string faz o teste
+// falhar. Também a semântica de compartilhamento (spec 5.1: atribuir uma lista não a
+// copia) e a cópia do for (spec 5.5). Roda nos dois backends.
+
+// a lista recebida é a mesma do chamador
+fn acrescenta(list<string> l, string s) {
+  l.add(s + s);
+}
+
+// return de dentro de um for em lista, com locais vivas
+fn primeiro_par(list<i32> l) -> list<i32> {
+  for (i32 x in l) {
+    list<i32> achado = [x, x * 2];
+    if (x % 2 == 0) {
+      return achado;
+    }
+  }
+  list<i32> nada;
+  return nada;
+}
+
+fn conta_palavras(string texto) -> dict<string, i32> {
+  dict<string, i32> c;
+  string atual = "";
+  for (string ch in texto + " ") {
+    if (ch == " ") {
+      if (atual != "") {
+        if (c.has(atual)) {
+          c[atual] += 1;
+        } else {
+          c.add({atual, 1});
+        }
+      }
+      atual = "";
+    } else {
+      atual += ch;
+    }
+  }
+  return c;
+}
+
+fn main() {
+  list<string> a = ["x"];
+  list<string> b = a;
+  acrescenta(b, "y");
+  print(a, b, a == b);
+  print(primeiro_par([1, 3, 4, 6]), primeiro_par([1]));
+  print(conta_palavras("o rato o gato o rato"));
+  // o for percorre a cópia: mudar a lista no corpo não muda as voltas
+  list<i32> v = [1, 2, 3];
+  for (i32 x in v) {
+    v.add(x * 10);
+  }
+  print(v);
+  // muitas listas e dicts criados e soltos
+  i64 total = 0;
+  for (i32 i in range(0, 5000)) {
+    list<i32> t = [i, i + 1];
+    dict<i32, list<i32>> m = {{i, t}};
+    pair<string, list<i32>> p = {cast<string>(i), m[i]};
+    total += p.second[1] + t.size();
+  }
+  print(total);
+  // resultado descartado, temporários aninhados e reatribuição
+  primeiro_par([2]);
+  list<list<string>> grade = [["a"], ["b", "c"]];
+  grade[1] = grade[0];
+  grade[0].add("d");
+  grade = [grade[1], ["e"]];
+  print(grade, [[1, 2], [3]][1][0], {{"k", [1]}}["k"]);
+}
+// expect: ["x", "yy"] ["x", "yy"] true
+// expect: [4, 8] []
+// expect: {"gato": 1, "o": 3, "rato": 2}
+// expect: [1, 2, 3, 10, 20, 30]
+// expect: 12512500
+// expect: [["a", "d"], ["e"]] 3 [1]

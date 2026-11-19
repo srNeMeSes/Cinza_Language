@@ -1,0 +1,16 @@
+// P6: gravação por índice fora da lista no código nativo: o IndexError da regra da
+// CVM (indexPlace), na posição do acesso, com o stack trace. Roda nos dois backends.
+fn zera(list<i32> l, i32 i) {
+  l[i] = 0;
+}
+
+fn main() {
+  list<i32> l = [1, 2, 3];
+  zera(l, 2);
+  print(l);
+  zera(l, 3);
+}
+// expect: [1, 2, 0]
+// expect-error: p6_erro_indice.cinza:4:4: IndexError
+// expect-error: em zera (tests/nativo/p6_erro_indice.cinza:4)
+// expect-error: em main (tests/nativo/p6_erro_indice.cinza:11)

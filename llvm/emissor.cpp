@@ -59,8 +59,11 @@ std::uint8_t kindDe(cir::Tipo t) {
         case cir::Tipo::F32:  return kind(Value::Kind::F32);
         case cir::Tipo::F64:  return kind(Value::Kind::F64);
         case cir::Tipo::Bool: return kind(Value::Kind::BOOL);
-        case cir::Tipo::Str:  return kind(Value::Kind::STRING);
-        default:              return kind(Value::Kind::VOID_VAL);
+        case cir::Tipo::Str:   return kind(Value::Kind::STRING);
+        case cir::Tipo::Lista: return kind(Value::Kind::LIST);
+        case cir::Tipo::Dict:  return kind(Value::Kind::DICT);
+        case cir::Tipo::Par:   return kind(Value::Kind::PAIR);
+        default:               return kind(Value::Kind::VOID_VAL);
     }
 }
 
@@ -159,6 +162,7 @@ struct Emissor::Impl {
             case cir::Tipo::F64:   return tF64;
             case cir::Tipo::Str:   return tPtr;
             case cir::Tipo::Valor: return tValor;
+            case cir::Tipo::Lista: case cir::Tipo::Dict: case cir::Tipo::Par: return tPtr;
         }
         return tVoid;
     }
@@ -267,7 +271,8 @@ struct Emissor::Impl {
             case cir::Tipo::F32:  return LLVMBuildZExt(b, LLVMBuildBitCast(b, v, tI32, ""), tI64, "");
             case cir::Tipo::F64:  return LLVMBuildBitCast(b, v, tI64, "");
             case cir::Tipo::Bool: return LLVMBuildZExt(b, v, tI64, "");
-            case cir::Tipo::Str:  return LLVMBuildPtrToInt(b, v, tI64, "");
+            case cir::Tipo::Str: case cir::Tipo::Lista: case cir::Tipo::Dict: case cir::Tipo::Par:
+                return LLVMBuildPtrToInt(b, v, tI64, "");
             default:              throw ErroEmissor{"embrulho de um tipo sem valor"};
         }
     }
@@ -278,7 +283,8 @@ struct Emissor::Impl {
             case cir::Tipo::F32:  return LLVMBuildBitCast(b, LLVMBuildTrunc(b, u, tI32, ""), tF32, "");
             case cir::Tipo::F64:  return LLVMBuildBitCast(b, u, tF64, "");
             case cir::Tipo::Bool: return LLVMBuildICmp(b, LLVMIntNE, u, ci64(0), "");
-            case cir::Tipo::Str:  return LLVMBuildIntToPtr(b, u, tPtr, "");
+            case cir::Tipo::Str: case cir::Tipo::Lista: case cir::Tipo::Dict: case cir::Tipo::Par:
+                return LLVMBuildIntToPtr(b, u, tPtr, "");
             default:              throw ErroEmissor{"desembrulho para um tipo sem valor"};
         }
     }
@@ -516,7 +522,7 @@ struct Emissor::Impl {
                 chamaRt(rt("cz_retem", tVoid, {tPtr}), {val(in.args[0])});
                 break;
             case Op::Solta: {
-                if (tipoOp(in.args[0]) == cir::Tipo::Str) {   // nulo (slot vazio): nada a soltar
+                if (cir::ehRef(tipoOp(in.args[0]))) {   // nulo (slot vazio): nada a soltar
                     LLVMValueRef p = val(in.args[0]);
                     LLVMBasicBlockRef sim = novoBloco("solta"), segue = novoBloco("soltou");
                     LLVMBuildCondBr(b, LLVMBuildICmp(b, LLVMIntNE, p, LLVMConstNull(tPtr), ""), sim, segue);
@@ -599,6 +605,23 @@ struct Emissor::Impl {
             }
         }
         LLVMValueRef saida = nullptr;
+        if (info.variadico) {   // o resto dos argumentos num vetor de CzValor
+            const std::size_t n = in.args.size() - info.params.size();
+            LLVMValueRef vetor = LLVMConstNull(tPtr);
+            if (n > 0) {
+                LLVMTypeRef tv = LLVMArrayType2(tValor, n);
+                vetor = reserva(tv, "vetor");
+                for (std::size_t i = 0; i < n; ++i) {
+                    LLVMValueRef idx[] = {ci64(0), ci64(static_cast<std::int64_t>(i))};
+                    LLVMBuildStore(b, val(in.args[info.params.size() + i]),
+                                   LLVMBuildInBoundsGEP2(b, tv, vetor, idx, 2, ""));
+                }
+            }
+            ps.push_back(tPtr);
+            args.push_back(vetor);
+            ps.push_back(tI64);
+            args.push_back(ci64(static_cast<std::int64_t>(n)));
+        }
         if (info.ret == cir::Tipo::Valor) {
             saida = reserva(tValor, "saida");
             ps.push_back(tPtr);
@@ -649,7 +672,7 @@ struct Emissor::Impl {
 
         LLVMPositionBuilderAtEnd(b, prologo);
         for (std::size_t s = f.params.size(); s < f.slots.size(); ++s)   // os slots com referência começam vazios
-            if (f.slots[s] == cir::Tipo::Str) LLVMBuildStore(b, LLVMConstNull(tPtr), slots[s]);
+            if (cir::ehRef(f.slots[s])) LLVMBuildStore(b, LLVMConstNull(tPtr), slots[s]);
         for (std::size_t p = 0; p < f.params.size(); ++p)
             LLVMBuildStore(b, LLVMGetParam(fn, static_cast<unsigned>(p)), slots[p]);
         if (!f.oculta) {

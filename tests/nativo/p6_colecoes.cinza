@@ -1,0 +1,81 @@
+// P6: list, dict e pair no código nativo (cinzac) — literais, métodos, leitura e
+// gravação por índice (inclusive aninhadas e compostas), for com a cópia dos elementos
+// (e o alargamento i32 → i64), igualdade, nativas de listas e range como lista. Os
+// mesmos resultados da CVM. Roda nos dois backends.
+import Lists;
+
+fn soma(list<i32> l) -> i64 {
+  i64 t = 0;
+  for (i64 x in l) {
+    t += x;
+  }
+  return t;
+}
+
+fn grade(i32 n) -> list<list<i32>> {
+  list<list<i32>> g;
+  for (i32 i in range(0, n)) {
+    list<i32> linha;
+    for (i32 j in range(0, n)) {
+      linha.add(i * j);
+    }
+    g.add(linha);
+  }
+  return g;
+}
+
+fn main() {
+  list<i32> l = [3, 1, 2];
+  l.add(10);
+  l[0] = 7;
+  l[1] += 5;
+  print(l, l.size(), l[1], l[3], soma(l), l.has(3), l.has(4), l == [7, 6, 2, 10], l != [7]);
+  l.remove(0);
+  print(l);
+  // dict: a ordem das chaves; += numa chave que existe
+  dict<string, i32> d = {{"b", 2}, {"a", 1}};
+  d.add({"c", 3});
+  d["a"] += 100;
+  for (pair<string, i32> p in d) {
+    print(p.first, p.second);
+  }
+  print(d, d.size(), d.has("z"), d["b"], d.keys(), d.values());
+  d.remove("b");
+  print(d);
+  // aninhadas: o nível de dentro é o mesmo objeto
+  list<list<i32>> g = grade(3);
+  g[2][1] = 99;
+  g[0][0] -= 1;
+  list<i32> meio = g[1];
+  meio.add(-5);
+  print(g);
+  dict<i32, list<string>> grupos;
+  grupos.add({1, ["x"]});
+  grupos[1].add("y");
+  grupos[1][0] += "!";
+  print(grupos, grupos[1].size());
+  // pair
+  pair<i32, string> par = {1, "um"};
+  print(par, par.first, par.second, par == {1, "um"});
+  // nativas e range como lista
+  list<i32> r = range(0, 10, 3);
+  Lists.reverse(r);
+  print(r, Lists.sum(l), Lists.max(l), Lists.first(r), Lists.sorted([5, 2, 8]), Lists.contains(r, 3));
+  list<string> nomes;
+  for (string c in "abc") {
+    nomes.add(c + c);
+  }
+  print(nomes, Lists.index_of(nomes, "bb"), [1.5ff, 2.5ff], [true], [[1], [2, 3]]);
+}
+// expect: [7, 6, 2, 10] 4 6 10 25 true false true true
+// expect: [6, 2, 10]
+// expect: a 101
+// expect: b 2
+// expect: c 3
+// expect: {"a": 101, "b": 2, "c": 3} 3 false 2 ["a", "b", "c"] [101, 2, 3]
+// expect: {"a": 101, "c": 3}
+// expect: [[-1, 0, 0], [0, 1, 2, -5], [0, 99, 4]]
+// expect: {1: ["x!", "y"]} 2
+// expect: {1, "um"} 1 um true
+// expect: [9, 6, 3, 0] 18 10 9 [2, 5, 8] true
+// expect: ["aa", "bb", "cc"] 1 [1.5, 2.5] [true] [[1], [2, 3]]

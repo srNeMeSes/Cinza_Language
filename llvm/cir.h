@@ -18,6 +18,7 @@
 // As operações que podem falhar (contas, conversões, chamadas) levam a posição
 // (`pos`) do token que a CVM usa na mesma operação: erros e stack trace iguais.
 // P4: números, bool, funções, if/while/for range, print, const globais.
+// P6: list, dict e pair (objetos do runtime, com os elementos como CzValor).
 // P5: strings e a posse (llvm/DESENHO.md 4.3): um slot de tipo com referência é
 // dono do valor e começa vazio; a tradução escreve cada retem/solta (o emissor não
 // decide nada sobre posse).
@@ -34,10 +35,15 @@ enum class Tipo : std::uint8_t {
     Void, Bool, I32, I64, F32, F64,
     Str,     // ponteiro para CzString
     Valor,   // CzValor embrulhado (16 bytes)
+    Lista,   // ponteiro para CinzaList
+    Dict,    // ponteiro para CinzaDict
+    Par,     // ponteiro para CinzaPair
 };
 
 inline bool ehInteiro(Tipo t)   { return t == Tipo::I32 || t == Tipo::I64; }
 inline bool ehFlutuante(Tipo t) { return t == Tipo::F32 || t == Tipo::F64; }
+// Tipo com referência (um ponteiro para objeto do runtime, com posse)
+inline bool ehRef(Tipo t) { return t == Tipo::Str || t == Tipo::Lista || t == Tipo::Dict || t == Tipo::Par; }
 
 // Um operando: constante ou temporário
 struct Operando {
@@ -108,12 +114,24 @@ enum class Rt : std::uint8_t {
     Metodo0,         // valor (i32 builtin, valor obj) — falha
     Metodo1,         // valor (i32 builtin, valor obj, valor a) — falha
     Metodo2,         // valor (i32 builtin, valor obj, valor a, valor b) — falha
+    ListaNova,       // lista (valor...): os elementos, na ordem
+    DictNovo,        // dict (valor...): chave, valor, chave, valor... (a última vence)
+    ParNovo,         // par (valor a, valor b)
+    ParCampo,        // valor (valor par, i32 qual): first (0) ou second (1)
+    Igual,           // bool (valor a, valor b): o == da CVM (desce nos contêineres)
+    Elementos,       // lista (valor col): a cópia dos elementos de um for (spec 5.5) — falha
+    ListaTam,        // i64 (lista)
+    ListaElem,       // valor (lista, i64 i): uma cópia do elemento
+    IndiceLugar,     // valor (valor obj, valor k): o lugar obj[k] para gravar (B5) — falha
+    GravaIndice,     // void (valor obj, valor k, valor v): obj[k] = v — falha
 };
 struct InfoRt {
     const char*       nome;     // o símbolo em C
     Tipo              ret;
     std::vector<Tipo> params;
     bool              falha;    // CZ_FALHA
+    // depois dos fixos, os argumentos (valor) vão num vetor: (const CzValor*, uint64 n)
+    bool              variadico = false;
 };
 const InfoRt& infoRt(Rt r);
 

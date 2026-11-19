@@ -389,6 +389,19 @@ As funções de string do runtime (`call.rt`, uma tabela na CIR: `cz_concat`, `c
 regras (`operacoes.cpp`). Os `const` com referência são soltos por uma função oculta depois da
 `main`, antes da conferência de vazamentos.
 
+**Implementado no P6** (list, dict, pair): os três são ponteiros para os objetos do runtime de
+hoje (`CinzaList`, `CinzaDict`, `CinzaPair`, com os elementos como `CzValor`), com a mesma posse
+das strings. Literais, `first`/`second`, os métodos embutidos (o `callBuiltin` da CVM), a
+leitura por índice (`indexGet`), a gravação com o caminho da spec 5.2 (`indexPlace`: cada
+nível intermediário é um list/dict, e a mudança vale no objeto compartilhado), o `==` que desce
+nos elementos e o `for` sobre a cópia dos elementos (`forElements`, percorrida por índice) são
+chamadas ao runtime. Um `call.rt` pode ser **variádico**: os argumentos depois dos fixos vão
+num vetor de `CzValor` (literais de lista e dict). Struct dentro do caminho de uma gravação fica
+para o P7. **Ciclos**: com list, dict e pair não se forma ciclo na Cinza (um tipo não contém a si
+mesmo sem class ou struct), então a coleta só tem trabalho no P7; ela já é compatível com o
+código nativo, porque só lê as contagens e os filhos dos contêineres — as referências dos
+slots nativos entram na contagem como as dos registradores da CVM.
+
 ## 5. Erros
 
 ### 5.1 Um mecanismo só
