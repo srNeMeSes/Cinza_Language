@@ -1,0 +1,12 @@
+// P4: range com passo 0 no código nativo: o erro na posição da chamada do range,
+// como a nativa. Roda nos dois backends.
+fn passo() -> i32 {
+  return 0;
+}
+
+fn main() {
+  for (i32 i in range(0, 3, passo())) {
+    print(i);
+  }
+}
+// expect-error: p4_passo_zero.cinza:8:17: ValueError: o passo de 'range' não pode ser 0

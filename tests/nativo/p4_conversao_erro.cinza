@@ -1,0 +1,10 @@
+// P4: cast<i32> de um f64 fora da faixa no código nativo (confere depois de truncar,
+// como a CVM). Roda nos dois backends.
+fn main() {
+  f64 d = 2147483647.9ff;
+  print(cast<i32>(d));
+  f64 e = d + 1.0ff;
+  print(cast<i32>(e));
+}
+// expect: 2147483647
+// expect-error: p4_conversao_erro.cinza:7:9: OverflowError: cast<i32>(2147483648.9): o valor não cabe em i32

@@ -1,0 +1,26 @@
+// P4: erro de runtime no código nativo com o stack trace da sombra da pilha — a
+// linha de cada quadro de fora é a da chamada em andamento nele (o trace nativo
+// chegou a sair com a linha 0 do quadro errado). Roda nos dois backends.
+fn c(i32 x) -> i32 {
+  return x / (x - 3);
+}
+
+fn b(i32 x) -> i32 {
+  i32 y = x + 1;
+  return c(y - 1) + 1;
+}
+
+fn a() -> i32 {
+  return b(3);
+}
+
+fn main() {
+  print("antes");
+  print(a());
+}
+// expect: antes
+// expect-error: p4_erro_trace.cinza:5:12: ZeroDivisionError: divisão por zero
+// expect-error: em c (tests/nativo/p4_erro_trace.cinza:5)
+// expect-error: em b (tests/nativo/p4_erro_trace.cinza:10)
+// expect-error: em a (tests/nativo/p4_erro_trace.cinza:14)
+// expect-error: em main (tests/nativo/p4_erro_trace.cinza:19)

@@ -114,7 +114,7 @@ int main(int argc, char* argv[]) {
     // AST → CIR
     cir::Modulo modulo;
     try {
-        modulo = cir::gera(modulos);
+        modulo = cir::gera(modulos, analisador.globalLayout(), sourceFiles());
     } catch (const cir::NaoSuportado& n) {
         std::cerr << (n.tok.line ? formatPosition(n.tok.loc()) + ": " : std::string())
                   << "[cinzac] ainda não suportado: " << n.o_que << "\n";

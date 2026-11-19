@@ -352,6 +352,17 @@ b2:
 
 O `--emit-cir` do `cinzac` mostra a CIR neste formato.
 
+**Implementado no P4** (`llvm/cir.h`, `llvm/gera_cir.cpp`): a parte da CIR sem referências —
+slots (`carrega`/`grava`), globais dos `const`, contas (`add`…`rem`, com o operador como na
+CVM), `cmp`, `neg`, `not`, `conv`, `embrulha`/`desembrulha`, `call.nativa` (com
+`conv.valor` para as nativas genéricas), `call`, `br`/`brc`/`ret`/`inalcançável` e duas
+operações do `for range` (`confere.passo`, `passo.range`). A CIR está mais perto do LLVM do que o
+plano acima: um temporário é escrito uma vez e vira um valor SSA, e pode ser usado em blocos que a
+definição domina — o curto-circuito de `and`/`or` abre blocos no meio de uma expressão
+(`f(a, b and c)`) e o valor de `a` atravessa sem passar por um slot. Cada operação que pode falhar
+leva a posição do token que a CVM usa nela, e é isso que dá as mesmas mensagens e o mesmo stack
+trace. `entra`/`sai`/`pos` não são instruções: o emissor os gera (seção 6.2).
+
 ## 5. Erros
 
 ### 5.1 Um mecanismo só
@@ -432,6 +443,11 @@ a convenção de chamada sem ganho para um programa de uma thread.
   passa a dizer isso explicitamente, sem mudança de comportamento.
 - **No topo:** o `main` gerado chama a `main` da Cinza; com erro pendente, imprime o relato (o
   mesmo formato da CVM: posição, tipo, mensagem, stack trace) e sai com código 1.
+- **Até o P8, todo erro é fatal.** Sem `try`, o tratador de todo ponto é o topo: o desvio frio
+  depois da operação que falhou chama `cz_morre`, que faz o relato do `cz_fim` (ou sai com o
+  código do `exit`) e encerra o processo. É o que um erro não capturado faz na CVM, então a
+  saída é a mesma; programas com `try` continuam "não suportados". O P8 troca o `cz_morre` pelo
+  desvio ao tratador e pelos `release` dos escopos.
 - **Fronteira com o C++: nenhuma exceção do C++ escapa de uma função `cz_*`**, qualquer que
   seja. Cada uma termina num bloco que trata, na ordem:
   - `RuntimeError` → vira o erro pendente (o mesmo erro da linguagem que a CVM lançaria);
@@ -472,6 +488,22 @@ typedef struct CzQuadro { const CzFuncao* f; const CzPos* pos; } CzQuadro;
 
 Custo por chamada: um teste, duas gravações e um decremento — o preço de a regra das 2000
 chamadas e o stack trace serem exatamente os da CVM.
+
+**Implementado no P4** (antes do planejado: era do P8, mas sem ela nem a recursão nem o stack
+trace dos erros de conta ficariam iguais aos da CVM). Diferenças do plano, para o caminho rápido
+ficar sem gravação:
+
+- `entra` grava o quadro com `pos` nulo, e o quadro do topo nunca é lido: a linha dele no trace é
+  a do erro;
+- `pos` só é gravado **antes de cada chamada de função da Cinza** (é a linha da chamada em
+  andamento, que o trace usa nos quadros de fora). As operações que podem falhar passam a posição
+  como argumento à função do caminho de erro (`cz_falha_binaria(…, &pos)`, `cz_nativa(…, &pos)`),
+  que completa o erro como o `VM::fail`: sem posição, a da operação; o trace, da sombra;
+- a função de inicialização dos `const` não entra na sombra (é oculta, como na CVM): um erro nela
+  sai sem trace.
+
+O teste `prof >= 2000` fica no prólogo da função chamada, com a posição da declaração dela no
+erro, como a CVM.
 
 ### 6.3 A pilha física
 
@@ -544,8 +576,13 @@ segurança precisa.
 **Implementado no P3** (`llvm/cinzart.{h,cpp}`): `cz_inicio`, `cz_fim`, `cz_str_literal`
 (imortal; o `cz_fim` solta os literais depois da última coleta e antes de conferir
 vazamentos), `cz_nativa_resolve` (pelo nome do módulo e da função, uma vez na partida),
-`cz_nativa` e `cz_solta_valor`; `cz_exec` só com o campo `erro`. A tabela abaixo é o plano das
-etapas seguintes.
+`cz_nativa` e `cz_solta_valor`; `cz_exec` só com o campo `erro`. **No P4**: `CzPos`, `CzFuncao`,
+`CzQuadro` e o `CzExec` completo (`erro`, `prof`, `quadros`), conferidos pelo `--confere-layout`;
+`cz_arquivos` (os nomes na ordem dos `file_id` do front-end); o caminho de erro dos números
+(`cz_falha_binaria`, `cz_falha_neg`, `cz_falha_conv`, `cz_falha_passo`), que refaz a operação pelo
+`applyBinaryOp`/`negateOp`/`convertValue` da CVM para a mensagem ser a mesma; `cz_estouro`;
+`cz_conv_valor` (nativas genéricas); `cz_nativa` com a posição; e `cz_morre`. A tabela abaixo é o
+plano das etapas seguintes.
 
 ### 7.2 Grupos
 

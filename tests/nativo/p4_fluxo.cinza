@@ -1,0 +1,98 @@
+// P4: funções, recursão, if/while/for range, break/continue e curto-circuito pelo
+// código nativo (cinzac), com os mesmos resultados da CVM. Roda nos dois backends.
+fn fib(i64 n) -> i64 {
+  if (n < 2) {
+    return n;
+  }
+  return fib(n - 1) + fib(n - 2);
+}
+
+fn mdc(i32 a, i32 b) -> i32 {
+  while (b != 0) {
+    i32 r = a % b;
+    a = b;
+    b = r;
+  }
+  return a;
+}
+
+fn primo(i32 n) -> bool {
+  if (n < 2) {
+    return false;
+  }
+  for (i32 d in range(2, n)) {
+    if (d * d > n) {
+      break;
+    }
+    if (n % d == 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+fn marca(i32 x) -> bool {
+  print("avaliou", x);
+  return x > 1;
+}
+
+fn nada(i32 x) {
+  if (x > 0) {
+    print("positivo");
+    return;
+  }
+  print("não positivo");
+}
+
+fn main() {
+  print(fib(25), mdc(84, 36));
+  i32 primos = 0;
+  for (i32 n in range(0, 100)) {
+    if (!primo(n)) {
+      continue;
+    }
+    primos += 1;
+  }
+  print(primos);
+  // passo negativo, passo que não chega exatamente ao fim e o fim da faixa do tipo
+  for (i32 i in range(10, 0, -4)) { print(i); }
+  for (i32 i in range(2147483640, 2147483647, 4)) { print(i); }
+  for (i64 j in range(0, 3)) { print(j * 5000000000); }
+  // curto-circuito: o lado direito só quando precisa
+  print(marca(1) and marca(2));
+  print(marca(2) or marca(3));
+  bool b = marca(0) or marca(5) and marca(9);
+  print(b);
+  nada(3);
+  nada(-1);
+  // laço com saída no meio
+  i64 k = 1;
+  while (true) {
+    k *= 3;
+    if (k > 1000) {
+      break;
+    }
+  }
+  print(k);
+}
+// expect: 75025 12
+// expect: 25
+// expect: 10
+// expect: 6
+// expect: 2
+// expect: 2147483640
+// expect: 2147483644
+// expect: 0
+// expect: 5000000000
+// expect: 10000000000
+// expect: avaliou 1
+// expect: false
+// expect: avaliou 2
+// expect: true
+// expect: avaliou 0
+// expect: avaliou 5
+// expect: avaliou 9
+// expect: true
+// expect: positivo
+// expect: não positivo
+// expect: 2187

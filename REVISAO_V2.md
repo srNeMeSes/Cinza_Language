@@ -1705,8 +1705,32 @@ depois de um debate com duas revisões externas:
   > Resultado: 651/651 na CVM; pelo `cinzac`, 0 falhas, 341 passaram (8 como executável
   > nativo), 310 ainda não suportados; a CVM limpa sob ASan/UBSan. O `cinzac` sob ASan fica para quando a
   > CIR crescer (o build de depuração é pelo clang do CLANG64, que liga com `libc++`).
-- [ ] P4. CIR e backend para números, `bool`, funções, `if`/`while`/`for range`, `print`,
-  `const` globais; `--emit-cir` e `--emit-llvm`.
+- [x] P4. CIR e backend para números, `bool`, funções, `if`/`while`/`for range`, `print`,
+  `const` globais; `--emit-cir` e `--emit-llvm`. — feito em 2026-11-18
+  > Nota: a CIR (`llvm/cir.h`) ganhou slots, globais, contas, comparações, conversões, chamadas e
+  > fluxo; a tradução (`llvm/gera_cir.cpp`) segue a ordem de avaliação e os tokens de posição do
+  > compilador da CVM, operação por operação; o emissor (`llvm/emissor.cpp`) põe o caminho rápido
+  > em linha (`llvm.s*.with.overflow`, divisor zero e `menor / -1`, `x % -1` = 0 sem o `srem`
+  > indefinido, resultado não finito no ponto flutuante, faixa nas conversões) e, no desvio frio, a
+  > função do runtime que refaz a conta pela regra da CVM — a mensagem é a mesma por construção.
+  > **Duas decisões tomadas na etapa**: (1) a **sombra da pilha entrou já no P4**, e não no P8:
+  > sem ela, a regra das 2000 chamadas e o stack trace dos erros de conta não seriam os da CVM; a
+  > posição vai como argumento ao caminho de erro, e só a chamada de função grava a posição no
+  > quadro (DESENHO 6.2); (2) **até o P8 todo erro é fatal** (`cz_morre`: o relato de um erro não
+  > capturado, ou o código do `exit`), por isso programas com `try` continuam "não suportados".
+  > Também: as cópias de funções genéricas (N2) já compilam, porque são funções comuns; `for range`
+  > conta em i64 com o iterador na largura do fim, como o `FORRANGE`. **Defeitos encontrados no
+  > caminho, no cinzac**: uma referência a instrução guardada antes de gerar o valor de um `const`
+  > (memória corrompida no `cinzac`), e o trace com a linha do quadro errado ("em main (a.cinza:0)")
+  > — os dois apareceram na comparação com a CVM e foram corrigidos; o segundo tem teste próprio
+  > (`tests/nativo/p4_erro_trace`). **Conferência**: 22 programas de erro (estouro em cada largura,
+  > divisão e módulo por zero, `menor / -1`, `-menor`, f32 além da faixa, `cast` fora da faixa,
+  > passo 0, 2000 chamadas, erro em `const`, erro de nativa, `exit`) com stdout, stderr e código de
+  > saída idênticos aos da CVM, em -O0 e -O2. **Testes**: nove `tests/nativo/p4_*` nos dois
+  > backends. 660/660 na CVM; pelo `cinzac` 0 falhas, 388 passaram (55 como executável nativo,
+  > eram 8), 272 ainda não suportados (os motivos mais comuns: struct 49, string 47, class 37,
+  > try 36, import 23). Velocidade: `fib(32)` mais um laço de 100 milhões em 137 ms com `-O2`
+  > (1,1 s em -O0; 3,9 s na CVM).
 - [ ] P5. Strings e as regras de posse (temporários, `return` antecipado, parâmetros
   reatribuídos), com o modo sem vazamento.
 - [ ] P6. `list`, `dict`, `pair` e a coleta de ciclos.

@@ -4,7 +4,9 @@
 #include "../gc.h"
 #include "../natives.h"
 #include "../plataforma.h"
+#include "../operacoes.h"
 #include "../runtime_error.h"
+#include "../source_files.h"
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -34,28 +36,56 @@ std::vector<std::string> argumentos;   // main(list<string> args): P9
     std::_Exit(1);
 }
 
-// RuntimeError → o erro pendente (substitui um que já estivesse pendente)
-void defineErro(const RuntimeError& e) {
+// O stack trace da sombra da pilha, no formato da CVM (VM::trace): do quadro mais
+// interno para fora; o mais interno com a linha do erro, cada um de fora com a linha
+// da chamada em andamento nele
+std::vector<std::string> traceAtual(int linha_erro) {
+    std::vector<std::string> t;
+    for (std::int32_t k = cz_exec.prof; k-- > 0;) {
+        const CzQuadro& q = cz_exec.quadros[k];
+        const int linha = k == cz_exec.prof - 1 ? linha_erro : (q.pos ? q.pos->linha : 0);
+        t.push_back("em " + std::string(q.f->nome) + " (" +
+                    formatPosition({q.f->arquivo, linha, 0}) + ")");
+    }
+    constexpr std::size_t mostrar = 10;
+    if (t.size() > mostrar + 1) {
+        const std::size_t omitidas = t.size() - mostrar - 1;
+        std::vector<std::string> curto(t.begin(), t.begin() + mostrar);
+        curto.push_back("... (" + std::to_string(omitidas) + " chamadas omitidas)");
+        curto.push_back(t.back());
+        t = std::move(curto);
+    }
+    return t;
+}
+
+// RuntimeError → o erro pendente (substitui um que já estivesse pendente). Como o
+// VM::fail: sem posição, ganha a da operação (`p`); sem trace, o da sombra da pilha
+void defineErro(const RuntimeError& e, const CzPos* p) {
     auto ev     = novo<ErrorValue>();
     ev->kind    = e.kind;
     ev->message = e.message;
     ev->line    = e.line;
     ev->column  = e.column;
-    ev->trace   = e.trace;
     ev->file_id = e.file_id;
+    if (e.line == 0 && p) {
+        ev->line    = p->linha;
+        ev->column  = p->coluna;
+        ev->file_id = p->arquivo;
+    }
+    ev->trace = e.trace.empty() ? traceAtual(static_cast<int>(ev->line)) : e.trace;
     if (cz_exec.erro) czRelease(cz_exec.erro);
     cz_exec.erro = ev.solta();
 }
 
 // Toda função cz_* roda o corpo aqui dentro: nenhuma exceção do C++ escapa
-// (llvm/DESENHO.md 5.3)
+// (llvm/DESENHO.md 5.3). `p`: a posição de um erro que vier sem ela
 template <typename F>
-void fronteira(F&& corpo) noexcept {
+void fronteira(F&& corpo, const CzPos* p = nullptr) noexcept {
     try {
         try {
             corpo();
         } catch (const RuntimeError& e) {
-            defineErro(e);   // pode alocar: um bad_alloc aqui cai no bloco de fora
+            defineErro(e, p);   // pode alocar: um bad_alloc aqui cai no bloco de fora
         }
     } catch (const std::bad_alloc&) {
         fatalMemoria();
@@ -65,6 +95,29 @@ void fronteira(F&& corpo) noexcept {
         fatalInterno("exceção desconhecida");
     }
 }
+
+// Os bits do campo `u` de um CzValor como Value do tipo `kind`
+Value valorDeBits(std::uint8_t kind, std::uint64_t bits) {
+    CzValor v{};
+    v.tipo = kind;
+    v.u.i64 = static_cast<std::int64_t>(bits);
+    return Value::empresta(v);   // números: nada a reter
+}
+
+TypeRef tipoDoKind(std::uint8_t kind) {
+    auto& t = TypeContext::instance();
+    switch (static_cast<Value::Kind>(kind)) {
+        case Value::Kind::I32: return t.i32Type();
+        case Value::Kind::I64: return t.i64Type();
+        case Value::Kind::F32: return t.f32Type();
+        case Value::Kind::F64: return t.f64Type();
+        default: fatalInterno("conversão para um tipo que não é número");
+    }
+}
+
+// A operação do caminho de erro deveria ter falhado (o código gerado só a chama quando
+// o caminho rápido detectou o erro)
+[[noreturn]] void naoFalhou(const char* o_que) { fatalInterno(o_que); }
 
 }  // namespace
 
@@ -145,7 +198,7 @@ extern "C" const void* cz_nativa_resolve(const char* modulo, const char* nome) n
 }
 
 extern "C" void cz_nativa(const void* fn, const CzValor* args, std::uint64_t n,
-                          CzValor* resultado) noexcept {
+                          CzValor* resultado, const CzPos* p) noexcept {
     *resultado = Value().entrega();
     fronteira([&] {
         // Os argumentos viram Value (cópia com retain, llvm/DESENHO.md 2.3): a NativeFn de
@@ -155,7 +208,7 @@ extern "C" void cz_nativa(const void* fn, const CzValor* args, std::uint64_t n,
         for (std::uint64_t i = 0; i < n; ++i) vals.push_back(Value::empresta(args[i]));
         Value r = static_cast<const NativeFn*>(fn)->impl(std::span<const Value>(vals.data(), vals.size()));
         *resultado = r.entrega();
-    });
+    }, p);
 }
 
 extern "C" void cz_solta_valor(CzValor* v) noexcept {
@@ -163,4 +216,61 @@ extern "C" void cz_solta_valor(CzValor* v) noexcept {
         Value morto = Value::toma(*v);
         *v = Value().entrega();
     });
+}
+
+extern "C" void cz_arquivos(const char* const* nomes, std::uint64_t n) noexcept {
+    fronteira([&] {
+        if (n == 0) return;
+        setMainFile(nomes[0]);
+        for (std::uint64_t i = 1; i < n; ++i) registerSourceFile(nomes[i]);
+    });
+}
+
+extern "C" void cz_falha_binaria(std::uint32_t op, std::uint8_t kind, std::uint64_t a, std::uint64_t b,
+                                 const CzPos* p) noexcept {
+    fronteira([&] {
+        applyBinaryOp(static_cast<TokenType>(op), valorDeBits(kind, a), valorDeBits(kind, b));
+        naoFalhou("a conta do caminho de erro não falhou");
+    }, p);
+}
+
+extern "C" void cz_falha_neg(std::uint8_t kind, std::uint64_t a, const CzPos* p) noexcept {
+    fronteira([&] {
+        negateOp(valorDeBits(kind, a));
+        naoFalhou("a negação do caminho de erro não falhou");
+    }, p);
+}
+
+extern "C" void cz_falha_conv(std::uint8_t de, std::uint64_t a, std::uint8_t para, const CzPos* p) noexcept {
+    fronteira([&] {
+        convertValue(valorDeBits(de, a), tipoDoKind(para));
+        naoFalhou("a conversão do caminho de erro não falhou");
+    }, p);
+}
+
+extern "C" void cz_falha_passo(const CzPos* p) noexcept {
+    fronteira([&] {   // a mesma mensagem da nativa range e do RANGEPREP da CVM
+        throw RuntimeError("ValueError: o passo de 'range' não pode ser 0");
+    }, p);
+}
+
+extern "C" void cz_estouro(const CzFuncao* f) noexcept {
+    fronteira([&] {   // como a CVM: na posição da declaração chamada
+        throw RuntimeError("StackOverflowError",
+                           "profundidade máxima de chamadas (" + std::to_string(CZ_PROFUNDIDADE) +
+                               ") excedida ao chamar '" + f->nome + "'",
+                           f->linha, f->coluna, f->arquivo);
+    });
+}
+
+extern "C" void cz_conv_valor(CzValor* v, std::uint8_t kind, const CzPos* p) noexcept {
+    fronteira([&] {
+        Value atual = Value::toma(*v);
+        *v = Value().entrega();
+        *v = convertValue(atual, tipoDoKind(kind)).entrega();
+    }, p);
+}
+
+extern "C" void cz_morre() noexcept {
+    std::exit(cz_fim());
 }

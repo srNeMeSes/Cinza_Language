@@ -1,0 +1,51 @@
+// P4: aritmética, comparações e conversões das quatro larguras pelo código nativo
+// (cinzac), com os mesmos resultados da CVM. Roda nos dois backends.
+import Math;
+
+const i32 BASE = 7;
+const i64 GRANDE = 5000000000;
+const f64 TERCO = 1.0ff / 3.0ff;
+
+fn main() {
+  i32 a = 17;
+  i32 b = -5;
+  print(a + b, a - b, a * b, a / b, a % b, -a / 5, -a % 5);
+  i64 c = GRANDE * 3;
+  print(c, c / 7, c % 7, -c, c - GRANDE);
+  // divisão trunca em direção a zero; x % -1 é 0 (inclusive no menor valor)
+  i32 menor = -2147483647 - 1;
+  i32 m1 = -1;
+  print(menor % m1, 7 % m1, menor / 1);
+  f32 x = 0.1f;
+  f32 y = 0.2f;
+  print(x + y, x * y, y / x, -x);
+  f64 p = 0.1ff;
+  f64 q = 0.2ff;
+  print(p + q, TERCO, p - q, q / p);
+  // comparações
+  print(a > b, a <= 17, b == -5, a != a, x < y, p >= q);
+  // conversões: alargar, estreitar (dentro da faixa), truncar, arredondar
+  i64 largo = a;
+  print(largo, cast<i32>(c / 10000), cast<i32>(-7.9ff), cast<i64>(2.5f), cast<f32>(16777217));
+  print(cast<f64>(x), cast<f32>(TERCO), cast<f64>(BASE), cast<i32>(cast<f32>(BASE)));
+  // nativas de números e constantes da biblioteca
+  print(Math.sqrt(2.0ff), Math.pi, Math.abs(b), Math.max(a, BASE), Math.floor(2.7ff));
+  // contas compostas: o valor antes do alvo
+  i32 t = 1;
+  t += 4;
+  t *= 3;
+  t -= 1;
+  t /= 2;
+  t %= 4;
+  print(t);
+}
+// expect: 12 22 -85 -3 2 -3 -2
+// expect: 15000000000 2142857142 6 -15000000000 10000000000
+// expect: 0 0 -2147483648
+// expect: 0.3 0.020000001 2 -0.1
+// expect: 0.30000000000000004 0.3333333333333333 -0.1 2
+// expect: true true true false true false
+// expect: 17 1500000 -7 2 16777216
+// expect: 0.10000000149011612 0.33333334 7 7
+// expect: 1.4142135623730951 3.141592653589793 5 17 2
+// expect: 3

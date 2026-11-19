@@ -4,6 +4,7 @@
 // AST analisada → CIR (llvm/DESENHO.md, seção 4)
 
 #include "cir.h"
+#include "../ast.h"
 #include "../module_loader.h"
 #include <string>
 #include <vector>
@@ -18,8 +19,11 @@ struct NaoSuportado {
     Token       tok;
 };
 
-// Os módulos em ordem topológica, o principal por último (o ModuleLoader), já analisados
-Modulo gera(const std::vector<Module>& modulos);
+// Os módulos em ordem topológica, o principal por último (o ModuleLoader), já
+// analisados; `layout`: os slots dos const globais (os dos módulos nativos, como
+// Math.pi, já têm o valor); `arquivos`: os nomes dos arquivos por file_id
+Modulo gera(const std::vector<Module>& modulos, const GlobalLayout& layout,
+            const std::vector<std::string>& arquivos);
 
 }  // namespace cinza::cir
 

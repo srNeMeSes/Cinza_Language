@@ -1,0 +1,10 @@
+// P4: o caminho de erro das contas no código nativo refaz a conta pela regra da CVM
+// (a mesma mensagem). Aqui, o estouro do menor i64 negado. Roda nos dois backends.
+fn main() {
+  i64 a = -9223372036854775807 - 1;
+  i64 b = 9223372036854775807;
+  print(b + 0);
+  print(-a);
+}
+// expect: 9223372036854775807
+// expect-error: p4_erros_numeros.cinza:7:9: OverflowError: -(-9223372036854775808) excede a faixa de i64

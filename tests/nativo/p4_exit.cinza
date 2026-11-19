@@ -1,0 +1,15 @@
+// P4: exit(n) no código nativo: o código de saída e nada depois. Roda nos dois backends.
+fn sai(i32 n) {
+  if (n > 2) {
+    exit(n);
+  }
+  print("continua", n);
+}
+
+fn main() {
+  sai(1);
+  sai(7);
+  print("não chega");
+}
+// expect: continua 1
+// expect-exit: 7

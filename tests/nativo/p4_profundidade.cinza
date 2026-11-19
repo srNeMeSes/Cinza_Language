@@ -1,0 +1,18 @@
+// P4: a regra das 2000 chamadas (spec 5.8) no código nativo, como na CVM: 1999 níveis
+// abaixo da main cabem, 2000 não; o erro na declaração chamada e o trace abreviado.
+fn desce(i32 n) -> i32 {
+  if (n == 0) {
+    return 0;
+  }
+  return 1 + desce(n - 1);
+}
+
+fn main() {
+  print(desce(1998));
+  print(desce(1999));
+}
+// expect: 1998
+// expect-error: p4_profundidade.cinza:3:1: StackOverflowError: profundidade máxima de chamadas (2000) excedida ao chamar 'desce'
+// expect-error: em desce (tests/nativo/p4_profundidade.cinza:7)
+// expect-error: ... (1989 chamadas omitidas)
+// expect-error: em main (tests/nativo/p4_profundidade.cinza:12)
