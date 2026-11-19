@@ -1922,6 +1922,16 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
   > as mutações de números e operadores: 9.990 mutantes, 412 no diferencial, nenhum defeito. O fuzzer
   > foi conferido com um `cinza` falso que cai com 0xC0000005 em programas com `while`: acusou as duas
   > quedas e minimizou cada uma até `while`.
+  > **Gerador de programas válidos** (`tests/fuzz/gera.py`, no estilo do Csmith): programas de 140 a
+  > 320 linhas gerados do zero, bem tipados, determinísticos e com fim garantido (laços com limite,
+  > recursão limitada, chamadas só para funções anteriores), com números nas bordas das quatro
+  > larguras, conversões que estouram, divisão por zero, strings (índice, fatia, `printf`, `format`),
+  > listas e dicts, structs (a cópia), classes e interface, enum, função genérica, recursão e
+  > `try`/`except`/`finally`/`throw`; a maior parte da `main` em `try`, para o primeiro estouro não
+  > encerrar o programa. Cada um roda na CVM e no `cinzac` em -O0 e -O2, com saída, erros e código
+  > de saída iguais nos três e sem vazamento. Sessão de 15 min: 1.784 programas, todos válidos e
+  > terminando, todos comparados nos três (380 terminam com erro não pego, também comparado), nenhum
+  > defeito. Conferido que um nativo com uma linha a mais é acusado.
 - [ ] Q3. Biblioteca padrão da 1.0. **[decidir o escopo]** Hoje: `Strings`, `Files`, `Math`,
   `Random`, `Convert`, `Lists`, `Time`. Candidatos: JSON (texto ↔ `dict`/`list`), ambiente e
   processo (variáveis de ambiente, rodar um comando), pastas (listar, criar, apagar), o que faltar
