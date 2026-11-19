@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Runner de testes da linguagem Cinza.
 
-Uso: python tests/run_tests.py [--sem-vazamentos] [--cinzac] [binario] [filtro]
+Uso: python tests/run_tests.py [--sem-vazamentos] [--cinzac [--O2]] [binario] [filtro]
 
 Os programas rodam na CVM. Com --cinzac (P3, llvm/DESENHO.md seção 10), cada teste é
 compilado pelo cinzac (padrão: llvm/bin/cinzac.exe) e o executável roda com os mesmos
 args/stdin/env; um erro de compilação conta como a saída do teste, e o que o cinzac
-ainda não compila (código 75) é contado à parte, nem como acerto nem como falha. Todo
+ainda não compila (código 75) é contado à parte, nem como acerto nem como falha; --O2
+compila cada teste com otimização (o padrão é -O0, mais rápido de compilar). Todo
 teste roda com
 CINZA_VAZAMENTOS=1: se sobrar um objeto do runtime ao sair, o programa termina com
 código 70 e o teste falha (--sem-vazamentos desliga).
@@ -81,6 +82,7 @@ def ler_entrada(caminho):
 
 VAZAMENTOS = True   # P1: todo teste confere também que nenhum objeto do runtime sobra
 CINZAC = False      # P3: --cinzac
+CINZAC_O2 = False   # P9: --O2 (com --cinzac)
 PASTA_NATIVA = None # onde ficam os executáveis gerados (temporária)
 NAO_SUPORTADO = 75  # código de saída do cinzac para "ainda não suportado"
 contador_nativo = 0
@@ -167,7 +169,8 @@ def rodar(binario, caminho):
         contador_nativo += 1
         exe = PASTA_NATIVA / f"t{contador_nativo}.exe"
         try:
-            comp = subprocess.run([str(binario), str(caminho.relative_to(RAIZ)), "-o", str(exe)],
+            opcoes = ["-O2"] if CINZAC_O2 else []
+            comp = subprocess.run([str(binario), str(caminho.relative_to(RAIZ)), "-o", str(exe)] + opcoes,
                                   cwd=RAIZ, capture_output=True, timeout=TIMEOUT_S * 2,
                                   env=ler_ambiente(caminho))
         except subprocess.TimeoutExpired:
@@ -266,13 +269,16 @@ def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
 
-    global VAZAMENTOS, CINZAC, PASTA_NATIVA
+    global VAZAMENTOS, CINZAC, CINZAC_O2, PASTA_NATIVA
     if "--sem-vazamentos" in sys.argv:
         VAZAMENTOS = False
         sys.argv.remove("--sem-vazamentos")
     if "--cinzac" in sys.argv:
         CINZAC = True
         sys.argv.remove("--cinzac")
+    if "--O2" in sys.argv:
+        CINZAC_O2 = True
+        sys.argv.remove("--O2")
 
     if len(sys.argv) > 1:
         binario = Path(sys.argv[1])

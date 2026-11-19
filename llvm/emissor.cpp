@@ -112,6 +112,7 @@ struct Emissor::Impl {
     std::vector<LLVMValueRef> descs_struct, descs_classe, descs_enum, tipos;   // ptr, preenchidos na partida
     std::vector<LLVMValueRef> tabelas;    // as tabelas de métodos de interface
     LLVMValueRef quadro_vazio{};          // o quadro da função oculta sem chamador (a dos const)
+    std::size_t  vetores = 0;             // os globais dos literais grandes (cz.vetor.N)
     std::map<std::tuple<int, int, int>, LLVMValueRef> posicoes;   // os CzPos
 
     // A função em tradução
@@ -682,11 +683,29 @@ struct Emissor::Impl {
             LLVMValueRef vetor = LLVMConstNull(tPtr);
             if (n > 0) {
                 LLVMTypeRef tv = LLVMArrayType2(tValor, n);
-                vetor = reserva(tv, "vetor");
+                std::vector<LLVMValueRef> vs;
+                bool constantes = true;
                 for (std::size_t i = 0; i < n; ++i) {
+                    vs.push_back(val(in.args[info.params.size() + i]));
+                    constantes = constantes && LLVMIsConstant(vs.back());
+                }
+                if (n >= 8) {
+                    // literal grande: os elementos constantes vão num global já pronto (sem
+                    // uma instrução por elemento, que o LLVM levaria minutos para otimizar
+                    // numa lista de 70 mil); os outros são gravados nele logo antes da
+                    // chamada — nenhum código da Cinza roda entre as gravações e a chamada,
+                    // que copia os elementos
+                    std::vector<LLVMValueRef> ini;
+                    for (LLVMValueRef v : vs) ini.push_back(LLVMIsConstant(v) ? v : LLVMConstNull(tValor));
+                    LLVMValueRef arr = LLVMConstArray2(tValor, ini.data(), n);
+                    vetor = global(LLVMTypeOf(arr), "cz.vetor." + std::to_string(vetores++), arr, constantes);
+                } else {
+                    vetor = reserva(tv, "vetor");
+                }
+                for (std::size_t i = 0; i < n; ++i) {
+                    if (n >= 8 && LLVMIsConstant(vs[i])) continue;
                     LLVMValueRef idx[] = {ci64(0), ci64(static_cast<std::int64_t>(i))};
-                    LLVMBuildStore(b, val(in.args[info.params.size() + i]),
-                                   LLVMBuildInBoundsGEP2(b, tv, vetor, idx, 2, ""));
+                    LLVMBuildStore(b, vs[i], LLVMBuildInBoundsGEP2(b, tv, vetor, idx, 2, ""));
                 }
             }
             ps.push_back(tPtr);
@@ -871,7 +890,13 @@ struct Emissor::Impl {
             LLVMBuildBr(b, roda);
         }
         LLVMPositionBuilderAtEnd(b, roda);
-        LLVMBuildCall2(b, tfns[m.main], fns[m.main], nullptr, 0, "");
+        if (m.funcoes[m.main].params.empty()) {
+            LLVMBuildCall2(b, tfns[m.main], fns[m.main], nullptr, 0, "");
+        } else {   // main(list<string> args): os argumentos depois do programa, emprestados
+            LLVMValueRef args = chamaRt(rt("cz_args", tPtr, {}), {});
+            LLVMBuildCall2(b, tfns[m.main], fns[m.main], &args, 1, "");
+            chamaRt(rt("cz_solta", tVoid, {tPtr}), {args});
+        }
         LLVMBuildBr(b, termina);
         LLVMPositionBuilderAtEnd(b, termina);
         chamaRt(rt("cz_gc_estatisticas", tVoid, {}), {});   // CINZA_GC_STATS=1, como a CVM

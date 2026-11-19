@@ -1,0 +1,36 @@
+// Módulo do teste nativo/p9_modulos: classe, struct genérico, enum, error, const e uma
+// função genérica, usados de outro módulo e do principal.
+pub error SemSaldo;
+
+pub const f64 TAXA = 0.5ff;
+pub const string BANCO = "Banco Cinza";
+
+pub enum Tipo { Corrente, Poupanca }
+
+pub struct Registro[T] {
+  T valor;
+  string nota = "";
+}
+
+pub class Conta {
+  f64 saldo = 0.0ff;
+  Tipo tipo = Tipo.Corrente;
+  pub {
+    Conta(f64 inicial, Tipo t) { saldo = inicial; tipo = t; }
+    fn saca(f64 v) -> f64 {
+      if (v + TAXA > saldo) {
+        throw SemSaldo("saldo " + cast<string>(saldo) + " < " + cast<string>(v + TAXA));
+      }
+      saldo -= v + TAXA;
+      return saldo;
+    }
+    fn tipo_() -> Tipo { return tipo; }
+  }
+}
+
+pub fn maior[T](T a, T b) -> T {
+  if (a > b) {
+    return a;
+  }
+  return b;
+}

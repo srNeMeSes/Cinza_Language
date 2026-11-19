@@ -69,6 +69,9 @@ extern cinza::CzExec cz_exec;
 // argumentos em UTF-8 (para main(list<string> args), P9)
 void cz_inicio(int argc, char** argv) noexcept;
 
+// main(list<string> args): os argumentos depois do programa, como lista (com posse)
+cinza::CzObjeto* cz_args() noexcept;
+
 // Fim do programa: relata um erro pendente (como a CVM), solta o que o runtime guarda,
 // confere vazamentos (CINZA_VAZAMENTOS=1) e devolve o código de saída
 int cz_fim() noexcept;

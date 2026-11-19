@@ -11,6 +11,7 @@ do `run_tests.py`. Para rodar só uma parte: `python tests/run_tests.py cinza.ex
 `make test-llvm` (ou `python tests/run_tests.py --cinzac`) roda a mesma suíte pelo backend
 nativo: cada teste é compilado pelo `cinzac` e o executável roda com os mesmos argumentos,
 entrada e ambiente; o que o `cinzac` ainda não compila é contado à parte, com os motivos.
+Com `--O2` (`python tests/run_tests.py --cinzac --O2`), cada teste é compilado com otimização.
 
 Todo teste também confere a memória: o `run_tests.py` roda os programas com
 `CINZA_VAZAMENTOS=1`, e um programa que termina com algum objeto do runtime ainda vivo sai com

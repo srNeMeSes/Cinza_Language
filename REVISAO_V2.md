@@ -1811,8 +1811,21 @@ depois de um debate com duas revisões externas:
   > 244), 27 ainda não suportados (todos do P9: `import` 23, `main(args)` 4). Velocidade com as
   > conferências depois das chamadas (bench/, -O2): `fib` 16 ms (CVM 41), `laco` 16 (111),
   > `objetos` 33 (63), `ciclos` 330 (376).
-- [ ] P9. Módulos, genéricos (as cópias), biblioteca nativa, `input`/`args`/`env`: a suíte
-  inteira passa nos dois backends, sem vazamento.
+- [x] P9. Módulos, genéricos (as cópias), biblioteca nativa, `input`/`args`/`env`: a suíte
+  inteira passa nos dois backends, sem vazamento. — feito em 2026-11-19
+  > Nota: os genéricos (as cópias do N2 e do N5) e a biblioteca nativa já compilavam desde o P4–P7;
+  > faltavam os módulos da Cinza e `main(args)`. Os módulos entram todos no mesmo módulo LLVM, na
+  > ordem topológica, com os nomes completos que o semântico já dá (DESENHO 4.4, nota do P9). **A
+  > suíte inteira passa pelo `cinzac`**: 681/681, nenhum "ainda não suportado", 348 como executável
+  > nativo (os demais são erros de compilação, do front-end comum), no modo sem vazamento, em -O0
+  > e em -O2 (`run_tests.py --cinzac --O2`, opção nova) e com a `libcinzart` de
+  > `CINZA_CONFERE_REFS`. **Encontrado no caminho**: um literal de lista com 67 mil números levava
+  > 9 s para compilar em -O0 e passava de 60 s em -O2 (uma instrução por elemento); os elementos
+  > constantes agora vão num global já pronto, e os dois ficam em cerca de 1 s (teste que já
+  > existia: `tests/cvm/cvm_literal_grande`, agora também em -O2). **Testes**:
+  > `tests/nativo/p9_modulos` (dois módulos encadeados com const, enum, error, classe, struct
+  > genérico e função genérica, `except` de um erro de outro módulo, stack trace atravessando os
+  > arquivos) e `p9_args` (`main(list<string> args)` com acento, `input`), nos dois backends.
 - [ ] P10. Otimização: `-O2`, eliminar `retain`/`release` desnecessários, não testar erro depois
   de funções que não falham, campos e listas com tipos nativos. Medição contra a CVM e decisão
   sobre o papel dela.

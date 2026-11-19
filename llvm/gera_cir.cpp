@@ -1,8 +1,8 @@
 // AST analisada → CIR. P4: números, bool, funções, if/while/for range, print (e as
 // nativas de valores simples), const globais. P5: strings e a posse. P6: list, dict e
 // pair. P7: structs, classes, interfaces, enums e type(). P8: erros — throw, try/except/
-// finally, valores de erro, exit. O resto é NaoSuportado, com a posição: a etapa P9
-// (REVISAO_V2.md, seção P) amplia.
+// finally, valores de erro, exit. P9: todos os módulos da Cinza do programa (os nomes de
+// topo dos importados já vêm completos do semântico, "util.texto::soma") e main(args).
 //
 // Erros (llvm/DESENHO.md 5.3): toda operação que pode falhar leva o bloco tratador do ponto
 // em que está (Instr::erro). Fora de um try é a saída de erro da função, que solta todos
@@ -84,6 +84,12 @@ std::uint8_t kindDe(Tipo t) {
     }
 }
 
+// O símbolo de uma função (llvm/DESENHO.md 8.3): cz:<módulo>::<nome>; no principal, sem
+// módulo (cz:::main). Os nomes de topo dos módulos importados já têm o prefixo
+std::string simbolo(const std::string& nome) {
+    return nome.find("::") == std::string::npos ? "cz:::" + nome : "cz:" + nome;
+}
+
 bool literalVerdadeiro(const Expr& e) {
     if (e.node_kind != NodeKind::Literal) return false;
     const auto* b = std::get_if<bool>(&static_cast<const LiteralExpr&>(e).value);
@@ -135,14 +141,11 @@ public:
         std::vector<Tipo> ps;
         if (cls) ps.push_back(Tipo::Obj);
         for (const Parameter& p : fn.parameters) ps.push_back(tipoDe(TypeChecker::fromAst(p.type.get()), p.token));
-        const std::uint32_t fi = novaFuncao("cz:::" + (cls ? cls->class_name + "." : std::string()) + fn.name,
+        const std::uint32_t fi = novaFuncao(simbolo((cls ? cls->class_name + "." : std::string()) + fn.name),
                                             fn.trace_name, fn.token, std::move(ps),
                                             tipoDe(TypeChecker::fromAst(fn.return_type.get()), fn.token), false);
         funcao_de[&fn] = fi;
-        if (!cls && fn.name == "main") {
-            if (!fn.parameters.empty()) naoSuportado("main(list<string> args)", fn.token);
-            m.main = static_cast<int>(fi);
-        }
+        if (!cls && fn.name == "main") m.main = static_cast<int>(fi);   // main(list<string> args): o main do C dá a lista
     }
     // Os métodos, o construtor ("new Classe" no trace) e o inicializador dos campos (oculto,
     // fora da pilha e do trace, como na CVM)
@@ -152,11 +155,11 @@ public:
             std::vector<Tipo> ps{Tipo::Obj};
             for (const Parameter& p : c.constructor->parameters)
                 ps.push_back(tipoDe(TypeChecker::fromAst(p.type.get()), p.token));
-            funcao_de[c.constructor.get()] = novaFuncao("cz:::" + c.class_name + ".new", c.constructor->trace_name,
+            funcao_de[c.constructor.get()] = novaFuncao(simbolo(c.class_name + ".new"), c.constructor->trace_name,
                                                         c.constructor->token, std::move(ps), Tipo::Void, false);
         }
         if (!c.fields.empty())
-            init_de[&c] = novaFuncao("cz:::" + c.class_name + ".init", "", c.token, {Tipo::Obj}, Tipo::Void, true);
+            init_de[&c] = novaFuncao(simbolo(c.class_name + ".init"), "", c.token, {Tipo::Obj}, Tipo::Void, true);
     }
     static std::vector<const FunctionDecl*> metodos(const ClassDecl& c) {
         std::vector<const FunctionDecl*> v;
@@ -1489,17 +1492,16 @@ Modulo gera(const std::vector<Module>& modulos, const GlobalLayout& layout,
             const std::vector<std::string>& arquivos) {
     Modulo m;
     m.arquivos = arquivos;
-    for (std::size_t i = 0; i + 1 < modulos.size(); ++i)
-        if (!modulos[i].native) {
-            const auto& imps = modulos.back().program->imports;
-            naoSuportado("import de módulo da Cinza", imps.empty() ? Token() : imps.front().token);
-        }
-    const Program& prog = *modulos.back().program;
     Gerador g(m, layout);
 
+    // os módulos da Cinza na ordem topológica (o principal por último): é também a ordem
+    // da inicialização dos const de cada um, como na CVM
     std::vector<const FunctionDecl*> funcoes;
     std::vector<const VarDeclStmt*> consts;
     std::vector<const ClassDecl*> classes;
+    for (const Module& mod : modulos) {
+    if (mod.native || !mod.program) continue;
+    const Program& prog = *mod.program;
     for (const auto& s : prog.statements) {
         switch (s->node_kind) {
             case NodeKind::FunctionDecl: {
@@ -1523,6 +1525,7 @@ Modulo gera(const std::vector<Module>& modulos, const GlobalLayout& layout,
     for (const auto& s : prog.instancias) {   // N2/N5: cópias das funções e dos structs genéricos
         if (s->node_kind == NodeKind::StructDecl) g.registraStruct(*static_cast<const StructDecl*>(s.get()));
         else funcoes.push_back(static_cast<const FunctionDecl*>(s.get()));
+    }
     }
     for (const auto* c : classes) g.registraClasse(*c);
 

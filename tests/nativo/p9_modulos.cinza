@@ -1,0 +1,26 @@
+// P9: módulos da Cinza no código nativo (cinzac) — dois módulos encadeados com const,
+// enum, error, classe, struct genérico e função genérica; a ordem de inicialização dos
+// const; except de um erro declarado em outro módulo; e o stack trace atravessando os
+// arquivos, que termina num erro não pego. Roda nos dois backends.
+import modulos.p9_banco as banco;
+import modulos.p9_caixa as caixa;
+
+fn main() {
+  print(banco.BANCO, banco.TAXA, caixa.LIMITE);
+  banco.Conta c = new banco.Conta(10.0ff, banco.Tipo.Poupanca);
+  print(caixa.saque_seguro(c, 3.0ff), caixa.saque_seguro(c, 30.0ff));
+  print(c.tipo_(), c.tipo_() == banco.Tipo.Poupanca, type(c));
+  banco.Registro[f64] r = caixa.registra(2.5ff);
+  print(r, banco.maior[i32](3, 9), banco.maior[string]("a", "b"));
+  print(caixa.saque_direto(c, 1.0ff));
+  print(caixa.saque_direto(c, 50.0ff));
+}
+// expect: Banco Cinza 0.5 50
+// expect: ok 6.5 negado: saldo 6.5 < 30.5
+// expect: Tipo.Poupanca true Conta
+// expect: Registro[f64]{valor: 2.5, nota: "Banco Cinza"} 9 b
+// expect: 5
+// expect-error: tests/modulos/p9_banco.cinza:22:15: SemSaldo: saldo 5 < 50.5
+// expect-error: em Conta.saca (tests/modulos/p9_banco.cinza:22)
+// expect-error: em saque_direto (tests/modulos/p9_caixa.cinza:19)
+// expect-error: em main (tests/nativo/p9_modulos.cinza:16)

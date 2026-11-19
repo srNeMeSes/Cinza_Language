@@ -430,6 +430,16 @@ runtime de hoje — os campos tipados da seção 8.1 ficam para o P10:
   grava a posição no quadro de quem fez o `new` — o `call_line` que a CVM guarda no quadro
   seguinte ao oculto; o trace sai igual (teste `tests/nativo/p7_erro_init`).
 
+**Implementado no P9**: o programa inteiro num módulo LLVM só (seção 8.3), com todos os
+módulos da Cinza na ordem topológica — a mesma da inicialização dos `const` na CVM. Os nomes de
+topo dos módulos importados já chegam completos do semântico (`util.texto::soma`), o que dá o
+símbolo `cz:util.texto::soma` sem regra nova. `main(list<string> args)` recebe do `main` do C a
+lista com os argumentos depois do executável (`cz_args`). **Literais grandes**: um `call.rt`
+com vetor de 8 ou mais elementos põe os constantes num global já pronto e grava só os outros,
+logo antes da chamada (nenhum código da Cinza roda entre as gravações e a chamada, que copia os
+elementos); com uma instrução por elemento, uma lista de 67 mil números levava 9 s para
+compilar em -O0 e mais de 60 s em -O2 — agora, cerca de 1 s nos dois.
+
 ## 5. Erros
 
 ### 5.1 Um mecanismo só

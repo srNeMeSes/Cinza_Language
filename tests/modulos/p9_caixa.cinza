@@ -1,0 +1,20 @@
+// Módulo do teste nativo/p9_modulos: usa o p9_banco (módulos encadeados).
+import modulos.p9_banco as banco;
+
+pub const f64 LIMITE = 100.0ff * banco.TAXA;
+
+pub fn saque_seguro(banco.Conta c, f64 v) -> string {
+  try {
+    return "ok " + cast<string>(c.saca(v));
+  } except (banco.SemSaldo e) {
+    return "negado: " + e.message;
+  }
+}
+
+pub fn registra(f64 v) -> banco.Registro[f64] {
+  return new banco.Registro[f64](valor: v, nota: banco.BANCO);
+}
+
+pub fn saque_direto(banco.Conta c, f64 v) -> f64 {
+  return c.saca(v);
+}

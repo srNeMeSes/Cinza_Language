@@ -1,0 +1,19 @@
+// P9: main(list<string> args) e input no código nativo: os argumentos depois do programa
+// (no cinzac, depois do executável) e as linhas da entrada, como na CVM. Roda nos dois
+// backends.
+// args: um três 4
+// stdin: linha lida
+// stdin: ação
+fn main(list<string> args) {
+  print(args, args.size());
+  for (string a in args) {
+    print(a.size());
+  }
+  string s = input("> ");
+  print("lido:", s, input("").size());
+}
+// expect: ["um", "três", "4"] 3
+// expect: 2
+// expect: 4
+// expect: 1
+// expect: > lido: linha lida 4

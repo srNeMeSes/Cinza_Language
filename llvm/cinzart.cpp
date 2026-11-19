@@ -130,6 +130,16 @@ extern "C" void cz_inicio(int argc, char** argv) noexcept {
     });
 }
 
+extern "C" CzObjeto* cz_args() noexcept {
+    CzObjeto* r = nullptr;
+    fronteira([&] {   // como o cinza: o que vem depois do arquivo (aqui, depois do executável)
+        std::vector<Value> elems;
+        for (std::size_t i = 1; i < argumentos.size(); ++i) elems.emplace_back(argumentos[i]);
+        r = makeList(std::move(elems)).entrega().u.obj;
+    });
+    return r;
+}
+
 extern "C" int cz_fim() noexcept {
     int codigo = 0;
     fronteira([&] {
