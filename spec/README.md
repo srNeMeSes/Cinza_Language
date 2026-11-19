@@ -3,8 +3,8 @@
 Versão 5 · novembro de 2026 (structs genéricos, campos obrigatórios e criação pelo nome)
 
 Este documento define a linguagem Cinza: o que é um programa válido e o que ele faz ao
-executar. É a referência para quem implementa a linguagem — a máquina virtual (CVM) e o futuro
-backend LLVM precisam se comportar exatamente como descrito aqui. Não é um tutorial:
+executar. É a referência para quem implementa a linguagem — a máquina virtual (CVM) e o
+compilador nativo (`cinzac`, pelo LLVM) precisam se comportar exatamente como descrito aqui. Não é um tutorial:
 para aprender a linguagem, o livro (a ser reescrito) é o caminho.
 
 ## Capítulos

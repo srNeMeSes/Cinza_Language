@@ -1,0 +1,19 @@
+class Ponto {
+    i64 x = 0;
+    i64 y = 0;
+    pub {
+        Ponto(i64 a, i64 b) { x = a; y = b; }
+        fn getX() -> i64 { return x; }
+        fn getY() -> i64 { return y; }
+        fn move(i64 d) { x = x + d; }
+    }
+}
+fn main() {
+    Ponto p = new Ponto(1, 2);
+    i64 t = 0;
+    for (i64 i in range(0, 3000000)) {
+        t += p.getX() + p.getY();
+        p.move(1);
+    }
+    print(t);
+}

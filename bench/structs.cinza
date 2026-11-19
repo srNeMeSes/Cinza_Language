@@ -1,0 +1,21 @@
+struct V {
+    f64 x = 0.0ff;
+    f64 y = 0.0ff;
+}
+fn soma(V a, V b) -> V {
+    V r = new V(a.x + b.x, a.y + b.y);
+    return r;
+}
+fn comprimento2(V a) -> f64 {
+    return a.x * a.x + a.y * a.y;
+}
+fn main() {
+    V acc = new V();
+    V passo = new V(1.0ff, 0.5ff);
+    f64 t = 0.0ff;
+    for (i32 i in range(0, 1000000)) {
+        acc = soma(acc, passo);
+        t += comprimento2(passo);
+    }
+    print(acc, t);
+}

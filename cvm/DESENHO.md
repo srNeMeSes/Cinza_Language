@@ -9,10 +9,11 @@ Documento técnico da implementação (não é parte da especificação da lingu
 fonte → Lexer → Parser → Semântico → Compilador CVM → bytecode → VM
 ```
 
-A CVM é o único runtime da Cinza (o interpretador tree-walk de referência saiu em 2026-11-14).
-O próximo passo é um backend LLVM (seção 12), a partir da mesma AST analisada; o desenho dele
-está em `llvm/DESENHO.md` (a CVM continua compilando da AST, e o runtime passa a ser comum aos
-dois).
+A CVM é uma das duas implementações da Cinza, as duas permanentes (decisão do autor no P10,
+2026-11-19): `cinza prog.cinza` roda na CVM, na hora; `cinzac prog.cinza -o prog.exe` gera um
+executável pelo LLVM (seção 12, desenho em `llvm/DESENHO.md`). As duas compilam da mesma AST
+analisada e usam o mesmo runtime em C++ (as regras em `operacoes.cpp`); toda mudança da
+linguagem entra nas duas, e a suíte roda nas duas.
 
 O compilador CVM recebe a AST **já analisada** — tipos resolvidos, slots do B2, alvos de chamada,
 tabelas de interface, conversões inseridas — e gera uma função compilada (**protótipo**) para
@@ -381,10 +382,12 @@ mensurável (os processadores atuais já preveem bem o salto indireto do `switch
 armadilha — o salto computado não destrói os locais do caso (`std::string`, `Value`), o que exige
 fechar o bloco antes de cada salto. Sem ganho, não compensa; fica registrado para não ser refeito.
 
-## 12. Mapeamento para LLVM (futuro)
+## 12. Mapeamento para o LLVM (o `cinzac`)
 
-O backend LLVM partirá da mesma AST analisada (tipos já resolvidos e promoções já inseridas como
-`CastExpr`), então cada operação numérica tem um tipo só, como na CVM:
+O `cinzac` parte da mesma AST analisada (tipos já resolvidos e promoções já inseridas como
+`CastExpr`), então cada operação numérica tem um tipo só, como na CVM. O caminho rápido de cada
+operação fica no código gerado; no caminho de erro, o runtime refaz a operação pela regra desta
+CVM, para a mensagem ser a mesma (`llvm/DESENHO.md`, seção 8.2):
 
 | Cinza                        | LLVM |
 |------------------------------|------|
@@ -393,7 +396,7 @@ O backend LLVM partirá da mesma AST analisada (tipos já resolvidos e promoçõ
 | `+ - *` inteiros             | `llvm.sadd/ssub/smul.with.overflow.*` + salto para o `OverflowError` (sem `nsw`/`nuw`: o estouro é erro definido, não comportamento indefinido) |
 | `/ %` inteiros               | teste de divisor 0 (`ZeroDivisionError`) e de `menor / -1` (`OverflowError`; `x % -1` dá 0) antes do `sdiv`/`srem` |
 | `+ - * /` ponto flutuante    | teste de divisor 0 (`ZeroDivisionError`) antes do `fdiv`; `fadd`/`fsub`/`fmul`/`fdiv` e teste de resultado não finito (`OverflowError`: infinito e NaN não existem), sem *fast-math* (o `-0` e o arredondamento continuam os do IEEE) |
-| comparações                  | `icmp slt/sle/eq/ne` e `fcmp olt/ole/oeq/one` (sem NaN, ordenado e não ordenado coincidem) |
+| comparações                  | `icmp slt/sle/eq/ne` e `fcmp olt/ole/oeq/une` (sem NaN, ordenado e não ordenado coincidem) |
 | `-x`                         | inteiro: teste do menor valor + `sub 0, x`; ponto flutuante: `fneg` |
 | `i32` → `i64`                | `sext` |
 | `f32` → `f64`                | `fpext` |
@@ -404,5 +407,6 @@ O backend LLVM partirá da mesma AST analisada (tipos já resolvidos e promoçõ
 | `cast<T>(string)` e para `string` | chamada ao runtime (`convertValue`) |
 
 O runtime (coleções, strings, coleta de ciclos, biblioteca padrão, erros e stack trace) continua
-em C++ e seria chamado pelo código gerado. As funções e os structs genéricos chegam como as cópias
-concretas (seção 8): o LLVM nunca vê um parâmetro de tipo.
+em C++ e é chamado pelo código gerado, pela interface C da `libcinzart` (`llvm/cinzart.h`). As
+funções e os structs genéricos chegam como as cópias concretas (seção 8): o LLVM nunca vê um
+parâmetro de tipo.
