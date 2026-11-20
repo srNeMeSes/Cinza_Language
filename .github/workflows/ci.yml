@@ -32,11 +32,20 @@ jobs:
         run: |
           make -j"$(nproc)"
           make test
+      - name: diagnóstico do fuso (temporário)
+        if: always()
+        run: |
+          ls -la /usr/share/zoneinfo/EST5EDT /usr/share/zoneinfo/posixrules || true
+          for t in 1793496600 1793511000 1793514600; do TZ=EST5EDT date -u -d @$t; TZ=EST5EDT date -d @$t '+%F %T %Z %z'; done
+          printf 'import Time;\nfn main() {\n  i64 l = Time.make_utc(2026, 11, 1, 1, 30);\n  print(Time.hour(l), Time.hour(l + 14400), Time.hour(l + 18000));\n  print(Time.hour_utc(Time.make(2026, 11, 1, 1, 30)), Time.hour_utc(Time.make(2026, 11, 1, 0, 30)));\n}\n' > /tmp/fuso.cinza
+          TZ=EST5EDT ./cinza /tmp/fuso.cinza
       - name: cinzac -O0
+        if: always()
         run: |
           make -j"$(nproc)" cinzac
           make test-llvm
       - name: cinzac -O2
+        if: always()
         run: python3 tests/run_tests.py --cinzac --O2
 
   linux-clang:
@@ -58,10 +67,12 @@ jobs:
           make -j"$(nproc)" CXX=clang++-20
           make test CXX=clang++-20
       - name: cinzac -O0
+        if: always()
         run: |
           make -j"$(nproc)" cinzac CXX=clang++-20
           make test-llvm CXX=clang++-20
       - name: cinzac -O2
+        if: always()
         run: python3 tests/run_tests.py --cinzac --O2
 
   windows:
@@ -86,15 +97,20 @@ jobs:
           pacman -U --noconfirm \
             $base/mingw-w64-clang-x86_64-libc++-20.1.8-1-any.pkg.tar.zst \
             $base/mingw-w64-clang-x86_64-llvm-libs-20.1.8-2-any.pkg.tar.zst \
+            $base/mingw-w64-clang-x86_64-llvm-tools-20.1.8-2-any.pkg.tar.zst \
             $base/mingw-w64-clang-x86_64-llvm-20.1.8-2-any.pkg.tar.zst
+          test -f /clang64/include/llvm-c/Core.h   # o pacman pula um pacote sem dependência, sem falhar
+          ls /clang64/bin | grep -E '^lib(LLVM|c\+\+|ffi|iconv|lzma|xml2|zstd)|zlib1'
           g++ --version
       - name: CVM
         run: |
           make -j"$(nproc)"
           make test
       - name: cinzac -O0
+        if: always()
         run: |
           make -j"$(nproc)" cinzac LLVM_PREFIX="$(cygpath -m /clang64)"
           make test-llvm LLVM_PREFIX="$(cygpath -m /clang64)"
       - name: cinzac -O2
+        if: always()
         run: python3 tests/run_tests.py --cinzac --O2

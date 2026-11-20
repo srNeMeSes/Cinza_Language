@@ -759,7 +759,26 @@ Value mathRadians(Args a) { return naLargura(a[0], a[0].asFloat() * (PI / 180.0)
 Value mathSinh(Args a)  { return naLargura(a[0], std::sinh(a[0].asFloat()), "sinh"); }
 Value mathCosh(Args a)  { return naLargura(a[0], std::cosh(a[0].asFloat()), "cosh"); }
 Value mathTanh(Args a)  { return naLargura(a[0], std::tanh(a[0].asFloat()), "tanh"); }
-Value mathCbrt(Args a)  { return naLargura(a[0], std::cbrt(a[0].asFloat()), "cbrt"); }
+// Q4: o cbrt da libm pode errar o último bit (o do glibc dá 3.0000000000000004 para 27, o do
+// MinGW dá 3): fica, entre ele e os dois vizinhos, o de cubo mais perto de x (em long double) —
+// o mesmo resultado em todo sistema, e exato nos cubos perfeitos
+double raizCubica(double x) {
+    const double r = std::cbrt(x);
+    if (!std::isfinite(r) || r == 0) return r;
+    double melhor = r;
+    auto erro = [x](double c) {
+        const long double lc = c;
+        return std::fabs(lc * lc * lc - static_cast<long double>(x));
+    };
+    long double menor = erro(r);
+    for (double c : {std::nextafter(r, -HUGE_VAL), std::nextafter(r, HUGE_VAL)})
+        if (const long double e = erro(c); e < menor) {
+            menor = e;
+            melhor = c;
+        }
+    return melhor;
+}
+Value mathCbrt(Args a)  { return naLargura(a[0], raizCubica(a[0].asFloat()), "cbrt"); }
 Value mathExp(Args a)   { return naLargura(a[0], std::exp(a[0].asFloat()), "exp"); }
 Value mathHypot(Args a) { return naLargura(a[0], std::hypot(a[0].asFloat(), a[1].asFloat()), "hypot"); }
 
