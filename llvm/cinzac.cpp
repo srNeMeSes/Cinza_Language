@@ -212,8 +212,10 @@ static int principal(int argc, char* argv[]) {
         // libunwind, compiler-rt), tudo vindo de runtime/: o programa roda em qualquer Linux x86-64,
         // sem nada instalado
         // --no-dependent-libraries: os objetos da libc++ pedem -lrt, -lpthread e -ldl, que na musl
-        // estão todos dentro da libc.a
-        for (const char* x : {"-static", "-m", "elf_x86_64", "--no-dependent-libraries", "-o"}) a.push_back(x);
+        // estão todos dentro da libc.a. --eh-frame-hdr: sem a tabela dele, a libunwind não acha
+        // onde desempilhar, e as exceções do runtime (os erros da Cinza) terminam o programa
+        for (const char* x : {"-static", "-m", "elf_x86_64", "--eh-frame-hdr", "--no-dependent-libraries", "-o"})
+            a.push_back(x);
         a.push_back(saida);
         for (const char* f : {"crt1.o", "crti.o", "crtbegin.o"}) a.push_back(rt(f));
         a.push_back("-L" + textoCaminho(runtime));
