@@ -37,6 +37,11 @@ bool executa(const std::vector<std::string>& args, int& codigo, std::string* sai
 // Todas as variáveis de ambiente, (nome, valor) em UTF-8 (Env.all)
 std::vector<std::pair<std::string, std::string>> ambienteTodo();
 
+// A6/Q4: roda f(argc, argv) com uma pilha de 64 MB, para a recursão do parser e do semântico em
+// programas muito aninhados (2000 níveis). No Windows ela vem do ligador (-Wl,--stack); no POSIX,
+// a pilha da thread principal é a do ulimit (8 MB, em geral), e f roda numa thread com 64 MB.
+int comPilhaGrande(int (*f)(int, char**), int argc, char** argv);
+
 // Caminho do executável em execução, em UTF-8 (o cinzac acha a libcinzart ao lado)
 std::string caminhoDoExecutavel();
 

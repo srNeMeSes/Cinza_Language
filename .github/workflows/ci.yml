@@ -1,0 +1,100 @@
+# Integração contínua (REVISAO_V2.md, Q4): a suíte nos dois backends — a CVM (`make test`) e o
+# cinzac em -O0 (`make test-llvm`) e -O2 — no Linux (GCC 15 e Clang 20) e no Windows (MSYS2, GCC
+# e o LLVM 20.1.8), a cada push e pull request. O compilador precisa do #embed (GCC 15 ou Clang 19
+# em diante) e o cinzac do LLVM 20.
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  linux-gcc:
+    name: Linux (GCC 15)
+    runs-on: ubuntu-24.04
+    container: gcc:15
+    steps:
+      - uses: actions/checkout@v4
+      - name: LLVM 20 e Python
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends wget gnupg ca-certificates python3
+          . /etc/os-release
+          wget -qO /etc/apt/trusted.gpg.d/apt.llvm.org.asc https://apt.llvm.org/llvm-snapshot.gpg.key
+          echo "deb http://apt.llvm.org/$VERSION_CODENAME/ llvm-toolchain-$VERSION_CODENAME-20 main" \
+            > /etc/apt/sources.list.d/llvm.list
+          apt-get update
+          apt-get install -y --no-install-recommends llvm-20-dev
+          g++ --version
+          llvm-config-20 --version
+      - name: CVM
+        run: |
+          make -j"$(nproc)"
+          make test
+      - name: cinzac -O0
+        run: |
+          make -j"$(nproc)" cinzac
+          make test-llvm
+      - name: cinzac -O2
+        run: python3 tests/run_tests.py --cinzac --O2
+
+  linux-clang:
+    name: Linux (Clang 20)
+    runs-on: ubuntu-24.04
+    env:
+      CINZA_GXX: clang++-20   # o cinzac liga os programas com o mesmo compilador da libcinzart
+    steps:
+      - uses: actions/checkout@v4
+      - name: Clang e LLVM 20
+        run: |
+          wget -q https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 20
+          sudo apt-get install -y --no-install-recommends llvm-20-dev
+          clang++-20 --version
+      - name: CVM
+        run: |
+          make -j"$(nproc)" CXX=clang++-20
+          make test CXX=clang++-20
+      - name: cinzac -O0
+        run: |
+          make -j"$(nproc)" cinzac CXX=clang++-20
+          make test-llvm CXX=clang++-20
+      - name: cinzac -O2
+        run: python3 tests/run_tests.py --cinzac --O2
+
+  windows:
+    name: Windows (MSYS2, GCC e LLVM 20)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            make
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-python
+      - name: LLVM 20.1.8 (o mesmo do desenvolvimento, do arquivo do MSYS2)
+        run: |
+          base=https://repo.msys2.org/mingw/clang64
+          pacman -U --noconfirm \
+            $base/mingw-w64-clang-x86_64-libc++-20.1.8-1-any.pkg.tar.zst \
+            $base/mingw-w64-clang-x86_64-llvm-libs-20.1.8-2-any.pkg.tar.zst \
+            $base/mingw-w64-clang-x86_64-llvm-20.1.8-2-any.pkg.tar.zst
+          g++ --version
+      - name: CVM
+        run: |
+          make -j"$(nproc)"
+          make test
+      - name: cinzac -O0
+        run: |
+          make -j"$(nproc)" cinzac LLVM_PREFIX="$(cygpath -m /clang64)"
+          make test-llvm LLVM_PREFIX="$(cygpath -m /clang64)"
+      - name: cinzac -O2
+        run: python3 tests/run_tests.py --cinzac --O2

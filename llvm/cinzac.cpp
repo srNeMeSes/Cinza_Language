@@ -31,7 +31,7 @@ constexpr int NAO_SUPORTADO = 75;
 void ajuda() {
     std::cout << "cinzac — compilador nativo da Cinza (LLVM)\n\n"
                  "Uso: cinzac [opções] arquivo.cinza [-o saída]\n\n"
-                 "  -o ARQUIVO        executável (padrão: o nome do programa com .exe)\n"
+                 "  -o ARQUIVO        executável (padrão: o nome do programa; .exe no Windows)\n"
                  "  -O2               com otimização\n"
                  "  --emit-cir        mostra a CIR e para\n"
                  "  --emit-llvm       grava o IR do LLVM (em -o, ou na saída) e para\n"
@@ -52,7 +52,12 @@ bool leArquivo(const std::string& nome, std::string& conteudo) {
 
 }  // namespace
 
-int main(int argc, char* argv[]) {
+static int principal(int argc, char* argv[]);
+
+// A6/Q4: a pilha de 64 MB em todo sistema (plataforma.h), para o front-end
+int main(int argc, char* argv[]) { return comPilhaGrande(principal, argc, argv); }
+
+static int principal(int argc, char* argv[]) {
     std::ios::sync_with_stdio(false);
     preparaConsole();
     const std::vector<std::string> args = argumentosUtf8(argc, argv);
@@ -145,7 +150,13 @@ int main(int argc, char* argv[]) {
         f << emissor.textoIR();
         return f ? 0 : 1;
     }
-    if (saida.empty()) saida = textoCaminho(caminhoUtf8(arquivo).replace_extension(".exe"));
+    if (saida.empty()) {   // o nome do programa, com .exe no Windows e sem extensão nos outros
+#ifdef _WIN32
+        saida = textoCaminho(caminhoUtf8(arquivo).replace_extension(".exe"));
+#else
+        saida = textoCaminho(caminhoUtf8(arquivo).replace_extension(""));
+#endif
+    }
     const std::string objeto = saida + ".o";
     std::vector<std::string> objetos;   // o segundo, com as funções enormes, se houver
     if (!emissor.emiteObjeto(objeto, objetos, erro)) {
@@ -162,9 +173,11 @@ int main(int argc, char* argv[]) {
     std::vector<std::string> ligacao{gxx};
     ligacao.insert(ligacao.end(), objetos.begin(), objetos.end());
     for (const std::string& a : {textoCaminho(pasta / "libcinzart.a"), std::string("-o"), saida,
-                                 std::string("-static-libstdc++"), std::string("-static-libgcc"),
-                                 std::string("-Wl,--stack,67108864")})
+                                 std::string("-static-libstdc++"), std::string("-static-libgcc")})
         ligacao.push_back(a);
+#ifdef _WIN32
+    ligacao.push_back("-Wl,--stack,67108864");   // A6: a pilha de 64 MB (a padrão do Windows tem 1 MB)
+#endif
     std::string extra;
     if (ambienteUtf8("CINZA_LIGACAO", extra)) {
         std::istringstream partes(extra);

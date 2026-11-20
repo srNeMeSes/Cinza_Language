@@ -202,7 +202,12 @@ void printHelp() {
     std::cout << "  cinza prog.cinza a b     (main(list<string> args) recebe [\"a\", \"b\"])\n\n";
 }
 
-int main(int argc, char* argv[]) {
+static int principal(int argc, char* argv[]);
+
+// A6/Q4: a pilha de 64 MB em todo sistema (plataforma.h)
+int main(int argc, char* argv[]) { return comPilhaGrande(principal, argc, argv); }
+
+static int principal(int argc, char* argv[]) {
     // A12: iostreams sem sincronizar com stdio (o programa não usa printf).
     // cerr continua "tied" a cout, então a saída do programa sai antes de
     // qualquer mensagem de erro.

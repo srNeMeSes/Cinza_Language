@@ -1,7 +1,9 @@
 # Makefile para o Compilador da Linguagem Cinza
 # C++20, otimização -O3, warnings habilitados
-# No PowerShell (MinGW) o comando é `mingw32-make`; no MSYS2 é `make`.
-# `make debug` (ASan/UBSan) só funciona no Windows pelo MSYS2 CLANG64.
+# No PowerShell (MinGW) o comando é `mingw32-make`; no MSYS2 e no Linux é `make`.
+# `make debug` (ASan/UBSan) no Windows só funciona pelo MSYS2 CLANG64.
+# O compilador precisa de C++20 e do #embed (biblioteca.cpp): GCC 15 ou Clang 19 em diante
+# (no Linux, `make CXX=clang++-20` troca o compilador).
 
 CXX = g++
 CXXFLAGS = -std=c++20 -O3 -Wall -Wextra -pedantic
@@ -98,26 +100,41 @@ $(UNIT_GC): tests/unit_gc.cpp gc.h gc_object.h value.h
 	$(CXX) $(CXXFLAGS) -o $(UNIT_GC) tests/unit_gc.cpp
 
 # ---------------------------------------------------------------------------
-# cinzac: o compilador nativo (llvm/DESENHO.md; seção P do REVISAO_V2.md). Usa a
-# API em C do LLVM 20.1.8 do MSYS2 CLANG64 (mingw-w64-clang-x86_64-llvm) com o GCC do
-# projeto. Fica em llvm/bin/, com a libcinzart.a (o runtime que os programas gerados
-# ligam) e as DLLs do LLVM ao lado: o Windows as procura primeiro na pasta do
-# executável, antes do PATH (onde o GCC tem outras versões de zlib1, libzstd...).
-LLVM_PREFIX ?= C:/msys64/clang64
+# cinzac: o compilador nativo (llvm/DESENHO.md; seção P do REVISAO_V2.md), pela API em C
+# do LLVM 20. Fica em llvm/bin/, com a libcinzart.a (o runtime que os programas gerados
+# ligam).
+# - Windows: o LLVM 20.1.8 do MSYS2 CLANG64 (mingw-w64-clang-x86_64-llvm; LLVM_PREFIX troca
+#   a pasta) com o GCC do projeto, e as DLLs do LLVM ao lado do cinzac: o Windows as procura
+#   primeiro na pasta do executável, antes do PATH (onde o GCC tem outras versões de zlib1,
+#   libzstd...).
+# - Linux (Q4): o LLVM 20 do sistema, pelo llvm-config-20 ou llvm-config (LLVM_CONFIG troca);
+#   a biblioteca compartilhada do LLVM fica onde está (rpath). O llvm-config só roda quando o
+#   cinzac é pedido: o `make` da CVM não precisa do LLVM.
+ifneq ($(OS)$(MSYSTEM),)
+    LLVM_PREFIX  ?= C:/msys64/clang64
+    LLVM_INCLUDE  = $(LLVM_PREFIX)/include
+    LLVM_LIBS     = $(LLVM_PREFIX)/lib/libLLVM-20.dll.a -static-libstdc++ -static-libgcc
+    LLVM_DLLS     = libLLVM-20.dll libc++.dll libffi-8.dll libiconv-2.dll liblzma-5.dll libxml2-16.dll \
+                    libzstd.dll zlib1.dll
+else
+    LLVM_CONFIG  ?= $(firstword $(shell command -v llvm-config-20 llvm-config 2>/dev/null) llvm-config)
+    LLVM_INCLUDE  = $(shell $(LLVM_CONFIG) --includedir)
+    LLVM_LIBS     = $(shell $(LLVM_CONFIG) --ldflags) $(shell $(LLVM_CONFIG) --libs) \
+                    -Wl,-rpath,$(shell $(LLVM_CONFIG) --libdir)
+    LLVM_DLLS     =
+endif
 LLVM_BIN    = llvm/bin
 CINZAC_BIN  = $(LLVM_BIN)/cinzac$(EXE)
 LIBCINZART  = $(LLVM_BIN)/libcinzart.a
 RUNTIME_OBJ = operacoes.o natives.o stdlib.o regex.o plataforma.o llvm/cinzart.o
 CINZAC_OBJ  = lexer.o parser.o ast.o semantic.o module_loader.o biblioteca.o operacoes.o natives.o stdlib.o regex.o \
               plataforma.o llvm/cir.o llvm/gera_cir.o llvm/emissor.o llvm/cinzac.o
-LLVM_DLLS   = libLLVM-20.dll libc++.dll libffi-8.dll libiconv-2.dll liblzma-5.dll libxml2-16.dll \
-              libzstd.dll zlib1.dll
 CINZAC_DEPS = $(patsubst %.o,%.d,llvm/cinzart.o llvm/cir.o llvm/gera_cir.o llvm/emissor.o llvm/cinzac.o)
 -include $(CINZAC_DEPS)
 
 # só o emissor e o cinzac incluem a llvm-c; -idirafter: os cabeçalhos do CLANG64 não
 # passam na frente dos do GCC
-llvm/emissor.o llvm/cinzac.o: CXXFLAGS += -idirafter $(LLVM_PREFIX)/include
+llvm/emissor.o llvm/cinzac.o: CXXFLAGS += -idirafter $(LLVM_INCLUDE)
 
 cinzac: $(CINZAC_BIN) $(LIBCINZART) $(addprefix $(LLVM_BIN)/,$(LLVM_DLLS))
 	@echo "$(GREEN)✓ cinzac pronto em $(CINZAC_BIN)$(NC)"
@@ -126,7 +143,7 @@ $(LLVM_BIN):
 	$(call mkdirp,$(LLVM_BIN))
 
 $(CINZAC_BIN): $(CINZAC_OBJ) | $(LLVM_BIN)
-	$(CXX) $(CXXFLAGS) -o $@ $(CINZAC_OBJ) $(LLVM_PREFIX)/lib/libLLVM-20.dll.a -static-libstdc++ -static-libgcc $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) -o $@ $(CINZAC_OBJ) $(LLVM_LIBS) $(LDFLAGS)
 
 $(LIBCINZART): $(RUNTIME_OBJ) | $(LLVM_BIN)
 	ar rcs $@ $(RUNTIME_OBJ)

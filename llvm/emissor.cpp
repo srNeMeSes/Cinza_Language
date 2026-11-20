@@ -18,6 +18,7 @@
 #include <cmath>
 #include <cstring>
 #include <map>
+#include <string>
 #include <tuple>
 #include <unordered_map>
 #include <vector>
@@ -26,15 +27,28 @@ namespace cinza::llvm {
 
 namespace {
 
-constexpr const char* TRIPLE = "x86_64-w64-windows-gnu";   // o do GCC do projeto
+// O alvo é o do sistema, o mesmo do g++ que liga o programa com a libcinzart (Q4): no
+// Windows, o do MinGW (x86_64-w64-windows-gnu); nos outros, o triple padrão do LLVM
+// (x86_64-pc-linux-gnu...).
+const std::string& triple() {
+    static const std::string t = [] {
+#ifdef _WIN32
+        return std::string("x86_64-w64-windows-gnu");
+#else
+        char* p = LLVMGetDefaultTargetTriple();
+        std::string r = p;
+        LLVMDisposeMessage(p);
+        return r;
+#endif
+    }();
+    return t;
+}
 
 void inicializaAlvo() {
     static bool feito = false;
     if (feito) return;
-    LLVMInitializeX86TargetInfo();
-    LLVMInitializeX86Target();
-    LLVMInitializeX86TargetMC();
-    LLVMInitializeX86AsmPrinter();
+    LLVMInitializeNativeTarget();
+    LLVMInitializeNativeAsmPrinter();
     feito = true;
 }
 
@@ -50,14 +64,22 @@ LLVMTargetMachineRef criaMaquina(bool otimiza, std::string& erro) {
     inicializaAlvo();
     LLVMTargetRef alvo = nullptr;
     char* msg = nullptr;
-    if (LLVMGetTargetFromTriple(TRIPLE, &alvo, &msg)) {
+    if (LLVMGetTargetFromTriple(triple().c_str(), &alvo, &msg)) {
         erro = msg ? msg : "alvo desconhecido";
         LLVMDisposeMessage(msg);
         return nullptr;
     }
-    return LLVMCreateTargetMachine(alvo, TRIPLE, "x86-64", "",
+    // x86-64 genérico (o executável roda em qualquer máquina da arquitetura); fora do Windows,
+    // código independente de posição: o g++ das distribuições liga como PIE
+    const bool x86 = triple().rfind("x86_64", 0) == 0;
+#ifdef _WIN32
+    const LLVMRelocMode reloc = LLVMRelocDefault;
+#else
+    const LLVMRelocMode reloc = LLVMRelocPIC;
+#endif
+    return LLVMCreateTargetMachine(alvo, triple().c_str(), x86 ? "x86-64" : "generic", "",
                                    otimiza ? LLVMCodeGenLevelDefault : LLVMCodeGenLevelNone,
-                                   LLVMRelocDefault, LLVMCodeModelDefault);
+                                   reloc, LLVMCodeModelDefault);
 }
 
 std::uint8_t kind(Value::Kind k) { return static_cast<std::uint8_t>(k); }
@@ -247,7 +269,7 @@ struct Emissor::Impl {
         mod = LLVMModuleCreateWithNameInContext("cinza", ctx);
         tm  = criaMaquina(otimiza, erro);
         if (!tm) return false;
-        LLVMSetTarget(mod, TRIPLE);
+        LLVMSetTarget(mod, triple().c_str());
         dl = LLVMCreateTargetDataLayout(tm);
         LLVMSetModuleDataLayout(mod, dl);
         b  = LLVMCreateBuilderInContext(ctx);

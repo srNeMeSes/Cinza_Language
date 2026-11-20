@@ -111,6 +111,8 @@ int executaProcesso(const std::vector<std::string>& args) {
     return executa(args, codigo) ? codigo : -1;
 }
 
+int comPilhaGrande(int (*f)(int, char**), int argc, char** argv) { return f(argc, argv); }
+
 std::vector<std::pair<std::string, std::string>> ambienteTodo() {
     std::vector<std::pair<std::string, std::string>> r;
     wchar_t* bloco = GetEnvironmentStringsW();
@@ -166,6 +168,7 @@ bool dataModificacao(const std::filesystem::path& p, std::int64_t& segundos) {
 #include <climits>
 #include <cerrno>
 #include <fcntl.h>
+#include <pthread.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -233,6 +236,33 @@ bool executa(const std::vector<std::string>& args, int& codigo, std::string* sai
 int executaProcesso(const std::vector<std::string>& args) {
     int codigo = 0;
     return executa(args, codigo) ? codigo : -1;
+}
+
+namespace {
+struct Chamada {
+    int (*f)(int, char**);
+    int    argc;
+    char** argv;
+    int    resultado;
+};
+void* rodaChamada(void* p) {
+    auto* c = static_cast<Chamada*>(p);
+    c->resultado = c->f(c->argc, c->argv);
+    return nullptr;
+}
+}  // namespace
+
+int comPilhaGrande(int (*f)(int, char**), int argc, char** argv) {
+    pthread_attr_t atributos;
+    pthread_attr_init(&atributos);
+    pthread_attr_setstacksize(&atributos, std::size_t{64} << 20);
+    Chamada c{f, argc, argv, 0};
+    pthread_t t;
+    const bool criou = pthread_create(&t, &atributos, rodaChamada, &c) == 0;
+    pthread_attr_destroy(&atributos);
+    if (!criou) return f(argc, argv);   // sem a thread, na pilha que houver
+    pthread_join(t, nullptr);
+    return c.resultado;
 }
 
 std::vector<std::pair<std::string, std::string>> ambienteTodo() {
