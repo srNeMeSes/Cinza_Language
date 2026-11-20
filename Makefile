@@ -159,7 +159,9 @@ else
         CINZAC_STATIC = -static -Wl,--gc-sections -s
         CINZAC_LLD    = llvm/ligador.cpp llvm/alvos_vazios.cpp
         LLVM_COMPS    = x86 passes lto option
-        LLVM_LIBS     = $(shell $(LLVM_CONFIG) --ldflags) -llldELF -llldCommon \
+        # LLD_LIBDIR: onde estão as bibliotecas estáticas do lld (o Alpine só traz as .so; o CI as
+        # compila da fonte, com o mesmo LLVM)
+        LLVM_LIBS     = $(addprefix -L,$(LLD_LIBDIR)) $(shell $(LLVM_CONFIG) --ldflags) -llldELF -llldCommon \
                         $(shell $(LLVM_CONFIG) --link-static --libs $(LLVM_COMPS)) \
                         $(shell $(LLVM_CONFIG) --link-static --system-libs)
         RUNTIME_LIBS  = crt1.o crti.o crtn.o crtbeginT.o crtend.o libc.a libstdc++.a libgcc.a libgcc_eh.a

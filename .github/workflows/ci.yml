@@ -85,6 +85,29 @@ jobs:
           ls /usr/lib/llvm20/lib | grep -E 'lld|LLVMCore' || true
           /usr/lib/llvm20/bin/llvm-config --link-static --system-libs || true
           echo 'int main(){}' > /tmp/v.cpp && /usr/lib/llvm20/bin/clang++ -static -v /tmp/v.cpp -o /tmp/v 2>&1 | tail -3
+      # O Alpine só traz o lld em .so: as bibliotecas estáticas dele (ELF e Common) são compiladas da
+      # fonte oficial do 20.1.8, contra o LLVM 20.1.8 estático do Alpine, e guardadas em cache
+      - uses: actions/cache@v4
+        id: cache-lld
+        with:
+          path: /opt/lld-estatico
+          key: lld-20.1.8-alpine-3.22-v1
+      - name: lld 20.1.8 estático
+        if: steps.cache-lld.outputs.cache-hit != 'true'
+        run: |
+          apk add --no-cache cmake samurai xz
+          cd /tmp
+          base=https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8
+          wget -q $base/lld-20.1.8.src.tar.xz $base/cmake-20.1.8.src.tar.xz
+          tar xf lld-20.1.8.src.tar.xz && mv lld-20.1.8.src lld
+          tar xf cmake-20.1.8.src.tar.xz && mv cmake-20.1.8.src cmake
+          cmake -S lld -B lld-build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DLLVM_DIR=/usr/lib/llvm20/lib/cmake/llvm -DBUILD_SHARED_LIBS=OFF -DLLVM_INCLUDE_TESTS=OFF \
+            -DCMAKE_C_COMPILER=/usr/lib/llvm20/bin/clang -DCMAKE_CXX_COMPILER=/usr/lib/llvm20/bin/clang++
+          ninja -C lld-build lldELF lldCommon
+          mkdir -p /opt/lld-estatico
+          find lld-build -name 'liblld*.a' -exec cp {} /opt/lld-estatico/ \;
+          ls -la /opt/lld-estatico
       - name: CVM
         run: |
           make -j"$(nproc)" ESTATICO=1 CXX=/usr/lib/llvm20/bin/clang++
@@ -93,10 +116,12 @@ jobs:
       - name: cinzac -O0
         if: always()
         run: |
-          make -j"$(nproc)" cinzac ESTATICO=1 CXX=/usr/lib/llvm20/bin/clang++ LLVM_CONFIG=/usr/lib/llvm20/bin/llvm-config
+          make -j"$(nproc)" cinzac ESTATICO=1 CXX=/usr/lib/llvm20/bin/clang++ LLVM_CONFIG=/usr/lib/llvm20/bin/llvm-config \
+            LLD_LIBDIR=/opt/lld-estatico
           file llvm/bin/cinzac
           ls -la llvm/bin llvm/bin/runtime
-          make test-llvm ESTATICO=1 CXX=/usr/lib/llvm20/bin/clang++ LLVM_CONFIG=/usr/lib/llvm20/bin/llvm-config
+          make test-llvm ESTATICO=1 CXX=/usr/lib/llvm20/bin/clang++ LLVM_CONFIG=/usr/lib/llvm20/bin/llvm-config \
+            LLD_LIBDIR=/opt/lld-estatico
       - name: cinzac -O2
         if: always()
         run: python3 tests/run_tests.py --cinzac --O2
