@@ -15,6 +15,9 @@
 #include <windows.h>
 #include <shellapi.h>
 #include <cwchar>
+#include <cstdio>
+#include <fcntl.h>
+#include <io.h>
 
 namespace cinza {
 
@@ -112,6 +115,11 @@ int executaProcesso(const std::vector<std::string>& args) {
 }
 
 int comPilhaGrande(int (*f)(int, char**), int argc, char** argv) { return f(argc, argv); }
+
+void entradaESaidaBinarias() {
+    _setmode(_fileno(stdin), _O_BINARY);
+    _setmode(_fileno(stdout), _O_BINARY);
+}
 
 std::vector<std::pair<std::string, std::string>> ambienteTodo() {
     std::vector<std::pair<std::string, std::string>> r;
@@ -265,6 +273,8 @@ int comPilhaGrande(int (*f)(int, char**), int argc, char** argv) {
     pthread_join(t, nullptr);
     return c.resultado;
 }
+
+void entradaESaidaBinarias() {}
 
 std::vector<std::pair<std::string, std::string>> ambienteTodo() {
     std::vector<std::pair<std::string, std::string>> r;

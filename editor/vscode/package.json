@@ -1,8 +1,8 @@
 {
   "name": "cinza-language",
   "displayName": "Cinza Language",
-  "description": "Destaque de sintaxe da linguagem Cinza e os erros do cinza (CVM) e do cinzac (LLVM) no painel Problemas",
-  "version": "0.7.0",
+  "description": "A linguagem Cinza: destaque de sintaxe, os erros do compilador enquanto se digita e a formatação (o servidor de linguagem do cinza)",
+  "version": "0.8.0",
   "publisher": "cinza",
   "license": "MIT",
   "repository": {
@@ -10,11 +10,18 @@
     "url": "https://github.com/srNeMeSes/Cinza_Language"
   },
   "engines": {
-    "vscode": "^1.50.0"
+    "vscode": "^1.82.0"
   },
   "categories": [
     "Programming Languages"
   ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:cinza"
+  ],
+  "dependencies": {
+    "vscode-languageclient": "9.0.1"
+  },
   "contributes": {
     "languages": [
       {
@@ -56,6 +63,16 @@
           "message": 5
         }
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Cinza",
+      "properties": {
+        "cinza.caminho": {
+          "type": "string",
+          "default": "cinza",
+          "description": "O executável do cinza, para o servidor de linguagem (cinza --lsp). Padrão: cinza, procurado no PATH."
+        }
+      }
+    }
   }
 }

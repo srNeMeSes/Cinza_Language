@@ -231,7 +231,8 @@ jobs:
         run: |
           mkdir -p dist
           cp LICENSE editor/vscode/LICENSE
-          cd editor/vscode && npx --yes @vscode/vsce@3.2.1 package --no-dependencies -o ../../dist/
+          cd editor/vscode && npm install --omit=dev --no-audit --no-fund
+          npx --yes @vscode/vsce@3.2.1 package -o ../../dist/
       - uses: actions/upload-artifact@v4
         with:
           name: cinza-vscode

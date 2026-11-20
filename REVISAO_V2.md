@@ -2089,9 +2089,30 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
   - Servidor de linguagem (LSP) mínimo, com o front-end de hoje: os erros enquanto se digita;
     depois ir para a definição, o tipo ao passar o mouse e completar nomes. A extensão passa a
     usá-lo (hoje ela só colore).
-  - Formatador (`cinza fmt`): **[decidir]** se entra na 1.0, e o estilo.
-  - Fora da 1.0 **[confirmar]**: depurador (informação de depuração no `cinzac`), gerenciador de
-    pacotes (o `czm.mod` continua só o marcador da raiz do projeto).
+  - Formatador (`cinza fmt`): decidido — entra na 1.0, com um estilo só, sem opções.
+  - Fora da 1.0 (confirmado pelo autor): depurador (informação de depuração no `cinzac`),
+    gerenciador de pacotes (o `czm.mod` continua só o marcador da raiz do projeto).
+  > Andamento (2026-11-20). **Formatador** (`formatador.cpp`; `cinza fmt arquivo...`, `--check`, e
+  > `cinza fmt -` da entrada para a saída, em bytes): como o gofmt, as quebras de linha são as do
+  > autor e o resto é refeito — o recuo (2 espaços por chave), os espaços entre os tokens, as linhas
+  > em branco (no máximo uma, nenhuma depois de `{` nem antes de `}`) e o fim do arquivo; uma
+  > continuação (dentro de `(`/`[`, ou de uma instrução que não terminou) guarda o alinhamento do
+  > autor; comentários, BOM e CRLF ficam. O resultado passa pelo léxico da linguagem: com outros
+  > tokens que o original, o arquivo é recusado (o formatador nunca muda o que o programa faz), e um
+  > arquivo com erro léxico, string sem fim ou chave sem par também. Na suíte: os pares de
+  > `tests/formatador` e, em todos os programas, idempotente e sem recusar programa válido; dos 660
+  > `.cinza` do repositório, 68 mudariam (quase só recuo de 4 espaços) — a suíte não foi
+  > reformatada, porque vários testes conferem colunas.
+  > **Servidor de linguagem** (`lsp/servidor.cpp`, `cinza --lsp`; JSON próprio em `lsp/json.h`): a
+  > cada arquivo aberto ou mudado, o front-end inteiro sobre o texto do editor, sem executar; os erros
+  > vão como diagnósticos (a coluna convertida para UTF-16), os de um módulo importado no arquivo dele,
+  > e são limpos quando somem; a formatação do documento é o `cinza fmt`. A extensão do VS Code (0.8.0)
+  > passa a ter um cliente (`extension.js`, com o `vscode-languageclient`, empacotado no `.vsix` pelo
+  > CI) e a configuração `cinza.caminho`; sem a biblioteca (na pasta de desenvolvimento, sem
+  > `npm install`), ela segue só com o destaque. Testes em `tests/lsp` (um cliente mínimo em Python):
+  > erros semânticos e de sintaxe, a coluna depois de acentos, a limpeza, análises repetidas no mesmo
+  > processo, o módulo importado, a formatação e o encerramento. Falta: o tipo ao passar o mouse, ir
+  > para a definição e completar nomes.
 - [ ] Q7. Documentação.
   - O livro (tutorial) reescrito para a linguagem atual, com os exemplos executados pela suíte,
     como os da spec; ele leva as pendências do livro deste documento (Fase 2.5: o Apêndice A em
@@ -2155,6 +2176,7 @@ antes da prévia (Q8), e a 1.0 (Q9) só depois de um período de uso real.
 | 2026-10-04 | J2 | `Files.read_bytes(caminho) -> list<int>` e `Files.write_bytes(caminho, list<int>)`, bytes de 0 a 255 (fora disso, `ValueError`). | Decisão do autor da linguagem; formatos binários sem passar por texto UTF-8. |
 | 2026-10-03 | I4 | `menor_int % -1` dá `0` (revê A5); `-0.0` continua `-0` no `print`; decimais extremos continuam em notação científica. | Decisão do autor da linguagem; `x % -1` cabe sempre em `int`. |
 | 2026-10-03 | H3 | `exit([código])`: padrão 0, de 0 a 255; roda os `finally` pendentes e nenhum `except` o captura; encerra o caminho na análise de fluxo. | Decisão do autor da linguagem; 0–255 dá o mesmo resultado em todo sistema. |
+| 2026-11-20 | Q6 | O formatador (`cinza fmt`) entra na 1.0, com um estilo só, sem opções; o servidor de linguagem é um modo do próprio `cinza` (`cinza --lsp`, em C++, com o front-end de hoje); o depurador e o gerenciador de pacotes ficam fora da 1.0. | Decisões do autor: um estilo só evita discussão de estilo em cada projeto; os erros do editor são os da compilação, sem um segundo analisador; o depurador e os pacotes vêm depois, com a revisão dos módulos (Q1f). |
 | 2026-11-20 | Q5 | Versão 0.5.0 (a numeração da spec). O `cinzac` com o LLVM estático (só o necessário) e o `lld` embutido, sem MSYS2 nem `g++`; o runtime continua em C++, com a biblioteca C++ embutida; no Linux, a libc++ (não a libstdc++) e a musl, com programas estáticos; a extensão só como `.vsix` nos releases. | Decisões do autor: quem usa o `cinzac` não instala nada; um runtime em C seria outro código além do da CVM; o pacote fica só com licenças permissivas, igual nos dois sistemas; o Marketplace fica para quando a linguagem for pública. |
 | 2026-11-19 | Q4 | A 1.0 sai para Windows e Linux (x86-64); o macOS fica para depois da 1.0. O Linux é testado pelo CI (GitHub Actions), lido pelo `gh`. | Decisão do autor: sem um Mac para testar, prometer suporte seria arriscado; o código já fica portátil (POSIX e o triple do sistema). |
 | 2026-11-19 | Q3 | A biblioteca da 1.0 ganha `Dicts`, `Env`, `Process`, `Regex` e `Json`. `Json` é uma classe da biblioteca (`Json.Value` com `Json.Kind`; o null do JSON é um `Kind`, não um null da Cinza). `Process` roda programas sem shell (programa e lista de argumentos). `Regex` usa um motor próprio no estilo do RE2 (tempo linear, em caracteres, sem `\1` nem lookaround). | Decisões do autor: JSON e processos são o que programas reais mais pedem; sem shell não há injeção de comando e o resultado é igual em todo sistema; um motor com retrocesso (o `std::regex`) trabalha em bytes e derruba o programa com textos longos, contra o Q2. |

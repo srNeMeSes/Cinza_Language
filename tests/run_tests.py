@@ -285,6 +285,115 @@ def confere_versao(binario):
     return not problemas
 
 
+def testes_do_formatador(binario, programas):
+    """Q6: o cinza fmt. Cada tests/formatador/X.entrada.cinza dá exatamente X.saida.cinza (e a saída
+    não muda se formatada de novo), ou recusa com o trecho de X.erro. E em todos os programas da
+    suíte o formatador é idempotente e nunca recusa um programa por mudar os tokens."""
+    def fmt(entrada):
+        r = subprocess.run([str(binario), "fmt", "-"], input=entrada, capture_output=True, timeout=TIMEOUT_S)
+        return r.returncode, r.stdout, r.stderr.decode("utf-8", "replace")
+
+    resultados = []
+    pasta = DIR_TESTES / "formatador"
+    for entrada in sorted(pasta.glob("*.entrada.cinza")):
+        base = entrada.name[: -len(".entrada.cinza")]
+        nome = f"formatador/{base}"
+        rc, saida, err = fmt(entrada.read_bytes())
+        esperada = pasta / f"{base}.saida.cinza"
+        erro = pasta / f"{base}.erro"
+        if erro.exists():
+            trecho = erro.read_text(encoding="utf-8").strip()
+            ok = rc != 0 and trecho in err
+            resultados.append((nome, ok, f"esperada a recusa com {trecho!r}; rc={rc}, {err.strip()!r}"))
+        elif esperada.exists():
+            if rc != 0:
+                resultados.append((nome, False, f"recusou: {err.strip()}"))
+            elif saida != esperada.read_bytes():
+                resultados.append((nome, False, "a saída difere de " + esperada.name))
+            else:
+                rc2, saida2, _ = fmt(saida)
+                resultados.append((nome, rc2 == 0 and saida2 == saida, "formatar de novo muda a saída"))
+        else:
+            resultados.append((nome, False, f"falta {base}.saida.cinza ou {base}.erro"))
+
+    problemas = []
+    for p in programas:
+        if not isinstance(p, Path) or p.suffix != ".cinza":
+            continue
+        rc, saida, err = fmt(p.read_bytes())
+        if rc != 0:
+            if "mudaria os tokens" in err:
+                problemas.append(f"{p.relative_to(DIR_TESTES).as_posix()}: {err.strip()}")
+            continue   # erro léxico ou de sintaxe: recusa certa
+        rc2, saida2, _ = fmt(saida)
+        if rc2 != 0 or saida2 != saida:
+            problemas.append(f"{p.relative_to(DIR_TESTES).as_posix()}: formatar de novo muda o resultado")
+    resultados.append(("formatador/a suíte (idempotente, os mesmos tokens)", not problemas, "; ".join(problemas[:3])))
+    return resultados
+
+
+def testes_do_lsp(binario):
+    """Q6: o servidor de linguagem (cinza --lsp), por um cliente mínimo (tests/lsp/cliente.py): os
+    erros do front-end como diagnósticos (com a coluna em UTF-16, depois de acentos), limpos quando
+    o texto é corrigido, as análises repetidas no mesmo processo, um erro num módulo importado no
+    arquivo dele, a formatação e o encerramento."""
+    sys.path.insert(0, str(DIR_TESTES / "lsp"))
+    from cliente import Cliente, uri_de
+    r = []
+    with tempfile.TemporaryDirectory(prefix="cinza_lsp_") as pasta:
+        pasta = Path(pasta)
+        principal = pasta / "prog.cinza"
+        uri = uri_de(principal)
+        c = Cliente(binario, pasta)
+        try:
+            ini = c.pede("initialize", {"processId": None, "rootUri": uri_de(pasta), "capabilities": {}})
+            caps = (ini or {}).get("result", {}).get("capabilities", {})
+            r.append(("lsp/initialize", caps.get("documentFormattingProvider") is True and caps.get("textDocumentSync") == 1,
+                      f"resposta: {ini}"))
+            c.avisa("initialized", {})
+
+            texto = 'fn main() {\n  print("ação", nao_existe);\n}\n'
+            c.avisa("textDocument/didOpen", {"textDocument": {"uri": uri, "languageId": "cinza", "version": 1, "text": texto}})
+            ds = c.diagnosticos(uri)
+            col = texto.split("\n")[1].index("nao_existe")
+            ok = (ds is not None and len(ds) == 1 and "SemanticError" in ds[0]["message"] and "nao_existe" in ds[0]["message"]
+                  and ds[0]["range"]["start"] == {"line": 1, "character": col}
+                  and ds[0]["range"]["end"] == {"line": 1, "character": col + len("nao_existe")})
+            r.append(("lsp/erro semântico (coluna em UTF-16, depois de acentos)", ok, f"diagnósticos: {ds}"))
+
+            def muda(t, versao):
+                c.avisa("textDocument/didChange", {"textDocument": {"uri": uri, "version": versao}, "contentChanges": [{"text": t}]})
+                return c.diagnosticos(uri)
+
+            ds = muda('fn main() {\n  print(1\n}\n', 2)
+            r.append(("lsp/erro de sintaxe", bool(ds) and all("SyntaxError" in d["message"] for d in ds), f"diagnósticos: {ds}"))
+            ds = muda('fn main() {\n  print(1);\n}\n', 3)
+            r.append(("lsp/corrigido: sem erros", ds == [], f"diagnósticos: {ds}"))
+            def quantos(ds):
+                return -1 if ds is None else len(ds)
+            repetidas = []
+            for k in range(5):
+                repetidas.append(quantos(muda('fn main() { i32 x = "a"; }\n', 10 + 2 * k)))
+                repetidas.append(quantos(muda('fn main() { i32 x = 1; }\n', 11 + 2 * k)))
+            r.append(("lsp/análises repetidas no mesmo processo", repetidas == [1, 0] * 5, f"contagens: {repetidas}"))
+
+            muda("fn main(){print(1);}\n", 30)
+            f = c.pede("textDocument/formatting", {"textDocument": {"uri": uri}, "options": {"tabSize": 2, "insertSpaces": True}})
+            edicoes = (f or {}).get("result") or []
+            r.append(("lsp/formatação (o cinza fmt)", len(edicoes) == 1 and edicoes[0]["newText"] == "fn main() { print(1); }\n",
+                      f"resposta: {f}"))
+
+            (pasta / "util.cinza").write_text("pub fn f() -> i32 {\n  return \"texto\";\n}\n", encoding="utf-8")
+            muda("import util;\nfn main() {\n  print(util.f());\n}\n", 31)
+            du = c.diagnosticos(uri_de(pasta / "util.cinza"))
+            r.append(("lsp/erro num módulo importado, no arquivo dele", bool(du) and du[0]["range"]["start"]["line"] == 1,
+                      f"diagnósticos: {du}"))
+        finally:
+            rc = c.encerra()
+        r.append(("lsp/shutdown e exit", rc == 0, f"código de saída {rc}"))
+    return r
+
+
 def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
@@ -325,18 +434,33 @@ def main():
 
     # Testes em subpastas por assunto (tests/genericos/gen_modulo.cinza); ficam de fora os
     # módulos de apoio, os exemplos extraídos da spec e pastas locais (tests_adm)
-    fora = {"modulos", "spec_exemplos", "tests_adm"}
+    fora = {"modulos", "spec_exemplos", "tests_adm", "formatador", "lsp"}
     testes = [(p.relative_to(DIR_TESTES).as_posix(), p)
               for p in sorted(DIR_TESTES.rglob("*.cinza"))
               if not fora.intersection(p.relative_to(DIR_TESTES).parts[:-1])
               and filtro in p.relative_to(DIR_TESTES).as_posix() and eh_teste(p)]
     testes += exemplos_da_spec(filtro)
-    if not testes:
+    so_formatador = not CINZAC and filtro and (filtro in "formatador/" or filtro in "lsp/")
+    if not testes and not so_formatador:
         print(f"Nenhum teste encontrado em {DIR_TESTES} com o filtro '{filtro}'")
         return 2
 
     falhas = 0
+    extras = 0            # os testes do formatador (não são programas a rodar)
     nao_suportados = {}   # motivo → quantos (modo --cinzac)
+    extras_lista = []
+    if not CINZAC and "formatador" in (filtro or "formatador"):
+        extras_lista += testes_do_formatador(binario, [c for _, c in testes])
+    if not CINZAC and "lsp" in (filtro or "lsp"):
+        extras_lista += testes_do_lsp(binario)
+    if extras_lista:
+        for nome, passou, motivo in extras_lista:
+            extras += 1
+            if passou:
+                print(f"PASS  {nome}")
+            else:
+                falhas += 1
+                print(f"FAIL  {nome}: {motivo}")
     with tempfile.TemporaryDirectory(prefix="cinza_nativo_") as pasta:
         PASTA_NATIVA = Path(pasta)
         for nome, caminho in testes:
@@ -357,11 +481,12 @@ def main():
         print("\nAinda não suportados pelo cinzac (os motivos mais comuns):")
         for motivo, n in sorted(nao_suportados.items(), key=lambda kv: -kv[1])[:10]:
             print(f"  {n:4}  {motivo}")
-    resumo = f"{len(testes) - falhas - nsup} passaram, {falhas} falharam"
+    total = len(testes) + extras
+    resumo = f"{total - falhas - nsup} passaram, {falhas} falharam"
     if CINZAC:
         resumo += (f", {nsup} ainda não suportados ({executados_nativos} rodaram como executável "
                    f"nativo; os demais que passaram são erros de compilação, do front-end comum)")
-    print(f"\n{resumo}, {len(testes)} no total")
+    print(f"\n{resumo}, {total} no total")
     return 1 if falhas else 0
 
 

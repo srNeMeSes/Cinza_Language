@@ -1,0 +1,36 @@
+// Q6: as regras do cinza fmt.   Comentários ficam como estão, inclusive    os espaços dentro.
+import Strings as st;
+
+struct Ponto {
+  i32 x = 0;
+  i32 y = 0;
+}
+
+enum Cor { Vermelho, Verde, Azul }
+
+class Caixa : Desenhavel {
+  list<i32> itens;
+  pub {
+    fn soma() -> i32 { return itens.size(); }
+  }
+}
+
+fn f[T](T x) -> T { return x; }
+
+fn main() {
+  i32 a = -1;   // o - unário fica colado
+  i64 b = a * 2 + -3;
+  if (a < b && !(b >= 10)) { print("sim"); } else { print("não"); }
+  while (a < 3) { a += 1; }
+  for (i32 i in range(0, 3)) { print(i, cast<string>(i) + "!"); }
+  dict<string, list<i32>> d = {{"a", [1, 2]}, {"b", []}};
+  print(d["a"][0], st.upper("x"), f[i32](2), "abc"[1:2], new Ponto(y: 4));
+  list<i32> l = [1,
+                 2,
+                 3];
+  i64 total = 1
+    + 2
+    - 3;
+  try { print(1 / 0); } except (ZeroDivisionError e) { print(e.message); } finally { print("fim"); }
+  print(l, total);    // o alinhamento do comentário fica
+}

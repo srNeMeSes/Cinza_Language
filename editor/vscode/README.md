@@ -18,7 +18,18 @@ Suporte à linguagem Cinza no VS Code.
   - escape desconhecido numa string (`\q`) e `}` sem `{` num `printf`;
   - caracteres que não existem na Cinza: `` ~ ^ ? ' \ ` # $ @ `` e `&` ou `|` sozinhos.
 
-## Erros no painel Problemas
+## Servidor de linguagem
+
+A extensão usa o servidor de linguagem do próprio compilador (`cinza --lsp`): enquanto se digita,
+o léxico, a sintaxe, os imports e a semântica rodam sobre o texto do editor (sem executar nada), e
+os erros aparecem sublinhados e no painel Problemas — os mesmos da compilação, com a mesma
+mensagem; um erro num módulo importado aparece no arquivo dele. **Formatar Documento**
+(Shift+Alt+F) usa o `cinza fmt` (o estilo da Cinza, sem opções).
+
+O executável vem da configuração `cinza.caminho` (padrão: `cinza`, procurado no `PATH`). Sem ele,
+a extensão avisa e segue só com o destaque de sintaxe.
+
+## Erros no painel Problemas (tarefas)
 
 O problem matcher `$cinza` lê os erros do `cinza` (CVM) e do `cinzac` (compilador nativo), no
 formato `arquivo:linha:coluna: Tipo: mensagem`. Um `.vscode/tasks.json` de exemplo, na pasta do
@@ -60,6 +71,11 @@ empacotar, uma junção do Windows aponta para esta pasta (o VS Code está regis
 mklink /J C:\cinza-vscode <repositório>\editor\vscode
 ```
 
+O cliente do servidor de linguagem (`extension.js`) usa o `vscode-languageclient`: na pasta de
+desenvolvimento, `npm install` em `editor/vscode` (sem ele, a extensão fica só com o destaque); o
+`.vsix` do CI já o leva. O servidor em si é testado pela suíte do compilador (`tests/lsp`, com um
+cliente mínimo).
+
 Depois de mudar a gramática: Developer: Reload Window no VS Code, e `make test-vscode` na raiz
 do repositório. O teste (`teste/conferir.py`) tokeniza os `.cinza` de `tests/` e `exemplos/` com
 o motor de cores do próprio VS Code e compara os trechos marcados como inválidos com
@@ -70,6 +86,8 @@ grava a lista nova.
 
 ## Histórico
 
+- 0.8.0 — o servidor de linguagem do cinza (`cinza --lsp`): os erros enquanto se digita e a
+  formatação do documento (`cinza fmt`); a configuração `cinza.caminho`.
 - 0.7.0 — identificadores com acento, literais fora da faixa e os caracteres recusados pelo
   léxico marcados como inválidos; `e.kind`, `e.line` e `e.column` como campos; a interpolação
   sem `}` termina nas aspas; o problem matcher `$cinza`.

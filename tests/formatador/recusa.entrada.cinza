@@ -1,0 +1,3 @@
+// Um arquivo com chave sem par não é formatado (como o gofmt com erro de sintaxe).
+fn main() {
+  print(1);

@@ -25,3 +25,7 @@ build/
 
 # os pacotes de distribuição (distribuicao/empacota.sh)
 dist/
+
+# as dependências da extensão do VS Code (npm install em editor/vscode)
+editor/vscode/node_modules/
+editor/vscode/package-lock.json

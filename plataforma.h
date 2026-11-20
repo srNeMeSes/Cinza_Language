@@ -42,6 +42,10 @@ std::vector<std::pair<std::string, std::string>> ambienteTodo();
 // a pilha da thread principal é a do ulimit (8 MB, em geral), e f roda numa thread com 64 MB.
 int comPilhaGrande(int (*f)(int, char**), int argc, char** argv);
 
+// A entrada e a saída padrão sem tradução de fim de linha (no Windows, o modo texto troca \n por
+// \r\n): o cinza fmt - e o servidor de linguagem passam os bytes como estão (Q6)
+void entradaESaidaBinarias();
+
 // Caminho do executável em execução, em UTF-8 (o cinzac acha a libcinzart ao lado)
 std::string caminhoDoExecutavel();
 

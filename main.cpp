@@ -7,6 +7,8 @@
 #include "cvm/vm.h"
 #include "plataforma.h"
 #include "versao.h"
+#include "formatador.h"
+#include "lsp/servidor.h"
 #include "gc.h"            // P1: modo sem vazamento (coleta final e contagem)
 #include <filesystem>
 #include <iostream>
@@ -198,6 +200,8 @@ void printHelp() {
     std::cout << "  --ast, -a        Exibe a árvore sintática (AST)\n";
     std::cout << "  --bytecode       Mostra o bytecode da CVM antes de executar\n";
     std::cout << "  --version        Mostra a versão da linguagem e do cinza\n";
+    std::cout << "  fmt [--check] arquivo...  Formata os arquivos (o estilo da Cinza; --check só confere)\n";
+    std::cout << "  --lsp            O servidor de linguagem (LSP), pela entrada e saída padrão\n";
     std::cout << "  --help, -h       Exibe esta ajuda\n\n";
     std::cout << "Exemplo:\n";
     std::cout << "  cinza --ast exemplo.cinza\n";
@@ -205,6 +209,66 @@ void printHelp() {
 }
 
 static int principal(int argc, char* argv[]);
+
+// Q6: cinza fmt [--check] arquivo... | cinza fmt -   (o formatador, formatador.h)
+//   arquivos: reescreve os que mudam e mostra os nomes; --check: só mostra, e sai com 1 se algum
+//   precisa ser formatado; -: lê a entrada e escreve o resultado na saída (para o editor)
+static int formatar(const std::vector<std::string>& args) {
+    bool conferir = false;
+    std::vector<std::string> arquivos;
+    for (std::size_t i = 2; i < args.size(); ++i) {
+        if (args[i] == "--check") conferir = true;
+        else arquivos.push_back(args[i]);
+    }
+    if (arquivos.empty()) {
+        std::cerr << "Uso: cinza fmt [--check] arquivo.cinza...   |   cinza fmt -  (entrada → saída)\n";
+        return 1;
+    }
+    int codigo = 0;
+    for (const std::string& a : arquivos) {
+        std::string fonte;
+        if (a == "-") {
+            entradaESaidaBinarias();   // os fins de linha passam como estão
+            std::cout.flush();
+            std::ostringstream s;
+            s << std::cin.rdbuf();
+            fonte = s.str();
+        } else {
+            std::ifstream f(caminhoUtf8(a), std::ios::binary);
+            if (!f) {
+                std::cerr << a << ": não foi possível abrir o arquivo\n";
+                codigo = 1;
+                continue;
+            }
+            std::ostringstream s;
+            s << f.rdbuf();
+            fonte = s.str();
+        }
+        std::string saida, erro;
+        if (!formata(fonte, saida, erro)) {
+            std::cerr << a << ": " << erro << "\n";
+            codigo = 1;
+            continue;
+        }
+        if (a == "-") {
+            std::cout << saida;
+            continue;
+        }
+        if (saida == fonte) continue;
+        std::cout << a << "\n";
+        if (conferir) {
+            codigo = 1;
+            continue;
+        }
+        std::ofstream f(caminhoUtf8(a), std::ios::binary | std::ios::trunc);
+        f << saida;
+        if (!f) {
+            std::cerr << a << ": não foi possível gravar o arquivo\n";
+            codigo = 1;
+        }
+    }
+    return codigo;
+}
 
 // A6/Q4: a pilha de 64 MB em todo sistema (plataforma.h)
 int main(int argc, char* argv[]) { return comPilhaGrande(principal, argc, argv); }
@@ -236,6 +300,8 @@ static int principal(int argc, char* argv[]) {
 
     // Em UTF-8 também no Windows: o nome do arquivo e o que vai para main(args)
     const std::vector<std::string> argumentos = argumentosUtf8(argc, argv);
+    if (argumentos.size() > 1 && argumentos[1] == "fmt") return formatar(argumentos);
+    if (argumentos.size() > 1 && argumentos[1] == "--lsp") return lsp::rodaServidor();   // Q6
     for (size_t i = 1; i < argumentos.size(); i++) {
         const std::string& arg = argumentos[i];
         if (!filename.empty()) {

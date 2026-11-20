@@ -1,0 +1,10 @@
+﻿// BOM e CRLF ficam; linhas em branco seguidas viram uma; espaços no fim saem.
+fn main(){   
+
+
+
+    print(1);
+
+}
+
+
