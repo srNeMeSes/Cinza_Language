@@ -85,6 +85,15 @@ jobs:
           ls /usr/lib/llvm20/lib | grep -E 'lld|LLVMCore' || true
           /usr/lib/llvm20/bin/llvm-config --link-static --system-libs || true
           echo 'int main(){}' > /tmp/v.cpp && /usr/lib/llvm20/bin/clang++ -static -v /tmp/v.cpp -o /tmp/v 2>&1 | tail -3
+          # descoberta (temporário): a libc++, o compiler-rt e a libunwind do LLVM para o runtime
+          for p in libc++-dev libc++-static compiler-rt llvm-libunwind-dev llvm-libunwind-static; do
+            apk add --no-cache $p >/dev/null 2>&1 && echo "tem $p" || echo "sem $p"
+          done
+          printf '#include <string>\n#include <cstdio>\nint main(){ std::string s="ola"; std::puts(s.c_str()); }\n' > /tmp/w.cpp
+          /usr/lib/llvm20/bin/clang++ -stdlib=libc++ -rtlib=compiler-rt -unwindlib=libunwind -static -v /tmp/w.cpp -o /tmp/w 2>&1 | tail -2 || true
+          /tmp/w || true
+          r=$(/usr/lib/llvm20/bin/clang++ -print-resource-dir); echo "$r"; ls "$r"/lib/* || true
+          ls /usr/lib/libc++*.a /usr/lib/libunwind*.a /usr/lib/llvm20/lib/libc++*.a 2>&1 || true
       # O Alpine só traz o lld em .so: as bibliotecas estáticas dele (ELF e Common) são compiladas da
       # fonte oficial do 20.1.8, contra o LLVM 20.1.8 estático do Alpine, e guardadas em cache
       - uses: actions/cache@v4
@@ -98,7 +107,8 @@ jobs:
           apk add --no-cache cmake samurai xz
           # o LLVMExports.cmake do Alpine cita bibliotecas que o pacote não instala (as de teste do
           # LLVM); o cmake só confere se existem, e o lld não as usa: ficam vazias
-          for f in $(grep -oh '_IMPORT_PREFIX}/lib/lib[A-Za-z0-9_]*\.a' /usr/lib/llvm20/lib/cmake/llvm/LLVMExports*.cmake                      | sed 's|_IMPORT_PREFIX}|/usr/lib/llvm20|' | sort -u); do
+          exports=/usr/lib/llvm20/lib/cmake/llvm/LLVMExports*.cmake
+          for f in $(grep -oh '_IMPORT_PREFIX}/lib/lib[A-Za-z0-9_]*\.a' $exports | sed 's|_IMPORT_PREFIX}|/usr/lib/llvm20|' | sort -u); do
             [ -f "$f" ] || { ar rcs "$f"; echo "vazia: $f"; }
           done
           cd /tmp
