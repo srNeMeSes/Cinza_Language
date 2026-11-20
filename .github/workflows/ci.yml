@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-24.04
     container: gcc:15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: LLVM 20 e Python
         run: |
           apt-get update
@@ -47,7 +47,7 @@ jobs:
     env:
       CINZA_GXX: clang++-20   # o cinzac liga os programas com o mesmo compilador da libcinzart
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Clang e LLVM 20
         run: |
           wget -q https://apt.llvm.org/llvm.sh
@@ -75,7 +75,7 @@ jobs:
       run:
         shell: msys2 {0}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: msys2/setup-msys2@v2
         with:
           msystem: UCRT64

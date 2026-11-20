@@ -15,5 +15,8 @@ same errors, with the same stack traces, on either one.
 - Language specification: [`spec/`](spec/README.md) (in Portuguese)
 - Build: `make` (the CVM) · `make cinzac` (the native compiler, in `llvm/bin/`)
 - Tests: `make test` (CVM) · `make test-llvm` (the same suite through `cinzac`)
+- Platforms: Windows and Linux (x86-64), checked by CI on every push. Building needs a C++20
+  compiler with `#embed` (GCC 15+ or Clang 19+); `cinzac` needs LLVM 20 (on Windows, the MSYS2
+  CLANG64 package; on Linux, `llvm-20-dev`, found through `llvm-config-20`).
 - Show bytecode: `cinza --bytecode program.cinza` · Show the IR: `cinzac --emit-llvm program.cinza`
 - Design notes: [`cvm/DESENHO.md`](cvm/DESENHO.md) and [`llvm/DESENHO.md`](llvm/DESENHO.md)

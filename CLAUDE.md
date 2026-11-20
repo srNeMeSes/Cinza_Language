@@ -8,6 +8,7 @@ Filosofia: disciplinada; sem null, sem herança, sem closures.
 Build: `make`  |  Debug com sanitizers: `make debug`  |  Testes: `make test`
 Backend nativo: `make cinzac` (llvm/bin/) | `make test-llvm` (a suíte pelo cinzac; com -O2:
 `python tests/run_tests.py --cinzac --O2`)
+CI: .github/workflows/ci.yml (Windows e Linux, GCC e Clang; os resultados pelo gh)
 Extensão do VS Code: editor/vscode (C:\cinza-vscode aponta para ela) | `make test-vscode` (a gramática)
 Plano da v2 e bugs confirmados: REVISAO_V2.md
 Especificação: spec/ (os exemplos com // expect rodam no make test; mudou a linguagem, atualize a spec)

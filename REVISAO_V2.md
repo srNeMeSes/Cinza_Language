@@ -2011,12 +2011,37 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
   > `tests/importacao/q3_biblioteca_*`; 711/711 na CVM, no `cinzac` -O0 e -O2, e com ASan/UBSan
   > (CVM e nativo). A mensagem de erro de argumento de uma função de módulo em Cinza cita só o
   > nome (`'parse'`, sem `Json.`), como nos módulos do usuário.
-- [ ] Q4. Portabilidade.
+- [x] Q4. Portabilidade.
   - Linux nos dois backends: a CVM com GCC e Clang; o `cinzac` com o triple do sistema
     (`LLVMGetDefaultTargetTriple`) no lugar do `x86_64-w64-windows-gnu` fixo em `emissor.cpp`, e
     o LLVM e o ligador configuráveis (hoje o caminho do MSYS2 está no Makefile).
-  - macOS: **[decidir]** se entra na 1.0.
+  - macOS: decidido — fica para depois da 1.0.
   - Integração contínua (GitHub Actions): a suíte nos dois backends, em Windows e Linux, a cada push.
+  > Feito (2026-11-19). `.github/workflows/ci.yml` roda a CVM e o `cinzac` em -O0 e -O2 em três
+  > ambientes, a cada push e pull request: Linux com GCC 15 (o contêiner `gcc:15`, com o LLVM 20 do
+  > apt.llvm.org), Linux com Clang 20 (Ubuntu 24.04) e Windows (MSYS2 UCRT64 com GCC, e o LLVM
+  > 20.1.8 e as dependências dele fixados pelo arquivo do MSYS2 — com as versões atuais, o
+  > `libLLVM-20.dll` não acha funções delas). 711/711 nos nove. O que mudou:
+  > - **pilha**: no POSIX a thread principal tem a pilha do `ulimit` (8 MB); o `cinza` e o
+  >   `cinzac` rodam numa thread com 64 MB (`comPilhaGrande`, `plataforma.cpp`), para os 2000
+  >   níveis do front-end; no Windows continua o `-Wl,--stack`;
+  > - **`cinzac`**: o triple do sistema (no Windows o do MinGW) e o alvo nativo; código PIC fora do
+  >   Windows (o GCC das distribuições liga como PIE); sem `.exe` padrão nem `-Wl,--stack` fora do
+  >   Windows;
+  > - **Makefile**: no Linux o LLVM 20 vem do `llvm-config-20`/`llvm-config` (com rpath), e só
+  >   quando o `cinzac` é pedido; no Windows, as DLLs do LLVM que existirem na pasta (o MSYS2 atual
+  >   não traz mais o `liblzma`);
+  > - **`Math.cbrt`**: o do glibc dava `3.0000000000000004` para 27; agora fica, entre o resultado
+  >   da libm e os dois vizinhos, o de cubo mais perto (o mesmo em todo sistema, exato nos cubos
+  >   perfeitos). As outras funções transcendentes vêm da libm do sistema e podem diferir no
+  >   último dígito entre sistemas (nenhum teste mostrou diferença);
+  > - **teste de horário de verão**: o `TZ` com as regras escritas (`EST5EDT,M3.2.0,M11.1.0`). Sem
+  >   elas, o glibc sem o arquivo de zona `EST5EDT` aplica o `posixrules` e o fim do horário de
+  >   verão cai uma hora antes — o `date` do próprio sistema mostra o mesmo; a Cinza segue o
+  >   sistema.
+  > O compilador precisa do `#embed` (GCC 15 ou Clang 19 em diante); o GCC 13 do Ubuntu 24.04 não
+  > serve. Os programas gerados no Linux ficam com a pilha padrão (8 MB), que basta para as 2000
+  > chamadas da linguagem (a suíte, com os testes de profundidade, passa assim).
 - [ ] Q5. Distribuição.
   - Versão: `cinza --version` e `cinzac --version` com a versão da linguagem e do compilador; a
     spec com a mesma versão.
@@ -2101,6 +2126,7 @@ antes da prévia (Q8), e a 1.0 (Q9) só depois de um período de uso real.
 | 2026-10-04 | J2 | `Files.read_bytes(caminho) -> list<int>` e `Files.write_bytes(caminho, list<int>)`, bytes de 0 a 255 (fora disso, `ValueError`). | Decisão do autor da linguagem; formatos binários sem passar por texto UTF-8. |
 | 2026-10-03 | I4 | `menor_int % -1` dá `0` (revê A5); `-0.0` continua `-0` no `print`; decimais extremos continuam em notação científica. | Decisão do autor da linguagem; `x % -1` cabe sempre em `int`. |
 | 2026-10-03 | H3 | `exit([código])`: padrão 0, de 0 a 255; roda os `finally` pendentes e nenhum `except` o captura; encerra o caminho na análise de fluxo. | Decisão do autor da linguagem; 0–255 dá o mesmo resultado em todo sistema. |
+| 2026-11-19 | Q4 | A 1.0 sai para Windows e Linux (x86-64); o macOS fica para depois da 1.0. O Linux é testado pelo CI (GitHub Actions), lido pelo `gh`. | Decisão do autor: sem um Mac para testar, prometer suporte seria arriscado; o código já fica portátil (POSIX e o triple do sistema). |
 | 2026-11-19 | Q3 | A biblioteca da 1.0 ganha `Dicts`, `Env`, `Process`, `Regex` e `Json`. `Json` é uma classe da biblioteca (`Json.Value` com `Json.Kind`; o null do JSON é um `Kind`, não um null da Cinza). `Process` roda programas sem shell (programa e lista de argumentos). `Regex` usa um motor próprio no estilo do RE2 (tempo linear, em caracteres, sem `\1` nem lookaround). | Decisões do autor: JSON e processos são o que programas reais mais pedem; sem shell não há injeção de comando e o resultado é igual em todo sistema; um motor com retrocesso (o `std::regex`) trabalha em bytes e derruba o programa com textos longos, contra o Q2. |
 | 2026-11-19 | Q | O congelamento da linguagem (Q9) só depois de as classes genéricas estarem implementadas de forma segura e consistente; o sistema de módulos é revisto antes da 1.0 (Q1f); o `cinzac` deixa de depender do MSYS2 e do `g++`, como outras linguagens fazem (o ligador e o runtime distribuídos com ele, Q5). | Decisões do autor ao ler o roteiro: a 1.0 é a promessa de estabilidade, e as classes genéricas e os módulos ainda podem mudar a linguagem; quem usa o `cinzac` não deve precisar instalar um ambiente de compilação. |
 | 2026-11-19 | P10 | As duas implementações ficam: `cinza` (CVM) roda na hora, `cinzac` (LLVM) gera o executável; toda mudança da linguagem entra nas duas, e a suíte roda nas duas. Campos de objeto e struct com um caminho rápido em linha para os sem referência, no layout da CVM; sem campos tipados nem listas especializadas por enquanto. | Decisão do autor, com as medições do P10: a CVM começa a rodar na hora (o `cinzac` leva ~0,5 s, quase tudo na ligação pelo `g++`); o caminho rápido dá o grosso do ganho (getters 16× a CVM) sem mexer no runtime inteiro. |
