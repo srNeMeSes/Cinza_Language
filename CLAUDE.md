@@ -6,8 +6,10 @@ regras comuns em operacoes.cpp. Sem compatibilidade com versões antigas da
 linguagem (ela está em desenvolvimento): o que muda, muda de vez.
 Filosofia: disciplinada; sem null, sem herança, sem closures.
 Build: `make`  |  Debug com sanitizers: `make debug`  |  Testes: `make test`
-Backend nativo: `make cinzac` (llvm/bin/) | `make test-llvm` (a suíte pelo cinzac; com -O2:
+Backend nativo: `make cinzac` (llvm/bin/, com a runtime/; no Windows compilado pelo clang do
+CLANG64, com o LLVM e o lld estáticos) | `make test-llvm` (a suíte pelo cinzac; com -O2:
 `python tests/run_tests.py --cinzac --O2`)
+Versão: versao.h (a mesma da spec) | Pacotes: distribuicao/empacota.sh; release numa tag v<versão>
 CI: .github/workflows/ci.yml (Windows e Linux, GCC e Clang; os resultados pelo gh)
 Extensão do VS Code: editor/vscode (C:\cinza-vscode aponta para ela) | `make test-vscode` (a gramática)
 Plano da v2 e bugs confirmados: REVISAO_V2.md

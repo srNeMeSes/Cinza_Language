@@ -810,19 +810,38 @@ Outros pontos:
 ## 9. O comando `cinzac`
 
 ```
-cinzac prog.cinza -o prog.exe          compila e liga (sem -o: o nome do programa com .exe)
+cinzac prog.cinza -o prog.exe          compila e liga (sem -o: o nome do programa; .exe no Windows)
 cinzac -O2 prog.cinza -o prog.exe      com otimização
 cinzac --emit-cir prog.cinza           mostra a CIR
 cinzac --emit-llvm prog.cinza -o p.ll  grava o IR do LLVM (texto, depois dos passes)
 cinzac --manter-objeto ...             não apaga o .o depois de ligar
-cinzac --confere-layout                confere CzValor, CzObjeto e CzExec (LLVM x GCC)
+cinzac --confere-layout                confere CzValor, CzObjeto e CzExec (LLVM x runtime)
+cinzac --version                       a versão da linguagem, do cinzac e do LLVM, e o alvo
 ```
 
 Erros de compilação saem iguais aos do `cinza` (o front-end é o mesmo). O `cinza prog.cinza`
 (CVM) não muda. Códigos de saída: 0 certo; 1 erro do programa ou da ligação; **75** recurso
 que o `cinzac` ainda não compila (`arquivo:linha:coluna: [cinzac] ainda não suportado: ...`),
-que diminui a cada etapa até a P9. O `cinzac` fica em `llvm/bin/` (`make cinzac`); `CINZA_GXX`
-troca o `g++` da ligação.
+que diminui a cada etapa até a P9. O `cinzac` fica em `llvm/bin/` (`make cinzac`).
+
+**A ligação (Q5).** O `cinzac` liga sozinho: o `lld` vai dentro dele como biblioteca
+(`llvm/ligador.cpp`; o driver MinGW no Windows, o ELF no Linux), e a pasta `runtime/` ao lado dele
+tem a `libcinzart.a` e tudo o que o programa liga — os arquivos de partida e as bibliotecas do C++
+(libc++, libc++abi, libunwind, compiler-rt; no Windows as do mingw-w64, no Linux a musl). A linha
+do `lld` é a do `clang -static` de cada sistema, com `-L` só para `runtime/`: nada vem da máquina.
+No Linux o programa sai estático (roda em qualquer x86-64); no Windows, ele importa só as DLLs do
+próprio sistema (o UCRT). `CINZA_GXX` liga por um compilador externo, como antes (o build de ASan,
+`CINZA_GXX=clang++`), e `CINZA_LIGACAO` acrescenta opções nos dois modos.
+
+Por isso o `cinzac` usa a API em C++ do LLVM (o `lld` não tem uma em C) e é compilado com o mesmo
+C++ das bibliotecas estáticas do LLVM: no Windows, o clang do CLANG64 com a libc++; no Linux de
+distribuição (`make ESTATICO=1`, no Alpine), o clang com a libstdc++ do LLVM do Alpine, enquanto o
+runtime usa a libc++. O que os dois lados compartilham por layout (o `CzValor`, o cabeçalho dos
+objetos, o vetor de campos no deslocamento 48) é conferido por `static_assert` nos dois e pelo
+`--confere-layout`. Do LLVM entra só o alvo x86 (`llvm/alvos_vazios.cpp`: o driver do `lld` pede a
+inicialização de todos, por causa do LTO, e o `cinzac` nunca lhe passa bitcode) e, no Windows, sem o
+libxml2 (`llvm/xml_vazio.cpp`: o manifesto do Windows, que o driver MinGW nunca junta): o `cinzac`
+fica com ~45 MB no Windows e ~72 MB no Linux, sem DLLs.
 
 ## 10. Testes
 
@@ -841,5 +860,5 @@ troca o `g++` da ligação.
 ## 11. Fora deste desenho (depois)
 
 Informação de depuração (DWARF/CodeView), compilação separada por módulo, ABI estável, threads,
-campos e coleções com tipos nativos, eliminação de `retain`/`release`, `cinzac` sem `g++` (ligar
-com o `lld` embutido), distribuição do `cinzac` com as DLLs.
+campos e coleções com tipos nativos, eliminação de `retain`/`release`, outros alvos (ARM64,
+macOS).

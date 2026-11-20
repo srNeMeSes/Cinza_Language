@@ -2042,7 +2042,7 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
   > O compilador precisa do `#embed` (GCC 15 ou Clang 19 em diante); o GCC 13 do Ubuntu 24.04 não
   > serve. Os programas gerados no Linux ficam com a pilha padrão (8 MB), que basta para as 2000
   > chamadas da linguagem (a suíte, com os testes de profundidade, passa assim).
-- [ ] Q5. Distribuição.
+- [x] Q5. Distribuição.
   - Versão: `cinza --version` e `cinzac --version` com a versão da linguagem e do compilador; a
     spec com a mesma versão.
   - **`cinzac` sem MSYS2 nem `g++`** — decisão do autor (2026-11-19): eliminar as duas
@@ -2051,11 +2051,40 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
     `lld` junto do `cinzac` (ligado pela `llvm-c`/`lld` como biblioteca, ou um executável ao lado),
     a `libcinzart` e o que ela precisa do C++ (libstdc++, libgcc, mingw-w64) já compilados e
     distribuídos com ele, e o `cinzac` sem precisar do MSYS2 para rodar (hoje ele usa ~145 MB de DLLs
-    do LLVM do CLANG64). **[decidir]** LLVM estático ou só as DLLs necessárias; e se o runtime
-    continua em C++ com a libstdc++ estática ou passa a depender só do C.
+    do LLVM do CLANG64). Decidido: LLVM estático, só o necessário; o runtime continua em C++, com a
+    biblioteca C++ embutida; no Linux, os programas estáticos com a musl.
   - Releases no GitHub: um zip ou instalador para Windows e um pacote para Linux, com o `cinza`,
-    o `cinzac`, a biblioteca e a extensão empacotada (`.vsix`); **[decidir]** publicar a extensão
-    no Marketplace.
+    o `cinzac`, a biblioteca e a extensão empacotada (`.vsix`); decidido: só o `.vsix` nos
+    releases, sem o Marketplace por enquanto.
+  > Feito (2026-11-20), no ramo `q5-distribuicao`. Versão **0.5.0** (decisão do autor, a numeração
+  > da spec): `versao.h`, `cinza --version` e `cinzac --version` (com o LLVM e o alvo); a suíte
+  > confere que a spec, o `versao.h` e o `--version` dizem o mesmo. O `cinzac` liga sozinho: o `lld`
+  > dentro dele (`llvm/ligador.cpp`) e a pasta `runtime/` ao lado com a `libcinzart` e as bibliotecas
+  > de partida e do C++, sem `g++` nem MSYS2 (llvm/DESENHO.md, seção 9):
+  > - **Windows**: um `cinzac.exe` de ~45 MB, sem DLLs, compilado pelo clang do CLANG64 com o LLVM e o
+  >   `lld` estáticos, só o alvo x86 (`llvm/alvos_vazios.cpp`) e sem o libxml2 (`llvm/xml_vazio.cpp`;
+  >   com ele vinham o libiconv, LGPL, e o liblzma); a CVM também estática. Conferido com o `PATH`
+  >   só do Windows: compila, liga e roda; o executável gerado importa só DLLs do sistema.
+  > - **Linux** (`make ESTATICO=1`, no Alpine 3.22 com o clang 20): a CVM e o `cinzac` estáticos, e
+  >   os programas gerados também, com a musl e as bibliotecas do LLVM para o C++ (libc++, libc++abi,
+  >   libunwind, compiler-rt — licenças permissivas, como no Windows; decisão do autor, em vez da
+  >   libstdc++ e da libgcc, GPL). O Alpine só traz o `lld` em `.so`: o CI compila as bibliotecas
+  >   estáticas dele da fonte do 20.1.8, em cache. Na ligação, `--eh-frame-hdr` (sem ele a libunwind
+  >   não acha as tabelas e as exceções do runtime terminam o programa) e
+  >   `--no-dependent-libraries` (a libc++ pede `-lrt`/`-lpthread`/`-ldl`, que a musl tem na libc).
+  > - **Layout**: o `gc_refs` do `GcObject` era `long` (4 bytes no Windows, 8 no Linux) e deixava o
+  >   vetor de campos em 40 num e 48 no outro; agora `std::int64_t`, 48 em todo sistema, fixado por
+  >   `static_assert` no emissor e no runtime (que podem usar bibliotecas C++ diferentes).
+  > - **Pacotes** (`distribuicao/empacota.sh`): `cinza-<versão>-windows-x64.zip` (~23 MB) e
+  >   `cinza-<versão>-linux-x64.tar.gz` (~38 MB), com `bin/` (o `cinza`, o `cinzac` e a `runtime/`), a
+  >   licença, `LICENCAS-TERCEIROS.md` com os textos em `licencas/`, o README e a spec; o pacote
+  >   compila e roda um programa antes de fechar. O CI os gera a cada push, com o `.vsix` da extensão
+  >   (que ganhou `publisher`, `license` e `repository`), e numa tag `v<versão>` (a de `versao.h`)
+  >   cria um release do GitHub (pré-lançamento) com os três e as instruções de `distribuicao/NOTAS.md`.
+  > - O build de ASan continua (`make cinzac-debug`, dinâmico): o `cinzac` instrumentado com o LLVM
+  >   estático dá falsos positivos de *container-overflow* nas anotações da libc++, e o
+  >   `test-llvm-debug` roda com `detect_container_overflow=0`; 711/711.
+  > 711/711 em todos os jobs do CI (Linux GCC e Clang, Linux estático, Windows).
 - [ ] Q6. Ferramentas.
   - Servidor de linguagem (LSP) mínimo, com o front-end de hoje: os erros enquanto se digita;
     depois ir para a definição, o tipo ao passar o mouse e completar nomes. A extensão passa a
@@ -2126,6 +2155,7 @@ antes da prévia (Q8), e a 1.0 (Q9) só depois de um período de uso real.
 | 2026-10-04 | J2 | `Files.read_bytes(caminho) -> list<int>` e `Files.write_bytes(caminho, list<int>)`, bytes de 0 a 255 (fora disso, `ValueError`). | Decisão do autor da linguagem; formatos binários sem passar por texto UTF-8. |
 | 2026-10-03 | I4 | `menor_int % -1` dá `0` (revê A5); `-0.0` continua `-0` no `print`; decimais extremos continuam em notação científica. | Decisão do autor da linguagem; `x % -1` cabe sempre em `int`. |
 | 2026-10-03 | H3 | `exit([código])`: padrão 0, de 0 a 255; roda os `finally` pendentes e nenhum `except` o captura; encerra o caminho na análise de fluxo. | Decisão do autor da linguagem; 0–255 dá o mesmo resultado em todo sistema. |
+| 2026-11-20 | Q5 | Versão 0.5.0 (a numeração da spec). O `cinzac` com o LLVM estático (só o necessário) e o `lld` embutido, sem MSYS2 nem `g++`; o runtime continua em C++, com a biblioteca C++ embutida; no Linux, a libc++ (não a libstdc++) e a musl, com programas estáticos; a extensão só como `.vsix` nos releases. | Decisões do autor: quem usa o `cinzac` não instala nada; um runtime em C seria outro código além do da CVM; o pacote fica só com licenças permissivas, igual nos dois sistemas; o Marketplace fica para quando a linguagem for pública. |
 | 2026-11-19 | Q4 | A 1.0 sai para Windows e Linux (x86-64); o macOS fica para depois da 1.0. O Linux é testado pelo CI (GitHub Actions), lido pelo `gh`. | Decisão do autor: sem um Mac para testar, prometer suporte seria arriscado; o código já fica portátil (POSIX e o triple do sistema). |
 | 2026-11-19 | Q3 | A biblioteca da 1.0 ganha `Dicts`, `Env`, `Process`, `Regex` e `Json`. `Json` é uma classe da biblioteca (`Json.Value` com `Json.Kind`; o null do JSON é um `Kind`, não um null da Cinza). `Process` roda programas sem shell (programa e lista de argumentos). `Regex` usa um motor próprio no estilo do RE2 (tempo linear, em caracteres, sem `\1` nem lookaround). | Decisões do autor: JSON e processos são o que programas reais mais pedem; sem shell não há injeção de comando e o resultado é igual em todo sistema; um motor com retrocesso (o `std::regex`) trabalha em bytes e derruba o programa com textos longos, contra o Q2. |
 | 2026-11-19 | Q | O congelamento da linguagem (Q9) só depois de as classes genéricas estarem implementadas de forma segura e consistente; o sistema de módulos é revisto antes da 1.0 (Q1f); o `cinzac` deixa de depender do MSYS2 e do `g++`, como outras linguagens fazem (o ligador e o runtime distribuídos com ele, Q5). | Decisões do autor ao ler o roteiro: a 1.0 é a promessa de estabilidade, e as classes genéricas e os módulos ainda podem mudar a linguagem; quem usa o `cinzac` não deve precisar instalar um ambiente de compilação. |
