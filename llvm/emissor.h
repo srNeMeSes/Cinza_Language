@@ -30,8 +30,12 @@ public:
     std::string textoIR() const;
 
     // Confere que o LLVM vê as estruturas da interface (CzValor, CzObjeto, CzExec) com o
-    // mesmo tamanho e os mesmos deslocamentos que o GCC (llvm/DESENHO.md 8.4)
+    // mesmo tamanho e os mesmos deslocamentos que o compilador do runtime (llvm/DESENHO.md 8.4)
     static bool confereLayout(std::string& relato);
+
+    // A versão do LLVM e o alvo dos programas gerados ("20.1.8", "x86_64-pc-linux-gnu"): cinzac --version
+    static std::string versaoLLVM();
+    static std::string alvo();
 
 private:
     struct Impl;

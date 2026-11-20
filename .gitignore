@@ -18,5 +18,7 @@ exemplos/rede_neural/modelo.czr
 # Arquivos temporários dos testes dos projetos (cada teste apaga o seu)
 tests/projetos/**/_tmp_*
 
-# cinzac, libcinzart.a e as DLLs do LLVM copiadas pelo make cinzac
+# o cinzac e a pasta runtime/ (libcinzart.a e as bibliotecas de partida), do make cinzac,
+# e os objetos do cinzac (build/cinzac/)
 llvm/bin/
+build/

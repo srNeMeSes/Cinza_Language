@@ -267,6 +267,24 @@ def exemplos_da_spec(filtro):
     return exemplos
 
 
+def confere_versao(binario):
+    """Q5: a versão é uma só — a de versao.h, a da spec (spec/README.md) e a que o compilador
+    mostra em --version."""
+    m = re.search(r'#define CINZA_VERSAO "([^"]+)"', (RAIZ / "versao.h").read_text(encoding="utf-8"))
+    versao = m.group(1) if m else "?"
+    spec = (RAIZ / "spec" / "README.md").read_text(encoding="utf-8")
+    problemas = []
+    if f"Versão {versao} ·" not in spec:
+        problemas.append(f"a spec (spec/README.md) não diz 'Versão {versao}'")
+    if binario.exists():
+        saida = subprocess.run([str(binario), "--version"], capture_output=True).stdout.decode("utf-8", "replace")
+        if not re.match(rf"cinzac? {re.escape(versao)} ", saida):
+            problemas.append(f"'{binario.name} --version' mostrou {saida.strip()!r}, não a versão {versao}")
+    for p in problemas:
+        print(f"FAIL  versão: {p}")
+    return not problemas
+
+
 def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
@@ -298,6 +316,8 @@ def main():
         if not binario.exists():
             binario = RAIZ / "cinza"
     filtro = sys.argv[2] if len(sys.argv) > 2 else ""
+    if not confere_versao(binario):
+        sys.exit(1)
 
     if not binario.exists():
         print(f"Binário não encontrado: {binario} (rode 'make' antes)")

@@ -14,8 +14,12 @@
 #include "../plataforma.h"
 #include "../semantic.h"
 #include "../source_files.h"
+#include "../versao.h"
 #include "emissor.h"
 #include "gera_cir.h"
+#ifdef CINZA_LLD
+#include "ligador.h"
+#endif
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -38,7 +42,8 @@ void ajuda() {
                  "  --manter-objeto   não apaga o .o depois de ligar\n"
                  "  --asan            o código gerado com o AddressSanitizer (ligar com o runtime\n"
                  "                    dele: CINZA_GXX=clang++ CINZA_LIGACAO=-fsanitize=address)\n"
-                 "  --confere-layout  confere as estruturas da interface com o runtime\n";
+                 "  --confere-layout  confere as estruturas da interface com o runtime\n"
+                 "  --version         mostra a versão da linguagem, do cinzac e do LLVM\n";
 }
 
 bool leArquivo(const std::string& nome, std::string& conteudo) {
@@ -67,6 +72,11 @@ static int principal(int argc, char* argv[]) {
     for (std::size_t i = 1; i < args.size(); ++i) {
         const std::string& a = args[i];
         if (a == "-h" || a == "--help") { ajuda(); return 0; }
+        if (a == "--version") {
+            std::cout << "cinzac " CINZA_VERSAO " (LLVM " << llvm::Emissor::versaoLLVM() << ", alvo "
+                      << llvm::Emissor::alvo() << ")\n";
+            return 0;
+        }
         if (a == "--confere-layout") {
             std::string relato;
             const bool ok = llvm::Emissor::confereLayout(relato);
@@ -164,33 +174,73 @@ static int principal(int argc, char* argv[]) {
         return 1;
     }
 
-    // Ligação pelo g++ (o mesmo que compilou o runtime, por causa da libstdc++): a
-    // libcinzart.a fica ao lado do cinzac. CINZA_GXX troca o g++; CINZA_LIGACAO acrescenta
-    // opções à ligação, separadas por espaço (o build de depuração: -fsanitize=address).
-    const std::filesystem::path pasta = caminhoUtf8(caminhoDoExecutavel()).parent_path();
-    std::string gxx = "g++";
-    ambienteUtf8("CINZA_GXX", gxx);
-    std::vector<std::string> ligacao{gxx};
-    ligacao.insert(ligacao.end(), objetos.begin(), objetos.end());
-    for (const std::string& a : {textoCaminho(pasta / "libcinzart.a"), std::string("-o"), saida,
-                                 std::string("-static-libstdc++"), std::string("-static-libgcc")})
-        ligacao.push_back(a);
-#ifdef _WIN32
-    ligacao.push_back("-Wl,--stack,67108864");   // A6: a pilha de 64 MB (a padrão do Windows tem 1 MB)
-#endif
-    std::string extra;
-    if (ambienteUtf8("CINZA_LIGACAO", extra)) {
+    // A ligação (Q5). O runtime fica na pasta runtime/ ao lado do cinzac: a libcinzart.a e, com o
+    // lld embutido (CINZA_LLD), as bibliotecas de partida e a do C++ já compiladas — o cinzac liga
+    // sozinho, sem g++ nem MSYS2. CINZA_GXX liga por um compilador externo (o build de depuração,
+    // com o ASan: CINZA_GXX=clang++), e CINZA_LIGACAO acrescenta opções, separadas por espaço.
+    const std::filesystem::path runtime = caminhoUtf8(caminhoDoExecutavel()).parent_path() / "runtime";
+    std::vector<std::string> extras;
+    if (std::string extra; ambienteUtf8("CINZA_LIGACAO", extra)) {
         std::istringstream partes(extra);
-        for (std::string p; partes >> p;) ligacao.push_back(p);
+        for (std::string p; partes >> p;) extras.push_back(p);
     }
-    const int ligou = executaProcesso(ligacao);
+    std::string gxx;
+    const bool externo = ambienteUtf8("CINZA_GXX", gxx);
+    bool ligou = false;
+    std::string relato;
+#ifdef CINZA_LLD
+    if (!externo) {
+        auto rt = [&](const char* f) { return textoCaminho(runtime / f); };
+        std::vector<std::string> a{"ld.lld"};
+#ifdef _WIN32
+        // a linha do clang -static do CLANG64, com tudo vindo de runtime/ (só ela no -L)
+        for (const char* x : {"-m", "i386pep", "-Bstatic", "--stack", "67108864", "-o"}) a.push_back(x);
+        a.push_back(saida);
+        a.push_back(rt("crt2.o"));
+        a.push_back(rt("crtbegin.o"));
+        a.push_back("-L" + textoCaminho(runtime));
+        a.insert(a.end(), objetos.begin(), objetos.end());
+        a.push_back(rt("libcinzart.a"));
+        for (const char* x : {"-lc++", "--start-group", "-lmingw32"}) a.push_back(x);
+        a.push_back(rt("libclang_rt.builtins-x86_64.a"));
+        for (const char* x : {"-l:libunwind.a", "-lmoldname", "-lmingwex", "-lmsvcrt", "-ladvapi32", "-lshell32",
+                              "-luser32", "-lkernel32", "-lwinpthread", "-lbcrypt", "--end-group"})
+            a.push_back(x);
+        a.push_back(rt("crtend.o"));
+#else
+        a.push_back("-o");
+        a.push_back(saida);
+        a.insert(a.end(), objetos.begin(), objetos.end());
+        a.push_back(rt("libcinzart.a"));
+#endif
+        a.insert(a.end(), extras.begin(), extras.end());
+        ligou = llvm::liga(a, relato);
+        if (!ligou) relato = "Erro: a ligação falhou:\n" + relato;
+    }
+#endif
+    if (externo || (relato.empty() && !ligou)) {   // sem o lld embutido, ou pedido
+
+        if (!externo) gxx = "g++";
+        std::vector<std::string> ligacao{gxx};
+        ligacao.insert(ligacao.end(), objetos.begin(), objetos.end());
+        for (const std::string& a : {textoCaminho(runtime / "libcinzart.a"), std::string("-o"), saida,
+                                     std::string("-static-libstdc++"), std::string("-static-libgcc")})
+            ligacao.push_back(a);
+#ifdef _WIN32
+        ligacao.push_back("-Wl,--stack,67108864");   // A6: a pilha de 64 MB (a padrão do Windows tem 1 MB)
+#endif
+        ligacao.insert(ligacao.end(), extras.begin(), extras.end());
+        const int r = executaProcesso(ligacao);
+        ligou = r == 0;
+        if (!ligou)
+            relato = "Erro: a ligação com o " + gxx + " falhou" + (r < 0 ? " (não foi possível executá-lo)" : "") + ".";
+    }
     if (!manter_objeto) {
         std::error_code ec;
         for (const std::string& o : objetos) std::filesystem::remove(caminhoUtf8(o), ec);
     }
-    if (ligou != 0) {
-        std::cerr << "Erro: a ligação com o " << gxx << " falhou"
-                  << (ligou < 0 ? " (não foi possível executá-lo)" : "") << ".\n";
+    if (!ligou) {
+        std::cerr << relato << "\n";
         return 1;
     }
     return 0;

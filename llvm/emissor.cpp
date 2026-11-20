@@ -53,7 +53,7 @@ void inicializaAlvo() {
 }
 
 // O deslocamento do vetor de campos num objeto e num struct do runtime (P10: o acesso em
-// linha). Os dois tipos não são standard-layout (o offsetof do GCC vale, com aviso)
+// linha). Os dois tipos não são standard-layout (o offsetof do GCC e do clang vale, com aviso)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Winvalid-offsetof"
 const std::size_t DESLOC_CAMPOS_OBJ    = offsetof(ClassInstance, fields);
@@ -1312,6 +1312,14 @@ std::string Emissor::textoIR() const {
     return r;
 }
 
+std::string Emissor::versaoLLVM() {
+    unsigned maior = 0, menor = 0, correcao = 0;
+    LLVMGetVersion(&maior, &menor, &correcao);
+    return std::to_string(maior) + "." + std::to_string(menor) + "." + std::to_string(correcao);
+}
+
+std::string Emissor::alvo() { return triple(); }
+
 bool Emissor::confereLayout(std::string& relato) {
     std::string erro;
     LLVMTargetMachineRef tm = criaMaquina(false, erro);
@@ -1330,7 +1338,7 @@ bool Emissor::confereLayout(std::string& relato) {
         for (std::size_t i = 0; i < desloc.size(); ++i)
             certo = certo && LLVMOffsetOfElement(dl, t, static_cast<unsigned>(i)) == desloc[i];
         relato += std::string(certo ? "ok    " : "ERRADO ") + nome + ": " + std::to_string(tam) +
-                  " bytes no LLVM, " + std::to_string(tamanho) + " no GCC\n";
+                  " bytes no LLVM, " + std::to_string(tamanho) + " no runtime\n";
         ok = ok && certo;
         return t;
     };

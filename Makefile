@@ -24,7 +24,8 @@ endif
 # recursão do compilador e do semântico em programas muito aninhados.
 ifneq ($(OS)$(MSYSTEM),)
     EXE = .exe
-    LDFLAGS = -Wl,--stack,67108864
+    # Q5: estático, para rodar fora do ambiente de compilação (sem as DLLs do GCC)
+    LDFLAGS = -static -Wl,--stack,67108864
 else
     EXE =
     LDFLAGS =
@@ -36,6 +37,7 @@ ifeq ($(SHELL),sh.exe)
     RM = del /Q /F
     COPY = copy /Y
     mkdirp = if not exist $(subst /,\,$1) mkdir $(subst /,\,$1)
+    rmrf = if exist $(subst /,\,$1) rmdir /S /Q $(subst /,\,$1)
     PYTHON ?= python
     # o del do cmd entende '/' como opção: caminhos precisam de '\'
     fixpath = $(subst /,\,$1)
@@ -48,6 +50,7 @@ else
     RM = rm -f
     COPY = cp
     mkdirp = mkdir -p $1
+    rmrf = rm -rf $1
     PYTHON ?= python3
     fixpath = $1
     RED = \033[0;31m
@@ -80,6 +83,7 @@ $(TARGET_BIN): $(OBJECTS)
 
 # Build de depuração com sanitizers
 debug: CXXFLAGS = -std=c++20 -O0 -g -Wall -Wextra -fsanitize=address,undefined -DCINZA_CONFERE_REFS
+debug: LDFLAGS := $(filter-out -static,$(LDFLAGS))
 debug: clean $(TARGET_BIN)
 
 # Roda a suíte de testes em tests/
@@ -100,57 +104,88 @@ $(UNIT_GC): tests/unit_gc.cpp gc.h gc_object.h value.h
 	$(CXX) $(CXXFLAGS) -o $(UNIT_GC) tests/unit_gc.cpp
 
 # ---------------------------------------------------------------------------
-# cinzac: o compilador nativo (llvm/DESENHO.md; seção P do REVISAO_V2.md), pela API em C
-# do LLVM 20. Fica em llvm/bin/, com a libcinzart.a (o runtime que os programas gerados
-# ligam).
-# - Windows: o LLVM 20.1.8 do MSYS2 CLANG64 (mingw-w64-clang-x86_64-llvm; LLVM_PREFIX troca
-#   a pasta) com o GCC do projeto, e as DLLs do LLVM ao lado do cinzac: o Windows as procura
-#   primeiro na pasta do executável, antes do PATH (onde o GCC tem outras versões de zlib1,
-#   libzstd...).
-# - Linux (Q4): o LLVM 20 do sistema, pelo llvm-config-20 ou llvm-config (LLVM_CONFIG troca);
-#   a biblioteca compartilhada do LLVM fica onde está (rpath). O llvm-config só roda quando o
+# cinzac: o compilador nativo (llvm/DESENHO.md; seções P e Q5 do REVISAO_V2.md), pelo LLVM 20.
+# Fica em llvm/bin/, com a pasta runtime/ ao lado: a libcinzart.a (o runtime que os programas
+# gerados ligam) e, no Windows, as bibliotecas de partida e a do C++, para o cinzac ligar sozinho.
+# - Windows (Q5): o cinzac é um executável só, sem DLLs. O LLVM e o lld vão estáticos (o lld liga
+#   os programas dentro do cinzac, llvm/ligador.cpp), e por isso o cinzac e o runtime são
+#   compilados pelo clang do MSYS2 CLANG64, com a libc++ das bibliotecas do LLVM (LLVM_PREFIX
+#   troca a pasta), em objetos à parte dos da CVM (build/cinzac/). Do CLANG64 vêm também, para
+#   runtime/, os arquivos de partida, a libc++ e as bibliotecas do mingw-w64.
+# - Linux (Q4): o LLVM 20 do sistema, pelo llvm-config-20 ou llvm-config (LLVM_CONFIG troca), com
+#   o compilador do projeto; os programas são ligados pelo g++. O llvm-config só roda quando o
 #   cinzac é pedido: o `make` da CVM não precisa do LLVM.
 ifneq ($(OS)$(MSYSTEM),)
     LLVM_PREFIX  ?= C:/msys64/clang64
+    LLVM_CONFIG  ?= $(LLVM_PREFIX)/bin/llvm-config
     LLVM_INCLUDE  = $(LLVM_PREFIX)/include
-    LLVM_LIBS     = $(LLVM_PREFIX)/lib/libLLVM-20.dll.a -static-libstdc++ -static-libgcc
-    # as DLLs do LLVM e das dependências dele que existirem (as versões mudam com o MSYS2: o
-    # libxml2 2.15 já não depende do liblzma)
-    LLVM_DLLS     = $(notdir $(wildcard $(addprefix $(LLVM_PREFIX)/bin/,libLLVM-20.dll libc++.dll libunwind.dll \
-                    libffi-*.dll libiconv-*.dll liblzma-*.dll libxml2-*.dll libzstd.dll zlib1.dll)))
+    CINZAC_CXX   ?= $(LLVM_PREFIX)/bin/clang++
+    CINZAC_AR    ?= $(LLVM_PREFIX)/bin/llvm-ar
+    CINZAC_FLAGS  = -DCINZA_LLD
+    # estático, sem os símbolos e sem as seções não usadas (de 134 MB para ~47 MB)
+    CINZAC_STATIC = -static -Wl,--gc-sections -s
+    # o lld embutido, o libxml2 estático no lugar da DLL e só o alvo x86 (os outros alvos com
+    # inicializações vazias: o lld pede todos, por causa do LTO)
+    CINZAC_LLD    = llvm/ligador.cpp llvm/xml_estatico.cpp llvm/alvos_vazios.cpp
+    # o lld (MinGW e o COFF que ele usa) antes do LLVM, de que depende; do LLVM, só os componentes
+    # que o cinzac e o lld usam; as bibliotecas do sistema do LLVM estático (o zstd estático, não o
+    # da DLL), as do libxml2 e o bcrypt da libc++
+    LLVM_COMPS    = x86 passes lto libdriver windowsdriver windowsmanifest debuginfopdb option
+    LLVM_LIBS     = -llldMinGW -llldCOFF -llldCommon $(shell $(LLVM_CONFIG) --link-static --libs $(LLVM_COMPS)) \
+                    $(subst -lzstd.dll,-lzstd,$(shell $(LLVM_CONFIG) --link-static --system-libs)) \
+                    -liconv -llzma -lbcrypt
+    RUNTIME_LIBS  = crt2.o crtbegin.o crtend.o libc++.a libunwind.a libmingw32.a libmingwex.a libmoldname.a \
+                    libmsvcrt.a libadvapi32.a libshell32.a libuser32.a libkernel32.a libwinpthread.a libbcrypt.a
+    RUNTIME_RT    = $(LLVM_PREFIX)/lib/clang/20/lib/windows/libclang_rt.builtins-x86_64.a
 else
     LLVM_CONFIG  ?= $(firstword $(shell command -v llvm-config-20 llvm-config 2>/dev/null) llvm-config)
     LLVM_INCLUDE  = $(shell $(LLVM_CONFIG) --includedir)
+    CINZAC_CXX   ?= $(CXX)
+    CINZAC_AR    ?= ar
+    CINZAC_FLAGS  =
+    CINZAC_STATIC =
+    CINZAC_LLD    =
     LLVM_LIBS     = $(shell $(LLVM_CONFIG) --ldflags) $(shell $(LLVM_CONFIG) --libs) \
                     -Wl,-rpath,$(shell $(LLVM_CONFIG) --libdir)
-    LLVM_DLLS     =
+    RUNTIME_LIBS  =
+    RUNTIME_RT    =
 endif
 LLVM_BIN    = llvm/bin
+RUNTIME_DIR = $(LLVM_BIN)/runtime
 CINZAC_BIN  = $(LLVM_BIN)/cinzac$(EXE)
-LIBCINZART  = $(LLVM_BIN)/libcinzart.a
-RUNTIME_OBJ = operacoes.o natives.o stdlib.o regex.o plataforma.o llvm/cinzart.o
-CINZAC_OBJ  = lexer.o parser.o ast.o semantic.o module_loader.o biblioteca.o operacoes.o natives.o stdlib.o regex.o \
-              plataforma.o llvm/cir.o llvm/gera_cir.o llvm/emissor.o llvm/cinzac.o
-CINZAC_DEPS = $(patsubst %.o,%.d,llvm/cinzart.o llvm/cir.o llvm/gera_cir.o llvm/emissor.o llvm/cinzac.o)
--include $(CINZAC_DEPS)
+LIBCINZART  = $(RUNTIME_DIR)/libcinzart.a
+CZ_DIR      = build/cinzac
+CINZAC_SRC  = lexer.cpp parser.cpp ast.cpp semantic.cpp module_loader.cpp biblioteca.cpp operacoes.cpp \
+              natives.cpp stdlib.cpp regex.cpp plataforma.cpp llvm/cir.cpp llvm/gera_cir.cpp llvm/emissor.cpp \
+              llvm/cinzac.cpp $(CINZAC_LLD)
+RUNTIME_SRC = operacoes.cpp natives.cpp stdlib.cpp regex.cpp plataforma.cpp llvm/cinzart.cpp
+CINZAC_OBJ  = $(addprefix $(CZ_DIR)/,$(CINZAC_SRC:.cpp=.o))
+RUNTIME_OBJ = $(addprefix $(CZ_DIR)/,$(RUNTIME_SRC:.cpp=.o))
+RUNTIME_ARQ = $(addprefix $(RUNTIME_DIR)/,$(RUNTIME_LIBS) $(notdir $(RUNTIME_RT)))
+$(CZ_DIR)/llvm/xml_estatico.o: CINZAC_FLAGS += -I$(LLVM_PREFIX)/include/libxml2
+-include $(CINZAC_OBJ:.o=.d) $(CZ_DIR)/llvm/cinzart.d
 
-# só o emissor e o cinzac incluem a llvm-c; -idirafter: os cabeçalhos do CLANG64 não
-# passam na frente dos do GCC
-llvm/emissor.o llvm/cinzac.o: CXXFLAGS += -idirafter $(LLVM_INCLUDE)
-
-cinzac: $(CINZAC_BIN) $(LIBCINZART) $(addprefix $(LLVM_BIN)/,$(LLVM_DLLS))
+cinzac: $(CINZAC_BIN) $(LIBCINZART) $(RUNTIME_ARQ)
 	@echo "$(GREEN)✓ cinzac pronto em $(CINZAC_BIN)$(NC)"
 
-$(LLVM_BIN):
-	$(call mkdirp,$(LLVM_BIN))
+$(CZ_DIR)/%.o: %.cpp
+	@$(call mkdirp,$(patsubst %/,%,$(dir $@)))
+	$(CINZAC_CXX) $(CXXFLAGS) $(CINZAC_FLAGS) -idirafter $(LLVM_INCLUDE) $(DEPFLAGS) -c $< -o $@
 
-$(CINZAC_BIN): $(CINZAC_OBJ) | $(LLVM_BIN)
-	$(CXX) $(CXXFLAGS) -o $@ $(CINZAC_OBJ) $(LLVM_LIBS) $(LDFLAGS)
+$(CINZAC_BIN): $(CINZAC_OBJ)
+	@$(call mkdirp,$(LLVM_BIN))
+	$(CINZAC_CXX) $(CXXFLAGS) $(CINZAC_STATIC) -o $@ $(CINZAC_OBJ) $(LLVM_LIBS) $(LDFLAGS)
 
-$(LIBCINZART): $(RUNTIME_OBJ) | $(LLVM_BIN)
-	ar rcs $@ $(RUNTIME_OBJ)
+$(LIBCINZART): $(RUNTIME_OBJ)
+	@$(call mkdirp,$(RUNTIME_DIR))
+	$(CINZAC_AR) rcs $@ $(RUNTIME_OBJ)
 
-$(LLVM_BIN)/%.dll: $(LLVM_PREFIX)/bin/%.dll | $(LLVM_BIN)
+$(RUNTIME_DIR)/%: $(LLVM_PREFIX)/lib/%
+	@$(call mkdirp,$(RUNTIME_DIR))
+	$(COPY) "$(call fixpath,$<)" "$(call fixpath,$@)"
+
+$(RUNTIME_DIR)/$(notdir $(RUNTIME_RT)): $(RUNTIME_RT)
+	@$(call mkdirp,$(RUNTIME_DIR))
 	$(COPY) "$(call fixpath,$<)" "$(call fixpath,$@)"
 
 # A suíte pelo cinzac (compila cada teste e roda o executável); os recursos que ele
@@ -165,8 +200,15 @@ test-llvm: cinzac
 # o aviso dele passaria despercebido num teste que só confere a saída):
 #   make cinzac-debug && make test-llvm-debug PYTHON=/c/Python313/python
 cinzac-debug: CXXFLAGS = -std=c++20 -O1 -g -Wall -Wextra -fsanitize=address,undefined -DCINZA_CONFERE_REFS
+cinzac-debug: CINZAC_STATIC =
+# dinâmico (o ASan do mingw é uma DLL): o libxml2 vem da DLL, sem a ponte estática
+cinzac-debug: CINZAC_LLD = llvm/ligador.cpp llvm/alvos_vazios.cpp
+cinzac-debug: LDFLAGS := $(filter-out -static,$(LDFLAGS))
 cinzac-debug: clean cinzac
 
+# detect_container_overflow=0: o LLVM estático não é instrumentado, e as anotações dos contêineres da
+# libc++ entre ele e o código instrumentado do cinzac dão falso positivo (o resto do ASan continua)
+test-llvm-debug: export ASAN_OPTIONS = detect_container_overflow=0
 test-llvm-debug:
 	./$(CINZAC_BIN) --confere-layout
 	CINZA_GXX=clang++ CINZA_LIGACAO="-fsanitize=address,undefined" UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 $(PYTHON) tests/run_tests.py --cinzac --asan
@@ -190,7 +232,9 @@ test-ast: $(TARGET_BIN)
 clean:
 	@echo "$(YELLOW)Limpando arquivos de compilação...$(NC)"
 	-$(RM) $(call fixpath,$(OBJECTS) $(DEPS)) $(TARGET_BIN) $(call fixpath,$(UNIT_BIN) $(UNIT_TYPES) $(UNIT_GC))
-	-$(RM) $(call fixpath,llvm/cinzart.o llvm/cir.o llvm/gera_cir.o llvm/emissor.o llvm/cinzac.o $(CINZAC_DEPS) $(CINZAC_BIN) $(LIBCINZART))
+	-$(call rmrf,$(CZ_DIR))
+	-$(call rmrf,$(RUNTIME_DIR))
+	-$(RM) $(call fixpath,$(CINZAC_BIN))
 	@echo "$(GREEN)✓ Limpeza concluída!$(NC)"
 
 # Rebuild completo

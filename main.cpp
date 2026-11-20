@@ -6,6 +6,7 @@
 #include "cvm/compiler.h"
 #include "cvm/vm.h"
 #include "plataforma.h"
+#include "versao.h"
 #include "gc.h"            // P1: modo sem vazamento (coleta final e contagem)
 #include <filesystem>
 #include <iostream>
@@ -196,6 +197,7 @@ void printHelp() {
     std::cout << "  --tokens, -t     Exibe tokens detalhados\n";
     std::cout << "  --ast, -a        Exibe a árvore sintática (AST)\n";
     std::cout << "  --bytecode       Mostra o bytecode da CVM antes de executar\n";
+    std::cout << "  --version        Mostra a versão da linguagem e do cinza\n";
     std::cout << "  --help, -h       Exibe esta ajuda\n\n";
     std::cout << "Exemplo:\n";
     std::cout << "  cinza --ast exemplo.cinza\n";
@@ -242,6 +244,9 @@ static int principal(int argc, char* argv[]) {
         }
         if (arg == "--help" || arg == "-h") {
             printHelp();
+            return 0;
+        } else if (arg == "--version") {
+            std::cout << "cinza " CINZA_VERSAO " (a CVM, a máquina virtual da Cinza)\n";
             return 0;
         } else if (arg == "--tokens" || arg == "-t") {
             show_tokens = true;
