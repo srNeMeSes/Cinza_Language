@@ -211,7 +211,9 @@ static int principal(int argc, char* argv[]) {
         // Linux (Q5): estático com a musl e as bibliotecas do LLVM para o C++ (libc++, libc++abi,
         // libunwind, compiler-rt), tudo vindo de runtime/: o programa roda em qualquer Linux x86-64,
         // sem nada instalado
-        for (const char* x : {"-static", "-m", "elf_x86_64", "-o"}) a.push_back(x);
+        // --no-dependent-libraries: os objetos da libc++ pedem -lrt, -lpthread e -ldl, que na musl
+        // estão todos dentro da libc.a
+        for (const char* x : {"-static", "-m", "elf_x86_64", "--no-dependent-libraries", "-o"}) a.push_back(x);
         a.push_back(saida);
         for (const char* f : {"crt1.o", "crti.o", "crtbegin.o"}) a.push_back(rt(f));
         a.push_back("-L" + textoCaminho(runtime));
