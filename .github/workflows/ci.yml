@@ -95,8 +95,12 @@ jobs:
       - name: lld 20.1.8 estático
         if: steps.cache-lld.outputs.cache-hit != 'true'
         run: |
-          # o LLVMExports.cmake do Alpine cita as bibliotecas de teste do LLVM, que vêm à parte
-          apk add --no-cache cmake samurai xz llvm20-test-utils
+          apk add --no-cache cmake samurai xz
+          # o LLVMExports.cmake do Alpine cita bibliotecas que o pacote não instala (as de teste do
+          # LLVM); o cmake só confere se existem, e o lld não as usa: ficam vazias
+          for f in $(grep -oh '_IMPORT_PREFIX}/lib/lib[A-Za-z0-9_]*\.a' /usr/lib/llvm20/lib/cmake/llvm/LLVMExports*.cmake                      | sed 's|_IMPORT_PREFIX}|/usr/lib/llvm20|' | sort -u); do
+            [ -f "$f" ] || { ar rcs "$f"; echo "vazia: $f"; }
+          done
           cd /tmp
           base=https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8
           wget -q $base/lld-20.1.8.src.tar.xz $base/cmake-20.1.8.src.tar.xz
