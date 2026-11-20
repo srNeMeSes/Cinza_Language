@@ -80,20 +80,12 @@ jobs:
       - name: clang, lld e LLVM 20 estáticos
         run: |
           apk add --no-cache build-base python3 linux-headers clang20 llvm20-dev llvm20-static lld20-dev \
-            zlib-static zstd-static libxml2-static libffi-dev file
+            zlib-static zstd-static libxml2-static libffi-dev file \
+            libc++-dev libc++-static llvm-libunwind-dev llvm-libunwind-static compiler-rt
           ls /usr/lib/llvm20/bin | head -50
           ls /usr/lib/llvm20/lib | grep -E 'lld|LLVMCore' || true
           /usr/lib/llvm20/bin/llvm-config --link-static --system-libs || true
           echo 'int main(){}' > /tmp/v.cpp && /usr/lib/llvm20/bin/clang++ -static -v /tmp/v.cpp -o /tmp/v 2>&1 | tail -3
-          # descoberta (temporário): a libc++, o compiler-rt e a libunwind do LLVM para o runtime
-          for p in libc++-dev libc++-static compiler-rt llvm-libunwind-dev llvm-libunwind-static; do
-            apk add --no-cache $p >/dev/null 2>&1 && echo "tem $p" || echo "sem $p"
-          done
-          printf '#include <string>\n#include <cstdio>\nint main(){ std::string s="ola"; std::puts(s.c_str()); }\n' > /tmp/w.cpp
-          /usr/lib/llvm20/bin/clang++ -stdlib=libc++ -rtlib=compiler-rt -unwindlib=libunwind -static -v /tmp/w.cpp -o /tmp/w 2>&1 | tail -2 || true
-          /tmp/w || true
-          r=$(/usr/lib/llvm20/bin/clang++ -print-resource-dir); echo "$r"; ls "$r"/lib/* || true
-          ls /usr/lib/libc++*.a /usr/lib/libunwind*.a /usr/lib/llvm20/lib/libc++*.a 2>&1 || true
       # O Alpine só traz o lld em .so: as bibliotecas estáticas dele (ELF e Common) são compiladas da
       # fonte oficial do 20.1.8, contra o LLVM 20.1.8 estático do Alpine, e guardadas em cache
       - uses: actions/cache@v4
@@ -135,6 +127,8 @@ jobs:
             LLD_LIBDIR=/opt/lld-estatico
           file llvm/bin/cinzac
           ls -la llvm/bin llvm/bin/runtime
+          printf 'fn main() {\n  print("ação", [1, 2], {{"a", 1}});\n}\n' > /tmp/ola.cinza
+          ./llvm/bin/cinzac /tmp/ola.cinza -o /tmp/ola && file /tmp/ola && /tmp/ola
           make test-llvm ESTATICO=1 CXX=/usr/lib/llvm20/bin/clang++ LLVM_CONFIG=/usr/lib/llvm20/bin/llvm-config \
             LLD_LIBDIR=/opt/lld-estatico
       - name: cinzac -O2

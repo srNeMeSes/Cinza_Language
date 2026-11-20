@@ -208,15 +208,18 @@ static int principal(int argc, char* argv[]) {
             a.push_back(x);
         a.push_back(rt("crtend.o"));
 #else
-        // Linux (Q5): estático com a musl — a linha do g++ -static do Alpine, com tudo vindo de
-        // runtime/ (o programa roda em qualquer Linux x86-64, sem nada instalado)
+        // Linux (Q5): estático com a musl e as bibliotecas do LLVM para o C++ (libc++, libc++abi,
+        // libunwind, compiler-rt), tudo vindo de runtime/: o programa roda em qualquer Linux x86-64,
+        // sem nada instalado
         for (const char* x : {"-static", "-m", "elf_x86_64", "-o"}) a.push_back(x);
         a.push_back(saida);
-        for (const char* f : {"crt1.o", "crti.o", "crtbeginT.o"}) a.push_back(rt(f));
+        for (const char* f : {"crt1.o", "crti.o", "crtbegin.o"}) a.push_back(rt(f));
         a.push_back("-L" + textoCaminho(runtime));
         a.insert(a.end(), objetos.begin(), objetos.end());
         a.push_back(rt("libcinzart.a"));
-        for (const char* x : {"-lstdc++", "--start-group", "-lgcc", "-lgcc_eh", "-lc", "--end-group"}) a.push_back(x);
+        for (const char* x : {"--start-group", "-lc++", "-lc++abi", "-lunwind", "-lc"}) a.push_back(x);
+        a.push_back(rt("libclang_rt.builtins-x86_64.a"));
+        a.push_back("--end-group");
         for (const char* f : {"crtend.o", "crtn.o"}) a.push_back(rt(f));
 #endif
         a.insert(a.end(), extras.begin(), extras.end());

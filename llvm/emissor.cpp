@@ -60,6 +60,15 @@ const std::size_t DESLOC_CAMPOS_OBJ    = offsetof(ClassInstance, fields);
 const std::size_t DESLOC_CAMPOS_STRUCT = offsetof(StructValue, fields);
 #pragma GCC diagnostic pop
 
+// Q5: o deslocamento do vetor de campos fica fixo em 40 — o cinzac e o runtime podem ser compilados
+// com bibliotecas C++ diferentes (no Linux, o cinzac com a libstdc++ do LLVM do Alpine e o runtime
+// com a libc++), e o acesso em linha aos campos (P10) supõe o mesmo layout dos dois lados
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winvalid-offsetof"
+static_assert(offsetof(cinza::ClassInstance, fields) == 40 && offsetof(cinza::StructValue, fields) == 40,
+              "o vetor de campos mudou de lugar: atualize o caminho rápido dos campos (llvm/DESENHO.md 8.1)");
+#pragma GCC diagnostic pop
+
 LLVMTargetMachineRef criaMaquina(bool otimiza, std::string& erro) {
     inicializaAlvo();
     LLVMTargetRef alvo = nullptr;

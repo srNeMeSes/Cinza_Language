@@ -151,10 +151,13 @@ else
     RUNTIME_RT    =
     # Q5: a distribuição do Linux (make ESTATICO=1, no Alpine, com a musl): a CVM e o cinzac
     # estáticos, que rodam em qualquer Linux x86-64; o lld ELF dentro do cinzac, e em runtime/ a
-    # musl e as bibliotecas do C++ que o compilador usa (achadas por -print-file-name), para os
-    # programas gerados também saírem estáticos
+    # musl e as bibliotecas do LLVM para o C++ (libc++, libc++abi, libunwind, compiler-rt: todas de
+    # licença permissiva, como no Windows), para os programas gerados também saírem estáticos. O
+    # runtime é compilado com a libc++; o cinzac, com a libstdc++ do LLVM do Alpine (o layout que
+    # os dois compartilham é fixado por static_assert em cinzart.cpp e emissor.cpp).
     ifeq ($(ESTATICO),1)
-        LDFLAGS       = -static
+        LDFLAGS       = -static -s
+        RUNTIME_STDLIB = -stdlib=libc++
         CINZAC_FLAGS  = -DCINZA_LLD
         CINZAC_STATIC = -static -Wl,--gc-sections -s
         CINZAC_LLD    = llvm/ligador.cpp llvm/alvos_vazios.cpp
@@ -164,7 +167,10 @@ else
         LLVM_LIBS     = $(addprefix -L,$(LLD_LIBDIR)) $(shell $(LLVM_CONFIG) --ldflags) -llldELF -llldCommon \
                         $(shell $(LLVM_CONFIG) --link-static --libs $(LLVM_COMPS)) \
                         $(shell $(LLVM_CONFIG) --link-static --system-libs)
-        RUNTIME_LIBS  = crt1.o crti.o crtn.o crtbeginT.o crtend.o libc.a libstdc++.a libgcc.a libgcc_eh.a
+        RUNTIME_LIBS  = crt1.o crti.o crtn.o libc.a libc++.a libc++abi.a libunwind.a
+        RUNTIME_RT    = $(shell $(CINZAC_CXX) -print-resource-dir)/lib/linux/libclang_rt.builtins-x86_64.a
+        RUNTIME_CRT   = $(shell $(CINZAC_CXX) -print-resource-dir)/lib/linux/clang_rt.crt
+        RUNTIME_LIBS += crtbegin.o crtend.o
     endif
 endif
 LLVM_BIN    = llvm/bin
@@ -172,18 +178,25 @@ RUNTIME_DIR = $(LLVM_BIN)/runtime
 CINZAC_BIN  = $(LLVM_BIN)/cinzac$(EXE)
 LIBCINZART  = $(RUNTIME_DIR)/libcinzart.a
 CZ_DIR      = build/cinzac
+# o runtime em objetos à parte: no Linux estático ele usa a libc++ (RUNTIME_STDLIB), e o cinzac a
+# libstdc++ do LLVM do sistema
+RT_DIR      = build/runtime
 CINZAC_SRC  = lexer.cpp parser.cpp ast.cpp semantic.cpp module_loader.cpp biblioteca.cpp operacoes.cpp \
               natives.cpp stdlib.cpp regex.cpp plataforma.cpp llvm/cir.cpp llvm/gera_cir.cpp llvm/emissor.cpp \
               llvm/cinzac.cpp $(CINZAC_LLD)
 RUNTIME_SRC = operacoes.cpp natives.cpp stdlib.cpp regex.cpp plataforma.cpp llvm/cinzart.cpp
 CINZAC_OBJ  = $(addprefix $(CZ_DIR)/,$(CINZAC_SRC:.cpp=.o))
-RUNTIME_OBJ = $(addprefix $(CZ_DIR)/,$(RUNTIME_SRC:.cpp=.o))
+RUNTIME_OBJ = $(addprefix $(RT_DIR)/,$(RUNTIME_SRC:.cpp=.o))
 RUNTIME_ARQ = $(addprefix $(RUNTIME_DIR)/,$(RUNTIME_LIBS) $(notdir $(RUNTIME_RT)))
 $(CZ_DIR)/llvm/xml_estatico.o: CINZAC_FLAGS += -I$(LLVM_PREFIX)/include/libxml2
--include $(CINZAC_OBJ:.o=.d) $(CZ_DIR)/llvm/cinzart.d
+-include $(CINZAC_OBJ:.o=.d) $(RUNTIME_OBJ:.o=.d)
 
 cinzac: $(CINZAC_BIN) $(LIBCINZART) $(RUNTIME_ARQ)
 	@echo "$(GREEN)✓ cinzac pronto em $(CINZAC_BIN)$(NC)"
+
+$(RT_DIR)/%.o: %.cpp
+	@$(call mkdirp,$(patsubst %/,%,$(dir $@)))
+	$(CINZAC_CXX) $(CXXFLAGS) $(RUNTIME_STDLIB) $(DEPFLAGS) -c $< -o $@
 
 $(CZ_DIR)/%.o: %.cpp
 	@$(call mkdirp,$(patsubst %/,%,$(dir $@)))
@@ -206,6 +219,16 @@ $(RUNTIME_DIR)/$(notdir $(RUNTIME_RT)): $(RUNTIME_RT)
 	@$(call mkdirp,$(RUNTIME_DIR))
 	$(COPY) "$(call fixpath,$<)" "$(call fixpath,$@)"
 else
+# o crtbegin/crtend do compiler-rt (sem o GCC), com os nomes de sempre
+$(RUNTIME_DIR)/crtbegin.o:
+	@$(call mkdirp,$(RUNTIME_DIR))
+	cp "$(RUNTIME_CRT)begin-x86_64.o" "$@"
+$(RUNTIME_DIR)/crtend.o:
+	@$(call mkdirp,$(RUNTIME_DIR))
+	cp "$(RUNTIME_CRT)end-x86_64.o" "$@"
+$(RUNTIME_DIR)/$(notdir $(RUNTIME_RT)):
+	@$(call mkdirp,$(RUNTIME_DIR))
+	cp "$(RUNTIME_RT)" "$@"
 $(RUNTIME_DIR)/%:
 	@$(call mkdirp,$(RUNTIME_DIR))
 	cp "$$($(CINZAC_CXX) -print-file-name=$*)" "$@"
@@ -256,6 +279,7 @@ clean:
 	@echo "$(YELLOW)Limpando arquivos de compilação...$(NC)"
 	-$(RM) $(call fixpath,$(OBJECTS) $(DEPS)) $(TARGET_BIN) $(call fixpath,$(UNIT_BIN) $(UNIT_TYPES) $(UNIT_GC))
 	-$(call rmrf,$(CZ_DIR))
+	-$(call rmrf,$(RT_DIR))
 	-$(call rmrf,$(RUNTIME_DIR))
 	-$(RM) $(call fixpath,$(CINZAC_BIN))
 	@echo "$(GREEN)✓ Limpeza concluída!$(NC)"
