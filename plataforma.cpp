@@ -169,6 +169,7 @@ bool dataModificacao(const std::filesystem::path& p, std::int64_t& segundos) {
 #include <cerrno>
 #include <fcntl.h>
 #include <pthread.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -289,12 +290,12 @@ bool ambienteUtf8(const char* nome, std::string& valor) {
     return true;
 }
 
+// Pelo stat do POSIX (o st_mtime já é UTC, em segundos): o clock_cast do C++20 não existe na libc++,
+// com que o runtime do Linux é compilado (Q5)
 bool dataModificacao(const std::filesystem::path& p, std::int64_t& segundos) {
-    std::error_code ec;
-    const auto ft = std::filesystem::last_write_time(p, ec);
-    if (ec) return false;
-    const auto sys = std::chrono::clock_cast<std::chrono::system_clock>(ft);
-    segundos = std::chrono::duration_cast<std::chrono::seconds>(sys.time_since_epoch()).count();
+    struct stat st;
+    if (stat(p.c_str(), &st) != 0) return false;
+    segundos = static_cast<std::int64_t>(st.st_mtime);
     return true;
 }
 
