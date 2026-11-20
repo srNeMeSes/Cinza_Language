@@ -88,7 +88,9 @@ inline const char* nomeGcKind(GcKind k) noexcept {
 // Contêiner rastreado pela coleta de ciclos: o cabeçalho e o que a coleta usa
 // durante a varredura (fora dos 32 bytes do cabeçalho comum)
 struct GcObject : CzObjeto {
-    long gc_refs  = 0;       // usado só durante a coleta
+    // usado só durante a coleta; 64 bits em todo sistema (o long tem 4 bytes no Windows e 8 no
+    // Linux, e o layout dos objetos precisa ser o mesmo dos dois lados, Q5)
+    std::int64_t gc_refs = 0;
     bool gc_marca = false;   // idem: alcançável a partir de fora
 
     explicit GcObject(GcKind k) noexcept : CzObjeto(k) { liga(); }

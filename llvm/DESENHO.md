@@ -470,7 +470,7 @@ compilar em -O0 e mais de 60 s em -O2 — agora, cerca de 1 s nos dois.
   do erro depois de chamá-las sai;
 - **campos sem referência em linha** (seção 8.1): `campo`/`grava.campo` leem e gravam o
   `CzValor` do campo direto no `std::vector<Value>` do objeto ou struct. O que isso supõe — o
-  deslocamento do vetor (40 nos dois), o `Value` do tamanho do `CzValor`, o vetor começando pelo
+  deslocamento do vetor (48 nos dois, em todo sistema), o `Value` do tamanho do `CzValor`, o vetor começando pelo
   ponteiro dos elementos — é conferido pelo `--confere-layout` (o `cinzac` e a `libcinzart` são
   compilados pelo mesmo GCC).
 

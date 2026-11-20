@@ -10,12 +10,13 @@
 #include "../utf8.h"
 #include <cstddef>
 
-// Q5: o deslocamento do vetor de campos fica fixo em 40 — o cinzac e o runtime podem ser compilados
-// com bibliotecas C++ diferentes (no Linux, o cinzac com a libstdc++ do LLVM do Alpine e o runtime
-// com a libc++), e o acesso em linha aos campos (P10) supõe o mesmo layout dos dois lados
+// Q5: o deslocamento do vetor de campos fica fixo em 48, em todo sistema — o cinzac e o runtime
+// podem ser compilados com bibliotecas C++ diferentes (no Linux, o cinzac com a libstdc++ do LLVM do
+// Alpine e o runtime com a libc++), e o acesso em linha aos campos (P10) supõe o mesmo layout dos dois
+// lados. (Com um long no GcObject eram 40 no Windows e 48 no Linux.)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Winvalid-offsetof"
-static_assert(offsetof(cinza::ClassInstance, fields) == 40 && offsetof(cinza::StructValue, fields) == 40,
+static_assert(offsetof(cinza::ClassInstance, fields) == 48 && offsetof(cinza::StructValue, fields) == 48,
               "o vetor de campos mudou de lugar: atualize o caminho rápido dos campos (llvm/DESENHO.md 8.1)");
 #pragma GCC diagnostic pop
 #include <cstdio>

@@ -124,16 +124,16 @@ ifneq ($(OS)$(MSYSTEM),)
     CINZAC_FLAGS  = -DCINZA_LLD
     # estático, sem os símbolos e sem as seções não usadas (de 134 MB para ~47 MB)
     CINZAC_STATIC = -static -Wl,--gc-sections -s
-    # o lld embutido, o libxml2 estático no lugar da DLL e só o alvo x86 (os outros alvos com
-    # inicializações vazias: o lld pede todos, por causa do LTO)
-    CINZAC_LLD    = llvm/ligador.cpp llvm/xml_estatico.cpp llvm/alvos_vazios.cpp
+    # o lld embutido, sem o libxml2 (o manifesto do Windows, que o driver MinGW nunca junta) e só o
+    # alvo x86 (os outros com inicializações vazias: o lld pede todos, por causa do LTO)
+    CINZAC_LLD    = llvm/ligador.cpp llvm/xml_vazio.cpp llvm/alvos_vazios.cpp
     # o lld (MinGW e o COFF que ele usa) antes do LLVM, de que depende; do LLVM, só os componentes
     # que o cinzac e o lld usam; as bibliotecas do sistema do LLVM estático (o zstd estático, não o
-    # da DLL), as do libxml2 e o bcrypt da libc++
+    # da DLL; sem o libxml2) e o bcrypt da libc++
     LLVM_COMPS    = x86 passes lto libdriver windowsdriver windowsmanifest debuginfopdb option
     LLVM_LIBS     = -llldMinGW -llldCOFF -llldCommon $(shell $(LLVM_CONFIG) --link-static --libs $(LLVM_COMPS)) \
-                    $(subst -lzstd.dll,-lzstd,$(shell $(LLVM_CONFIG) --link-static --system-libs)) \
-                    -liconv -llzma -lbcrypt
+                    $(filter-out -lxml2,$(subst -lzstd.dll,-lzstd,$(shell $(LLVM_CONFIG) --link-static --system-libs))) \
+                    -lbcrypt
     RUNTIME_LIBS  = crt2.o crtbegin.o crtend.o libc++.a libunwind.a libmingw32.a libmingwex.a libmoldname.a \
                     libmsvcrt.a libadvapi32.a libshell32.a libuser32.a libkernel32.a libwinpthread.a libbcrypt.a
     RUNTIME_RT    = $(LLVM_PREFIX)/lib/clang/20/lib/windows/libclang_rt.builtins-x86_64.a
@@ -166,7 +166,7 @@ else
         # compila da fonte, com o mesmo LLVM)
         LLVM_LIBS     = $(addprefix -L,$(LLD_LIBDIR)) $(shell $(LLVM_CONFIG) --ldflags) -llldELF -llldCommon \
                         $(shell $(LLVM_CONFIG) --link-static --libs $(LLVM_COMPS)) \
-                        $(shell $(LLVM_CONFIG) --link-static --system-libs)
+                        $(filter-out -lxml2,$(shell $(LLVM_CONFIG) --link-static --system-libs))
         RUNTIME_LIBS  = crt1.o crti.o crtn.o libc.a libc++.a libc++abi.a libunwind.a
         RUNTIME_RT    = $(shell $(CINZAC_CXX) -print-resource-dir)/lib/linux/libclang_rt.builtins-x86_64.a
         RUNTIME_CRT   = $(shell $(CINZAC_CXX) -print-resource-dir)/lib/linux/clang_rt.crt
@@ -188,7 +188,6 @@ RUNTIME_SRC = operacoes.cpp natives.cpp stdlib.cpp regex.cpp plataforma.cpp llvm
 CINZAC_OBJ  = $(addprefix $(CZ_DIR)/,$(CINZAC_SRC:.cpp=.o))
 RUNTIME_OBJ = $(addprefix $(RT_DIR)/,$(RUNTIME_SRC:.cpp=.o))
 RUNTIME_ARQ = $(addprefix $(RUNTIME_DIR)/,$(RUNTIME_LIBS) $(notdir $(RUNTIME_RT)))
-$(CZ_DIR)/llvm/xml_estatico.o: CINZAC_FLAGS += -I$(LLVM_PREFIX)/include/libxml2
 -include $(CINZAC_OBJ:.o=.d) $(RUNTIME_OBJ:.o=.d)
 
 cinzac: $(CINZAC_BIN) $(LIBCINZART) $(RUNTIME_ARQ)
@@ -247,7 +246,7 @@ test-llvm: cinzac
 #   make cinzac-debug && make test-llvm-debug PYTHON=/c/Python313/python
 cinzac-debug: CXXFLAGS = -std=c++20 -O1 -g -Wall -Wextra -fsanitize=address,undefined -DCINZA_CONFERE_REFS
 cinzac-debug: CINZAC_STATIC =
-# dinâmico (o ASan do mingw é uma DLL): o libxml2 vem da DLL, sem a ponte estática
+# dinâmico (o ASan do mingw é uma DLL): o libxml2 vem da DLL, sem as funções vazias
 cinzac-debug: CINZAC_LLD = llvm/ligador.cpp llvm/alvos_vazios.cpp
 cinzac-debug: LDFLAGS := $(filter-out -static,$(LDFLAGS))
 cinzac-debug: clean cinzac

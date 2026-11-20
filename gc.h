@@ -107,7 +107,7 @@ inline std::size_t gcCollect() {
     // 1. referências de cada contêiner
     for (CzObjeto* c = gc_registro.head; c; c = c->prox) {
         GcObject* o = contem(c);
-        o->gc_refs  = static_cast<long>(o->refs);
+        o->gc_refs  = static_cast<std::int64_t>(o->refs);
         o->gc_marca = false;
     }
     // 2. desconta as referências internas

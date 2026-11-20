@@ -3,6 +3,12 @@
   "displayName": "Cinza Language",
   "description": "Destaque de sintaxe da linguagem Cinza e os erros do cinza (CVM) e do cinzac (LLVM) no painel Problemas",
   "version": "0.7.0",
+  "publisher": "cinza",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/srNeMeSes/Cinza_Language"
+  },
   "engines": {
     "vscode": "^1.50.0"
   },

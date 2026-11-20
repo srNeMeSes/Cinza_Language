@@ -22,3 +22,6 @@ tests/projetos/**/_tmp_*
 # e os objetos do cinzac (build/cinzac/)
 llvm/bin/
 build/
+
+# os pacotes de distribuição (distribuicao/empacota.sh)
+dist/

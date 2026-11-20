@@ -134,6 +134,20 @@ jobs:
       - name: cinzac -O2
         if: always()
         run: python3 tests/run_tests.py --cinzac --O2
+      - name: Pacote
+        run: |
+          apk add --no-cache wget
+          baixa() { mkdir -p "/tmp/licencas/$1" && wget -qO "/tmp/licencas/$1/$3" "$2"; }
+          baixa llvm https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-20.1.8/llvm/LICENSE.TXT LICENSE.TXT
+          baixa musl "https://git.musl-libc.org/cgit/musl/plain/COPYRIGHT?h=v1.2.5" COPYRIGHT
+          baixa zlib https://raw.githubusercontent.com/madler/zlib/v1.3.1/LICENSE LICENSE
+          baixa zstd https://raw.githubusercontent.com/facebook/zstd/v1.5.7/LICENSE LICENSE
+          LICENCAS="/tmp/licencas/llvm /tmp/licencas/musl /tmp/licencas/zlib /tmp/licencas/zstd" \
+            sh distribuicao/empacota.sh linux-x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cinza-linux-x64
+          path: dist/*.tar.gz
 
   windows:
     name: Windows (MSYS2, GCC e LLVM 20)
@@ -194,3 +208,54 @@ jobs:
       - name: cinzac -O2
         if: always()
         run: python3 tests/run_tests.py --cinzac --O2
+      - name: Pacote
+        run: |
+          pacman -S --noconfirm --needed zip
+          L=/clang64/share/licenses
+          LICENCAS="$L/llvm $L/lld $L/libc++ $L/libunwind $L/compiler-rt $L/crt $L/headers $L/winpthreads $L/zlib $L/zstd" \
+            sh distribuicao/empacota.sh windows-x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cinza-windows-x64
+          path: dist/*.zip
+
+  vsix:
+    name: Extensão do VS Code (.vsix)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: vsce package
+        run: |
+          mkdir -p dist
+          cp LICENSE editor/vscode/LICENSE
+          cd editor/vscode && npx --yes @vscode/vsce@3.2.1 package --no-dependencies -o ../../dist/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cinza-vscode
+          path: dist/*.vsix
+
+  # Q5: numa tag v<versão> (a de versao.h), os pacotes e a extensão viram um release do GitHub
+  publicar:
+    name: Release no GitHub
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [linux-gcc, linux-clang, linux-estatico, windows, vsix]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          path: artefatos
+          merge-multiple: true
+      - name: gh release create
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v=${GITHUB_REF_NAME#v}
+          grep -q "CINZA_VERSAO \"$v\"" versao.h || { echo "a tag $GITHUB_REF_NAME não é a versão de versao.h"; exit 1; }
+          ls -la artefatos
+          gh release create "$GITHUB_REF_NAME" artefatos/* --title "Cinza $v" --notes-file distribuicao/NOTAS.md --prerelease
