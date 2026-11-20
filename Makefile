@@ -149,6 +149,21 @@ else
                     -Wl,-rpath,$(shell $(LLVM_CONFIG) --libdir)
     RUNTIME_LIBS  =
     RUNTIME_RT    =
+    # Q5: a distribuição do Linux (make ESTATICO=1, no Alpine, com a musl): a CVM e o cinzac
+    # estáticos, que rodam em qualquer Linux x86-64; o lld ELF dentro do cinzac, e em runtime/ a
+    # musl e as bibliotecas do C++ que o compilador usa (achadas por -print-file-name), para os
+    # programas gerados também saírem estáticos
+    ifeq ($(ESTATICO),1)
+        LDFLAGS       = -static
+        CINZAC_FLAGS  = -DCINZA_LLD
+        CINZAC_STATIC = -static -Wl,--gc-sections -s
+        CINZAC_LLD    = llvm/ligador.cpp llvm/alvos_vazios.cpp
+        LLVM_COMPS    = x86 passes lto option
+        LLVM_LIBS     = $(shell $(LLVM_CONFIG) --ldflags) -llldELF -llldCommon \
+                        $(shell $(LLVM_CONFIG) --link-static --libs $(LLVM_COMPS)) \
+                        $(shell $(LLVM_CONFIG) --link-static --system-libs)
+        RUNTIME_LIBS  = crt1.o crti.o crtn.o crtbeginT.o crtend.o libc.a libstdc++.a libgcc.a libgcc_eh.a
+    endif
 endif
 LLVM_BIN    = llvm/bin
 RUNTIME_DIR = $(LLVM_BIN)/runtime
@@ -180,6 +195,7 @@ $(LIBCINZART): $(RUNTIME_OBJ)
 	@$(call mkdirp,$(RUNTIME_DIR))
 	$(CINZAC_AR) rcs $@ $(RUNTIME_OBJ)
 
+ifneq ($(OS)$(MSYSTEM),)
 $(RUNTIME_DIR)/%: $(LLVM_PREFIX)/lib/%
 	@$(call mkdirp,$(RUNTIME_DIR))
 	$(COPY) "$(call fixpath,$<)" "$(call fixpath,$@)"
@@ -187,6 +203,11 @@ $(RUNTIME_DIR)/%: $(LLVM_PREFIX)/lib/%
 $(RUNTIME_DIR)/$(notdir $(RUNTIME_RT)): $(RUNTIME_RT)
 	@$(call mkdirp,$(RUNTIME_DIR))
 	$(COPY) "$(call fixpath,$<)" "$(call fixpath,$@)"
+else
+$(RUNTIME_DIR)/%:
+	@$(call mkdirp,$(RUNTIME_DIR))
+	cp "$$($(CINZAC_CXX) -print-file-name=$*)" "$@"
+endif
 
 # A suíte pelo cinzac (compila cada teste e roda o executável); os recursos que ele
 # ainda não compila são contados à parte

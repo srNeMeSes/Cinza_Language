@@ -208,10 +208,16 @@ static int principal(int argc, char* argv[]) {
             a.push_back(x);
         a.push_back(rt("crtend.o"));
 #else
-        a.push_back("-o");
+        // Linux (Q5): estático com a musl — a linha do g++ -static do Alpine, com tudo vindo de
+        // runtime/ (o programa roda em qualquer Linux x86-64, sem nada instalado)
+        for (const char* x : {"-static", "-m", "elf_x86_64", "-o"}) a.push_back(x);
         a.push_back(saida);
+        for (const char* f : {"crt1.o", "crti.o", "crtbeginT.o"}) a.push_back(rt(f));
+        a.push_back("-L" + textoCaminho(runtime));
         a.insert(a.end(), objetos.begin(), objetos.end());
         a.push_back(rt("libcinzart.a"));
+        for (const char* x : {"-lstdc++", "--start-group", "-lgcc", "-lgcc_eh", "-lc", "--end-group"}) a.push_back(x);
+        for (const char* f : {"crtend.o", "crtn.o"}) a.push_back(rt(f));
 #endif
         a.insert(a.end(), extras.begin(), extras.end());
         ligou = llvm::liga(a, relato);

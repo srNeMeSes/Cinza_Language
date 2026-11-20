@@ -68,6 +68,39 @@ jobs:
         if: always()
         run: python3 tests/run_tests.py --cinzac --O2
 
+  # Q5: a distribuição do Linux — o cinza e o cinzac estáticos com a musl (Alpine), o lld dentro do
+  # cinzac e os programas gerados também estáticos. O clang 20 por causa do #embed (o GCC do Alpine
+  # 3.22 é o 14).
+  linux-estatico:
+    name: Linux estático (Alpine, musl)
+    runs-on: ubuntu-24.04
+    container: alpine:3.22
+    steps:
+      - uses: actions/checkout@v5
+      - name: clang, lld e LLVM 20 estáticos
+        run: |
+          apk add --no-cache build-base python3 linux-headers clang20 llvm20-dev llvm20-static lld20-dev \
+            zlib-static zstd-static libxml2-static libffi-dev file
+          ls /usr/lib/llvm20/bin | head -50
+          ls /usr/lib/llvm20/lib | grep -E 'lld|LLVMCore' || true
+          /usr/lib/llvm20/bin/llvm-config --link-static --system-libs || true
+          echo 'int main(){}' > /tmp/v.cpp && /usr/lib/llvm20/bin/clang++ -static -v /tmp/v.cpp -o /tmp/v 2>&1 | tail -3
+      - name: CVM
+        run: |
+          make -j"$(nproc)" ESTATICO=1 CXX=/usr/lib/llvm20/bin/clang++
+          file cinza
+          make test ESTATICO=1 CXX=/usr/lib/llvm20/bin/clang++
+      - name: cinzac -O0
+        if: always()
+        run: |
+          make -j"$(nproc)" cinzac ESTATICO=1 CXX=/usr/lib/llvm20/bin/clang++ LLVM_CONFIG=/usr/lib/llvm20/bin/llvm-config
+          file llvm/bin/cinzac
+          ls -la llvm/bin llvm/bin/runtime
+          make test-llvm ESTATICO=1 CXX=/usr/lib/llvm20/bin/clang++ LLVM_CONFIG=/usr/lib/llvm20/bin/llvm-config
+      - name: cinzac -O2
+        if: always()
+        run: python3 tests/run_tests.py --cinzac --O2
+
   windows:
     name: Windows (MSYS2, GCC e LLVM 20)
     runs-on: windows-latest
