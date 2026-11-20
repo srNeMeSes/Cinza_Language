@@ -114,8 +114,10 @@ ifneq ($(OS)$(MSYSTEM),)
     LLVM_PREFIX  ?= C:/msys64/clang64
     LLVM_INCLUDE  = $(LLVM_PREFIX)/include
     LLVM_LIBS     = $(LLVM_PREFIX)/lib/libLLVM-20.dll.a -static-libstdc++ -static-libgcc
-    LLVM_DLLS     = libLLVM-20.dll libc++.dll libffi-8.dll libiconv-2.dll liblzma-5.dll libxml2-16.dll \
-                    libzstd.dll zlib1.dll
+    # as DLLs do LLVM e das dependências dele que existirem (as versões mudam com o MSYS2: o
+    # libxml2 2.15 já não depende do liblzma)
+    LLVM_DLLS     = $(notdir $(wildcard $(addprefix $(LLVM_PREFIX)/bin/,libLLVM-20.dll libc++.dll libunwind.dll \
+                    libffi-*.dll libiconv-*.dll liblzma-*.dll libxml2-*.dll libzstd.dll zlib1.dll)))
 else
     LLVM_CONFIG  ?= $(firstword $(shell command -v llvm-config-20 llvm-config 2>/dev/null) llvm-config)
     LLVM_INCLUDE  = $(shell $(LLVM_CONFIG) --includedir)

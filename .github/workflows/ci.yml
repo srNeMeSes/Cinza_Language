@@ -32,13 +32,6 @@ jobs:
         run: |
           make -j"$(nproc)"
           make test
-      - name: diagnóstico do fuso (temporário)
-        if: always()
-        run: |
-          ls -la /usr/share/zoneinfo/EST5EDT /usr/share/zoneinfo/posixrules || true
-          for t in 1793496600 1793511000 1793514600; do TZ=EST5EDT date -u -d @$t; TZ=EST5EDT date -d @$t '+%F %T %Z %z'; done
-          printf 'import Time;\nfn main() {\n  i64 l = Time.make_utc(2026, 11, 1, 1, 30);\n  print(Time.hour(l), Time.hour(l + 14400), Time.hour(l + 18000));\n  print(Time.hour_utc(Time.make(2026, 11, 1, 1, 30)), Time.hour_utc(Time.make(2026, 11, 1, 0, 30)));\n}\n' > /tmp/fuso.cinza
-          TZ=EST5EDT ./cinza /tmp/fuso.cinza
       - name: cinzac -O0
         if: always()
         run: |

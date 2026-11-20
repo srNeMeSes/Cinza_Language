@@ -1,7 +1,8 @@
-// Time no horário de verão (TZ=EST5EDT, EUA 2026: começa 08/03 às 2h, termina 01/11 às 2h).
+// Time no horário de verão (EUA 2026: começa 08/03 às 2h, termina 01/11 às 2h). As regras vão escritas no TZ:
+// sem elas, o glibc sem o arquivo de zona EST5EDT aplica o posixrules e erra a hora do fim (Q4).
 // Hora que não existe adianta (2h30 → 3h30; antes virava 1h30, uma hora antes do pedido);
 // hora repetida fica com a primeira ocorrência.
-// env: TZ=EST5EDT
+// env: TZ=EST5EDT,M3.2.0,M11.1.0
 import Time;
 fn main() {
   i64 antes = Time.make(2026, 3, 8, 1, 30);
