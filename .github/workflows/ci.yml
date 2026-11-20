@@ -84,11 +84,22 @@ jobs:
             make
             mingw-w64-ucrt-x86_64-gcc
             mingw-w64-ucrt-x86_64-python
+      # O LLVM 20.1.8 e as dependências nas versões contra as quais ele foi compilado (as do
+      # desenvolvimento): com as atuais do MSYS2 o libLLVM-20.dll não acha funções delas
+      # (0xC0000139, ponto de entrada não encontrado)
       - name: LLVM 20.1.8 (o mesmo do desenvolvimento, do arquivo do MSYS2)
         run: |
           base=https://repo.msys2.org/mingw/clang64
           pacman -U --noconfirm \
+            $base/mingw-w64-clang-x86_64-libwinpthread-13.0.0.r124.g2717de84e-1-any.pkg.tar.zst \
+            $base/mingw-w64-clang-x86_64-libunwind-20.1.8-1-any.pkg.tar.zst \
             $base/mingw-w64-clang-x86_64-libc++-20.1.8-1-any.pkg.tar.zst \
+            $base/mingw-w64-clang-x86_64-libffi-3.5.1-1-any.pkg.tar.zst \
+            $base/mingw-w64-clang-x86_64-libiconv-1.18-1-any.pkg.tar.zst \
+            $base/mingw-w64-clang-x86_64-xz-5.8.1-2-any.pkg.tar.zst \
+            $base/mingw-w64-clang-x86_64-zlib-1.3.1-1-any.pkg.tar.zst \
+            $base/mingw-w64-clang-x86_64-zstd-1.5.7-1-any.pkg.tar.zst \
+            $base/mingw-w64-clang-x86_64-libxml2-2.14.5-2-any.pkg.tar.zst \
             $base/mingw-w64-clang-x86_64-llvm-libs-20.1.8-2-any.pkg.tar.zst \
             $base/mingw-w64-clang-x86_64-llvm-tools-20.1.8-2-any.pkg.tar.zst \
             $base/mingw-w64-clang-x86_64-llvm-20.1.8-2-any.pkg.tar.zst
