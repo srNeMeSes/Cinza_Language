@@ -95,7 +95,8 @@ jobs:
       - name: lld 20.1.8 estático
         if: steps.cache-lld.outputs.cache-hit != 'true'
         run: |
-          apk add --no-cache cmake samurai xz
+          # o LLVMExports.cmake do Alpine cita as bibliotecas de teste do LLVM, que vêm à parte
+          apk add --no-cache cmake samurai xz llvm20-test-utils
           cd /tmp
           base=https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8
           wget -q $base/lld-20.1.8.src.tar.xz $base/cmake-20.1.8.src.tar.xz
