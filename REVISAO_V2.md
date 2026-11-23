@@ -1884,12 +1884,74 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
     regra do construtor; (6) tirar dos structs a proibição de valor inicial num campo `T`; (7) no
     máximo uma cópia de cada interface genérica por classe; (8) classe com campo obrigatório do
     próprio tipo (depende de Q1b).
-  - Q1b. **Ausência de valor.** A Cinza não tem `null` (filosofia); opcionais (`T?`) foram
+  - [x] Q1b. **Ausência de valor.** A Cinza não tem `null` (filosofia); opcionais (`T?`) foram
     discutidos em 2026-11-15, sem decisão. Entram na 1.0, e como? Ou ficam fora de vez (e uma
     lista vazia continua sendo o jeito de dizer "nenhum", como em `list<No>`)?
-  - Q1c. **O que fica fora da 1.0 por filosofia**, registrado como decisão para quem chegar:
+    > Decidido: `T?` e `Option` ficam fora de vez (Q1c). **Levantamento (2026-11-23)** de todo lugar
+    > onde hoje se diz "nenhum", para o autor decidir um por um:
+    > 1. **Buscas com `-1`**: `Strings.find`/`find_last`, `Lists.index_of`/`last_index_of`,
+    >    `Regex.find`. O `-1` é um `i32` válido, um null com outro nome: `st.slice(s, i + 1, 3)`
+    >    com `i = -1` dá o texto inteiro, sem erro nenhum.
+    > 2. **Leituras que podem faltar**: `d[k]` (`KeyError`), `Dicts.get_or`, `Env.get`/`get_or`/`has`,
+    >    `Json.Value.get`/`get_or`/`has`, `l[i]` com `l.has(i)`. Já seguem um padrão — lança, ou
+    >    `_or(padrão)`, ou pergunta antes —, mas ele não está escrito como regra da biblioteca.
+    > 3. **Coleção vazia como "nenhum"**: `find_all` → `[]`, `Regex.groups` → `[]`, `Regex.named` →
+    >    `{}`, `keys_of` → `[]`. Natural. Exceção: um grupo do `Regex` que não participou vira `""`,
+    >    igual a um grupo que casou o vazio.
+    > 4. **Estruturas recursivas**: `list<No>` serve bem a 0 ou mais (filhos, vizinhos), mal a 0 ou 1
+    >    (o próximo, o pai). **Bug confirmado:** um campo que constrói a própria classe
+    >    (`No prox = new No();`) derruba as duas implementações — a CVM sai com "memória
+    >    insuficiente", o executável do `cinzac` cai com estouro da pilha do sistema (0xC00000FD,
+    >    sem mensagem) e o caso mútuo (`A` cria `B`, `B` cria `A`) trava a CVM consumindo memória. O
+    >    struct já recusa conter a si mesmo; a classe, não. Liga-se ao item (8) do Q1a (campo
+    >    obrigatório do próprio tipo: nunca dá para criar o primeiro objeto).
+    > 5. **Funções que podem não ter resultado** (código do usuário): hoje, lançar um erro próprio,
+    >    devolver `list<T>` de 0 ou 1, ou `pair<bool, T>` (que exige um `T` de mentira quando não há).
+    > 6. **A entrada que acaba**: `input()` no fim da entrada lança `IOError`; ler até o fim exige o
+    >    `try`/`except` como controle do laço.
+    > 7. **Variável que ainda não tem valor**: toda local precisa de valor na declaração (3.6), então
+    >    `i32 x; if (c) { x = 1; } else { x = 2; }` não existe; escreve-se um valor de mentira antes.
+    > 8. **O `null` do JSON**: um `Json.Value` de `Kind.Null`, um dado como outro. Sem problema.
+    >
+    > **Decidido e feito (2026-11-23)**, item por item:
+    > 1. As buscas que não acham **lançam `ValueError`** (`'find': "z" não aparece no texto`,
+    >    `'index_of': 3 não está na lista`, `'find': o padrão "x" não casa com o texto`): `Strings.find`,
+    >    `find_last`, `find_from`, `Lists.index_of`, `last_index_of`, `Regex.find`. Quem não sabe
+    >    pergunta antes com `contains`. Para percorrer, entra `Strings.positions(s, t) -> list<i32>`
+    >    (as ocorrências do `count`, sem sobreposição; nenhuma: `[]`).
+    > 2. A regra escrita no capítulo 6 ("O que pode faltar"): lança, pergunta antes, `get_or` onde um
+    >    padrão é comum, lista vazia para zero ou mais. Nada novo além do item 1.
+    > 3. O `""` do grupo que não participou fica, escrito como indistinguível do vazio.
+    > 4. **Corrigido:** um `new` nos valores iniciais dos campos (ou nos padrões de um struct) que
+    >    volta ao próprio tipo é erro de compilação, com o caminho (`No → No`, `A → B → A`,
+    >    `Caixa → No → Caixa`), no semântico (`checkConstructionCycles`, depois de todos os
+    >    módulos): vale para os dois backends. É o único caminho sem chamada no meio; por um
+    >    construtor, um método ou uma função a criação sem fim já parava no `StackOverflowError`
+    >    (conferido nos dois). `list<No>` continua o jeito de 0 ou mais.
+    > 5. Funções do usuário: os mesmos idiomas da biblioteca, na nova seção 3.10 da spec ("Sem
+    >    `null`: como dizer nenhum", com exemplo executado: perguntar antes, lista, erro próprio e o
+    >    objeto vazio que cumpre a interface). Sem recurso novo.
+    > 6. `input()` no fim continua lançando `IOError` (sem `has_input`).
+    > 7. A 3.6 fica: todo valor na declaração (sem atribuição definida).
+    >
+    > **Achado no caminho, corrigido:** todo erro de runtime num executável nativo do Windows,
+    > mesmo capturado, escrevia `libunwind: pc not in table` na saída de erro — as funções geradas
+    > não tinham tabela de desempilhamento (`.pdata`), e o libunwind, ao tratar a exceção do
+    > runtime, não achava o quadro de quem o chamou. Agora o emissor marca as funções geradas com
+    > `uwtable`. A suíte não via porque não olhava a saída de erro de quem termina bem: o
+    > `run_tests.py` passa a exigir a saída de erro vazia num programa que termina com código 0
+    > (em todos os modos). Testes: `tests/classes/q1b_criacao_*`,
+    > `tests/biblioteca/q1b_buscas_sem_menos_um.cinza`, os exemplos novos da spec (3.10 e 4.6).
+  - [x] Q1c. **O que fica fora da 1.0 por filosofia**, registrado como decisão para quem chegar:
     closures e funções como valor (e com elas `map`/`filter` que recebem função), herança, `null`
     (conforme Q1b), métodos genéricos, restrições nos genéricos, threads. Confirmar a lista.
+    > Feito (2026-11-23), com a lista confirmada pelo autor e registrada na spec (`spec/README.md`,
+    > "O que fica fora"). **Nunca:** `null` e o tipo opcional, herança, closures e funções como
+    > valor (nem sem captura: o polimorfismo é pelas interfaces, e `Lists.sort_by` ordena por
+    > chave), globais mutáveis, sobrecarga de funções e de operadores, conversões implícitas entre
+    > números, tipo dinâmico, reflexão, ponteiros e memória manual, métodos genéricos e restrições
+    > nos genéricos, infinito e NaN, import relativo. **Fora da 1.0, a rever com o uso real:**
+    > concorrência (threads, `async`, canais; hoje o paralelismo é por `Process`) e macros.
   - Q1d. **Limpar as pendências do documento**: os itens da seção E já decididos com a caixa
     aberta (campo e método com o mesmo nome, `dict.add`, comentário de bloco, expoente nos
     literais, `7 / 2` num decimal), o P0 aberto (revisão do desenho do backend pelo autor) e o
@@ -2200,6 +2262,8 @@ ao passar o mouse, ir para a definição e completar nomes no servidor de lingua
 | 2026-10-04 | J2 | `Files.read_bytes(caminho) -> list<int>` e `Files.write_bytes(caminho, list<int>)`, bytes de 0 a 255 (fora disso, `ValueError`). | Decisão do autor da linguagem; formatos binários sem passar por texto UTF-8. |
 | 2026-10-03 | I4 | `menor_int % -1` dá `0` (revê A5); `-0.0` continua `-0` no `print`; decimais extremos continuam em notação científica. | Decisão do autor da linguagem; `x % -1` cabe sempre em `int`. |
 | 2026-10-03 | H3 | `exit([código])`: padrão 0, de 0 a 255; roda os `finally` pendentes e nenhum `except` o captura; encerra o caminho na análise de fluxo. | Decisão do autor da linguagem; 0–255 dá o mesmo resultado em todo sistema. |
+| 2026-11-23 | Q1b | Sem `null`, como dizer "nenhum": as buscas que não acham lançam `ValueError` (sem `-1`; `contains` antes; `Strings.positions` para percorrer); um `new` nos valores iniciais que volta ao próprio tipo é erro de compilação; os idiomas na spec (3.10); ficam o `IOError` do `input()`, o `""` do grupo do Regex e a 3.6 (sem atribuição definida); nada de tipo soma. | Decisão do autor: o `-1` é um null com outro nome; a ausência se diz com perguntas, listas, erros e objetos, todos estáticos. |
+| 2026-11-23 | Q1c | O que fica fora: nunca `null`/opcional, herança, closures e funções como valor (nem sem captura), globais mutáveis, sobrecarga (de funções e de operadores), conversões implícitas, tipo dinâmico, reflexão, ponteiros e memória manual, métodos genéricos e restrições nos genéricos, infinito e NaN, import relativo; fora só da 1.0: concorrência e macros. Na spec (`spec/README.md`). | Decisão do autor: o que é filosofia não é lacuna; a concorrência e as macros esperam o uso real (o contador de referências de hoje não é seguro entre threads). |
 | 2026-11-22 | Q | Prioridade: segurança e maturidade antes da divulgação. A ordem: Q6 (o resto do LSP), Q1c, Q1b (levantamento da ausência de valor, sem `T?`), Q1a, Q1f, o gerenciador de pacotes (Q10, agora antes da 1.0) e o desempenho (Q11). | Decisão do autor: a linguagem precisa ser séria e funcionar de verdade antes de ser mostrada; o gerenciador de pacotes mexe na estrutura dos projetos e não pode mudar depois da 1.0. |
 | 2026-11-20 | Q6 | O formatador (`cinza fmt`) entra na 1.0, com um estilo só, sem opções; o servidor de linguagem é um modo do próprio `cinza` (`cinza --lsp`, em C++, com o front-end de hoje); o depurador e o gerenciador de pacotes ficam fora da 1.0. | Decisões do autor: um estilo só evita discussão de estilo em cada projeto; os erros do editor são os da compilação, sem um segundo analisador; o depurador e os pacotes vêm depois, com a revisão dos módulos (Q1f). |
 | 2026-11-20 | Q5 | Versão 0.5.0 (a numeração da spec). O `cinzac` com o LLVM estático (só o necessário) e o `lld` embutido, sem MSYS2 nem `g++`; o runtime continua em C++, com a biblioteca C++ embutida; no Linux, a libc++ (não a libstdc++) e a musl, com programas estáticos; a extensão só como `.vsix` nos releases. | Decisões do autor: quem usa o `cinzac` não instala nada; um runtime em C seria outro código além do da CVM; o pacote fica só com licenças permissivas, igual nos dois sistemas; o Marketplace fica para quando a linguagem for pública. |

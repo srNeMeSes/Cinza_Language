@@ -4,8 +4,8 @@ import Strings as st;
 fn main() {
   // busca
   print(st.ends_with("relatório.pdf", ".pdf"), st.ends_with("a", "abc"), st.ends_with("x", ""));
-  print(st.find_last("ação-ação", "ção"), st.find_last("abc", "z"), st.count("banana", "an"), st.count("aaaa", "aa"));
-  print(st.find_from("ação-ação", "ção", 3), st.find_from("abc", "c", 3), st.find_from("abc", "a", 1));
+  print(st.find_last("ação-ação", "ção"), st.contains("abc", "z"), st.count("banana", "an"), st.count("aaaa", "aa"));
+  print(st.find_from("ação-ação", "ção", 3), st.positions("ação-ação", "ção"), st.positions("abc", "z"));
   // partes
   print(st.char_at("coração", 3), st.left("coração", 3), st.right("coração", 3), st.left("ab", 10), st.right("ab", 10));
   print(st.slice("coração", 2, 5), "[" + st.slice("abc", 1, 1) + "]", st.chars("pé!"));
@@ -33,8 +33,8 @@ fn main() {
   print(st.fixed(-0.004ff, 2), st.fixed(-1.5ff, 0), st.fixed(1234567.891ff, 2), st.fixed(0.1ff, 20));
 }
 // expect: true false true
-// expect: 6 -1 2 2
-// expect: 6 -1 -1
+// expect: 6 false 2 2
+// expect: 6 [1, 6] []
 // expect: a cor ção ab ab
 // expect: raç [] ["p", "é", "!"]
 // expect: ["um", "dois", "", "três"] [] ["ola", "mundo", "novo"] []

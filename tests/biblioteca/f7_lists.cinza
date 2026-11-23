@@ -8,7 +8,7 @@ fn main() {
   L.sort(s);
   L.reverse(s);
   print(s);
-  print(L.contains(n, 9), L.contains(n, 4), L.index_of(n, 5), L.index_of(n, 7));
+  print(L.contains(n, 9), L.contains(n, 4), L.index_of(n, 5), L.contains(n, 7));
   print(L.slice(n, 1, 3), L.slice(n, 2, 2), L.sum(n));
   list<f64> d = [1.5ff, 2.ff];
   list<f64> vazia;
@@ -16,6 +16,6 @@ fn main() {
 }
 // expect: [1, 3, 5, 9]
 // expect: ["uva", "pera", "abacate"]
-// expect: true false 2 -1
+// expect: true false 2 false
 // expect: [3, 5] [] 18
 // expect: 3.5 0 true

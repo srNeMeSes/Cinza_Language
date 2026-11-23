@@ -119,6 +119,13 @@ Posições, tamanhos e contagens (`find`, `count`, `index_of`, `ord`, `compare`,
 
 Índices e tamanhos de texto contam **caracteres** (code points UTF-8), não bytes.
 
+**O que pode faltar.** Nada devolve um valor que finge ser resposta (como um `-1`): uma busca que
+não acha, uma chave ou um elemento que não existe lançam um erro (`ValueError`, `KeyError`,
+`IndexError`), e para cada um há como perguntar antes (`contains`, `has`). Onde um valor padrão é
+comum — dicts, variáveis de ambiente, objetos JSON — há também `get_or(..., padrao)`, com o padrão
+escrito por quem chama. O que pode ter zero ou mais resultados devolve uma lista (ou um dict),
+vazia quando não há nenhum (`positions`, `find_all`, `groups`, `keys_of`). Seção 3.10.
+
 ### `Strings`
 
 Strings são imutáveis: toda função devolve um texto novo. **Letras** são as do ASCII e as
@@ -131,9 +138,10 @@ quebras de linha (`\t \n \r \f \v`).
 |--------|-----------|
 | `contains(string s, string trecho) -> bool` | `true` se `trecho` aparece em `s` |
 | `starts_with(string s, string prefixo) -> bool`, `ends_with(...)` | `true` se `s` começa / termina com o trecho |
-| `find(string s, string trecho) -> i32` | índice da primeira ocorrência, ou `-1` |
-| `find_last(string s, string trecho) -> i32` | índice da última ocorrência, ou `-1` |
+| `find(string s, string trecho) -> i32` | índice da primeira ocorrência; sem nenhuma, `ValueError` |
+| `find_last(string s, string trecho) -> i32` | índice da última ocorrência; sem nenhuma, `ValueError` |
 | `find_from(string s, string trecho, i64 inicio) -> i32` | como `find`, a partir do índice `inicio` (de `0` ao tamanho; senão `IndexError`) |
+| `positions(string s, string trecho) -> list<i32>` | os índices de todas as ocorrências, sem sobreposição (as que o `count` conta); nenhuma dá `[]`; trecho vazio lança `ValueError` |
 | `count(string s, string trecho) -> i32` | ocorrências sem sobreposição (`count("aaaa", "aa")` = `2`); trecho vazio lança `ValueError` |
 
 **Partes**
@@ -207,13 +215,13 @@ import Strings as st;
 fn main() {
   print(st.upper("ação"), st.trim("  a b  "), st.split("a,b,,c", ","));
   print(st.join(["x", "y"], "-"), st.replace("banana", "an", "AN"), st.substr("coração", 2, 3));
-  print(st.find("coração", "ção"), st.find("abc", "z"), st.contains("abc", "b"), st.starts_with("cinza", "ci"));
+  print(st.find("coração", "ção"), st.positions("banana", "an"), st.contains("abc", "b"), st.starts_with("cinza", "ci"));
   print(st.char_at("ação", 1), st.words("  ola   mundo "), st.title("ana maria"), st.count("banana", "a"));
   print("R$ " + st.fixed(2.5ff, 2), st.pad_left("7", 3, "0"), "[" + st.center("ok", 6) + "]", st.ord("A"), st.chr(231));
 }
 // expect: AÇÃO a b ["a", "b", "", "c"]
 // expect: x-y bANANa raç
-// expect: 4 -1 true true
+// expect: 4 [1, 3] true true
 // expect: ç ["ola", "mundo"] Ana Maria 3
 // expect: R$ 2.50 007 [  ok  ] 65 ç
 ```
@@ -490,8 +498,8 @@ fn main() {
 | Função | Descrição |
 |--------|-----------|
 | `contains(list<T> l, T x) -> bool` | `true` se algum elemento é igual a `x` |
-| `index_of(list<T> l, T x) -> i32` | índice do primeiro elemento igual a `x`, ou `-1` |
-| `last_index_of(list<T> l, T x) -> i32` | índice do último, ou `-1` |
+| `index_of(list<T> l, T x) -> i32` | índice do primeiro elemento igual a `x`; sem nenhum, `ValueError` |
+| `last_index_of(list<T> l, T x) -> i32` | índice do último; sem nenhum, `ValueError` |
 | `count(list<T> l, T x) -> i32` | quantos elementos são iguais a `x` |
 | `first(list<T> l) -> T`, `last(...)` | o primeiro / o último elemento; lista vazia lança `IndexError` |
 | `is_empty(list<T> l) -> bool` | `true` se não tem elementos |
@@ -679,10 +687,10 @@ mil instruções, como `(a{1000}){1000}`) também.
 |--------|-----------|
 | `matches(string s, string padrao) -> bool` | `true` se o padrão casa o texto **inteiro** |
 | `contains(string s, string padrao) -> bool` | `true` se casa em algum lugar |
-| `find(string s, string padrao) -> i32` | o índice da primeira ocorrência, ou `-1` |
+| `find(string s, string padrao) -> i32` | o índice da primeira ocorrência; sem nenhuma, `ValueError` |
 | `find_all(string s, string padrao) -> list<string>` | todas as ocorrências, sem sobreposição |
 | `count(string s, string padrao) -> i32` | quantas ocorrências |
-| `groups(string s, string padrao) -> list<string>` | a primeira ocorrência e os seus grupos (`[0]` é a ocorrência inteira; um grupo que não participou é `""`); sem ocorrência, `[]` |
+| `groups(string s, string padrao) -> list<string>` | a primeira ocorrência e os seus grupos (`[0]` é a ocorrência inteira; um grupo que não participou é `""`, como um que casou o texto vazio: os dois não se distinguem); sem ocorrência, `[]` |
 | `groups_all(string s, string padrao) -> list<list<string>>` | o mesmo, para cada ocorrência |
 | `named(string s, string padrao) -> dict<string, string>` | os grupos com nome da primeira ocorrência; sem ocorrência, `{}` |
 | `replace_all(string s, string padrao, string troca) -> string` | troca cada ocorrência |

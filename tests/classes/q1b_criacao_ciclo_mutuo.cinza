@@ -1,0 +1,12 @@
+// Q1b: A cria B e B cria A nos valores iniciais (antes travava a CVM consumindo memória).
+class A {
+  B b = new B();
+}
+class B {
+  i32 n = 1;
+  A a = new A();
+}
+fn main() {
+  A a = new A();
+}
+// expect-error: 'A' cria a si mesmo nos valores iniciais dos campos (A → B → A)

@@ -1,0 +1,32 @@
+// Q1b: criar outros tipos nos valores iniciais é normal; a lista do próprio tipo, vazia, é o
+// "nenhum"; e a criação sem fim por uma função passa por chamadas e para no StackOverflowError.
+class Folha {
+  string nome = "folha";
+  pub { fn mostra() -> string { return nome; } }
+}
+class No {
+  Folha f = new Folha();
+  list<No> filhos;
+  pub {
+    fn add(No n) { filhos.add(n); }
+    fn total() -> i32 {
+      i32 t = 1;
+      for (No x in filhos) { t += x.total(); }
+      return t;
+    }
+    fn folha() -> string { return f.mostra(); }
+  }
+}
+fn cria() -> Ciclo { return new Ciclo(); }
+class Ciclo {
+  Ciclo prox = cria();
+}
+fn main() {
+  No raiz = new No();
+  raiz.add(new No());
+  raiz.add(new No());
+  print(raiz.total(), raiz.folha());
+  try { Ciclo c = new Ciclo(); } except (StackOverflowError e) { print(e.message); }
+}
+// expect: 3 folha
+// expect: profundidade máxima de chamadas (2000) excedida ao chamar 'cria'

@@ -6,7 +6,7 @@ import Regex as re;
 import Strings;
 fn main() {
   print(re.matches("2026-11-19", "\\d{4}-\\d\\d-\\d\\d"), re.matches("x2026-11-19", "\\d{4}-\\d\\d-\\d\\d"));
-  print(re.contains("ação", "ç"), re.find("coração", "ção"), re.find("abc", "z"), re.find("aç bç", "\\bb"));
+  print(re.contains("ação", "ç"), re.find("coração", "ção"), re.contains("abc", "z"), re.find("aç bç", "\\bb"));
   print(re.find_all("a1 b22 c333", "\\d+"), re.count("banana", "a"), re.find_all("aaa", "a*?"));
   print(re.groups("tel: 11-9876", "(\\d+)-(\\d+)"), re.groups("nada", "(\\d+)"), re.groups("ab", "(x)?(a)"));
   print(re.groups_all("a=1, b=2", "(\\w)=(\\d)"));
@@ -22,7 +22,7 @@ fn main() {
   print(re.matches(longo, "(a+)+b"), re.matches(longo + "b", "(a|a)*b"), re.matches(Strings.repeat("x", 100000), "(x|y)*"));
 }
 // expect: true false
-// expect: true 4 -1 3
+// expect: true 4 false 3
 // expect: ["1", "22", "333"] 3 ["", "", "", ""]
 // expect: ["11-9876", "11", "9876"] [] ["a", "", "a"]
 // expect: [["a=1", "a", "1"], ["b=2", "b", "2"]]

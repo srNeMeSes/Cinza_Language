@@ -11,7 +11,7 @@ fn main() {
   print(st.contains("banana", "nan"), st.contains("banana", "x"));
   print(st.replace("banana", "an", "AN"));
   print(st.substr("coração", 2, 3), "[" + st.substr("abc", 3, 0) + "]");
-  print(st.find("coração", "ção"), st.find("abc", "z"));
+  print(st.find("coração", "ção"), st.contains("abc", "z"));
   print(st.starts_with("cinza", "ci"), st.starts_with("cinza", "za"));
 }
 // expect: EVANS evans 5
@@ -22,5 +22,5 @@ fn main() {
 // expect: true false
 // expect: bANANa
 // expect: raç []
-// expect: 4 -1
+// expect: 4 false
 // expect: true false

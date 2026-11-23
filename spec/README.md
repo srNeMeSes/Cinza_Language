@@ -27,6 +27,39 @@ que pode ser conferido antes de executar é conferido na compilação. Os erros 
 (índice fora da lista, divisão por zero, overflow...) são erros da linguagem, capturáveis com
 `try`/`except`.
 
+### O que fica fora
+
+Decisões do autor, não lacunas a preencher depois.
+
+**Nunca, por filosofia:**
+
+- **`null` e o tipo opcional** (`T?`, `Option`): toda variável tem sempre um valor do seu tipo
+  (seção 3.1); como se diz "nenhum", na seção 3.10.
+- **Herança**: o polimorfismo é pelas interfaces (seção 3.7), que não têm código nem campos.
+- **Closures e funções como valor**: o nome de uma função só aparece numa chamada (seção 4.4). O
+  que outras linguagens fazem passando uma função adiante, a Cinza faz com um objeto de uma classe
+  que cumpre uma interface; para ordenar por um critério, `Lists.sort_by`.
+- **Variáveis globais mutáveis**: no nível de cima só há `const` (seção 4.3).
+- **Sobrecarga**, de funções (dois itens com o mesmo nome, seção 4.4) e de operadores (os operadores
+  valem só para os tipos da linguagem, seção 5.3).
+- **Conversões implícitas entre números**: a troca de tipo é sempre escrita, com `cast<T>` (seção
+  3.5).
+- **Tipo dinâmico**: um valor nunca muda de tipo, e um valor de interface nunca volta a ser tratado
+  como a classe (seção 3.7).
+- **Reflexão**: em execução, de um valor só se sabe o tipo (`type()`, seção 3.8), não os campos nem
+  os métodos.
+- **Ponteiros e memória manual**: a memória é sempre do runtime, pela contagem de referências e pelo
+  coletor de ciclos (seção 5.9).
+- **Métodos genéricos e restrições nos genéricos** (`T: Forma`): genéricos são só os itens do nível
+  de cima, conferidos no uso de cada cópia (capítulo 8).
+- **Infinito e NaN** (seção 3.1) e **import relativo** (seção 4.11).
+
+**Fora da 1.0, a rever com o uso real:**
+
+- **Concorrência** (threads, `async`, canais): o paralelismo de hoje é por processos (`Process`,
+  capítulo 6).
+- **Macros e metaprogramação**.
+
 ## Convenções deste documento
 
 - **Erro de compilação**: o programa é rejeitado antes de executar qualquer coisa (erros

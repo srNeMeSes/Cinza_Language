@@ -1,0 +1,10 @@
+// Q1b: o ciclo também passa pelos valores padrão de um struct e por dentro de uma lista.
+struct Caixa { list<No> itens = [new No()]; }
+class No {
+  i32 valor = 0;
+  Caixa c = new Caixa();
+}
+fn main() {
+  No n = new No();
+}
+// expect-error: 'Caixa' cria a si mesmo nos valores iniciais dos campos (Caixa → No → Caixa)

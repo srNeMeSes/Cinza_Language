@@ -1,0 +1,10 @@
+// Q1b: um campo que cria a própria classe no valor inicial: antes a CVM saía sem memória e o
+// executável nativo caía com a pilha do sistema; agora é erro de compilação.
+class No {
+  i32 valor = 0;
+  No prox = new No();
+}
+fn main() {
+  No n = new No();
+}
+// expect-error: 'No' cria a si mesmo nos valores iniciais dos campos (No → No): a criação nunca terminaria

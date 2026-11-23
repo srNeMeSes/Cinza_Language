@@ -201,10 +201,14 @@ struct Emissor::Impl {
     bool em_linha = false;          // o refcount em linha (-O2, função de tamanho normal)
 
     // ── utilitários ──────────────────────────────────────────────────────
-    void atributo(LLVMValueRef f, const char* nome) {
+    void atributo(LLVMValueRef f, const char* nome, std::uint64_t valor = 0) {
         const unsigned k = LLVMGetEnumAttributeKindForName(nome, std::strlen(nome));
-        LLVMAddAttributeAtIndex(f, LLVMAttributeFunctionIndex, LLVMCreateEnumAttribute(ctx, k, 0));
+        LLVMAddAttributeAtIndex(f, LLVMAttributeFunctionIndex, LLVMCreateEnumAttribute(ctx, k, valor));
     }
+    // As tabelas de desempilhamento (uwtable assíncrono): sem elas, no Windows a função gerada
+    // fica fora do .pdata, e o libunwind, ao tratar um erro do runtime chamado por ela, escrevia
+    // "libunwind: pc not in table" na saída de erro a cada exceção
+    void comTabelas(LLVMValueRef f) { atributo(f, "uwtable", 2); }
 
     FnRt& rt(const char* nome, LLVMTypeRef ret, std::vector<LLVMTypeRef> params, bool frio = false,
              bool sem_volta = false) {
@@ -912,6 +916,7 @@ struct Emissor::Impl {
         LLVMValueRef g = LLVMAddFunction(mod, f.nome.c_str(), tf);
         LLVMSetLinkage(g, LLVMInternalLinkage);
         atributo(g, "nounwind");
+        comTabelas(g);
         fns.push_back(g);
         tfns.push_back(tf);
         // o descritor: nome do trace e posição da declaração
@@ -1000,6 +1005,7 @@ struct Emissor::Impl {
         LLVMTypeRef params[] = {tI32, tPtr};
         LLVMValueRef f = LLVMAddFunction(mod, "main", LLVMFunctionType(tI32, params, 2, 0));
         atributo(f, "nounwind");
+        comTabelas(f);
         main_entrada = LLVMAppendBasicBlockInContext(ctx, f, "entrada");
         LLVMPositionBuilderAtEnd(b, main_entrada);
         chamaRt(rt("cz_inicio", tVoid, {tI32, tPtr}), {LLVMGetParam(f, 0), LLVMGetParam(f, 1)});

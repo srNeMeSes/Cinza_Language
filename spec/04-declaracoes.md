@@ -162,6 +162,21 @@ em que estão declarados (um valor inicial pode usar campos anteriores, `self` e
 globais); depois roda o construtor, se houver. Os argumentos de `new` precisam casar com o
 construtor (sem construtor, nenhum argumento).
 
+Os valores iniciais rodam a cada criação, então um `new` escrito neles que volta ao próprio tipo
+— direto (`No prox = new No();`) ou por outros tipos (`A` cria `B` e `B` cria `A`, também pelos
+valores padrão de um struct) — é erro de compilação: a criação nunca terminaria. O "próximo" que
+pode não existir é uma `list<No>` (seção 3.10). Por um construtor, um método ou uma função, a
+criação sem fim passa por chamadas e para no limite delas (seção 5.8).
+
+```cinza
+class No {
+  i32 valor = 0;
+  No prox = new No();
+}
+fn main() { }
+// expect-error: 'No' cria a si mesmo nos valores iniciais dos campos (No → No)
+```
+
 **`self`** é o objeto atual, disponível em métodos, no construtor e nos valores iniciais dos
 campos. Pode ser lido, passado e retornado, mas não reatribuído.
 

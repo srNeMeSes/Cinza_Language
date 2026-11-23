@@ -156,11 +156,17 @@ Value strSubstr(Args a) {
     return Value(codifica(s.substr(static_cast<size_t>(ini), static_cast<size_t>(len))));
 }
 
-// find(s, trecho): índice (em caracteres) da primeira ocorrência, ou -1
+// As buscas que não acham lançam ValueError (não há -1: seria um null com outro nome); quem não
+// sabe se acha pergunta antes com contains (Q1b, 2026-11-23)
+[[noreturn]] void naoAparece(const char* fn, const std::string& trecho, const std::string& onde) {
+    falha(std::string("ValueError: '") + fn + "': \"" + trecho + "\" não aparece " + onde);
+}
+
+// find(s, trecho): índice (em caracteres) da primeira ocorrência
 Value strFind(Args a) {
     const std::string& s = a[0].asString();
     const size_t pos = s.find(a[1].asString());
-    if (pos == std::string::npos) return i32Valor(-1);
+    if (pos == std::string::npos) naoAparece("find", a[1].asString(), "no texto");
     return i32Valor(utf8::indiceDoByte(s, pos));
 }
 
@@ -179,7 +185,8 @@ Value strEndsWith(Args a) {
 Value strFindLast(Args a) {
     const std::string& s = a[0].asString();
     const size_t pos = s.rfind(a[1].asString());
-    return i32Valor(pos == std::string::npos ? std::int64_t{-1} : utf8::indiceDoByte(s, pos));
+    if (pos == std::string::npos) naoAparece("find_last", a[1].asString(), "no texto");
+    return i32Valor(utf8::indiceDoByte(s, pos));
 }
 
 // find_from(s, trecho, inicio): como find, a partir do caractere `inicio`
@@ -191,7 +198,26 @@ Value strFindFrom(Args a) {
         falha("IndexError: início " + std::to_string(ini) + " fora dos limites de uma string de tamanho " +
               std::to_string(n));
     const size_t pos = s.find(a[1].asString(), utf8::byteDoCaractere(s, ini));
-    return i32Valor(pos == std::string::npos ? std::int64_t{-1} : utf8::indiceDoByte(s, pos));
+    if (pos == std::string::npos)
+        naoAparece("find_from", a[1].asString(), "no texto a partir do índice " + std::to_string(ini));
+    return i32Valor(utf8::indiceDoByte(s, pos));
+}
+
+// positions(s, trecho): os índices (em caracteres) de todas as ocorrências, sem sobreposição — as
+// mesmas que o count conta; nenhuma dá []
+Value strPositions(Args a) {
+    const std::string& s = a[0].asString();
+    const std::string& t = a[1].asString();
+    if (t.empty()) falha("ValueError: o trecho de 'positions' não pode ser vazio");
+    std::vector<Value> out;
+    size_t anterior = 0;
+    std::int64_t indice = 0;
+    for (size_t pos = s.find(t); pos != std::string::npos; pos = s.find(t, pos + t.size())) {
+        for (size_t i = anterior; i < pos; ++i) if (!utf8::continuacao(s[i])) ++indice;
+        anterior = pos;
+        out.push_back(i32Valor(indice));
+    }
+    return makeList(std::move(out));
 }
 
 // count: ocorrências sem sobreposição ("aaaa" tem 2 de "aa")
@@ -1186,7 +1212,8 @@ Value listContains(Args a) {
 Value listIndexOf(Args a) {
     const auto& elems = a[0].asList()->elements;
     auto it = std::find(elems.begin(), elems.end(), a[1]);
-    return i32Valor(it == elems.end() ? std::int64_t{-1} : static_cast<std::int64_t>(it - elems.begin()));
+    if (it == elems.end()) falha("ValueError: 'index_of': " + a[1].toString() + " não está na lista");
+    return i32Valor(static_cast<std::int64_t>(it - elems.begin()));
 }
 
 // slice(l, inicio, fim): nova lista com os elementos de inicio até fim (exclusive)
@@ -1318,7 +1345,7 @@ Value listLastIndexOf(Args a) {
     const auto& elems = a[0].asList()->elements;
     for (size_t i = elems.size(); i > 0; --i)
         if (elems[i - 1] == a[1]) return i32Valor(static_cast<std::int64_t>(i - 1));
-    return i32Valor(-1);
+    falha("ValueError: 'last_index_of': " + a[1].toString() + " não está na lista");
 }
 
 Value listFirst(Args a) {
@@ -1928,7 +1955,9 @@ Value rxContains(Args a) {
 
 Value rxFind(Args a) {
     std::vector<int> caps;
-    return i32Valor(padrao(a[1], "find").procura(decodifica(a[0].asString()), 0, caps) ? caps[0] : -1);
+    if (!padrao(a[1], "find").procura(decodifica(a[0].asString()), 0, caps))
+        falha("ValueError: 'find': o padrão \"" + a[1].asString() + "\" não casa com o texto");
+    return i32Valor(caps[0]);
 }
 
 Value rxFindAll(Args a) {
@@ -2102,6 +2131,7 @@ std::vector<NativeModule> criaModulos() {
         {"ends_with",   {S, S},    B,           strEndsWith},
         {"find_last",   {S, S},    I32,         strFindLast},
         {"find_from",   {S, S, I}, I32,         strFindFrom},
+        {"positions",   {S, S},    t.list(I32), strPositions},
         {"count",       {S, S},    I32,         strCount},
         {"char_at",     {S, I},    S,           strCharAt},
         {"left",        {S, I},    S,           strLeft},

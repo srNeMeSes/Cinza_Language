@@ -33,7 +33,7 @@ fn main() {
   list<f64> vaziad;
   print(L.product(vazia), L.product(vaziad) + 0.5ff);
   // busca
-  print(L.count([1, 2, 1, 1], 1), L.count(["a"], "b"), L.last_index_of([1, 2, 1], 1), L.last_index_of([1], 5));
+  print(L.count([1, 2, 1, 1], 1), L.count(["a"], "b"), L.last_index_of([1, 2, 1], 1), L.contains([1], 5));
   print(L.first([7, 8, 9]), L.last([7, 8, 9]), L.is_empty(vazia), L.is_empty([0]));
   // alterar no lugar
   list<string> l = ["b", "d"];
@@ -70,7 +70,7 @@ fn main() {
 // expect: -2 7 abacaxi 2.5
 // expect: 2.5 2.5 24 3
 // expect: 1 1.5
-// expect: 3 0 2 -1
+// expect: 3 0 2 false
 // expect: 7 9 true false
 // expect: ["a", "b", "c", "d", "e"]
 // expect: e ["a", "b", "c", "d"]

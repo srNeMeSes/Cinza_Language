@@ -285,3 +285,63 @@ fn main() {
 ```
 
 As regras do `const` global (o que pode aparecer no inicializador) estão na seção 4.3.
+
+## 3.10 Sem `null`: como dizer "nenhum"
+
+A Cinza não tem `null` nem tipo opcional: um valor de um tipo é sempre um valor daquele tipo, e
+nenhuma conta precisa conferir se ele "existe". O que em outras linguagens seria `null` tem um
+destes jeitos, os mesmos da biblioteca (capítulo 6):
+
+- **Zero ou mais**: uma `list<T>`, vazia quando não há nenhum — o resultado de uma busca que pode
+  achar vários (`Strings.positions`, `Regex.find_all`), os filhos de um nó (`list<No> filhos`).
+- **Pode não existir**: perguntar antes e só então pegar (`d.has(k)`, `l.has(i)`,
+  `Strings.contains`); onde um padrão é comum, `get_or(..., padrao)`, com o padrão escrito por
+  quem chama. Pegar o que não existe lança um erro (`KeyError`, `IndexError`, `ValueError`):
+  nada devolve um valor que finge ser resposta, como um `-1`.
+- **Não deveria faltar**: lançar um erro próprio (seção 4.10) e tratá-lo onde fizer sentido.
+- **Um "nenhum" que se comporta**: um objeto de uma classe que cumpre a mesma interface e não
+  faz nada (seção 3.7) — `SemDesconto` abaixo —, em vez de conferir a ausência a cada uso.
+
+Uma classe que cria a si mesma nos valores iniciais dos campos é erro (seção 4.6): o "próximo"
+que pode não existir é uma `list`.
+
+```cinza
+import Strings as st;
+
+error SemCadastro;
+
+interface Desconto {
+  fn aplica(f64 v) -> f64;
+}
+
+class Metade : Desconto {
+  pub { fn aplica(f64 v) -> f64 { return v / 2.ff; } }
+}
+
+class SemDesconto : Desconto {
+  pub { fn aplica(f64 v) -> f64 { return v; } }
+}
+
+fn desconto(string cupom) -> Desconto {
+  if (cupom == "METADE") { return new Metade(); }
+  return new SemDesconto();
+}
+
+fn idade(dict<string, i32> idades, string nome) -> i32 {
+  if (not idades.has(nome)) { throw SemCadastro(nome + " não tem cadastro"); }
+  return idades[nome];
+}
+
+fn main() {
+  string s = "chave=valor";
+  if (st.contains(s, "=")) { print(st.left(s, st.find(s, "="))); }
+  print(st.positions(s, "x"), st.positions(s, "a"));
+  print(desconto("METADE").aplica(50.ff), desconto("").aplica(50.ff));
+  dict<string, i32> idades = {{"ana", 30}};
+  try { print(idade(idades, "bia")); } except (SemCadastro e) { print(e.message); }
+}
+// expect: chave
+// expect: [] [2, 7]
+// expect: 25 50
+// expect: bia não tem cadastro
+```

@@ -232,6 +232,10 @@ def rodar(binario, caminho):
                        f"{codigo_esperado}"), detalhes
     if linhas != esperado:
         return False, "stdout difere do esperado", detalhes
+    # um programa que termina bem não escreve na saída de erro (pegava o "libunwind: pc not in
+    # table" que o executável nativo do Windows escrevia a cada erro capturado)
+    if codigo_esperado == 0 and stderr.strip():
+        return False, "saída de erro num programa que terminou bem", detalhes
     return True, "", ""
 
 

@@ -764,6 +764,134 @@ void SemanticAnalyzer::analyze(std::vector<ModuleUnit>& units) {
         // Passo 3 (Fase 2.5): o programa começa em main (só no principal)
         if (modules[i].is_main) checkMain(program);
     }
+
+    // Q1b: com todos os módulos analisados (os new resolvidos, as cópias criadas)
+    checkConstructionCycles(units);
+}
+
+// Q1b: os `new` escritos numa expressão (sem entrar em funções chamadas: essas contam no limite
+// de chamadas)
+static void coletaNews(const Expr* e, std::vector<const NewExpr*>& out) {
+    if (!e) return;
+    switch (e->node_kind) {
+        case NodeKind::New: {
+            auto* n = static_cast<const NewExpr*>(e);
+            out.push_back(n);
+            for (const auto& a : n->arguments) coletaNews(a.get(), out);
+            break;
+        }
+        case NodeKind::Call: {
+            auto* c = static_cast<const CallExpr*>(e);
+            for (const auto& a : c->arguments) coletaNews(a.get(), out);
+            for (const auto& p : c->interp) coletaNews(p.expr.get(), out);
+            break;
+        }
+        case NodeKind::MethodCall: {
+            auto* m = static_cast<const MethodCallExpr*>(e);
+            coletaNews(m->object.get(), out);
+            for (const auto& a : m->arguments) coletaNews(a.get(), out);
+            break;
+        }
+        case NodeKind::MemberAccess: coletaNews(static_cast<const MemberAccessExpr*>(e)->object.get(), out); break;
+        case NodeKind::Binary: {
+            auto* b = static_cast<const BinaryExpr*>(e);
+            coletaNews(b->left.get(), out);
+            coletaNews(b->right.get(), out);
+            break;
+        }
+        case NodeKind::Unary: coletaNews(static_cast<const UnaryExpr*>(e)->operand.get(), out); break;
+        case NodeKind::ListLiteral:
+            for (const auto& x : static_cast<const ListLiteralExpr*>(e)->elements) coletaNews(x.get(), out);
+            break;
+        case NodeKind::DictLiteral:
+            for (const auto& [k, v] : static_cast<const DictLiteralExpr*>(e)->pairs) {
+                coletaNews(k.get(), out);
+                coletaNews(v.get(), out);
+            }
+            break;
+        case NodeKind::PairLiteral: {
+            auto* p = static_cast<const PairLiteralExpr*>(e);
+            coletaNews(p->first.get(), out);
+            coletaNews(p->second.get(), out);
+            break;
+        }
+        case NodeKind::IndexAccess: {
+            auto* i = static_cast<const IndexAccessExpr*>(e);
+            coletaNews(i->object.get(), out);
+            coletaNews(i->index.get(), out);
+            break;
+        }
+        case NodeKind::Slice: {
+            auto* s = static_cast<const SliceExpr*>(e);
+            coletaNews(s->object.get(), out);
+            coletaNews(s->start.get(), out);
+            coletaNews(s->end.get(), out);
+            coletaNews(s->step.get(), out);
+            break;
+        }
+        case NodeKind::Cast: coletaNews(static_cast<const CastExpr*>(e)->operand.get(), out); break;
+        default: break;
+    }
+}
+
+// Q1b: os valores iniciais dos campos de uma classe (e os padrões de um struct) rodam a cada
+// criação, fora do limite de chamadas. Um `new` escrito ali que volta ao próprio tipo, direto
+// (No prox = new No()) ou por outros (A cria B, B cria A; ou por um struct), seria uma criação
+// sem fim — antes, a CVM saía sem memória e o executável nativo caía com a pilha do sistema.
+// Pelos outros caminhos (um construtor, um método ou uma função que cria o objeto) a recursão
+// passa por chamadas e para no StackOverflowError.
+void SemanticAnalyzer::checkConstructionCycles(const std::vector<ModuleUnit>& units) {
+    struct Aresta { std::string alvo; Token tok; };
+    std::map<std::string, std::vector<Aresta>> grafo;
+    auto campos = [&](const std::string& dono, const std::vector<ClassDecl::Field>& fs) {
+        auto& arestas = grafo[dono];
+        for (const auto& f : fs) {
+            std::vector<const NewExpr*> news;
+            coletaNews(f.initializer.get(), news);
+            for (const NewExpr* n : news) {
+                TypeRef t = n->resolved_type;
+                if (t && (t->is(TK::Class) || t->is(TK::Struct))) arestas.push_back({t->name, n->token});
+            }
+        }
+    };
+    for (const auto& u : units) {
+        if (u.native || !u.program) continue;
+        for (const auto* lista : {&u.program->statements, &u.program->instancias})
+            for (const auto& s : *lista) {
+                if (s->node_kind == NodeKind::ClassDecl) {
+                    auto* c = static_cast<const ClassDecl*>(s.get());
+                    campos(c->class_name, c->fields);
+                } else if (s->node_kind == NodeKind::StructDecl) {
+                    auto* st = static_cast<const StructDecl*>(s.get());
+                    if (st->type_params.empty()) campos(st->name, st->fields);   // N5: só as cópias
+                }
+            }
+    }
+
+    std::map<std::string, int> estado;   // 1: no caminho; 2: sem ciclo a partir dele
+    std::vector<std::string> caminho;
+    std::function<void(const std::string&)> visita = [&](const std::string& no) {
+        estado[no] = 1;
+        caminho.push_back(no);
+        auto it = grafo.find(no);
+        if (it != grafo.end())
+            for (const Aresta& a : it->second) {
+                if (estado[a.alvo] == 1) {
+                    std::string texto;
+                    for (auto c = std::find(caminho.begin(), caminho.end(), a.alvo); c != caminho.end(); ++c)
+                        texto += displayName(*c) + " → ";
+                    texto += displayName(a.alvo);
+                    throwError("'" + displayName(a.alvo) + "' cria a si mesmo nos valores iniciais dos campos (" +
+                                   texto + "): a criação nunca terminaria. Para 'nenhum ou alguns', use list<" +
+                                   displayName(a.alvo) + "> (vazia: nenhum).", a.tok);
+                }
+                if (estado[a.alvo] == 0) visita(a.alvo);
+            }
+        caminho.pop_back();
+        estado[no] = 2;
+    };
+    for (const auto& [no, arestas] : grafo)
+        if (estado[no] == 0) visita(no);
 }
 
 // ============================================================================

@@ -287,6 +287,7 @@ private:
     void registerStruct  (const StructDecl&   st, bool simbolo = true);
     // C3: struct que contém a si mesmo por valor (direta ou indiretamente)
     void checkStructCycles();
+    void checkConstructionCycles(const std::vector<ModuleUnit>& units);
     // Nome de tipo definido pelo usuário (class ou struct) existe?
     bool isKnownType(const std::string& name) const;
 

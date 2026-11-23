@@ -246,9 +246,10 @@ test-llvm: cinzac
 #   make cinzac-debug && make test-llvm-debug PYTHON=/c/Python313/python
 cinzac-debug: CXXFLAGS = -std=c++20 -O1 -g -Wall -Wextra -fsanitize=address,undefined -DCINZA_CONFERE_REFS
 cinzac-debug: CINZAC_STATIC =
-# dinâmico (o ASan do mingw é uma DLL): o libxml2 vem da DLL, sem as funções vazias
+# dinâmico (o ASan do mingw é uma DLL): o libxml2 vem da DLL, sem as funções vazias — e por isso
+# o -lxml2 volta aqui (o LLVM_LIBS do Windows o tira desde o Q5)
 cinzac-debug: CINZAC_LLD = llvm/ligador.cpp llvm/alvos_vazios.cpp
-cinzac-debug: LDFLAGS := $(filter-out -static,$(LDFLAGS))
+cinzac-debug: LDFLAGS := $(filter-out -static,$(LDFLAGS)) -lxml2
 cinzac-debug: clean cinzac
 
 # detect_container_overflow=0: o LLVM estático não é instrumentado, e as anotações dos contêineres da
