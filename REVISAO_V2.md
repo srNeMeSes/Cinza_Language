@@ -2090,8 +2090,8 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
     depois ir para a definição, o tipo ao passar o mouse e completar nomes. A extensão passa a
     usá-lo (hoje ela só colore).
   - Formatador (`cinza fmt`): decidido — entra na 1.0, com um estilo só, sem opções.
-  - Fora da 1.0 (confirmado pelo autor): depurador (informação de depuração no `cinzac`),
-    gerenciador de pacotes (o `czm.mod` continua só o marcador da raiz do projeto).
+  - Fora da 1.0 (confirmado pelo autor): depurador (informação de depuração no `cinzac`). O
+    gerenciador de pacotes saiu desta lista em 2026-11-22: entra antes da 1.0 (Q10).
   > Andamento (2026-11-20). **Formatador** (`formatador.cpp`; `cinza fmt arquivo...`, `--check`, e
   > `cinza fmt -` da entrada para a saída, em bytes): como o gofmt, as quebras de linha são as do
   > autor e o resto é refeito — o recuo (2 espaços por chave), os espaços entre os tokens, as linhas
@@ -2111,8 +2111,16 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
   > CI) e a configuração `cinza.caminho`; sem a biblioteca (na pasta de desenvolvimento, sem
   > `npm install`), ela segue só com o destaque. Testes em `tests/lsp` (um cliente mínimo em Python):
   > erros semânticos e de sintaxe, a coluna depois de acentos, a limpeza, análises repetidas no mesmo
-  > processo, o módulo importado, a formatação e o encerramento. Falta: o tipo ao passar o mouse, ir
-  > para a definição e completar nomes.
+  > processo, o módulo importado, a formatação e o encerramento.
+  > **Índice** (`lsp/indice.cpp`, 2026-11-22): quando o texto passa sem erros, enquanto a árvore
+  > anotada existe, um percurso por todos os módulos (e pelas cópias dos genéricos) guarda cada nome
+  > usado com o que ele é (`i32 soma`, `fn Conta.deposita(i64 v)`, `Cor.Verde`, a assinatura de uma
+  > nativa) e onde foi declarado, mais os nomes visíveis por trecho e os membros de cada tipo e de
+  > cada módulo. Daí o tipo ao passar o mouse, ir para a definição (também dentro de um módulo
+  > importado) e completar nomes: depois de `.`, os membros públicos do valor ou do módulo (e os
+  > métodos de list, dict, string e pair); sem ponto, as locais já declaradas, o nível de cima, o
+  > prelúdio e as palavras-chave. Com o texto em erro, vale o último índice bom (as posições podem
+  > estar deslocadas até o texto voltar a compilar). Testes: 13 casos a mais em `tests/lsp`.
 - [ ] Q7. Documentação.
   - O livro (tutorial) reescrito para a linguagem atual, com os exemplos executados pela suíte,
     como os da spec; ele leva as pendências do livro deste documento (Fase 2.5: o Apêndice A em
@@ -2134,6 +2142,22 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
 do Q2 pode começar já, porque não depende de decisão (o autor pediu para começar por ele, em
 2026-11-19). Q3 e Q4 podem correr juntos. Q5, Q6 e Q7
 antes da prévia (Q8), e a 1.0 (Q9) só depois de um período de uso real.
+
+**Prioridade do autor (2026-11-22).** Nesta fase o que importa é a linguagem ser séria, segura,
+madura e confiável — a divulgação (Q8) fica para perto da 1.0. Depois do Q6 (terminado com o tipo
+ao passar o mouse, ir para a definição e completar nomes no servidor de linguagem), a ordem é:
+
+1. Q1c — registrar o que fica fora por filosofia.
+2. Q1b — a ausência de null como vantagem, não como problema: primeiro um levantamento de todo
+   lugar onde hoje se diz "nenhum" (as sentinelas da biblioteca, `get_or`, `list<No>` nas estruturas
+   recursivas, campos que podem não ter valor, buscas que não acham), com soluções sem null (sem
+   `T?` nem `Option`, decisão do autor) para ele decidir uma por uma.
+3. Q1a — classes e interfaces genéricas (depende do Q1b no campo do próprio tipo).
+4. Q1f — o sistema de módulos.
+5. **Q10 — gerenciador de pacotes, antes da 1.0** (revê a decisão de 2026-11-20 no Q6): desenhado
+   junto com os módulos novos; o `czm.mod` passa a declarar o projeto e as dependências.
+6. **Q11 — desempenho**, com o núcleo fechado (para não otimizar o que ainda vai mudar): a
+   representação nativa dos campos e das listas, menos contagem de referências, o runtime.
 
 ---
 
@@ -2176,6 +2200,7 @@ antes da prévia (Q8), e a 1.0 (Q9) só depois de um período de uso real.
 | 2026-10-04 | J2 | `Files.read_bytes(caminho) -> list<int>` e `Files.write_bytes(caminho, list<int>)`, bytes de 0 a 255 (fora disso, `ValueError`). | Decisão do autor da linguagem; formatos binários sem passar por texto UTF-8. |
 | 2026-10-03 | I4 | `menor_int % -1` dá `0` (revê A5); `-0.0` continua `-0` no `print`; decimais extremos continuam em notação científica. | Decisão do autor da linguagem; `x % -1` cabe sempre em `int`. |
 | 2026-10-03 | H3 | `exit([código])`: padrão 0, de 0 a 255; roda os `finally` pendentes e nenhum `except` o captura; encerra o caminho na análise de fluxo. | Decisão do autor da linguagem; 0–255 dá o mesmo resultado em todo sistema. |
+| 2026-11-22 | Q | Prioridade: segurança e maturidade antes da divulgação. A ordem: Q6 (o resto do LSP), Q1c, Q1b (levantamento da ausência de valor, sem `T?`), Q1a, Q1f, o gerenciador de pacotes (Q10, agora antes da 1.0) e o desempenho (Q11). | Decisão do autor: a linguagem precisa ser séria e funcionar de verdade antes de ser mostrada; o gerenciador de pacotes mexe na estrutura dos projetos e não pode mudar depois da 1.0. |
 | 2026-11-20 | Q6 | O formatador (`cinza fmt`) entra na 1.0, com um estilo só, sem opções; o servidor de linguagem é um modo do próprio `cinza` (`cinza --lsp`, em C++, com o front-end de hoje); o depurador e o gerenciador de pacotes ficam fora da 1.0. | Decisões do autor: um estilo só evita discussão de estilo em cada projeto; os erros do editor são os da compilação, sem um segundo analisador; o depurador e os pacotes vêm depois, com a revisão dos módulos (Q1f). |
 | 2026-11-20 | Q5 | Versão 0.5.0 (a numeração da spec). O `cinzac` com o LLVM estático (só o necessário) e o `lld` embutido, sem MSYS2 nem `g++`; o runtime continua em C++, com a biblioteca C++ embutida; no Linux, a libc++ (não a libstdc++) e a musl, com programas estáticos; a extensão só como `.vsix` nos releases. | Decisões do autor: quem usa o `cinzac` não instala nada; um runtime em C seria outro código além do da CVM; o pacote fica só com licenças permissivas, igual nos dois sistemas; o Marketplace fica para quando a linguagem for pública. |
 | 2026-11-19 | Q4 | A 1.0 sai para Windows e Linux (x86-64); o macOS fica para depois da 1.0. O Linux é testado pelo CI (GitHub Actions), lido pelo `gh`. | Decisão do autor: sem um Mac para testar, prometer suporte seria arriscado; o código já fica portátil (POSIX e o triple do sistema). |

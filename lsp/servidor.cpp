@@ -1,4 +1,5 @@
 #include "servidor.h"
+#include "indice.h"
 #include "json.h"
 #include "../diagnostics.h"
 #include "../formatador.h"
@@ -159,6 +160,8 @@ Valor trecho(const std::vector<std::string>& ls, int linha, int coluna) {
 
 std::map<std::string, std::string>            documentos;   // uri → o texto do editor
 std::map<std::string, std::set<std::string>>  publicados;   // uri analisado → uris com erros publicados
+// uri → o índice da última análise sem erros (enquanto se digita um trecho inválido, vale o anterior)
+std::map<std::string, Indice>                 indices;
 
 // O texto de um arquivo: o do editor, se ele estiver aberto; senão o do disco
 std::string textoDe(const std::string& uri) {
@@ -185,6 +188,16 @@ void analisa(const std::string& uri) {
                 analisador.analyze(unidades);
             } catch (const SemanticError& e) {
                 diagnostics().report("SemanticError", e.message, e.loc, e.notes);
+            }
+            if (!diagnostics().hasErrors()) {   // o índice, enquanto a AST analisada existe
+                const std::string principal = canonico(caminho);
+                std::map<int, std::vector<std::string>> cache;
+                indices[uri] = constroi(carregador.ordered(), [&](int id) -> const std::vector<std::string>& {
+                    auto it = cache.find(id);
+                    if (it != cache.end()) return it->second;
+                    const std::string nome = fileName(id);
+                    return cache[id] = linhas(canonico(nome) == principal ? codigo : textoDe(paraUri(nome)));
+                });
             }
         }
     }
@@ -228,10 +241,145 @@ void analisa(const std::string& uri) {
     publicados[uri] = agora;
 }
 
+// O byte (a partir de 0) do caractere `u` (em unidades UTF-16) da linha
+std::size_t byteDe(const std::string& linha, int u) {
+    std::size_t i = 0;
+    int n = 0;
+    while (i < linha.size() && n < u) {
+        const unsigned char c = static_cast<unsigned char>(linha[i]);
+        const std::size_t len = c >= 0xF0 ? 4 : c >= 0xE0 ? 3 : c >= 0xC0 ? 2 : 1;
+        n += c >= 0xF0 ? 2 : 1;
+        i += len;
+    }
+    return i;
+}
+
+// A ocorrência sob o cursor (a menor, se houver mais de uma), ou nulo
+const Ocorrencia* sobCursor(const std::string& uri, const Valor& pos, std::string& linha_texto) {
+    auto it = indices.find(uri);
+    if (it == indices.end()) return nullptr;
+    const auto ls = linhas(documentos[uri]);
+    const int l = static_cast<int>(pos["line"].inteiro());
+    if (l < 0 || l >= static_cast<int>(ls.size())) return nullptr;
+    linha_texto = ls[static_cast<std::size_t>(l)];
+    const int col = static_cast<int>(byteDe(linha_texto, static_cast<int>(pos["character"].inteiro()))) + 1;
+    const std::string arquivo = canonico(deUri(uri));
+    const Ocorrencia* melhor = nullptr;
+    for (const Ocorrencia& o : it->second.ocorrencias)
+        if (o.arquivo == arquivo && o.linha == l + 1 && o.coluna <= col && col <= o.coluna + o.tamanho &&
+            (!melhor || o.tamanho < melhor->tamanho))
+            melhor = &o;
+    return melhor;
+}
+
+Valor trechoDe(const std::string& texto_linha, int linha, int coluna, int tamanho) {
+    const std::size_t ini = coluna > 0 ? static_cast<std::size_t>(coluna - 1) : 0;
+    Valor r = Valor::objeto();
+    r.set("start", posicao(linha - 1, utf16(texto_linha, ini)))
+        .set("end", posicao(linha - 1, utf16(texto_linha, ini + static_cast<std::size_t>(tamanho))));
+    return r;
+}
+
+Valor hover(const std::string& uri, const Valor& pos) {
+    std::string linha;
+    const Ocorrencia* o = sobCursor(uri, pos, linha);
+    if (!o || o->info.empty()) return Valor();
+    Valor c = Valor::objeto();
+    c.set("kind", "markdown").set("value", "```cinza\n" + o->info + "\n```");
+    Valor r = Valor::objeto();
+    r.set("contents", std::move(c)).set("range", trechoDe(linha, o->linha, o->coluna, o->tamanho));
+    return r;
+}
+
+Valor definicao(const std::string& uri, const Valor& pos) {
+    std::string linha;
+    const Ocorrencia* o = sobCursor(uri, pos, linha);
+    if (!o || o->def_linha <= 0) return Valor();
+    const std::string alvo = canonico(deUri(uri)) == o->def_arquivo ? uri : paraUri(o->def_arquivo);
+    const auto ls = linhas(textoDe(alvo));
+    const std::string l = o->def_linha <= static_cast<int>(ls.size()) ? ls[static_cast<std::size_t>(o->def_linha - 1)] : "";
+    Valor r = Valor::objeto();
+    r.set("uri", alvo).set("range", trechoDe(l, o->def_linha, o->def_coluna, o->def_tamanho));
+    return r;
+}
+
+// Os membros embutidos de list, dict, string e pair (spec, capítulo 5)
+std::vector<Item> embutidos(const std::string& tipo) {
+    if (tipo.rfind("list<", 0) == 0)
+        return {{"size", 2, "fn size() -> i32"}, {"add", 2, "fn add(x)"}, {"remove", 2, "fn remove(i32 i)"}, {"has", 2, "fn has(i32 i) -> bool"}};
+    if (tipo.rfind("dict<", 0) == 0)
+        return {{"size", 2, "fn size() -> i32"}, {"add", 2, "fn add({k, v})"}, {"remove", 2, "fn remove(k)"},
+                {"has", 2, "fn has(k) -> bool"}, {"keys", 2, "fn keys() -> list<K>"}, {"values", 2, "fn values() -> list<V>"}};
+    if (tipo == "string") return {{"size", 2, "fn size() -> i32"}};
+    if (tipo.rfind("pair<", 0) == 0) return {{"first", 5, "first"}, {"second", 5, "second"}};
+    return {};
+}
+
+Valor completa(const std::string& uri, const Valor& pos) {
+    Valor itens = Valor::listaVazia();
+    auto it = indices.find(uri);
+    if (it == indices.end()) return itens;
+    const Indice& ix = it->second;
+    const auto ls = linhas(documentos[uri]);
+    const int l = static_cast<int>(pos["line"].inteiro());
+    if (l < 0 || l >= static_cast<int>(ls.size())) return itens;
+    const std::string& texto = ls[static_cast<std::size_t>(l)];
+    const std::size_t cur = byteDe(texto, static_cast<int>(pos["character"].inteiro()));
+    auto palavra = [](unsigned char c) { return std::isalnum(c) || c == '_' || c >= 0x80; };
+    std::size_t p = cur;
+    while (p > 0 && palavra(static_cast<unsigned char>(texto[p - 1]))) --p;
+    std::vector<Item> lista;
+    if (p > 0 && texto[p - 1] == '.') {   // membros: de um módulo (apelido) ou do tipo do valor
+        std::size_t b = p - 1;
+        while (b > 0 && palavra(static_cast<unsigned char>(texto[b - 1]))) --b;
+        const std::string base = texto.substr(b, p - 1 - b);
+        if (auto m = ix.modulos.find(base); m != ix.modulos.end()) {
+            lista = m->second;
+        } else {
+            const std::string arquivo = canonico(deUri(uri));
+            std::string tipo;
+            int melhor = -1;
+            for (const Ocorrencia& o : ix.ocorrencias)
+                if (o.arquivo == arquivo && o.nome == base && !o.tipo.empty() && o.linha <= l + 1 && o.linha > melhor) {
+                    melhor = o.linha;
+                    tipo = o.tipo;
+                }
+            if (auto t = ix.tipos.find(tipo); t != ix.tipos.end()) lista = t->second;
+            if (auto t = ix.tipos.find(base); t != ix.tipos.end() && lista.empty()) lista = t->second;   // Cor.Verde
+            for (Item& e : embutidos(tipo)) lista.push_back(std::move(e));
+        }
+    } else {   // as locais visíveis, o nível de cima, os apelidos e as palavras da linguagem
+        const std::string arquivo = canonico(deUri(uri));
+        std::set<std::string> vistos;
+        for (auto lc = ix.locais.rbegin(); lc != ix.locais.rend(); ++lc)
+            if (lc->arquivo == arquivo && lc->linha <= l + 1 && lc->fim >= l + 1 && !vistos.count(lc->item.nome) &&
+                (lc->linha < l + 1 || lc->coluna < static_cast<int>(p) + 1)) {
+                vistos.insert(lc->item.nome);
+                lista.push_back(lc->item);
+            }
+        for (const Item& g : ix.globais)
+            if (!vistos.count(g.nome)) lista.push_back(g);
+    }
+    for (const Item& e : lista) {
+        Valor v = Valor::objeto();
+        v.set("label", e.nome).set("kind", e.tipo);
+        if (!e.detalhe.empty()) v.set("detail", e.detalhe);
+        itens.add(std::move(v));
+    }
+    return itens;
+}
+
 Valor capacidades() {
     Valor c = Valor::objeto();
     c.set("textDocumentSync", 1);   // o documento inteiro a cada mudança
     c.set("documentFormattingProvider", true);
+    c.set("hoverProvider", true);
+    c.set("definitionProvider", true);
+    Valor gatilhos = Valor::listaVazia();
+    gatilhos.add(".");
+    Valor comp = Valor::objeto();
+    comp.set("triggerCharacters", std::move(gatilhos));
+    c.set("completionProvider", std::move(comp));
     Valor info = Valor::objeto();
     info.set("name", "cinza").set("version", CINZA_VERSAO);
     Valor r = Valor::objeto();
@@ -293,6 +441,7 @@ int rodaServidor() {
             } else if (metodo == "textDocument/didClose") {
                 const std::string uri = params["textDocument"]["uri"].texto();
                 documentos.erase(uri);
+                indices.erase(uri);
                 for (const std::string& alvo : publicados[uri]) {
                     Valor p = Valor::objeto();
                     p.set("uri", alvo).set("diagnostics", Valor::listaVazia());
@@ -301,6 +450,12 @@ int rodaServidor() {
                 publicados.erase(uri);
             } else if (metodo == "textDocument/formatting") {
                 responde(id, formatacao(params["textDocument"]["uri"].texto()));
+            } else if (metodo == "textDocument/hover") {
+                responde(id, hover(params["textDocument"]["uri"].texto(), params["position"]));
+            } else if (metodo == "textDocument/definition") {
+                responde(id, definicao(params["textDocument"]["uri"].texto(), params["position"]));
+            } else if (metodo == "textDocument/completion") {
+                responde(id, completa(params["textDocument"]["uri"].texto(), params["position"]));
             } else if (!id.nulo()) {
                 respondeErro(id, -32601, "método não suportado: " + metodo);
             }

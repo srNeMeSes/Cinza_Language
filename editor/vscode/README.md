@@ -26,6 +26,12 @@ os erros aparecem sublinhados e no painel Problemas — os mesmos da compilaçã
 mensagem; um erro num módulo importado aparece no arquivo dele. **Formatar Documento**
 (Shift+Alt+F) usa o `cinza fmt` (o estilo da Cinza, sem opções).
 
+Com o mouse sobre um nome aparece o que ele é (o tipo de uma variável, a assinatura de uma
+função ou de um método, o valor de um enum); **Ir para a Definição** (F12) leva à declaração,
+também dentro de um módulo importado; e o completar sugere, depois de `.`, os membros públicos do
+valor ou do módulo, e sem ponto as variáveis já declaradas, as funções e os tipos do arquivo, o
+prelúdio e as palavras-chave. Isso vem da última versão do texto que compilou sem erros.
+
 O executável vem da configuração `cinza.caminho` (padrão: `cinza`, procurado no `PATH`). Sem ele,
 a extensão avisa e segue só com o destaque de sintaxe.
 
@@ -86,8 +92,9 @@ grava a lista nova.
 
 ## Histórico
 
-- 0.8.0 — o servidor de linguagem do cinza (`cinza --lsp`): os erros enquanto se digita e a
-  formatação do documento (`cinza fmt`); a configuração `cinza.caminho`.
+- 0.8.0 — o servidor de linguagem do cinza (`cinza --lsp`): os erros enquanto se digita, a
+  formatação do documento (`cinza fmt`), o tipo ao passar o mouse, ir para a definição e completar
+  nomes; a configuração `cinza.caminho`.
 - 0.7.0 — identificadores com acento, literais fora da faixa e os caracteres recusados pelo
   léxico marcados como inválidos; `e.kind`, `e.line` e `e.column` como campos; a interpolação
   sem `}` termina nas aspas; o problem matcher `$cinza`.

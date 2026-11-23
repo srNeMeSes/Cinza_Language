@@ -388,9 +388,110 @@ def testes_do_lsp(binario):
             du = c.diagnosticos(uri_de(pasta / "util.cinza"))
             r.append(("lsp/erro num módulo importado, no arquivo dele", bool(du) and du[0]["range"]["start"]["line"] == 1,
                       f"diagnósticos: {du}"))
+            r += testes_do_indice(c, pasta)
         finally:
             rc = c.encerra()
         r.append(("lsp/shutdown e exit", rc == 0, f"código de saída {rc}"))
+    return r
+
+
+PROGRAMA_LSP = """import util;
+import Strings as st;
+
+struct Ponto {
+  i32 x = 0;
+  i32 y = 0;
+}
+
+enum Cor { Vermelho, Verde }
+
+class Conta {
+  i64 saldo = 0;
+  pub {
+    fn deposita(i64 v) { saldo += v; }
+    fn total() -> i64 { return saldo; }
+  }
+}
+
+fn maior[T](T a, T b) -> T {
+  if (a > b) { return a; }
+  return b;
+}
+
+fn main() {
+  Conta c = new Conta();
+  c.deposita(10);
+  Ponto p = new Ponto(1, 2);
+  i32 soma = p.x + p.y;
+  string nome = st.upper("ação");
+  Cor cor = Cor.Verde;
+  for (i32 i in range(0, 3)) { soma += maior(i, util.dobro(i)); }
+  try { print(c.total(), soma, nome, cor); } except (ValueError e) { print(e.message); }
+}
+"""
+
+
+def testes_do_indice(c, pasta):
+    """O tipo ao passar o mouse, ir para a definição e completar nomes, sobre um programa com classe,
+    struct, enum, genérico, módulo da Cinza, módulo nativo, laço e except."""
+    from cliente import uri_de, normaliza
+    (pasta / "util.cinza").write_text("pub fn dobro(i32 x) -> i32 {\n  return x * 2;\n}\n", encoding="utf-8")
+    uri = uri_de(pasta / "indice.cinza")
+    c.avisa("textDocument/didOpen", {"textDocument": {"uri": uri, "languageId": "cinza", "version": 1, "text": PROGRAMA_LSP}})
+    ds = c.diagnosticos(uri)
+    r = [("lsp/índice: o programa sem erros", ds == [], f"diagnósticos: {ds}")]
+    linhas = PROGRAMA_LSP.split("\n")
+
+    def pos(alvo, n=0, delta=1):
+        k = 0
+        for i, l in enumerate(linhas):
+            j = l.find(alvo)
+            while j >= 0:
+                if k == n:
+                    return {"line": i, "character": j + delta}
+                k += 1
+                j = l.find(alvo, j + 1)
+        raise ValueError(alvo)
+
+    def hover(alvo, n=0):
+        res = (c.pede("textDocument/hover", {"textDocument": {"uri": uri}, "position": pos(alvo, n)}) or {}).get("result")
+        return res and res["contents"]["value"].replace("```cinza\n", "").replace("\n```", "")
+
+    def definicao(alvo, n=0):
+        res = (c.pede("textDocument/definition", {"textDocument": {"uri": uri}, "position": pos(alvo, n)}) or {}).get("result")
+        return res and (normaliza(res["uri"]).rsplit("/", 1)[-1], res["range"]["start"]["line"], res["range"]["start"]["character"])
+
+    casos = [
+        ("soma", 1, "i32 soma", ("indice.cinza", 27, 6)),
+        ("deposita", 1, "fn Conta.deposita(i64 v)", ("indice.cinza", 13, 7)),
+        ("saldo", 1, "i64 saldo", ("indice.cinza", 11, 6)),
+        ("Verde", 1, "Cor.Verde", ("indice.cinza", 8, 21)),
+        ("maior", 1, "fn maior(i32 a, i32 b) -> i32", ("indice.cinza", 18, 3)),
+        ("dobro", 0, "fn util.dobro(i32 x) -> i32", ("util.cinza", 0, 7)),
+        ("upper", 0, "fn Strings.upper(string) -> string", None),
+        ("e.message", 0, "ValueError e", ("indice.cinza", 31, 64)),
+        ("Conta()", 0, "class Conta", ("indice.cinza", 10, 6)),
+    ]
+    for alvo, n, info, defin in casos:
+        h, d = hover(alvo, n), definicao(alvo, n)
+        r.append((f"lsp/índice: {alvo}", h == info and d == defin, f"hover {h!r} (esperado {info!r}), definição {d} (esperada {defin})"))
+
+    def completa(texto, linha, coluna):
+        c.avisa("textDocument/didChange", {"textDocument": {"uri": uri}, "contentChanges": [{"text": texto}]})
+        c.diagnosticos(uri)
+        res = (c.pede("textDocument/completion", {"textDocument": {"uri": uri}, "position": {"line": linha, "character": coluna}}) or {}).get("result")
+        return [i["label"] for i in res or []]
+
+    alvo = linhas.index("  c.deposita(10);")
+    com_ponto = "\n".join(linhas[:alvo + 1] + ["  c.", "  st."] + linhas[alvo + 1:])
+    membros = completa(com_ponto, alvo + 1, 4)
+    r.append(("lsp/completar: os métodos públicos depois de c.", membros == ["deposita", "total"], f"itens: {membros}"))
+    modulo = completa(com_ponto, alvo + 2, 5)
+    r.append(("lsp/completar: o módulo nativo depois de st.", "upper" in modulo and "split" in modulo, f"itens: {modulo[:8]}"))
+    livres = completa(PROGRAMA_LSP, linhas.index("  i32 soma = p.x + p.y;"), 2)
+    esperados = {"c", "p", "Ponto", "Conta", "maior", "main", "print", "st", "util", "fn"}
+    r.append(("lsp/completar: as locais anteriores, o nível de cima e os embutidos", esperados <= set(livres) and "nome" not in livres,
+              f"itens: {livres[:20]}"))
     return r
 
 
