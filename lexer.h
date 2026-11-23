@@ -50,6 +50,8 @@ enum class TokenType {
     KW_AS,             // as
     KW_SELF,           // self — o objeto atual dentro de métodos (A10/B5)
     KW_CAST,           // cast<T>(valor)
+    KW_NULL,           // null: a ausência de um valor (só num T?)
+    KW_YIELD,          // yield: o valor de um bloco de else
 
     // Tipos
     TYPE_I32,          // inteiro de 32 bits
@@ -98,6 +100,7 @@ enum class TokenType {
     SEMICOLON,         // ;
     DOT,               // .
     COLON,             // :
+    QUESTION,          // ?  (T?: o tipo que admite null)
     
     // Especiais
     END_OF_FILE,

@@ -63,7 +63,7 @@ pub fn ler_csv(string caminho) -> Tabela {
     for (i64 j in range(0, n)) {
       string c = cs[j];
       if (sep == ";") { c = st.replace(c, ",", "."); }
-      if (!cv.is_f64(c)) {
+      if (cv.to_f64(c) == null) {
         throw ErroCSV(format("'{caminho}', linha {i + 1}, coluna '{nomes[j]}': '{cs[j]}' não é um número"));
       }
       if (j < n - 1) {

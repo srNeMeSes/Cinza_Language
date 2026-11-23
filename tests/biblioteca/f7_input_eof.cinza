@@ -1,10 +1,14 @@
-// Fase 7: input sem entrada disponível lança IOError.
+// Fase 7 / Q1b: no fim da entrada, input dá null — o while com declaração lê até o fim.
+// stdin: um
+// stdin: dois
 fn main() {
-  try {
-    str s = input("");
-    print(s);
-  } except (IOError e) {
-    print(e.kind, e.message);
+  i32 n = 0;
+  while (string linha = input("")) {
+    n += 1;
+    print(n, linha);
   }
+  print(input("") == null, input("") else "fim");
 }
-// expect: IOError fim da entrada em 'input'
+// expect: 1 um
+// expect: 2 dois
+// expect: true fim

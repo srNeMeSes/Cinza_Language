@@ -1,0 +1,5 @@
+// Q1b: um T? não é usado como T, e null só cabe num T?
+fn main() {
+  var x = null;
+}
+// expect-error: 'var' não infere o tipo de null: declare o tipo opcional, ex.: string? x = null;

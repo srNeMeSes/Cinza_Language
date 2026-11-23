@@ -241,6 +241,10 @@ extern "C" void cz_solta_valor(CzValor* v) noexcept {
     });
 }
 
+extern "C" void cz_valor_copia(const CzValor* v, CzValor* r) noexcept {
+    fronteira([&] { *r = Value(Value::empresta(*v)).entrega(); });
+}
+
 extern "C" void cz_arquivos(const char* const* nomes, std::uint64_t n) noexcept {
     fronteira([&] {
         if (n == 0) return;
@@ -632,6 +636,8 @@ extern "C" const void* cz_tipo(std::uint8_t kind, const char* nome, const void* 
             case K::Type:      r = t.typeType(); break;
             case K::Enum:      r = t.enumType(nm); break;
             case K::Interface: r = t.interfaceType(nm); break;
+            case K::Optional:  r = t.optional(p(0)); break;   // Q1b
+            case K::Null:      r = t.nullType(); break;
         }
         (void)n;
     });

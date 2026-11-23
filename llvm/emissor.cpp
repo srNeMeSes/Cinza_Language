@@ -252,6 +252,7 @@ struct Emissor::Impl {
             case cir::Tipo::F64:   return tF64;
             case cir::Tipo::Str:   return tPtr;
             case cir::Tipo::Valor: return tValor;
+            case cir::Tipo::Opc:   return tValor;   // Q1b
             case cir::Tipo::Lista: case cir::Tipo::Dict: case cir::Tipo::Par: return tPtr;
             case cir::Tipo::Struct: case cir::Tipo::Obj: case cir::Tipo::Desc: case cir::Tipo::Erro: return tPtr;
             case cir::Tipo::Enum: case cir::Tipo::TipoV: return tValor;
@@ -332,6 +333,7 @@ struct Emissor::Impl {
             case cir::Operando::K::Literal: return cir::Tipo::Str;
             case cir::Operando::K::Nulo:    return cir::Tipo::Str;
             case cir::Operando::K::Vazio:   return cir::Tipo::Valor;
+            case cir::Operando::K::Ausente: return cir::Tipo::Opc;
             case cir::Operando::K::DescStruct: case cir::Operando::K::DescClasse: return cir::Tipo::Desc;
             case cir::Operando::K::Enum:    return cir::Tipo::Enum;
             case cir::Operando::K::TipoLit: return cir::Tipo::TipoV;
@@ -359,6 +361,11 @@ struct Emissor::Impl {
             case cir::Operando::K::Nulo:    return LLVMConstNull(tPtr);
             case cir::Operando::K::Vazio: {   // o CzValor void: tipo VOID_VAL, o resto zerado
                 LLVMValueRef campos[] = {LLVMConstInt(tI8, kind(Value::Kind::VOID_VAL), 0),
+                                         LLVMConstNull(LLVMArrayType2(tI8, 3)), ci32(0), ci64(0)};
+                return LLVMConstNamedStruct(tValor, campos, 4);
+            }
+            case cir::Operando::K::Ausente: {   // Q1b: o CzValor null
+                LLVMValueRef campos[] = {LLVMConstInt(tI8, kind(Value::Kind::NULO), 0),
                                          LLVMConstNull(LLVMArrayType2(tI8, 3)), ci32(0), ci64(0)};
                 return LLVMConstNamedStruct(tValor, campos, 4);
             }
@@ -803,6 +810,10 @@ struct Emissor::Impl {
                 else LLVMBuildRet(b, val(in.args[0]));
                 break;
             case Op::Inalcancavel: LLVMBuildUnreachable(b); break;
+            case Op::EhNulo:   // Q1b: o tipo do CzValor é o do null
+                temps[in.dst] = LLVMBuildICmp(b, LLVMIntEQ, LLVMBuildExtractValue(b, val(in.args[0]), 0, ""),
+                                              LLVMConstInt(tI8, kind(Value::Kind::NULO), 0), "eh.null");
+                break;
             case Op::RetErro:
                 if (quadro && !cf->oculta) {   // sai da sombra da pilha também no erro
                     LLVMValueRef pp = LLVMBuildStructGEP2(b, tExec, gExec, 1, "");
@@ -961,8 +972,11 @@ struct Emissor::Impl {
         for (const cir::Bloco& bl : f.blocos) blocos.push_back(novoBloco(bl.nome.c_str()));
 
         LLVMPositionBuilderAtEnd(b, prologo);
-        for (std::size_t s = f.params.size(); s < f.slots.size(); ++s)   // os slots com referência começam vazios
+        for (std::size_t s = f.params.size(); s < f.slots.size(); ++s) {   // os slots com referência começam vazios
             if (cir::ehRef(f.slots[s])) LLVMBuildStore(b, LLVMConstNull(tPtr), slots[s]);
+            else if (f.slots[s] == cir::Tipo::Opc)   // Q1b: o opcional, null
+                LLVMBuildStore(b, val(cir::Operando::ausente()), slots[s]);
+        }
         for (std::size_t p = 0; p < f.params.size(); ++p)
             LLVMBuildStore(b, LLVMGetParam(fn, static_cast<unsigned>(p)), slots[p]);
         if (!f.oculta) {

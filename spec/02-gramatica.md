@@ -49,7 +49,8 @@ erro          = "error" nome ";" ;
 ## 2.2 Tipos
 
 ```ebnf
-tipo          = "i32" | "i64" | "f32" | "f64" | "string" | "str" | "bool"
+tipo          = tipoSimples [ "?" ] ;                   (* T?: o opcional, seção 3.10; não há T?? *)
+tipoSimples   = "i32" | "i64" | "f32" | "f64" | "string" | "str" | "bool"
               | "void"                                   (* só como tipo de retorno *)
               | "var"                                    (* só em variável local e no for *)
               | "list" "<" tipo ">"
@@ -78,18 +79,21 @@ instrucao     = declVar
               | "continue" ";"
               | tente
               | "throw" expressao ";"
+              | "yield" expressao ";"                   (* só no bloco de um else: seção 3.10 *)
               | bloco ;
 
 declVar       = [ "const" ] tipo nome [ "=" expressao ] ";" ;
-                (* sem "=" só para list<T> e dict<K, V> *)
+                (* sem "=" só para list<T>, dict<K, V> e o opcional T? *)
 
 atribuicao    = alvo opAtribuicao expressao ";" ;
 alvo          = expressao ;
                 (* precisa ser uma variável, um campo (x.campo) ou um índice (x[i]) *)
 opAtribuicao  = "=" | "+=" | "-=" | "*=" | "/=" | "%=" ;
 
-se            = "if" "(" expressao ")" bloco [ "else" ( se | bloco ) ] ;
-enquanto      = "while" "(" expressao ")" bloco ;
+se            = "if" "(" condicao ")" bloco [ "else" ( se | bloco ) ] ;
+enquanto      = "while" "(" condicao ")" bloco ;
+condicao      = expressao | tipo nome "=" expressao ;
+                (* a segunda forma: a expressão é um T?, e nome (o T) só existe no bloco; 3.10 *)
 para          = "for" "(" tipo nome "in" expressao ")" bloco ;
 
 tente         = "try" bloco { "except" "(" nomeTipo nome ")" bloco } [ "finally" bloco ] ;
@@ -104,10 +108,11 @@ dentro de `class`).
 
 ## 2.4 Expressões
 
-Da menor para a maior precedência; todos os operadores binários associam à esquerda.
+Da menor para a maior precedência; os operadores binários associam à esquerda, menos o `else`.
 
 ```ebnf
-expressao     = ou ;
+expressao     = senao ;
+senao         = ou [ "else" ( bloco | senao ) ] ;        (* o opcional: seção 3.10 *)
 ou            = e { ( "||" | "or" ) e } ;
 e             = igualdade { ( "&&" | "and" ) igualdade } ;
 igualdade     = comparacao { ( "==" | "!=" ) comparacao } ;
@@ -141,19 +146,20 @@ entrada       = "{" expressao "," expressao "}" ;
 tipoValor     = ( "i32" | "i64" | "f32" | "f64" | "string" | "str" | "bool"
                 | "list" | "dict" | "pair" ) …           (* um tipo escrito como valor *)
               | ( nome | nome "." nome ) argsTipo ;      (* struct genérico: seção 8.6 *)
-literal       = inteiro | flutuante | texto | "true" | "false" ;   (* flutuante: 1.5f, 1.5ff *)
+literal       = inteiro | flutuante | texto | "true" | "false" | "null" ;   (* flutuante: 1.5f, 1.5ff *)
 ```
 
 | Precedência | Operadores                       |
 |-------------|----------------------------------|
-| 1 (menor)   | `\|\|` `or`                      |
-| 2           | `&&` `and`                       |
-| 3           | `==` `!=`                        |
-| 4           | `<` `<=` `>` `>=`                |
-| 5           | `+` `-`                          |
-| 6           | `*` `/` `%`                      |
-| 7           | `-` `!` `not` (unários)          |
-| 8 (maior)   | `.campo`, `.metodo(...)`, `[i]`, `[a:b]`, chamada |
+| 1 (menor)   | `else` (associa à direita)       |
+| 2           | `\|\|` `or`                      |
+| 3           | `&&` `and`                       |
+| 4           | `==` `!=`                        |
+| 5           | `<` `<=` `>` `>=`                |
+| 6           | `+` `-`                          |
+| 7           | `*` `/` `%`                      |
+| 8           | `-` `!` `not` (unários)          |
+| 9 (maior)   | `.campo`, `.metodo(...)`, `[i]`, `[a:b]`, chamada |
 
 ```cinza
 fn main() {
@@ -172,3 +178,5 @@ Observações:
   comparar com `type(x)` (seção 3.8).
 - Uma lista ou dicionário vazio se escreve omitindo o inicializador: `list<i64> l;`.
 - `{a, b}` é um par; `{{k, v}, ...}` é um dicionário.
+- O `else` de uma expressão (`x else 0`) não se confunde com o do `if`: o corpo do `if` é sempre
+  um bloco, e o `else` dele vem depois de `}`. `a else b else c` é `a else (b else c)`.

@@ -1,0 +1,5 @@
+// Q1b: as regras do bloco do else e do yield
+fn main() {
+  yield 1;
+}
+// expect-error: 'yield' só existe no bloco de um else

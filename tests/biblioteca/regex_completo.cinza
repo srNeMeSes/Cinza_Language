@@ -24,7 +24,7 @@ fn main() {
 // expect: true false
 // expect: true 4 false 3
 // expect: ["1", "22", "333"] 3 ["", "", "", ""]
-// expect: ["11-9876", "11", "9876"] [] ["a", "", "a"]
+// expect: ["11-9876", "11", "9876"] [] ["a", null, "a"]
 // expect: [["a=1", "a", "1"], ["b=2", "b", "2"]]
 // expect: {"ano": "2026", "dia": "19", "mes": "11"}
 // expect: Maria e João a$b$c

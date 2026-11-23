@@ -555,6 +555,8 @@ TypeRef runtimeType(const Value& v, TypeRef st) {
     auto& t = TypeContext::instance();
     using K = TypeInfo::Kind;
 
+    // Q1b: o tipo de um T? é o próprio T? (com valor ou null)
+    if (st->is(K::Optional)) return st;
     // Erro guardado como Error (a raiz): o tipo real é o do erro
     if (v.kind() == Value::Kind::ERROR) return t.errorType(v.asError()->kind);
     // Objeto guardado como interface: o tipo real é a classe

@@ -34,6 +34,8 @@ const std::unordered_map<std::string, TokenType> Lexer::keywords = {
     {"import",   TokenType::KW_IMPORT},    // C5
     {"as",       TokenType::KW_AS},
     {"cast",     TokenType::KW_CAST},      // cast<T>(valor): conversão explícita (seção K)
+    {"null",     TokenType::KW_NULL},      // a ausência de um valor, só num T? (Q1b)
+    {"yield",    TokenType::KW_YIELD},     // o valor de um bloco de else (Q1b)
     // C1: and/or/not são sinônimos de &&, || e ! (mesmo token)
     {"and", TokenType::OP_AND},
     {"or",  TokenType::OP_OR},
@@ -467,6 +469,7 @@ Token Lexer::nextToken() {
         case ';': return makeToken(TokenType::SEMICOLON);
         case '.': return makeToken(TokenType::DOT);
         case ':': return makeToken(TokenType::COLON);
+        case '?': return makeToken(TokenType::QUESTION);
         
         default:
             return errorToken(std::string("Caractere inesperado: '") + c + "'");

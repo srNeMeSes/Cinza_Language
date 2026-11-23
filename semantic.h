@@ -288,6 +288,16 @@ private:
     // C3: struct que contém a si mesmo por valor (direta ou indiretamente)
     void checkStructCycles();
     void checkConstructionCycles(const std::vector<ModuleUnit>& units);
+    TypeRef analyzeElse(ElseExpr* expr, TypeRef expected);   // Q1b
+    void analyzeYield(YieldStmt* stmt);                       // Q1b
+    // Q1b: a declaração de um if/while (T nome = opcional): confere e declara a variável no escopo
+    // atual (o do bloco); devolve o slot
+    void declaraDaCondicao(const char* onde, Expr* cond, Type* tipo, const std::string& nome,
+                           const Token& tok, std::uint32_t& slot, TypeRef& resolvido);
+    // Q1b: os blocos de else em análise (o de dentro por último): o tipo do valor que o yield dá
+    // e quantos try estão abertos dentro do bloco (yield não sai de um try)
+    struct BlocoElse { TypeRef tipo; int tries = 0; };
+    std::vector<BlocoElse> blocos_else;
     // Nome de tipo definido pelo usuário (class ou struct) existe?
     bool isKnownType(const std::string& name) const;
 

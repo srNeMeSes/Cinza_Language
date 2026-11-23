@@ -160,6 +160,10 @@ private:
     // ── expressões ───────────────────────────────────────────────────────
     void          expr(const Expr* e, std::uint16_t dst);
     std::uint16_t exprReg(const Expr* e);   // registrador com o valor (variável local: sem cópia)
+    void          vazio(const Type& t, std::uint16_t r, const Token& tok);   // sem inicializador
+    // Q1b: os blocos de else em compilação: o registrador do resultado e os saltos dos yield
+    struct BlocoElse { std::uint16_t reg; std::vector<std::size_t> saltos; };
+    std::vector<BlocoElse> blocos_else;
     void          binary(const BinaryExpr* e, std::uint16_t dst);
     void          arith(TokenType op, TypeRef lt, std::uint16_t l, TypeRef rt, std::uint16_t r,
                         std::uint16_t dst, const Token& tok);
@@ -250,7 +254,8 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
 
         case NodeKind::Cast: {
             auto* c = static_cast<const CastExpr*>(e);
-            if (c->resolved_type == c->operand->resolved_type) {   // cast<i64>(n) com n i64
+            // Q1b: T → T? (implícito) não muda o valor na CVM: o null é um Value à parte
+            if (c->resolved_type == c->operand->resolved_type || c->resolved_type->is(TK::Optional)) {
                 expr(c->operand.get(), dst);
             } else {
                 const std::uint16_t r = exprReg(c->operand.get());
@@ -405,10 +410,36 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
         case NodeKind::TypeLiteral:   // i64, list<i64>... escrito como valor
             loadK(dst, Value(static_cast<const TypeLiteralExpr*>(e)->value), e->token);
             break;
+        case NodeKind::Null:   // Q1b
+            emit(Op::LOADNULL, dst, 0, 0, e->token);
+            break;
+        case NodeKind::Else: {   // Q1b: o valor; se for null, a alternativa (só então avaliada)
+            auto* el = static_cast<const ElseExpr*>(e);
+            const std::uint16_t t = isTemp(dst) ? dst : alloc(e->token);   // dst pode ser lido pela alternativa
+            expr(el->value.get(), t);
+            const std::size_t salto = emitBc(Op::JMPNOTNULL, t, 0, e->token);
+            if (el->block) {   // o bloco: cada yield grava em t e salta para o fim
+                blocos_else.push_back({t, {}});
+                stmt(el->block.get());
+                for (std::size_t y : blocos_else.back().saltos) patch(y, here());
+                blocos_else.pop_back();
+            } else {
+                expr(el->alternative.get(), t);
+            }
+            patch(salto, here());
+            if (t != dst) emit(Op::MOVE, dst, t, 0, e->token);
+            break;
+        }
         default:
             throw Unsupported("expressão desconhecida (erro interno)", e->token);
     }
     top = save;
+}
+
+// O valor de quem não tem inicializador: list e dict nascem vazios; Q1b: um T?, null
+void Compiler::vazio(const Type& t, std::uint16_t r, const Token& tok) {
+    if (t.kind == Type::Kind::OPTIONAL) emit(Op::LOADNULL, r, 0, 0, tok);
+    else emit(t.kind == Type::Kind::DICT ? Op::NEWDICT : Op::NEWLIST, r, 0, 0, tok);
 }
 
 void Compiler::binary(const BinaryExpr* e, std::uint16_t dst) {
@@ -606,7 +637,7 @@ void Compiler::newExpr(const NewExpr* e, std::uint16_t dst) {
                 const auto& f = decl->fields[i];
                 const auto r = static_cast<std::uint16_t>(base + i);
                 if (f.initializer) expr(f.initializer.get(), r);
-                else emit(f.type->kind == Type::Kind::DICT ? Op::NEWDICT : Op::NEWLIST, r, 0, 0, f.token);
+                else vazio(*f.type, r, f.token);
             }
         } else if (!e->arguments.empty()) {
             for (const auto& arg : e->arguments) expr(arg.get(), alloc(tok));
@@ -614,7 +645,7 @@ void Compiler::newExpr(const NewExpr* e, std::uint16_t dst) {
             for (const auto& f : decl->fields) {
                 const std::uint16_t r = alloc(tok);
                 if (f.initializer) expr(f.initializer.get(), r);
-                else emit(f.type->kind == Type::Kind::DICT ? Op::NEWDICT : Op::NEWLIST, r, 0, 0, f.token);
+                else vazio(*f.type, r, f.token);
             }
         }
         if (top == base) alloc(tok);
@@ -650,13 +681,19 @@ void Compiler::newExpr(const NewExpr* e, std::uint16_t dst) {
 void Compiler::stmt(const Stmt* s) {
     const std::uint16_t save = top;
     switch (s->node_kind) {
+        case NodeKind::Yield: {   // Q1b: o valor no registrador do bloco de else, e para o fim dele
+            const BlocoElse& b = blocos_else.back();
+            expr(static_cast<const YieldStmt*>(s)->value.get(), b.reg);
+            blocos_else.back().saltos.push_back(emitBc(Op::JMP, 0, 0, s->token));
+            break;
+        }
         case NodeKind::VarDecl: {
             auto* v = static_cast<const VarDeclStmt*>(s);
             if (v->res.kind != Resolution::Kind::Local)
                 throw Unsupported("variável não local fora do nível superior (erro interno)", s->token);
             const auto slot = slotReg(v->res.slot);
-            if (!v->initializer) {   // list<T> e dict<K, V> nascem vazios
-                emit(v->type->kind == Type::Kind::DICT ? Op::NEWDICT : Op::NEWLIST, slot, 0, 0, s->token);
+            if (!v->initializer) {   // list<T> e dict<K, V> nascem vazios; T?, null
+                vazio(*v->type, slot, s->token);
                 break;
             }
             expr(v->initializer.get(), slot);
@@ -688,7 +725,13 @@ void Compiler::stmt(const Stmt* s) {
         case NodeKind::If: {
             auto* i = static_cast<const IfStmt*>(s);
             const std::uint16_t c = exprReg(i->condition.get());
-            const std::size_t para_else = jumpIfFalse(c, s->token);
+            std::size_t para_else;
+            if (i->decl_type) {   // Q1b: if (T nome = opcional): null vai para o else; senão, nome = valor
+                para_else = emitBc(Op::JMPNULL, c, 0, s->token);
+                emit(Op::MOVE, slotReg(i->decl_slot), c, 0, s->token);
+            } else {
+                para_else = jumpIfFalse(c, s->token);
+            }
             top = save;
             stmt(i->then_branch.get());
             if (i->else_branch) {
@@ -710,7 +753,12 @@ void Compiler::stmt(const Stmt* s) {
                 std::holds_alternative<bool>(static_cast<const LiteralExpr*>(w->condition.get())->value) &&
                 std::get<bool>(static_cast<const LiteralExpr*>(w->condition.get())->value);
             std::size_t sai = 0;
-            if (!sempre) {
+            if (w->decl_type) {   // Q1b: while (T nome = opcional): sai no null; senão, nome = valor
+                const std::uint16_t c = exprReg(w->condition.get());
+                sai = emitBc(Op::JMPNULL, c, 0, s->token);
+                emit(Op::MOVE, slotReg(w->decl_slot), c, 0, s->token);
+                top = save;
+            } else if (!sempre) {
                 const std::uint16_t c = exprReg(w->condition.get());
                 sai = jumpIfFalse(c, s->token);
                 top = save;
@@ -1048,7 +1096,7 @@ void Compiler::classInit(const ClassDecl* cls, std::size_t idx) {
         const auto& f = cls->fields[i];
         const std::uint16_t t = alloc(f.token);
         if (f.initializer) expr(f.initializer.get(), t);
-        else emit(f.type->kind == Type::Kind::DICT ? Op::NEWDICT : Op::NEWLIST, t, 0, 0, f.token);
+        else vazio(*f.type, t, f.token);
         emit(Op::SETFIELD, 0, u16(i, f.token, "campos"), t, f.token);
         top = 1;
     }

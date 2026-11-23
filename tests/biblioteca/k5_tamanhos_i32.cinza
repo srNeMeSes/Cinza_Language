@@ -1,4 +1,4 @@
-// Seção K: tamanhos, posições e contagens são i32.
+// Seção K: tamanhos, posições e contagens são i32 (Q1b: uma busca, que pode não achar, i32?).
 import Strings;
 import Lists;
 fn main() {
@@ -14,8 +14,8 @@ fn main() {
   try { throw ValueError("x"); } except (ValueError e) { print(type(e.line), e.line); }
 }
 // expect: i32 i32 i32 4
-// expect: i32 i32 i32
+// expect: i32? i32? i32
 // expect: i32 i32 231
-// expect: i32 i32 i32
+// expect: i32? i32? i32
 // expect: 3 6
 // expect: i32 14

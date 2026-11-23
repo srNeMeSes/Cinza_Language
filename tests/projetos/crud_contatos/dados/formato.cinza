@@ -15,7 +15,7 @@ pub fn de_linha(string linha, i32 numero) -> m.Contato {
   if (partes.size() != 4) {
     throw LinhaInvalida(format("linha {numero}: esperados 4 campos, mas há {partes.size()}"));
   }
-  i32 id = cv.to_i32_or(partes[0], 0);
+  i32 id = cv.to_i32(partes[0]) else 0;
   if (id < 1) {
     throw LinhaInvalida(format("linha {numero}: id inválido '{partes[0]}'"));
   }

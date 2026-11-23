@@ -1,0 +1,5 @@
+// Q1b: um T? não é usado como T, e null só cabe num T?
+fn main() {
+  dict<string?, i32> d;
+}
+// expect-error: Chave de dict deve ser i32, i64, string, bool ou enum, mas recebeu 'string?'

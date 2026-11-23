@@ -1,7 +1,7 @@
 // Json (Q3): um erro não pego dentro do módulo mostra o trace com o arquivo da biblioteca.
 import Json;
 fn le(string t) -> i64 {
-  return Json.parse(t).get("n").as_i64();
+  return (Json.parse(t).get("n") else Json.null_value()).as_i64();
 }
 fn main() {
   print(le("{\"n\": 3}"));

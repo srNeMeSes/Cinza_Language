@@ -63,7 +63,7 @@ fn executa(list<string> args) {
       bool ok = false;
       while (!ok) {
         string s = st.trim(input(nome + ": "));
-        if (cv.is_f64(st.replace(s, ",", "."))) {
+        if (cv.to_f64(st.replace(s, ",", ".")) != null) {
           x.add(cast<f64>(st.replace(s, ",", ".")));
           ok = true;
         } else {
@@ -79,7 +79,7 @@ fn executa(list<string> args) {
 
 fn numero(string s, string nome) -> f64 {
   string t = st.replace(s, ",", ".");
-  if (!cv.is_f64(t)) {
+  if (cv.to_f64(t) == null) {
     printf("erro: '{s}' não é um número (para {nome})");
     exit(2);
   }

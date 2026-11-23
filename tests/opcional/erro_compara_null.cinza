@@ -1,0 +1,6 @@
+// Q1b: um T? não é usado como T, e null só cabe num T?
+fn main() {
+  i32 n = 1;
+  print(n == null);
+}
+// expect-error: Comparação '==' de 'i32' com null: um 'i32' nunca é null

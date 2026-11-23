@@ -284,8 +284,10 @@ campos, um parâmetro de tipo vale onde se escreve um tipo: `T valor;`, `list<T>
 `dict<string, T>`, `pair<T, U>`, outro struct genérico (`Caixa[T]`).
 
 Um campo do tipo `T` não pode ter valor inicial, porque não há valor que sirva a todo `T`: ele é
-**obrigatório** e quem cria o struct o informa (seção 4.7). Os demais campos seguem a seção 4.7
-normalmente.
+**obrigatório** e quem cria o struct o informa (seção 4.7). Um campo `T?` nasce `null` e não é
+obrigatório (seção 3.10). Os demais campos seguem a seção 4.7 normalmente. Como não há `T??`, um
+`T?` numa genérica com `T` já opcional (`Caixa[i32?]` com um campo `T?`) é erro na cópia, com o
+rastro (seção 8.4).
 
 **No uso, os tipos são sempre escritos**, sem inferência: `Par[string, i32] p`,
 `new Par[string, i32](...)`, `list<Par[string, i32]>`, `fn f(Caixa[i32] c)`. `Par` sozinho, sem os

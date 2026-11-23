@@ -1,0 +1,6 @@
+// Q1b: as regras do bloco do else e do yield
+fn main() {
+  string? s;
+  string t = s else { yield null; };
+}
+// expect-error: 'yield null' não resolve a ausência

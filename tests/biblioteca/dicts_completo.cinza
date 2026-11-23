@@ -1,4 +1,4 @@
-// Dicts (Q3): as funções de dict — ler (get_or, contains_value, keys_of, is_empty, items),
+// Dicts (Q3): as funções de dict — ler (get, que dá V? — Q1b —, contains_value, keys_of, is_empty, items),
 // alterar no lugar (update, pop, clear) e criar (merge, copy, from_lists, from_pairs, invert).
 // O dict é ordenado pela chave; structs dentro são valores; objetos continuam compartilhados.
 import Dicts;
@@ -17,7 +17,7 @@ class Caixa {
 
 fn main() {
   dict<string, i32> d = {{"b", 2}, {"a", 1}, {"c", 2}};
-  print(Dicts.get_or(d, "a", 0), Dicts.get_or(d, "z", -1), Dicts.contains_value(d, 2), Dicts.contains_value(d, 9));
+  print(Dicts.get(d, "a") else 0, Dicts.get(d, "z"), Dicts.get(d, "z") else -1, Dicts.contains_value(d, 2), Dicts.contains_value(d, 9));
   print(Dicts.keys_of(d, 2), Dicts.keys_of(d, 7), Dicts.items(d), Dicts.is_empty(d));
   for (pair<string, i32> p in Dicts.items(d)) { print(p.first + "=" + cast<string>(p.second)); }
 
@@ -45,9 +45,9 @@ fn main() {
   dict<i32, Caixa> cs = {{1, cx}};
   dict<i32, Caixa> cs2 = Dicts.copy(cs);
   cx.soma();
-  print(cs2[1].valor(), Dicts.get_or(cs, 2, new Caixa()).valor());
+  print(cs2[1].valor(), (Dicts.get(cs, 2) else new Caixa()).valor());
 }
-// expect: 1 -1 true false
+// expect: 1 null -1 true false
 // expect: ["b", "c"] [] [{"a", 1}, {"b", 2}, {"c", 2}] false
 // expect: a=1
 // expect: b=2

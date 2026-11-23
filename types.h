@@ -34,7 +34,9 @@ struct TypeInfo {
                       TypeVar /* C6: só em assinaturas nativas */,
                       Type    /* valor devolvido por type() e escrito como int, list<int>, Pessoa */,
                       Enum    /* enum Cor { ... }: só nomes, sem int por trás */,
-                      Interface /* interface Forma { ... }: aceita objeto de classe que a cumpre */ };
+                      Interface /* interface Forma { ... }: aceita objeto de classe que a cumpre */,
+                      Optional  /* T? (Q1b): params {T}; admite null */,
+                      Null      /* o tipo do literal null: só cabe num T? */ };
 
     Kind                 kind;
     std::vector<TypeRef> params;   // List: {T}; Dict: {K, V}; Pair: {A, B}
@@ -52,7 +54,7 @@ struct TypeInfo {
     bool isGeneric()      const { return kind == Kind::List || kind == Kind::Dict || kind == Kind::Pair; }
 
     // Parâmetros com nome (só válidos no kind correspondente)
-    TypeRef elem()  const { return params[0]; }   // list<T>
+    TypeRef elem()  const { return params[0]; }   // list<T>; T? (o T)
     TypeRef key()   const { return params[0]; }   // dict<K, V>
     TypeRef value() const { return params[1]; }   // dict<K, V>
     TypeRef first() const { return params[0]; }   // pair<A, B>
@@ -83,6 +85,8 @@ public:
     TypeRef list(TypeRef elem)              { return intern(Kind::List, {elem}, ""); }
     TypeRef dict(TypeRef key, TypeRef val)  { return intern(Kind::Dict, {key, val}, ""); }
     TypeRef pair(TypeRef a, TypeRef b)      { return intern(Kind::Pair, {a, b}, ""); }
+    TypeRef optional(TypeRef t)             { return intern(Kind::Optional, {t}, ""); }
+    TypeRef nullType()                      { return intern(Kind::Null, {}, ""); }
     TypeRef classType(const std::string& n) { return intern(Kind::Class, {}, n); }
     TypeRef structType(const std::string& n){ return intern(Kind::Struct, {}, n); }
     // C4: tipo de erro ("Error" é a raiz; ValueError, SaldoInsuficiente...)
@@ -165,6 +169,8 @@ private:
             case Kind::Type:    return "type";
             case Kind::Enum:    return t.name;
             case Kind::Interface: return t.name;
+            case Kind::Optional: return t.params[0]->text + "?";
+            case Kind::Null:     return "null";
         }
         return "unknown";
     }

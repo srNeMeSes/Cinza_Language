@@ -2,7 +2,7 @@
   "name": "cinza-language",
   "displayName": "Cinza Language",
   "description": "A linguagem Cinza: destaque de sintaxe, os erros do compilador enquanto se digita e a formatação (o servidor de linguagem do cinza)",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "publisher": "cinza",
   "license": "MIT",
   "repository": {

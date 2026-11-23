@@ -34,7 +34,8 @@ fn main() {
   direita**. Numa chamada de método, o objeto é avaliado antes dos argumentos. Na criação de
   struct pelo nome, os valores informados vêm na ordem escrita e depois os valores iniciais dos
   campos omitidos (seção 4.7).
-- `&&`/`and` e `||`/`or` avaliam o lado direito só se necessário (curto-circuito).
+- `&&`/`and` e `||`/`or` avaliam o lado direito só se necessário (curto-circuito); a alternativa
+  de um `else` só é avaliada se o valor for `null` (seção 3.10).
 - Numa atribuição, primeiro são avaliadas as partes do alvo (base e índices, da esquerda para a
   direita), depois o valor; então o valor é gravado. Em `a op= b`, o alvo é avaliado **uma única
   vez**, e o valor atual do alvo é lido **depois** de avaliar `b`. Se o valor alterar o lugar de
@@ -140,6 +141,7 @@ Os dois lados precisam ser do mesmo tipo, ou números da mesma família (`1 == c
 | primitivos, enum, `type`              | por valor                                  |
 | `list`, `dict`, `pair`, `struct`      | estrutural (mesmos elementos/campos)       |
 | objeto de classe, interface, erro     | identidade (o mesmo objeto)                |
+| opcional (`T?`)                       | `null` só é igual a `null`; com valor, a do `T` |
 
 ### Lógicos: `&& || !` (e `and or not`)
 
@@ -181,11 +183,15 @@ fn main() {
 
 ### `if` / `else`
 
-A condição precisa ser `bool`. `else if` encadeia.
+A condição precisa ser `bool`. `else if` encadeia. Com uma declaração, `if (T nome = opcional)`,
+o primeiro bloco roda quando o opcional tem valor, com ele em `nome`; senão, o `else` (seção
+3.10).
 
 ### `while`
 
-Repete o bloco enquanto a condição (`bool`) for verdadeira.
+Repete o bloco enquanto a condição (`bool`) for verdadeira. Com uma declaração,
+`while (T nome = opcional)`, a cada volta o opcional é avaliado de novo, e o laço termina no
+primeiro `null` (seção 3.10).
 
 ### `for`
 

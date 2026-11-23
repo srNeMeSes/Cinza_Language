@@ -1,0 +1,6 @@
+// Q1b: um T? não é usado como T, e null só cabe num T?
+fn main() {
+  string? s = "a";
+  string t = s;
+}
+// expect-error: declarado 'string', mas atribuído 'string?'. O valor é opcional ('string?'): resolva a ausência antes, com else

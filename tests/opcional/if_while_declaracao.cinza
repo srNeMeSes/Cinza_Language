@@ -1,0 +1,78 @@
+// Q1b: if (T nome = opcional) e while (T nome = opcional) — o bloco roda com o valor (o T de
+// dentro, também com var e interface), e a variável só existe nele; else if encadeia
+interface Forma { fn area() -> f64; }
+class Quadrado : Forma {
+  f64 lado = 3.ff;
+  pub { fn area() -> f64 { return lado * lado; } }
+}
+
+class Fila {
+  list<string> itens;
+  i32 pos = 0;
+  pub {
+    fn poe(string s) { itens.add(s + ""); }
+    fn proximo() -> string? {
+      if (pos >= itens.size()) { return null; }
+      pos += 1;
+      return itens[pos - 1];
+    }
+  }
+}
+
+class No {
+  i32 valor = 0;
+  No? prox;
+  pub {
+    No(i32 v) { valor = v; }
+    fn liga(No n) { prox = n; }
+    fn soma() -> i32 {
+      if (No p = prox) { return valor + p.soma(); }
+      return valor;
+    }
+  }
+}
+
+fn acha(list<i32> l, i32 x) -> i32? {
+  for (i32 v in l) { if (v == x) { return v * 10; } }
+  return null;
+}
+
+fn main() {
+  if (i32 n = acha([1, 2, 3], 2)) {
+    print("achou", n);
+  } else {
+    print("não achou");
+  }
+  if (var n = acha([1], 9)) { print("não devia", n); } else if (i32 m = acha([9], 9)) { print("outro", m); }
+  Fila f = new Fila();
+  f.poe("a"); f.poe("b"); f.poe("c");
+  while (string s = f.proximo()) {
+    if (s == "b") { continue; }
+    print("item", s);
+  }
+  Fila g = new Fila();
+  g.poe("x"); g.poe("pare"); g.poe("y");
+  while (string s = g.proximo()) {
+    if (s == "pare") { break; }
+    print("antes", s);
+  }
+  No a = new No(1);
+  No b = new No(2);
+  b.liga(new No(3));
+  a.liga(b);
+  print(a.soma());
+  Forma? q = new Quadrado();
+  if (Forma fq = q) { print(fq.area()); }
+  string? nome = "ana";
+  if (string n = nome) { nome = null; print(n, nome); }
+  if (string n = nome) { print("não devia"); } else { print("agora é null"); }
+}
+// expect: achou 20
+// expect: outro 90
+// expect: item a
+// expect: item c
+// expect: antes x
+// expect: 6
+// expect: 9
+// expect: ana null
+// expect: agora é null

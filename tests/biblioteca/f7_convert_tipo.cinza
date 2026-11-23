@@ -1,4 +1,4 @@
-// Fase 7: os to_*_or do Convert leem texto (número → número é cast).
+// Fase 7: os to_* do Convert leem texto (número → número é cast).
 import Convert;
-fn main() { print(Convert.to_i64_or(5, 0)); }
-// expect-error: Argumento 1 de 'Convert.to_i64_or': esperado 'string', mas recebeu 'i32'
+fn main() { print(Convert.to_i64(5) else 0); }
+// expect-error: Argumento 1 de 'Convert.to_i64': esperado 'string', mas recebeu 'i32'

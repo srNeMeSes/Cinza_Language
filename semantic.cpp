@@ -44,7 +44,20 @@ bool TypeChecker::widens(TypeRef to, TypeRef from) {
 // Dica para um valor que o cast<T> converteria (i32 onde se espera f64, i64
 // onde se espera i32, número onde se espera string e vice-versa): a conversão
 // é explícita — a mesma sugestão das operações entre famílias
+// Q1b: a dica quando um T? foi usado como T (método, campo, índice, for, condição)
+static std::string dicaOpcional(TypeRef t) {
+    return t->is(TK::Optional) ? ": o valor é opcional; resolva a ausência antes, com else (ex.: valor "
+                                 "else padrão) ou com if"
+                               : "";
+}
+
 static std::string dicaCast(TypeRef esperado, TypeRef recebido) {
+    // Q1b: um T? onde se espera T, ou null onde não cabe
+    if (recebido->is(TK::Optional) && !esperado->is(TK::Optional))
+        return ". O valor é opcional ('" + recebido->str() + "'): resolva a ausência antes, com else "
+               "(ex.: valor else padrão) ou com if";
+    if (recebido->is(TK::Null) && !esperado->is(TK::Optional))
+        return ". null só cabe num tipo opcional: declare '" + esperado->str() + "?'";
     auto conversivel = [](TypeRef t) { return t->isNumeric() || t->is(TK::String); };
     if (!conversivel(esperado) || !conversivel(recebido) || esperado == recebido) return "";
     return ". Converta com cast<" + esperado->str() + ">(valor)";
@@ -81,6 +94,16 @@ TypeRef TypeChecker::fromAst(const Type* type) {
         case Type::Kind::DICT:    return types.dict(param(0), param(1));
         case Type::Kind::PAIR:    return types.pair(param(0), param(1));
         case Type::Kind::CUSTOM:  return types.named(type->name);   // class ou struct (C3)
+        case Type::Kind::OPTIONAL: {   // Q1b
+            TypeRef t = param(0);
+            if (t->is(TK::Optional))   // numa cópia de genérico: T? com T = i32?
+                throw SemanticError("'" + t->str() + "?' não existe: '" + t->str() + "' já é opcional, e "
+                                    "não há opcional de opcional", type->token);
+            if (t->is(TK::Void) || t->is(TK::Var))
+                throw SemanticError("'" + t->str() + "?' não existe: só um tipo de valor pode ser "
+                                    "opcional", type->token);
+            return types.optional(t);
+        }
     }
     return types.varType();
 }
@@ -107,6 +130,17 @@ static bool sameGenericType(TypeRef declared, TypeRef value) {
 bool TypeChecker::isAssignable(TypeRef declared, TypeRef value) {
     if (declared == value) return true;
 
+    // Q1b: T? aceita null, um T (que vira T?) e outro opcional do mesmo tipo (ou de uma classe
+    // que cumpre a interface); um T? ou null nunca cabe num T
+    if (declared->is(TK::Optional)) {
+        if (value->is(TK::Null)) return true;
+        if (value->is(TK::Optional))
+            return declared->elem()->is(TK::Interface) && value->elem()->is(TK::Class) &&
+                   isAssignable(declared->elem(), value->elem());
+        return isAssignable(declared->elem(), value);
+    }
+    if (value->is(TK::Optional) || value->is(TK::Null)) return false;
+
     // interface: aceita objeto de classe que a cumpre (nunca o contrário)
     if (declared->is(TK::Interface) && value->is(TK::Class))
         return TypeContext::instance().implements(value->name, declared->name);
@@ -132,6 +166,35 @@ TypeRef TypeChecker::checkBinaryOp(TypeRef left, TokenType op, TypeRef right,
     const std::string& r = right->str();
     // C1: operador como escrito no código (and ou &&; += numa atribuição composta)
     const std::string op_text = tok.lexeme.empty() ? tokenTypeToOperatorString(op) : tok.lexeme;
+
+    // Q1b: num opcional só valem == e != (com null, com outro do mesmo tipo ou com um valor do
+    // tipo dele); o resto pede a ausência resolvida antes
+    auto ausencia = [](TypeRef t) { return t->is(TK::Optional) || t->is(TK::Null); };
+    if (ausencia(left) || ausencia(right)) {
+        if (op != TokenType::OP_EQUAL && op != TokenType::OP_NOT_EQUAL) {
+            TypeRef o = ausencia(left) ? left : right;
+            throw SemanticError("Operador '" + op_text + "' com " +
+                                (o->is(TK::Null) ? std::string("null") : "um valor opcional ('" + o->str() + "')") +
+                                ": resolva a ausência antes, com else (ex.: x else 0) ou com if", tok);
+        }
+        const std::string cmp = tokenTypeToOperatorString(op);
+        if (left->is(TK::Null) && right->is(TK::Null)) return types.boolType();
+        if (left->is(TK::Null) || right->is(TK::Null)) {
+            TypeRef outro = left->is(TK::Null) ? right : left;
+            if (outro->is(TK::Optional)) return types.boolType();
+            throw SemanticError("Comparação '" + cmp + "' de '" + outro->str() + "' com null: um '" +
+                                outro->str() + "' nunca é null (só um opcional, '" + outro->str() + "?', é)",
+                                tok);
+        }
+        TypeRef a = left->is(TK::Optional) ? left->elem() : left;
+        TypeRef b = right->is(TK::Optional) ? right->elem() : right;
+        // dois opcionais: o mesmo tipo; um opcional e um valor: o valor cabe no tipo dele
+        const bool ok = (left->is(TK::Optional) && right->is(TK::Optional))
+                            ? a == b
+                            : (left->is(TK::Optional) ? isAssignable(a, b) : isAssignable(b, a));
+        if (ok) return types.boolType();
+        throw SemanticError("Comparação '" + cmp + "' não é suportada entre '" + l + "' e '" + r + "'", tok);
+    }
 
     switch (op) {
 
@@ -207,6 +270,11 @@ TypeRef TypeChecker::checkBinaryOp(TypeRef left, TokenType op, TypeRef right,
 
 // Retorna o tipo resultante de uma operação unária, ou lança SemanticError.
 TypeRef TypeChecker::checkUnaryOp(TokenType op, TypeRef operand, const Token& tok) {
+    if (operand->is(TK::Optional) || operand->is(TK::Null))   // Q1b
+        throw SemanticError("Operador '" + tok.lexeme + "' com " +
+                            (operand->is(TK::Null) ? std::string("null")
+                                                   : "um valor opcional ('" + operand->str() + "')") +
+                            ": resolva a ausência antes, com else (ex.: x else 0) ou com if", tok);
     switch (op) {
         case TokenType::OP_MINUS:
             if (operand->isNumeric()) return operand;
@@ -830,6 +898,19 @@ static void coletaNews(const Expr* e, std::vector<const NewExpr*>& out) {
             break;
         }
         case NodeKind::Cast: coletaNews(static_cast<const CastExpr*>(e)->operand.get(), out); break;
+        case NodeKind::Else: {   // Q1b: a alternativa só roda na ausência, mas pode rodar
+            auto* el = static_cast<const ElseExpr*>(e);
+            coletaNews(el->value.get(), out);
+            coletaNews(el->alternative.get(), out);
+            if (el->block) {   // os new das instruções do bloco, em qualquer profundidade
+                std::function<void(const Stmt&)> instr = [&](const Stmt& s) {
+                    expressoesDe(s, [&](const Expr& x) { coletaNews(&x, out); });
+                    instrucoesDe(s, instr);
+                };
+                instr(*el->block);
+            }
+            break;
+        }
         default: break;
     }
 }
@@ -1074,6 +1155,7 @@ void SemanticAnalyzer::analyzeStmt(Stmt* stmt) {
         case NodeKind::Continue:        analyzeLoopControl    (stmt);                                    return;
         case NodeKind::Try:             analyzeTry            (static_cast<TryStmt*>(stmt));             return;
         case NodeKind::Throw:           analyzeThrow          (static_cast<ThrowStmt*>(stmt));           return;
+        case NodeKind::Yield:           analyzeYield          (static_cast<YieldStmt*>(stmt));           return;   // Q1b
         case NodeKind::ErrorDecl:       return;   // C4: registrado no pré-registro
         case NodeKind::EnumDecl:        return;   // registrado no pré-registro
         case NodeKind::InterfaceDecl: {           // tipos das assinaturas existem?
@@ -1111,6 +1193,25 @@ void SemanticAnalyzer::analyzeStmt(Stmt* stmt) {
 // ============================================================================
 
 // Bloco { stmt* } — empurra e desempilha seu próprio escopo
+// Q1b: yield valor; — só no bloco de um else, fora de um try dele
+void SemanticAnalyzer::analyzeYield(YieldStmt* stmt) {
+    if (blocos_else.empty())
+        throwError("'yield' só existe no bloco de um else, onde dá o valor da expressão: "
+                   "x else { ...; yield valor; }", stmt->token);
+    const BlocoElse b = blocos_else.back();
+    if (b.tries > 0)
+        throwError("'yield' não pode sair de dentro de um try: guarde o valor numa variável e use "
+                   "yield depois do try", stmt->token);
+    TypeRef vt = analyzeExpr(stmt->value.get(), b.tipo);
+    if (vt->is(TK::Null))
+        throwError("'yield null' não resolve a ausência: o bloco do else precisa dar um '" +
+                   b.tipo->str() + "'", stmt->token);
+    if (!TypeChecker::isAssignable(b.tipo, vt))
+        throwError("O yield precisa dar um '" + b.tipo->str() + "' (o tipo do valor antes do else), "
+                   "mas dá '" + vt->str() + "'" + dicaCast(b.tipo, vt), stmt->token);
+    coerceInPlace(stmt->value, b.tipo);
+}
+
 void SemanticAnalyzer::analyzeBlock(BlockStmt* block) {
     symbol_table.pushScope();
     analyzeStatements(block->statements);
@@ -1137,6 +1238,7 @@ static bool alwaysLeaves(const Stmt* s) {
     switch (s->node_kind) {
         case NodeKind::Return: case NodeKind::Throw:
         case NodeKind::Break:  case NodeKind::Continue:
+        case NodeKind::Yield:   // Q1b: sai do bloco do else
             return true;
         case NodeKind::Block:
             for (const auto& x : static_cast<const BlockStmt*>(s)->statements)
@@ -1173,7 +1275,7 @@ void SemanticAnalyzer::analyzeStatements(const std::vector<StmtPtr>& stmts) {
         analyzeStmt(stmts[i].get());
         if (alwaysLeaves(stmts[i].get()) && i + 1 < stmts.size() && stmts[i + 1])
             throwError("Código inalcançável: esta instrução nunca é executada, porque a anterior "
-                       "sempre sai do bloco (return, break, continue, throw ou exit).",
+                       "sempre sai do bloco (return, break, continue, throw, exit ou yield).",
                        stmts[i + 1]->token);
     }
 }
@@ -1288,8 +1390,12 @@ void SemanticAnalyzer::analyzeVarDecl(VarDeclStmt* stmt) {
                                         is_var ? nullptr : declared_type);
 
         if (is_var) {
-            // var infere o tipo do inicializador — apenas primitivos
-            if (!init_type->isPrimitive()) {
+            if (init_type->is(TK::Null))   // Q1b
+                throwError("'var' não infere o tipo de null: declare o tipo opcional, ex.: string? " +
+                           stmt->name + " = null;", stmt->token);
+            // var infere o tipo do inicializador — apenas primitivos (Q1b: e o opcional deles)
+            if (!init_type->isPrimitive() &&
+                !(init_type->is(TK::Optional) && init_type->elem()->isPrimitive())) {
                 throwError(
                     "Inferência 'var' só é permitida para tipos primitivos "
                     "(números, string, bool), mas recebeu '" + init_type->str() + "'. "
@@ -1313,7 +1419,8 @@ void SemanticAnalyzer::analyzeVarDecl(VarDeclStmt* stmt) {
         // porque o parser rejeita declarações sem '=' para qualquer outro tipo.
         // Blindagem defensiva: se um tipo não-coleção chegar até aqui, há
         // inconsistência na pipeline (parser permitiu o que não deveria).
-        if (!declared_type->is(TK::List) && !declared_type->is(TK::Dict)) {
+        if (!declared_type->is(TK::List) && !declared_type->is(TK::Dict) &&
+            !declared_type->is(TK::Optional)) {   // Q1b: T? nasce null
             throwError(
                 "Erro interno: variável '" + stmt->name + "' de tipo '" + declared_type->str() +
                 "' chegou ao semântico sem inicializador. "
@@ -1553,11 +1660,56 @@ static bool isNegativeIntLiteral(const Expr* index) {
 
 // If-else:  if (cond) then [else else_branch]
 //   - Condição deve ser bool
+void SemanticAnalyzer::declaraDaCondicao(const char* onde, Expr* cond, Type* tipo, const std::string& nome,
+                                         const Token& tok, std::uint32_t& slot, TypeRef& resolvido) {
+    TypeRef ct = analyzeExpr(cond);
+    if (ct->is(TK::Null))
+        throwError(std::string("O valor de '") + onde + " (" + nome + " = ...)' é null: o bloco nunca rodaria",
+                   cond->token);
+    if (!ct->is(TK::Optional))
+        throwError(std::string("O valor de '") + onde + " (" + nome + " = ...)' precisa ser opcional (T?), mas é '" +
+                   ct->str() + "': ele sempre existe; declare a variável antes do " + onde, cond->token);
+    TypeRef inner = ct->elem();
+    TypeRef declarado = tipo->kind == Type::Kind::VAR ? inner : typeOf(tipo);
+    if (tipo->kind == Type::Kind::CUSTOM && !isKnownType(tipo->name))
+        throwError("Tipo desconhecido '" + tipo->name + "'", tok);
+    if (declarado->is(TK::Optional))
+        throwError("'" + nome + "' recebe o valor já resolvido: declare '" + declarado->elem()->str() +
+                   "', sem '?'", tok);
+    // o tipo exato de dentro (ou a interface que a classe cumpre): sem conversão no caminho
+    const bool cabe = declarado == inner || (declarado->is(TK::Interface) && inner->is(TK::Class) &&
+                                             TypeChecker::isAssignable(declarado, inner));
+    if (!cabe)
+        throwError("'" + nome + "' é '" + declarado->str() + "', mas o valor é '" + ct->str() + "': declare '" +
+                   inner->str() + "' (o tipo de dentro do opcional)", tok);
+    checkNotAlias(nome, tok);   // C5
+    Symbol sym;
+    sym.name          = nome;
+    sym.kind          = Symbol::Kind::VAR;
+    sym.line          = tok.line;
+    sym.column        = tok.column;
+    sym.module        = current_module;
+    sym.resolved_type = declarado;
+    sym.res           = newLocal();
+    slot              = sym.res.slot;
+    resolvido         = declarado;
+    symbol_table.declare(sym, tok);
+}
+
 void SemanticAnalyzer::analyzeIf(IfStmt* stmt) {
+    if (stmt->decl_type) {   // Q1b: if (T nome = opcional): nome só existe no primeiro bloco
+        symbol_table.pushScope();
+        declaraDaCondicao("if", stmt->condition.get(), stmt->decl_type.get(), stmt->decl_name, stmt->decl_token,
+                          stmt->decl_slot, stmt->decl_resolved);
+        analyzeStmt(stmt->then_branch.get());
+        symbol_table.popScope();
+        if (stmt->else_branch) analyzeStmt(stmt->else_branch.get());
+        return;
+    }
     TypeRef cond_type = analyzeExpr(stmt->condition.get());
     if (!cond_type->is(TK::Bool)) {
         throwError(
-            "Condição do 'if' deve ser 'bool', mas recebeu '" + cond_type->str() + "'",
+            "Condição do 'if' deve ser 'bool', mas recebeu '" + cond_type->str() + "'" + dicaOpcional(cond_type),
             stmt->token);
     }
     analyzeStmt(stmt->then_branch.get());
@@ -1567,10 +1719,20 @@ void SemanticAnalyzer::analyzeIf(IfStmt* stmt) {
 // While:  while (cond) body
 //   - Condição deve ser bool
 void SemanticAnalyzer::analyzeWhile(WhileStmt* stmt) {
+    if (stmt->decl_type) {   // Q1b: while (T nome = opcional): a cada volta, enquanto não é null
+        symbol_table.pushScope();
+        declaraDaCondicao("while", stmt->condition.get(), stmt->decl_type.get(), stmt->decl_name,
+                          stmt->decl_token, stmt->decl_slot, stmt->decl_resolved);
+        ++loop_depth;
+        analyzeStmt(stmt->body.get());
+        --loop_depth;
+        symbol_table.popScope();
+        return;
+    }
     TypeRef cond_type = analyzeExpr(stmt->condition.get());
     if (!cond_type->is(TK::Bool)) {
         throwError(
-            "Condição do 'while' deve ser 'bool', mas recebeu '" + cond_type->str() + "'",
+            "Condição do 'while' deve ser 'bool', mas recebeu '" + cond_type->str() + "'" + dicaOpcional(cond_type),
             stmt->token);
     }
     ++loop_depth;
@@ -1607,7 +1769,7 @@ void SemanticAnalyzer::analyzeFor(ForStmt* stmt) {
     else {
         throwError(
             "'for' requer 'list<T>', 'dict<K,V>' ou 'string' como iterável, mas recebeu '" +
-            iter_type->str() + "'",
+            iter_type->str() + "'" + dicaOpcional(iter_type),
             stmt->token);
     }
 
@@ -1691,6 +1853,12 @@ void SemanticAnalyzer::analyzeReturn(ReturnStmt* stmt) {
 
 // C4: try { } except (Tipo e) { } ... finally { }
 void SemanticAnalyzer::analyzeTry(TryStmt* stmt) {
+    // Q1b: dentro do bloco de um else, um yield não sai deste try
+    struct ContaTry {
+        std::vector<BlocoElse>& b;
+        explicit ContaTry(std::vector<BlocoElse>& x) : b(x) { if (!b.empty()) ++b.back().tries; }
+        ~ContaTry() { if (!b.empty()) --b.back().tries; }
+    } conta_try{blocos_else};
     analyzeStmt(stmt->body.get());
 
     std::set<std::string> tratados;
@@ -1942,7 +2110,8 @@ void SemanticAnalyzer::analyzeClassDecl(ClassDecl* stmt) {
         } else {
             // Blindagem defensiva: campo não-coleção sem inicializador indica
             // inconsistência na pipeline — o parser deveria ter rejeitado.
-            if (!fsym.resolved_type->is(TK::List) && !fsym.resolved_type->is(TK::Dict)) {
+            if (!fsym.resolved_type->is(TK::List) && !fsym.resolved_type->is(TK::Dict) &&
+                !fsym.resolved_type->is(TK::Optional)) {   // Q1b: T? nasce null
                 throwError(
                     "Erro interno: campo '" + field.name + "' de tipo '" +
                     fsym.resolved_type->str() + "' chegou ao semântico sem inicializador. "
@@ -2034,6 +2203,9 @@ void SemanticAnalyzer::analyzeClassDecl(ClassDecl* stmt) {
 // ============================================================================
 TypeRef SemanticAnalyzer::analyzeExpr(Expr* expr, TypeRef expected) {
     if (!expr) return types.voidType();
+    // Q1b: onde se espera um T?, um literal se adapta ao T (i64? x = 5; f64? y = 2.ff)
+    if (expected && expected->is(TK::Optional) && expr->node_kind != NodeKind::Else)
+        expected = expected->elem();
 
     // B3: switch no NodeKind em vez de cadeia de dynamic_cast
     switch (expr->node_kind) {
@@ -2050,6 +2222,8 @@ TypeRef SemanticAnalyzer::analyzeExpr(Expr* expr, TypeRef expected) {
         case NodeKind::ListLiteral:  return analyzeListLiteral (static_cast<ListLiteralExpr*>(expr), expected);
         case NodeKind::DictLiteral:  return analyzeDictLiteral (static_cast<DictLiteralExpr*>(expr), expected);
         case NodeKind::PairLiteral:  return analyzePairLiteral (static_cast<PairLiteralExpr*>(expr), expected);
+        case NodeKind::Null:         return expr->resolved_type = types.nullType();   // Q1b
+        case NodeKind::Else:         return analyzeElse        (static_cast<ElseExpr*>(expr), expected);
         case NodeKind::TypeLiteral: {   // tipo escrito como valor: type(x) == i64
             auto* e  = static_cast<TypeLiteralExpr*>(expr);
             e->value = typeOf(e->type.get());
@@ -2156,6 +2330,11 @@ TypeRef SemanticAnalyzer::analyzeBinary(BinaryExpr* expr) {
         left_type = intLiteralAsFloat(expr->left.get(), right_type);
 
     expr->resolved_type = TypeChecker::checkBinaryOp(left_type, expr->op, right_type, expr->token);
+    // Q1b: opcional == valor: o valor (alargado, se for o caso) vira o opcional
+    if (left_type->is(TK::Optional) && !right_type->is(TK::Optional) && !right_type->is(TK::Null))
+        coerceInPlace(expr->right, left_type);
+    else if (right_type->is(TK::Optional) && !left_type->is(TK::Optional) && !left_type->is(TK::Null))
+        coerceInPlace(expr->left, right_type);
     if (left_type->isNumeric() && right_type->isNumeric()) {
         TypeRef comum = TypeChecker::numericResult(left_type, right_type);
         coerceInPlace(expr->left,  comum);
@@ -2355,6 +2534,7 @@ static bool unify(TypeRef param, TypeRef arg, std::map<std::string, TypeRef>& bi
         if (param->name == "any") return true;
         auto it = binds.find(param->name);
         if (it == binds.end()) {
+            if (arg->is(TK::Null)) return false;   // Q1b: null não diz o tipo
             // Fase 7: variáveis com restrição
             if (param->name == "número" && !arg->isNumeric())
                 return false;
@@ -2398,6 +2578,11 @@ static TypeRef substitute(TypeRef t, const std::map<std::string, TypeRef>& binds
     if (t->is(TK::TypeVar)) {
         auto it = binds.find(t->name);
         return it != binds.end() ? it->second : nullptr;
+    }
+    if (t->is(TK::Optional)) {   // Q1b: V? de uma nativa (Dicts.get)
+        TypeRef sp = substitute(t->elem(), binds);
+        if (!sp) return nullptr;
+        return sp->is(TK::Optional) ? sp : types.optional(sp);   // dict<K, V?>: o V já é opcional
     }
     if (!t->isGeneric()) return t;
     std::vector<TypeRef> ps;
@@ -2651,7 +2836,8 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
     // ── Método de classe definida pelo usuário ────────────────────────────
     auto it = obj_type->is(TK::Class) ? class_table.find(obj_type->name) : class_table.end();
     if (it == class_table.end()) {
-        throwError("Tipo '" + obj_type->str() + "' não possui métodos (não é uma classe conhecida)",
+        throwError("Tipo '" + obj_type->str() + "' não possui métodos" +
+                   (obj_type->is(TK::Optional) ? dicaOpcional(obj_type) : " (não é uma classe conhecida)"),
                    expr->token);
     }
 
@@ -2758,7 +2944,8 @@ TypeRef SemanticAnalyzer::analyzeMemberAccess(MemberAccessExpr* expr) {
     auto it = obj_type->is(TK::Class) ? class_table.find(obj_type->name) : class_table.end();
     if (it == class_table.end()) {
         throwError("Tipo '" + obj_type->str() + "' não possui campos" +
-                   (obj_type->isPrimitive() ? std::string() : " (não é uma classe conhecida)"), expr->token);
+                   (obj_type->is(TK::Optional) ? dicaOpcional(obj_type)
+                    : obj_type->isPrimitive() ? std::string() : " (não é uma classe conhecida)"), expr->token);
     }
 
     const ClassInfo& cls_info = it->second;
@@ -2827,7 +3014,7 @@ TypeRef SemanticAnalyzer::analyzeIndexAccess(IndexAccessExpr* expr) {
         return expr->resolved_type = types.stringType();
     }
 
-    throwError("Operador '[]' não é suportado no tipo '" + obj_type->str() + "'",
+    throwError("Operador '[]' não é suportado no tipo '" + obj_type->str() + "'" + dicaOpcional(obj_type),
                expr->token);
 }
 
@@ -3323,8 +3510,55 @@ TypeRef SemanticAnalyzer::analyzePairLiteral(PairLiteralExpr* expr, TypeRef expe
 // só o tipo (o valor é exato); o resto ganha um nó CastExpr.
 // ============================================================================
 
+// Q1b: valor else alternativa. O valor precisa ser opcional (T?); a alternativa é um T (o
+// resultado é T) ou outro T? (o resultado continua T?: a else b else c)
+TypeRef SemanticAnalyzer::analyzeElse(ElseExpr* expr, TypeRef expected) {
+    TypeRef vt = analyzeExpr(expr->value.get(), expected ? types.optional(expected->is(TK::Optional)
+                                                                              ? expected->elem()
+                                                                              : expected)
+                                                         : nullptr);
+    if (vt->is(TK::Null))
+        throwError("O valor antes de 'else' é null: não há o que resolver; escreva só a "
+                   "alternativa", expr->token);
+    if (!vt->is(TK::Optional))
+        throwError("O valor antes de 'else' não é opcional ('" + vt->str() + "'): ele sempre existe, "
+                   "e não há ausência a resolver", expr->token);
+    TypeRef inner = vt->elem();
+    if (expr->block) {   // valor else { ...; yield v; }: o bloco dá um T, ou sai
+        blocos_else.push_back({inner});
+        analyzeBlock(static_cast<BlockStmt*>(expr->block.get()));
+        blocos_else.pop_back();
+        if (!alwaysLeaves(expr->block.get()))
+            throwError("O bloco do 'else' precisa terminar em todos os caminhos: com yield valor (o "
+                       "valor da expressão) ou saindo (return, throw, break, continue)", expr->token);
+        return expr->resolved_type = inner;
+    }
+    TypeRef at = analyzeExpr(expr->alternative.get(), inner);
+    if (at->is(TK::Null))
+        throwError("'else null' não resolve a ausência: o resultado continuaria podendo ser null",
+                   expr->alternative->token);
+    TypeRef resultado = at->is(TK::Optional) ? vt : inner;
+    if (!TypeChecker::isAssignable(resultado, at))
+        throwError("A alternativa do 'else' precisa ser '" + inner->str() + "' (o tipo de '" +
+                   vt->str() + "'), mas é '" + at->str() + "'" + dicaCast(inner, at),
+                   expr->alternative->token);
+    coerceInPlace(expr->alternative, resultado);
+    return expr->resolved_type = resultado;
+}
+
 void SemanticAnalyzer::coerceInPlace(ExprPtr& slot, TypeRef target) {
     if (!slot || !target || slot->resolved_type == target) return;
+
+    // Q1b: um T onde se espera T?: alargado ao T de dentro e embrulhado (um cast implícito, que a
+    // CVM não precisa e o cinzac embrulha no CzValor); null e outro opcional ficam como estão
+    if (target->is(TK::Optional)) {
+        if (!slot->resolved_type || slot->resolved_type->is(TK::Null) ||
+            slot->resolved_type->is(TK::Optional))
+            return;
+        coerceInPlace(slot, target->elem());
+        slot = std::make_unique<CastExpr>(std::move(slot), target);
+        return;
+    }
 
     if (slot->resolved_type && TypeChecker::widens(target, slot->resolved_type)) {
         if (slot->node_kind == NodeKind::Literal) slot->resolved_type = target;
@@ -3374,6 +3608,13 @@ void SemanticAnalyzer::coerceInPlace(ExprPtr& slot, TypeRef target) {
 // Revisão: há um break que sai deste laço? (os de laços internos não contam)
 static bool hasBreak(const Stmt* s) {
     if (!s) return false;
+    // Q1b: um break no bloco de um else das expressões desta instrução (também na condição de um
+    // while ou no iterável de um for: elas rodam fora do laço deles, e o break é do laço de fora)
+    bool no_else = false;
+    expressoesDe(*s, [&](const Expr& e) {
+        blocosDeElse(e, [&](const BlockStmt& b) { no_else = no_else || hasBreak(&b); });
+    });
+    if (no_else) return true;
     switch (s->node_kind) {
         case NodeKind::Break: return true;
         case NodeKind::While: case NodeKind::For: return false;   // break de outro laço
@@ -3530,6 +3771,10 @@ void tokensDoTipo(TypeRef t, const Token& pos, bool marca_principal, std::vector
         case TK::List:   params(TokenType::TYPE_LIST, "list"); return;
         case TK::Dict:   params(TokenType::TYPE_DICT, "dict"); return;
         case TK::Pair:   params(TokenType::TYPE_PAIR, "pair"); return;
+        case TK::Optional:   // Q1b: T? — com T já opcional, a cópia fica 'T??' e é recusada
+            tokensDoTipo(t->elem(), pos, marca_principal, out);
+            tk(TokenType::QUESTION, "?");
+            return;
         default: {   // class, struct, enum, interface, erro
             const bool completo = t->name.find("::") != std::string::npos;
             tk(TokenType::IDENTIFIER, !completo && marca_principal ? "::" + t->name : t->name);
@@ -3645,7 +3890,12 @@ TypeRef SemanticAnalyzer::analyzeGenericCall(CallExpr* expr, const Symbol& sym) 
         };
         std::function<void(const Type*, TypeRef, bool)> deduz =
             [&](const Type* p, TypeRef a, bool dentro) {
-                if (!p || !a || a->is(TK::Var)) return;
+                if (!p || !a || a->is(TK::Var) || a->is(TK::Null)) return;   // Q1b: null não diz o tipo
+                if (p->kind == Type::Kind::OPTIONAL) {   // T? x: o T sai de um T? ou de um T
+                    deduz(p->type_params.empty() ? nullptr : p->type_params[0].get(),
+                          a->is(TK::Optional) ? a->elem() : a, dentro);
+                    return;
+                }
                 if (p->kind == Type::Kind::CUSTOM) {
                     if (int k = indiceParametro(g.type_params, p->name); k >= 0) {
                         liga(k, a, dentro);

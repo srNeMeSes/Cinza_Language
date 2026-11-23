@@ -156,17 +156,13 @@ Value strSubstr(Args a) {
     return Value(codifica(s.substr(static_cast<size_t>(ini), static_cast<size_t>(len))));
 }
 
-// As buscas que não acham lançam ValueError (não há -1: seria um null com outro nome); quem não
-// sabe se acha pergunta antes com contains (Q1b, 2026-11-23)
-[[noreturn]] void naoAparece(const char* fn, const std::string& trecho, const std::string& onde) {
-    falha(std::string("ValueError: '") + fn + "': \"" + trecho + "\" não aparece " + onde);
-}
+// Q1b: as buscas devolvem um i32? — null quando não acham (não há -1, um null com outro nome)
 
-// find(s, trecho): índice (em caracteres) da primeira ocorrência
+// find(s, trecho): índice (em caracteres) da primeira ocorrência, ou null
 Value strFind(Args a) {
     const std::string& s = a[0].asString();
     const size_t pos = s.find(a[1].asString());
-    if (pos == std::string::npos) naoAparece("find", a[1].asString(), "no texto");
+    if (pos == std::string::npos) return Value::nulo();
     return i32Valor(utf8::indiceDoByte(s, pos));
 }
 
@@ -185,7 +181,7 @@ Value strEndsWith(Args a) {
 Value strFindLast(Args a) {
     const std::string& s = a[0].asString();
     const size_t pos = s.rfind(a[1].asString());
-    if (pos == std::string::npos) naoAparece("find_last", a[1].asString(), "no texto");
+    if (pos == std::string::npos) return Value::nulo();
     return i32Valor(utf8::indiceDoByte(s, pos));
 }
 
@@ -198,8 +194,7 @@ Value strFindFrom(Args a) {
         falha("IndexError: início " + std::to_string(ini) + " fora dos limites de uma string de tamanho " +
               std::to_string(n));
     const size_t pos = s.find(a[1].asString(), utf8::byteDoCaractere(s, ini));
-    if (pos == std::string::npos)
-        naoAparece("find_from", a[1].asString(), "no texto a partir do índice " + std::to_string(ini));
+    if (pos == std::string::npos) return Value::nulo();
     return i32Valor(utf8::indiceDoByte(s, pos));
 }
 
@@ -1111,10 +1106,9 @@ bool converte(const Value& s, TypeRef t, Value& out) {
         return false;
     }
 }
+// Q1b: o texto convertido como no cast<T>, ou null se ele não for um T válido (formato e faixa)
 template <TypeRef (TypeContext::*TIPO)()>
-Value convIs(Args a) { Value v; return Value(converte(a[0], (TypeContext::instance().*TIPO)(), v)); }
-template <TypeRef (TypeContext::*TIPO)()>
-Value convToOr(Args a) { Value v; return converte(a[0], (TypeContext::instance().*TIPO)(), v) ? v : a[1]; }
+Value convTo(Args a) { Value v; return converte(a[0], (TypeContext::instance().*TIPO)(), v) ? v : Value::nulo(); }
 
 bool lerBool(const std::string& s, bool& v) {
     if (s == "true")  { v = true;  return true; }
@@ -1122,14 +1116,8 @@ bool lerBool(const std::string& s, bool& v) {
     return false;
 }
 
-Value convToBool(Args a) {
-    const std::string& s = a[0].asString();
-    bool v = false;
-    if (!lerBool(s, v)) falha("ValueError: '" + s + "' não é um bool válido (use \"true\" ou \"false\")");
-    return Value(v);
-}
-Value convIsBool(Args a)   { bool v; return Value(lerBool(a[0].asString(), v)); }
-Value convToBoolOr(Args a) { bool v; return lerBool(a[0].asString(), v) ? Value(v) : a[1]; }
+// Q1b: só "true" ou "false"; outro texto dá null
+Value convToBool(Args a) { bool v = false; return lerBool(a[0].asString(), v) ? Value(v) : Value::nulo(); }
 
 std::int64_t confereBase(std::int64_t base, const char* fn) {
     if (base < 2 || base > 36)
@@ -1212,7 +1200,7 @@ Value listContains(Args a) {
 Value listIndexOf(Args a) {
     const auto& elems = a[0].asList()->elements;
     auto it = std::find(elems.begin(), elems.end(), a[1]);
-    if (it == elems.end()) falha("ValueError: 'index_of': " + a[1].toString() + " não está na lista");
+    if (it == elems.end()) return Value::nulo();
     return i32Valor(static_cast<std::int64_t>(it - elems.begin()));
 }
 
@@ -1345,7 +1333,7 @@ Value listLastIndexOf(Args a) {
     const auto& elems = a[0].asList()->elements;
     for (size_t i = elems.size(); i > 0; --i)
         if (elems[i - 1] == a[1]) return i32Valor(static_cast<std::int64_t>(i - 1));
-    falha("ValueError: 'last_index_of': " + a[1].toString() + " não está na lista");
+    return Value::nulo();
 }
 
 Value listFirst(Args a) {
@@ -1729,10 +1717,11 @@ Value filesModified(Args a) {
 
 std::map<Value, Value>& entradas(const Value& d) { return d.asDict()->entries; }
 
-Value dictGetOr(Args a) {
+// Q1b: o valor da chave, ou null se ela não existir (Dicts.get(d, k) else padrão)
+Value dictGet(Args a) {
     const auto& e = entradas(a[0]);
     auto it = e.find(a[1]);
-    return it == e.end() ? a[2] : it->second;
+    return it == e.end() ? Value::nulo() : it->second;
 }
 
 Value dictContainsValue(Args a) {
@@ -1838,23 +1827,12 @@ std::string nomeDeAmbiente(const Value& v, const char* fn) {
     return n;
 }
 
+// Q1b: o valor da variável, ou null se ela não existir (Env.get("X") else "padrão")
 Value envGet(Args a) {
     const std::string n = nomeDeAmbiente(a[0], "get");
     std::string v;
-    if (!ambienteUtf8(n.c_str(), v)) falha("KeyError: 'get': a variável de ambiente '" + n + "' não existe");
+    if (!ambienteUtf8(n.c_str(), v)) return Value::nulo();
     return Value(v);
-}
-
-Value envGetOr(Args a) {
-    const std::string n = nomeDeAmbiente(a[0], "get_or");
-    std::string v;
-    return ambienteUtf8(n.c_str(), v) ? Value(v) : a[1];
-}
-
-Value envHas(Args a) {
-    const std::string n = nomeDeAmbiente(a[0], "has");
-    std::string v;
-    return Value(ambienteUtf8(n.c_str(), v));
 }
 
 Value envAll(Args) {
@@ -1955,8 +1933,7 @@ Value rxContains(Args a) {
 
 Value rxFind(Args a) {
     std::vector<int> caps;
-    if (!padrao(a[1], "find").procura(decodifica(a[0].asString()), 0, caps))
-        falha("ValueError: 'find': o padrão \"" + a[1].asString() + "\" não casa com o texto");
+    if (!padrao(a[1], "find").procura(decodifica(a[0].asString()), 0, caps)) return Value::nulo();
     return i32Valor(caps[0]);
 }
 
@@ -1971,10 +1948,13 @@ Value rxCount(Args a) {
     return i32Valor(static_cast<std::int64_t>(ocorrencias(padrao(a[1], "count"), decodifica(a[0].asString())).size()));
 }
 
-// A ocorrência e os grupos (o que não participou é "")
+// A ocorrência e os grupos — Q1b: o que não participou é null (o que casou o vazio, "")
+Value grupo(const std::u32string& s, int ini, int fim) {
+    return ini < 0 ? Value::nulo() : Value(trecho(s, ini, fim));
+}
 Value gruposDe(const std::u32string& s, const std::vector<int>& c) {
     std::vector<Value> g;
-    for (std::size_t i = 0; i + 1 < c.size(); i += 2) g.push_back(Value(trecho(s, c[i], c[i + 1])));
+    for (std::size_t i = 0; i + 1 < c.size(); i += 2) g.push_back(grupo(s, c[i], c[i + 1]));
     return makeList(std::move(g));
 }
 
@@ -2000,7 +1980,7 @@ Value rxNamed(Args a) {
     if (!re.procura(s, 0, caps)) return r;
     for (std::size_t g = 0; g < re.grupos(); ++g)
         if (!re.nomes()[g].empty())
-            r.asDict()->entries[Value(re.nomes()[g])] = Value(trecho(s, caps[2 * (g + 1)], caps[2 * (g + 1) + 1]));
+            r.asDict()->entries[Value(re.nomes()[g])] = grupo(s, caps[2 * (g + 1)], caps[2 * (g + 1) + 1]);
     return r;
 }
 
@@ -2126,11 +2106,11 @@ std::vector<NativeModule> criaModulos() {
         {"contains",    {S, S},    B,           strContains},
         {"replace",     {S, S, S}, S,           strReplace},
         {"substr",      {S, I, I}, S,           strSubstr},
-        {"find",        {S, S},    I32,         strFind},
+        {"find",        {S, S},    t.optional(I32), strFind},
         {"starts_with", {S, S},    B,           strStartsWith},
         {"ends_with",   {S, S},    B,           strEndsWith},
-        {"find_last",   {S, S},    I32,         strFindLast},
-        {"find_from",   {S, S, I}, I32,         strFindFrom},
+        {"find_last",   {S, S},    t.optional(I32), strFindLast},
+        {"find_from",   {S, S, I}, t.optional(I32), strFindFrom},
         {"positions",   {S, S},    t.list(I32), strPositions},
         {"count",       {S, S},    I32,         strCount},
         {"char_at",     {S, I},    S,           strCharAt},
@@ -2255,17 +2235,11 @@ std::vector<NativeModule> criaModulos() {
     }, {}});
 
     m.push_back({"Convert", {
-        {"to_bool",    {S},   B, convToBool},
-        {"is_i32",     {S},   B, convIs<&TypeContext::i32Type>},
-        {"is_i64",     {S},   B, convIs<&TypeContext::i64Type>},
-        {"is_f32",     {S},   B, convIs<&TypeContext::f32Type>},
-        {"is_f64",     {S},   B, convIs<&TypeContext::f64Type>},
-        {"is_bool",    {S},   B, convIsBool},
-        {"to_i32_or",  {S, I32}, I32, convToOr<&TypeContext::i32Type>},
-        {"to_i64_or",  {S, I},   I,   convToOr<&TypeContext::i64Type>},
-        {"to_f32_or",  {S, F32}, F32, convToOr<&TypeContext::f32Type>},
-        {"to_f64_or",  {S, D},   D,   convToOr<&TypeContext::f64Type>},
-        {"to_bool_or", {S, B},   B,   convToBoolOr},
+        {"to_i32",     {S},   t.optional(I32), convTo<&TypeContext::i32Type>},   // Q1b
+        {"to_i64",     {S},   t.optional(I),   convTo<&TypeContext::i64Type>},
+        {"to_f32",     {S},   t.optional(F32), convTo<&TypeContext::f32Type>},
+        {"to_f64",     {S},   t.optional(D),   convTo<&TypeContext::f64Type>},
+        {"to_bool",    {S},   t.optional(B),   convToBool},
         {"to_base",       {I, I}, S, convToBase},
         {"from_base",     {S, I}, I, convFromBase},
         {"to_hex",        {I},    S, convToHex},
@@ -2277,7 +2251,7 @@ std::vector<NativeModule> criaModulos() {
         {"sort",     {t.list(C)},       V,         listSort,    0, false, true},
         {"reverse",  {t.list(T)},       V,         listReverse, 0, false, true},
         {"contains", {t.list(T), T},    B,         listContains},
-        {"index_of", {t.list(T), T},    I32,       listIndexOf},
+        {"index_of", {t.list(T), T},    t.optional(I32), listIndexOf},
         {"slice",    {t.list(T), I, I}, t.list(T), listSlice},
         {"sum",      {t.list(N)},       N,         listSum},
         {"sort_desc",     {t.list(C)},             V,         listSortDesc,    0, false, 1},
@@ -2289,7 +2263,7 @@ std::vector<NativeModule> criaModulos() {
         {"average",       {t.list(N)},             D,         listAverage},
         {"product",       {t.list(N)},             N,         listProduct},
         {"count",         {t.list(T), T},          I32,       listCount},
-        {"last_index_of", {t.list(T), T},          I32,       listLastIndexOf},
+        {"last_index_of", {t.list(T), T},          t.optional(I32), listLastIndexOf},
         {"first",         {t.list(T)},             T,         listFirst},
         {"last",          {t.list(T)},             T,         listLast},
         {"is_empty",      {t.list(T)},             B,         listIsEmpty},
@@ -2309,7 +2283,7 @@ std::vector<NativeModule> criaModulos() {
         const TypeRef K = t.typeVar("K"), W = t.typeVar("V");
         const TypeRef DKW = t.dict(K, W);
         m.push_back({"Dicts", {
-            {"get_or",         {DKW, K, W},              W,                  dictGetOr},
+            {"get",            {DKW, K},                 t.optional(W),      dictGet},   // Q1b
             {"contains_value", {DKW, W},                 B,                  dictContainsValue},
             {"keys_of",        {DKW, W},                 t.list(K),          dictKeysOf},
             {"is_empty",       {DKW},                    B,                  dictIsEmpty},
@@ -2326,9 +2300,7 @@ std::vector<NativeModule> criaModulos() {
     }
 
     m.push_back({"Env", {
-        {"get",    {S},    S,               envGet},
-        {"get_or", {S, S}, S,               envGetOr},
-        {"has",    {S},    B,               envHas},
+        {"get",    {S},    t.optional(S),   envGet},   // Q1b
         {"all",    {},     t.dict(S, S),    envAll},
     }, {}});
 
@@ -2340,12 +2312,12 @@ std::vector<NativeModule> criaModulos() {
     m.push_back({"Regex", {
         {"matches",       {S, S},    B,                    rxMatches},
         {"contains",      {S, S},    B,                    rxContains},
-        {"find",          {S, S},    I32,                  rxFind},
+        {"find",          {S, S},    t.optional(I32),      rxFind},
         {"find_all",      {S, S},    t.list(S),            rxFindAll},
         {"count",         {S, S},    I32,                  rxCount},
-        {"groups",        {S, S},    t.list(S),            rxGroups},
-        {"groups_all",    {S, S},    t.list(t.list(S)),    rxGroupsAll},
-        {"named",         {S, S},    t.dict(S, S),         rxNamed},
+        {"groups",        {S, S},    t.list(t.optional(S)),          rxGroups},      // Q1b
+        {"groups_all",    {S, S},    t.list(t.list(t.optional(S))),  rxGroupsAll},
+        {"named",         {S, S},    t.dict(S, t.optional(S)),       rxNamed},
         {"replace_all",   {S, S, S}, S,                    rxReplaceAll},
         {"replace_first", {S, S, S}, S,                    rxReplaceFirst},
         {"split",         {S, S},    t.list(S),            rxSplit},

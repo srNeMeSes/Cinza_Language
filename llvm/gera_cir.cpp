@@ -69,6 +69,7 @@ Tipo tipoDe(TypeRef t, const Token& tok) {
         case TK::Enum:   return Tipo::Enum;
         case TK::Type:   return Tipo::TipoV;
         case TK::Error:  return Tipo::Erro;
+        case TK::Optional: case TK::Null: return Tipo::Opc;   // Q1b
         default:         naoSuportado("o tipo '" + t->str() + "'", tok);
     }
 }
@@ -93,6 +94,10 @@ std::string simbolo(const std::string& nome) {
 // Os slots do B2 que são a base de alguma atribuição no corpo (x = v, x += v, x.c = v,
 // x[i] = v): um parâmetro fora dessa lista nunca muda, e a função não precisa ser dona dele
 void basesDeAtribuicao(const Stmt& s, std::set<std::uint32_t>& out) {
+    // Q1b: as atribuições do bloco de um else das expressões desta instrução
+    expressoesDe(s, [&](const Expr& e) {
+        blocosDeElse(e, [&](const BlockStmt& b) { basesDeAtribuicao(b, out); });
+    });
     switch (s.node_kind) {
         case NodeKind::Block:
             for (const auto& x : static_cast<const BlockStmt&>(s).statements)
@@ -239,10 +244,11 @@ public:
         std::set<std::uint32_t> escritos;
         basesDeAtribuicao(corpo_, escritos);
         for (std::uint32_t i = 0; i < f->params.size(); ++i) {
-            if (!ehRef(f->params[i])) continue;
+            if (!temPosse(f->params[i])) continue;
             const bool muda = i >= off && escritos.count(static_cast<std::uint32_t>(i - off));
             if (!muda) { emprestados.insert(i); continue; }
-            if (f->params[i] == Tipo::Struct) grava(i, chamaRt(Rt::StructCopia, {carrega(i, tok)}, tok), tok);
+            if (f->params[i] == Tipo::Struct || f->params[i] == Tipo::Opc)
+                grava(i, comPosse({carrega(i, tok), false}, tok), tok);
             else retem(carrega(i, tok), tok);
         }
         saida = f->novoBloco("saida");
@@ -256,7 +262,7 @@ public:
         // a saída: solta os slots donos (os temporários já estão vazios aqui)
         entra(saida);
         for (std::uint32_t s = 0; s < f->slots.size(); ++s)
-            if (ehRef(f->slots[s]) && s != ret_slot && !slots_temp.count(s) && !emprestados.count(s)) limpa(s, tok);
+            if (temPosse(f->slots[s]) && s != ret_slot && !slots_temp.count(s) && !emprestados.count(s)) limpa(s, tok);
         if (ret_slot != UINT32_MAX) poe(Op::Ret, tok).args = {carrega(ret_slot, tok)};
         else poe(Op::Ret, tok);
         fechaErro(tok);
@@ -268,7 +274,7 @@ public:
         entra(bloco_erro);
         tratadores.clear();
         for (std::uint32_t s = 0; s < f->slots.size(); ++s)
-            if (ehRef(f->slots[s]) && !emprestados.count(s)) limpa(s, tok);
+            if (temPosse(f->slots[s]) && !emprestados.count(s)) limpa(s, tok);
         poe(Op::RetErro, tok);
     }
 
@@ -306,18 +312,18 @@ public:
     // A função oculta que solta os const com referência, depois da main
     void finalizacao(const Token& tok) {
         bool tem = false;
-        for (Tipo t : m.globais) tem = tem || ehRef(t);
+        for (Tipo t : m.globais) tem = tem || temPosse(t);
         if (!tem) return;
         m.fim = oculta("cz.fim", tok);
         for (std::uint32_t g = 0; g < m.globais.size(); ++g) {
-            if (!ehRef(m.globais[g])) continue;
+            if (!temPosse(m.globais[g])) continue;
             Instr& c = poe(Op::CarregaG, tok);
             c.dst = f->novoTemp(m.globais[g]);
             c.aux = g;
             const Operando v = Operando::temp(c.dst);
             Instr& gv = poe(Op::GravaG, tok);
             gv.aux = g;
-            gv.args = {Operando::nulo()};
+            gv.args = {vazioDoSlot(m.globais[g])};
             solta(v, tok);
         }
         poe(Op::Ret, tok);
@@ -365,6 +371,17 @@ private:
     std::vector<std::uint32_t> temps_uso;
     std::map<Tipo, std::vector<std::uint32_t>> temps_livres;   // por tipo
     std::set<std::uint32_t>    slots_temp;
+    // Q1b: os blocos de else em tradução. O bloco roda no meio de uma expressão: os temporários
+    // dela (`externos`) continuam donos e vivos — as instruções do bloco não os soltam, um return
+    // ou um break para um laço de fora os solta antes de sair, e a captura de um try de dentro
+    // do bloco não os toca
+    struct BlocoElse {
+        std::vector<std::uint32_t> externos;
+        std::size_t   lacos;      // lacos.size() quando o bloco começou
+        std::uint32_t resultado;  // o slot do valor da expressão
+        std::uint32_t fim;        // o bloco depois do else
+    };
+    std::vector<BlocoElse> blocos_else;
 
     void comeca(std::uint32_t fi) {
         f = &m.funcoes[fi];
@@ -373,6 +390,7 @@ private:
         temps_uso.clear();
         temps_livres.clear();
         slots_temp.clear();
+        blocos_else.clear();
         ret_slot = UINT32_MAX;
         self_slot = UINT32_MAX;
         emprestados.clear();
@@ -428,8 +446,9 @@ private:
         return it->second;
     }
 
-    // list<T> e dict<K, V> sem inicializador: vazios (com posse, num temporário)
+    // list<T> e dict<K, V> sem inicializador: vazios (com posse, num temporário); Q1b: T?, null
     Operando vazioDe(const Type& t, const Token& tok) {
+        if (t.kind == Type::Kind::OPTIONAL) return Operando::ausente();
         return emprestado({chamaRt(t.kind == Type::Kind::DICT ? Rt::DictNovo : Rt::ListaNova, {}, tok), true}, tok);
     }
 
@@ -493,6 +512,7 @@ private:
             case Operando::K::DescStruct: case Operando::K::DescClasse: return Tipo::Desc;
             case Operando::K::Enum:    return Tipo::Enum;
             case Operando::K::TipoLit: return Tipo::TipoV;
+            case Operando::K::Ausente: return Tipo::Opc;
         }
         return Tipo::Void;
     }
@@ -514,22 +534,24 @@ private:
 
     // store.own: o slot fica dono de `v` (que já tem posse); o valor antigo é solto depois
     void gravaDono(std::uint32_t slot, const Operando& v, const Token& tok) {
-        if (!ehRef(f->slots[slot])) { grava(slot, v, tok); return; }
+        if (!temPosse(f->slots[slot])) { grava(slot, v, tok); return; }
         const Operando velho = carrega(slot, tok);
         grava(slot, v, tok);
         solta(velho, tok);
     }
+    // O valor de um slot vazio: o ponteiro nulo; Q1b: num opcional, o null
+    static Operando vazioDoSlot(Tipo t) { return t == Tipo::Opc ? Operando::ausente() : Operando::nulo(); }
     // Solta o que o slot segura e o deixa vazio
     void limpa(std::uint32_t slot, const Token& tok) {
         const Operando v = carrega(slot, tok);
-        grava(slot, Operando::nulo(), tok);
+        grava(slot, vazioDoSlot(f->slots[slot]), tok);
         solta(v, tok);
     }
 
     // Um valor com posse que só vai ser lido: fica num temporário da instrução
     Operando emprestado(const Val& v, const Token& tok) {
         const Tipo t = tipoOperando(v.o);
-        if (v.dono && ehRef(t)) {
+        if (v.dono && temPosse(t)) {
             std::uint32_t s;
             auto& livres = temps_livres[t];
             if (!livres.empty()) { s = livres.back(); livres.pop_back(); }
@@ -544,8 +566,10 @@ private:
     // aparece em outro lugar)
     Operando comPosse(const Val& v, const Token& tok) {
         const Tipo t = tipoOperando(v.o);
-        if (!ehRef(t) || v.dono) return v.o;
+        if (!temPosse(t) || v.dono) return v.o;
         if (t == Tipo::Struct) return chamaRt(Rt::StructCopia, {v.o}, tok);
+        if (t == Tipo::Opc)   // Q1b: retem o que ele segura (ou clona o struct)
+            return desembrulha(chamaRt(Rt::ValorCopia, {v.o}, tok), Tipo::Opc, tok).o;
         retem(v.o, tok);
         return v.o;
     }
@@ -583,7 +607,7 @@ private:
     // Um resultado `valor` com posse do runtime, no tipo estático
     Val desembrulha(const Operando& v, Tipo t, const Token& tok) {
         if (t == Tipo::Void) return {Operando::boolean(false), false};
-        return {Operando::temp(temp(Op::Desembrulha, t, {v}, tok)), ehRef(t)};
+        return {Operando::temp(temp(Op::Desembrulha, t, {v}, tok)), temPosse(t)};
     }
 
     // ── expressões ───────────────────────────────────────────────────────
@@ -627,6 +651,8 @@ private:
                 return {Operando::temp(temp(Op::Neg, t, {a}, e.token))};
             }
             case NodeKind::Cast:       return conversao(static_cast<const CastExpr&>(e));
+            case NodeKind::Null:       return {Operando::ausente(), false};   // Q1b
+            case NodeKind::Else:       return senao(static_cast<const ElseExpr&>(e));
             case NodeKind::Call:       return chamada(static_cast<const CallExpr&>(e));
             case NodeKind::IndexAccess: {   // list, dict e string: a regra da CVM (indexGet)
                 const auto& ix = static_cast<const IndexAccessExpr&>(e);
@@ -776,7 +802,7 @@ private:
         const Operando b = exprTipo(*e.right, t);   // o semântico já deu aos dois o mesmo tipo
         const auto op = static_cast<std::uint32_t>(e.op);
         // list, dict, pair, struct, objeto, enum e tipo: o == da CVM (desce nos contêineres)
-        if ((ehRef(t) && t != Tipo::Str) || t == Tipo::Enum || t == Tipo::TipoV) {
+        if ((ehRef(t) && t != Tipo::Str) || t == Tipo::Enum || t == Tipo::TipoV || t == Tipo::Opc) {
             const Operando ig = chamaRt(Rt::Igual, {embrulha(a, e.token), embrulha(b, e.token)}, e.token);
             if (e.op == TokenType::OP_EQUAL) return {ig};
             if (e.op == TokenType::OP_NOT_EQUAL) return {Operando::temp(temp(Op::Nao, Tipo::Bool, {ig}, e.token))};
@@ -812,11 +838,70 @@ private:
         }
     }
 
+    // Q1b: a condição de if/while (T nome = opcional): com valor, ele vai (com posse) para o slot
+    // da variável e o fluxo segue para `tem`; null vai para `falta`. Os temporários da condição
+    // são soltos nos dois caminhos
+    void declaraDaCondicao(const Expr& cond, std::uint32_t b2, TypeRef tipo, std::uint32_t tem,
+                           std::uint32_t falta, const Token& tok) {
+        const Tipo t = tipoDe(tipo, tok);
+        const Operando v = expr(cond);   // opc, emprestado
+        const std::uint32_t com = f->novoBloco("com.valor"), sem = f->novoBloco("sem.valor");
+        brc(Operando::temp(temp(Op::EhNulo, Tipo::Bool, {v}, tok)), sem, com, tok);
+        entra(com);
+        const Operando dentro = Operando::temp(temp(Op::Desembrulha, t, {v}, tok));
+        gravaDono(slotVar(b2, t), comPosse({dentro, false}, tok), tok);
+        for (std::uint32_t s : temps_uso) limpa(s, tok);
+        br(tem, tok);
+        entra(sem);
+        fimInstrucao(tok);
+        br(falta, tok);
+    }
+
+    // Q1b: valor else alternativa. O resultado (o T de dentro, ou outro T? numa cadeia) vai
+    // para um slot da instrução, dono dele; a alternativa só roda quando o valor é null
+    Val senao(const ElseExpr& e) {
+        const Tipo rt = tipoDe(e.resolved_type, e.token);
+        const Operando v = expr(*e.value);   // opc, emprestado (o temporário vive até o fim da instrução)
+        std::uint32_t s;
+        if (temPosse(rt)) {
+            auto& livres = temps_livres[rt];
+            if (!livres.empty()) { s = livres.back(); livres.pop_back(); }
+            else { s = f->novoSlot(rt); slots_temp.insert(s); }
+            temps_uso.push_back(s);
+        } else {
+            s = f->novoSlot(rt);
+        }
+        const std::uint32_t tem = f->novoBloco("tem"), falta = f->novoBloco("falta"), fim = f->novoBloco("fim.else");
+        brc(Operando::temp(temp(Op::EhNulo, Tipo::Bool, {v}, e.token)), falta, tem, e.token);
+        entra(tem);
+        const Operando dentro = rt == Tipo::Opc ? v : Operando::temp(temp(Op::Desembrulha, rt, {v}, e.token));
+        grava(s, comPosse({dentro, false}, e.token), e.token);
+        br(fim, e.token);
+        entra(falta);
+        if (e.block) {   // o bloco: cada yield grava em s e vai para o fim; os outros caminhos saem
+            blocos_else.push_back({std::move(temps_uso), lacos.size(), s, fim});
+            temps_uso.clear();
+            instrucao(*e.block);
+            if (!terminado) poe(Op::Inalcancavel, e.token);   // o semântico garante que o bloco sai
+            temps_uso = std::move(blocos_else.back().externos);
+            blocos_else.pop_back();
+        } else {
+            const Val alt = valor(*e.alternative);
+            confereTipo(alt.o, rt, e.token);
+            grava(s, comPosse(alt, e.token), e.token);
+            br(fim, e.token);
+        }
+        entra(fim);
+        return {carrega(s, e.token), false};
+    }
+
     Val conversao(const CastExpr& c) {
         const Tipo para = tipoDe(c.resolved_type, c.token);
         const Val v = valor(*c.operand);
         const Tipo de = tipoOperando(v.o);
         if (de == para) return v;   // cast<i64>(n) com n i64: o mesmo valor (e a mesma posse)
+        if (para == Tipo::Opc)      // Q1b: T → T? embrulha, com a mesma posse
+            return {Operando::temp(temp(Op::Embrulha, Tipo::Opc, {v.o}, c.token)), v.dono};
         const Operando a = emprestado(v, c.token);
         if (para == Tipo::Str)      // cast<string>(x)
             return {chamaRt(Rt::Texto, {embrulha(a, c.token)}, c.token), true};
@@ -917,7 +1002,7 @@ private:
             in.args = std::move(args);
             if (ret == Tipo::Void) return {Operando::boolean(false)};
             in.dst = f->novoTemp(ret);
-            return {Operando::temp(in.dst), ehRef(ret)};
+            return {Operando::temp(in.dst), temPosse(ret)};
         }
         if (!ot || !(ot->is(TK::String) || ot->is(TK::List) || ot->is(TK::Dict)))
             naoSuportado("chamada de método", mc.token);
@@ -946,7 +1031,7 @@ private:
         in.args = std::move(args);
         if (ret == Tipo::Void) return {Operando::boolean(false)};   // sem valor (ExprStmt)
         in.dst = f->novoTemp(ret);
-        return {Operando::temp(in.dst), ehRef(ret)};
+        return {Operando::temp(in.dst), temPosse(ret)};
     }
 
     Operando self(const Token& tok) {
@@ -1039,9 +1124,10 @@ private:
             case NodeKind::VarDecl: {
                 const auto& v = static_cast<const VarDeclStmt&>(s);
                 if (v.res.kind != Resolution::Kind::Local) naoSuportado("variável não local (erro interno)", s.token);
-                if (!v.initializer) {   // list<T> e dict<K, V> nascem vazios
+                if (!v.initializer) {   // list<T> e dict<K, V> nascem vazios; Q1b: T?, null
                     const Tipo t = tipoDe(TypeChecker::fromAst(v.type.get()), s.token);
-                    const Operando vazio = chamaRt(t == Tipo::Dict ? Rt::DictNovo : Rt::ListaNova, {}, s.token);
+                    const Operando vazio = t == Tipo::Opc ? Operando::ausente()
+                                         : chamaRt(t == Tipo::Dict ? Rt::DictNovo : Rt::ListaNova, {}, s.token);
                     gravaDono(slotVar(v.res.slot, t), vazio, s.token);
                     break;
                 }
@@ -1060,12 +1146,17 @@ private:
                 break;
             case NodeKind::If: {
                 const auto& i = static_cast<const IfStmt&>(s);
-                const Operando c = exprTipo(*i.condition, Tipo::Bool);
-                fimInstrucao(s.token);
                 const std::uint32_t entao = f->novoBloco("entao");
                 const std::uint32_t senao = i.else_branch ? f->novoBloco("senao") : 0;
                 const std::uint32_t fim = f->novoBloco("fimse");
-                brc(c, entao, i.else_branch ? senao : fim, s.token);
+                if (i.decl_type) {   // Q1b: if (T nome = opcional)
+                    declaraDaCondicao(*i.condition, i.decl_slot, i.decl_resolved, entao,
+                                      i.else_branch ? senao : fim, s.token);
+                } else {
+                    const Operando c = exprTipo(*i.condition, Tipo::Bool);
+                    fimInstrucao(s.token);
+                    brc(c, entao, i.else_branch ? senao : fim, s.token);
+                }
                 entra(entao);
                 instrucao(*i.then_branch);
                 br(fim, s.token);
@@ -1084,7 +1175,9 @@ private:
                 const std::uint32_t fim = f->novoBloco("fimenquanto");
                 br(cabeca, s.token);
                 entra(cabeca);
-                if (literalVerdadeiro(*w.condition)) {   // while (true): sem teste
+                if (w.decl_type) {   // Q1b: while (T nome = opcional)
+                    declaraDaCondicao(*w.condition, w.decl_slot, w.decl_resolved, corpo_, fim, s.token);
+                } else if (literalVerdadeiro(*w.condition)) {   // while (true): sem teste
                     br(corpo_, s.token);
                 } else {
                     const Operando c = exprTipo(*w.condition, Tipo::Bool);
@@ -1121,9 +1214,9 @@ private:
                     if (id.res.kind == Resolution::Kind::Local) {
                         const Tipo t = tipoDe(id.resolved_type, id.token);
                         auto it = slot_de.find({id.res.slot, t});
-                        if (t == f->ret && ehRef(t) && it != slot_de.end() && !emprestados.count(it->second)) {
+                        if (t == f->ret && temPosse(t) && it != slot_de.end() && !emprestados.count(it->second)) {
                             v = carrega(it->second, s.token);
-                            grava(it->second, Operando::nulo(), s.token);
+                            grava(it->second, vazioDoSlot(t), s.token);
                             retorna(true, v, s.token);
                             break;
                         }
@@ -1145,6 +1238,14 @@ private:
                 quebra(true, s.token);
                 break;
             case NodeKind::Try: tenta(static_cast<const TryStmt&>(s)); break;
+            case NodeKind::Yield: {   // Q1b: o valor no slot do bloco de else, e para o fim dele
+                const BlocoElse& b = blocos_else.back();
+                const Operando v = posseTipo(*static_cast<const YieldStmt&>(s).value, f->slots[b.resultado]);
+                grava(b.resultado, v, s.token);   // o slot está vazio (só um caminho chega aqui)
+                fimInstrucao(s.token);
+                br(b.fim, s.token);
+                break;
+            }
             case NodeKind::Throw: {   // throw e: o erro pendente passa a ser ele (a posição dele)
                 const Operando e = exprTipo(*static_cast<const ThrowStmt&>(s).value, Tipo::Erro);
                 chamaRt(Rt::Lanca, {e}, s.token);
@@ -1157,9 +1258,17 @@ private:
 
     // ── saídas e try (desenho 5.3; o tryStmt da CVM) ─────────────────────
 
+    // Q1b: sair do bloco de um else (return, ou break/continue para um laço de fora dele): solta
+    // os temporários das expressões interrompidas, dos blocos `de` em diante
+    void soltaExternos(std::size_t de, const Token& tok) {
+        for (std::size_t i = de; i < blocos_else.size(); ++i)
+            for (std::uint32_t s : blocos_else[i].externos) limpa(s, tok);
+    }
+
     // return: dentro de um try com finally, guarda o valor e o motivo e vai para o finally
     // (o despacho no fim dele faz o return de verdade, no contexto de fora)
     void retorna(bool tem, const Operando& v, const Token& tok) {
+        soltaExternos(0, tok);
         if (!finallys.empty()) {
             Finally& fz = finallys.back();
             if (tem) gravaDono(fz.valor, v, tok);
@@ -1174,6 +1283,11 @@ private:
 
     // break/continue: só passa pelo finally se sair do try (o laço é de fora dele)
     void quebra(bool continua, const Token& tok) {
+        {   // Q1b: os blocos de else entre este ponto e o laço (os que começaram dentro dele)
+            std::size_t de = blocos_else.size();
+            while (de > 0 && blocos_else[de - 1].lacos >= lacos.size()) --de;
+            soltaExternos(de, tok);
+        }
         if (!finallys.empty() && finallys.back().lacos == lacos.size()) {
             Finally& fz = finallys.back();
             grava(fz.motivo, Operando::i32(continua ? 3 : 2), tok);
@@ -1184,9 +1298,13 @@ private:
         poe(Op::Br, tok).alvo = continua ? lacos.back().continua : lacos.back().sai;
     }
 
-    // Os temporários da instrução interrompida por um erro (os das outras estão vazios)
+    // Os temporários da instrução interrompida por um erro (os das outras estão vazios). Q1b:
+    // numa captura dentro do bloco de um else, os da expressão em volta continuam vivos
     void limpaTemporarios(const Token& tok) {
-        for (std::uint32_t s : slots_temp) limpa(s, tok);
+        std::set<std::uint32_t> vivos;
+        for (const BlocoElse& b : blocos_else) vivos.insert(b.externos.begin(), b.externos.end());
+        for (std::uint32_t s : slots_temp)
+            if (!vivos.count(s)) limpa(s, tok);
     }
 
     void tenta(const TryStmt& t) {
@@ -1266,7 +1384,7 @@ private:
                     caso(1, [&] {
                         if (fz.valor == UINT32_MAX) { retorna(false, Operando::boolean(false), tok); return; }
                         const Operando v = carrega(fz.valor, tok);   // move: o slot fica vazio
-                        if (ehRef(f->slots[fz.valor])) grava(fz.valor, Operando::nulo(), tok);
+                        if (temPosse(f->slots[fz.valor])) grava(fz.valor, vazioDoSlot(f->slots[fz.valor]), tok);
                         retorna(true, v, tok);
                     });
                 if (fz.usa_break) caso(2, [&] { quebra(false, tok); });

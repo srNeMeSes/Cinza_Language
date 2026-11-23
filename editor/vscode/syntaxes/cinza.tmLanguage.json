@@ -514,7 +514,7 @@
       "patterns": [
         {
           "name": "keyword.control.flow.cinza",
-          "match": "\\b(return|break|continue)\\b"
+          "match": "\\b(return|break|continue|yield)\\b"
         },
         {
           "name": "keyword.control.conditional.cinza",
@@ -564,6 +564,11 @@
         {
           "name": "constant.language.boolean.cinza",
           "match": "\\b(true|false)\\b"
+        },
+        {
+          "comment": "null: a ausência de um valor, só num tipo opcional (T?)",
+          "name": "constant.language.null.cinza",
+          "match": "\\bnull\\b"
         }
       ]
     },
@@ -684,8 +689,13 @@
           "match": "\\+|-|\\*|/|%"
         },
         {
+          "comment": "T?: o tipo opcional",
+          "name": "keyword.operator.optional.cinza",
+          "match": "\\?"
+        },
+        {
           "name": "invalid.illegal.character.cinza",
-          "match": "[@$#`~^?'\\\\]|&|\\|"
+          "match": "[@$#`~^'\\\\]|&|\\|"
         }
       ]
     },

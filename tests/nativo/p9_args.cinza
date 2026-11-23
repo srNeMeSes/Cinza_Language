@@ -9,8 +9,8 @@ fn main(list<string> args) {
   for (string a in args) {
     print(a.size());
   }
-  string s = input("> ");
-  print("lido:", s, input("").size());
+  string s = input("> ") else "";
+  print("lido:", s, (input("") else "").size());
 }
 // expect: ["um", "três", "4"] 3
 // expect: 2

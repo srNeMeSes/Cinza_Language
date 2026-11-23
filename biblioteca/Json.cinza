@@ -165,18 +165,9 @@ pub class Value {
       confere(Kind.List, "add");
       itens.add(v);
     }
-    fn has(string k) -> bool {
-      confere(Kind.Object, "has");
-      return campos.has(k);
-    }
-    fn get(string k) -> Value {
+    fn get(string k) -> Value? {
       confere(Kind.Object, "get");
-      if (!campos.has(k)) { throw KeyError("Json: 'get': a chave '" + k + "' não existe"); }
-      return campos[k];
-    }
-    fn get_or(string k, Value padrao) -> Value {
-      confere(Kind.Object, "get_or");
-      if (!campos.has(k)) { return padrao; }
+      if (!campos.has(k)) { return null; }
       return campos[k];
     }
     fn keys() -> list<string> {
@@ -345,7 +336,7 @@ class Leitor {
         if (i >= c.size() || c[i] != "\"") { throw ValueError(onde("esperada uma chave entre aspas")); }
         i32 inicio = i;
         string k = texto();
-        if (o.has(k)) {
+        if (o.get(k) != null) {
           i = inicio;
           throw ValueError(onde("a chave '" + k + "' aparece mais de uma vez"));
         }

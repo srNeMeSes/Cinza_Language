@@ -1,0 +1,82 @@
+// Q1b: valor else { ...; yield v; } — o bloco roda só na ausência e termina com yield ou saindo
+// (return, throw, break, continue); um try dentro dele; blocos aninhados
+error SemCadastro;
+
+fn acha(list<string> l, string s) -> string? {
+  for (string x in l) { if (x == s) { return x; } }
+  return null;
+}
+
+fn junta(string a, string b) -> string { return a + "+" + b; }
+
+fn primeiro_longo(list<string> l) -> string {
+  string r = acha(l, "zz") else {
+    for (string x in l) {
+      if (x.size() > 2) { yield x + "!"; }
+    }
+    yield "nenhum";
+  };
+  return r;
+}
+
+fn cedo(string? s) -> string {
+  print(junta("a" + "b", s else { return "saiu cedo"; }));
+  return "fim";
+}
+
+fn main() {
+  string? nada = acha(["a"], "b");
+  string nome = nada else {
+    print("não achou");
+    yield "<semNome>";
+  };
+  print(nome);
+  print(primeiro_longo(["a", "bb", "ccc", "dddd"]), primeiro_longo(["x"]));
+  print(cedo("x"), cedo(null));
+  list<string?> l = ["um", null, "três", null, "fim", "depois"];
+  for (string? x in l) {
+    string v = x else { continue; };
+    if (v == "fim") { break; }
+    print(v);
+  }
+  i32 n = 0;
+  while (true) {
+    string w = nada else { break; };
+    n += w.size();
+  }
+  print("saiu do while", n);
+  string t = nada else {
+    try {
+      list<i32> vazia = [1];
+      print(vazia[5]);
+    } except (IndexError e) {
+      print("capturou dentro");
+    }
+    yield "depois do try";
+  };
+  print(t);
+  try {
+    string u = nada else { throw SemCadastro("sem " + "cadastro"); };
+    print(u);
+  } except (SemCadastro e) {
+    print("capturou fora:", e.message);
+  }
+  string? meio = "m";
+  string aninhado = nada else {
+    string interno = meio else { yield "não"; };
+    yield interno + interno;
+  };
+  print(aninhado, junta("x" + "y", nada else { yield "z" + "w"; }));
+}
+// expect: não achou
+// expect: <semNome>
+// expect: ccc! nenhum
+// expect: ab+x
+// expect: fim saiu cedo
+// expect: um
+// expect: três
+// expect: saiu do while 0
+// expect: capturou dentro
+// expect: depois do try
+// expect: capturou fora: sem cadastro
+// expect: mm xy+zw

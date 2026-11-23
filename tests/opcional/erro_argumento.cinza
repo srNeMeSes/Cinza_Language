@@ -1,0 +1,7 @@
+// Q1b: um T? não é usado como T, e null só cabe num T?
+fn f(string s) { print(s); }
+fn main() {
+  string? x;
+  f(x);
+}
+// expect-error: Argumento 1 de 'f': esperado 'string', mas recebeu 'string?'. O valor é opcional

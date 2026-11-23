@@ -1,0 +1,6 @@
+// Q1b: as regras do if/while com declaração
+fn main() {
+  i64? x;
+  if (i32 n = x) { print(n); }
+}
+// expect-error: 'n' é 'i32', mas o valor é 'i64?': declare 'i64'

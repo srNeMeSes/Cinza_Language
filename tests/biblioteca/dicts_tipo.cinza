@@ -1,7 +1,7 @@
-// Dicts (Q3): o padrão de get_or tem o tipo dos valores do dict.
+// Dicts (Q3/Q1b): get dá um V?, e a alternativa do else tem o tipo dos valores do dict.
 import Dicts;
 fn main() {
   dict<string, i32> d = {{"a", 1}};
-  print(Dicts.get_or(d, "a", "zero"));
+  print(Dicts.get(d, "a") else "zero");
 }
-// expect-error: Argumento 3 de 'Dicts.get_or': esperado 'i32', mas recebeu 'string'
+// expect-error: A alternativa do 'else' precisa ser 'i32' (o tipo de 'i32?'), mas é 'string'

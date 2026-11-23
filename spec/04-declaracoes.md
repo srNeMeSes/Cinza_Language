@@ -165,7 +165,7 @@ construtor (sem construtor, nenhum argumento).
 Os valores iniciais rodam a cada criação, então um `new` escrito neles que volta ao próprio tipo
 — direto (`No prox = new No();`) ou por outros tipos (`A` cria `B` e `B` cria `A`, também pelos
 valores padrão de um struct) — é erro de compilação: a criação nunca terminaria. O "próximo" que
-pode não existir é uma `list<No>` (seção 3.10). Por um construtor, um método ou uma função, a
+pode não existir é um `No?`, que nasce `null` (seção 3.10). Por um construtor, um método ou uma função, a
 criação sem fim passa por chamadas e para no limite delas (seção 5.8).
 
 ```cinza
@@ -218,8 +218,9 @@ struct Ponto { i64 x = 0; i64 y = 0; }
 Um struct só tem campos, todos públicos — não tem métodos, construtor nem `pub`.
 
 Um campo pode ter **valor inicial** (`i64 x = 0;`) ou não. `list` e `dict` sem valor inicial
-nascem vazios. Qualquer outro campo sem valor inicial é **obrigatório**: quem cria o struct
-precisa informá-lo. Assim nenhum struct existe com um campo sem valor.
+nascem vazios, e um opcional (`i32? idade;`), `null`. Qualquer outro campo sem valor inicial é
+**obrigatório**: quem cria o struct precisa informá-lo. Assim nenhum struct existe com um campo
+sem valor.
 
 **Criação**, de três formas:
 

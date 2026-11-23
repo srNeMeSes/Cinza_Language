@@ -1,0 +1,6 @@
+// Q1b: as regras do if/while com declaração
+fn main() {
+  string? x;
+  if (string n = x) { print(n); } else { print(n); }
+}
+// expect-error: Variável 'n' não declarada

@@ -5,8 +5,8 @@ fn main() {
   try { print(cast<f64>("1e999")); } except (OverflowError e) { print(e.message); }
   try { print(cast<f64>("-1e400")); } except (OverflowError e) { print(e.message); }
   print(cast<f64>("1e-999"), cast<f64>("-1e-400"), cast<f64>("1e308") > 0.ff);
-  print(cv.is_f64("1e999"), cv.is_f64("1e-999"), cv.to_f64_or("1e999", -1.ff));
-  print(cv.is_f32("1e39"), cv.is_f64("1e39"), cv.to_f32_or("1e39", 0.f));
+  print(cv.to_f64("1e999") != null, cv.to_f64("1e-999") != null, cv.to_f64("1e999") else -1.ff);
+  print(cv.to_f32("1e39") != null, cv.to_f64("1e39") != null, cv.to_f32("1e39") else 0.f);
 }
 // expect: cast<f64>("1e999"): o valor não cabe em f64
 // expect: cast<f64>("-1e400"): o valor não cabe em f64

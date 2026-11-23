@@ -18,6 +18,8 @@ std::string Type::toString() const {
         case Kind::BOOL: return "bool";
         case Kind::VOID: return "void";
         case Kind::VAR: return "var";
+        case Kind::OPTIONAL:
+            return (type_params.empty() ? std::string("?") : type_params[0]->toString()) + "?";
         case Kind::LIST: {
             std::string result = "list";
             if (!type_params.empty()) {
@@ -71,6 +73,129 @@ std::string TypeLiteralExpr::toString(int indent_level) const {
 }
 
 // r: Literal("valor"), Literal(1), Literal(true), Literal(3.14)
+std::string NullExpr::toString(int indent_level) const {
+    return indent(indent_level) + "Null";
+}
+
+ElseExpr::~ElseExpr() = default;
+
+std::string ElseExpr::toString(int indent_level) const {
+    return indent(indent_level) + "Else(\n" + value->toString(indent_level + 1) + ",\n" +
+           (block ? block->toString(indent_level + 1) : alternative->toString(indent_level + 1)) + ")";
+}
+
+std::string YieldStmt::toString(int indent_level) const {
+    return indent(indent_level) + "Yield(\n" + value->toString(indent_level + 1) + ")";
+}
+
+void filhosDe(const Expr& e, const std::function<void(const Expr&)>& f) {
+    auto um = [&](const ExprPtr& x) { if (x) f(*x); };
+    switch (e.node_kind) {
+        case NodeKind::Binary: {
+            auto& b = static_cast<const BinaryExpr&>(e);
+            um(b.left); um(b.right);
+            break;
+        }
+        case NodeKind::Unary: um(static_cast<const UnaryExpr&>(e).operand); break;
+        case NodeKind::Call: {
+            auto& c = static_cast<const CallExpr&>(e);
+            for (const auto& a : c.arguments) um(a);
+            for (const auto& p : c.interp) um(p.expr);
+            break;
+        }
+        case NodeKind::MethodCall: {
+            auto& m = static_cast<const MethodCallExpr&>(e);
+            um(m.object);
+            for (const auto& a : m.arguments) um(a);
+            break;
+        }
+        case NodeKind::MemberAccess: um(static_cast<const MemberAccessExpr&>(e).object); break;
+        case NodeKind::IndexAccess: {
+            auto& i = static_cast<const IndexAccessExpr&>(e);
+            um(i.object); um(i.index);
+            break;
+        }
+        case NodeKind::Slice: {
+            auto& s = static_cast<const SliceExpr&>(e);
+            um(s.object); um(s.start); um(s.end); um(s.step);
+            break;
+        }
+        case NodeKind::New:
+            for (const auto& a : static_cast<const NewExpr&>(e).arguments) um(a);
+            break;
+        case NodeKind::Cast: um(static_cast<const CastExpr&>(e).operand); break;
+        case NodeKind::ListLiteral:
+            for (const auto& x : static_cast<const ListLiteralExpr&>(e).elements) um(x);
+            break;
+        case NodeKind::DictLiteral:
+            for (const auto& [k, v] : static_cast<const DictLiteralExpr&>(e).pairs) { um(k); um(v); }
+            break;
+        case NodeKind::PairLiteral: {
+            auto& p = static_cast<const PairLiteralExpr&>(e);
+            um(p.first); um(p.second);
+            break;
+        }
+        case NodeKind::Else: {
+            auto& el = static_cast<const ElseExpr&>(e);
+            um(el.value); um(el.alternative);
+            break;
+        }
+        default: break;
+    }
+}
+
+void expressoesDe(const Stmt& s, const std::function<void(const Expr&)>& f) {
+    auto um = [&](const ExprPtr& x) { if (x) f(*x); };
+    switch (s.node_kind) {
+        case NodeKind::VarDecl:  um(static_cast<const VarDeclStmt&>(s).initializer); break;
+        case NodeKind::Assign: {
+            auto& a = static_cast<const AssignStmt&>(s);
+            um(a.target); um(a.value);
+            break;
+        }
+        case NodeKind::ExprStmt: um(static_cast<const ExprStmt&>(s).expression); break;
+        case NodeKind::If:       um(static_cast<const IfStmt&>(s).condition); break;
+        case NodeKind::While:    um(static_cast<const WhileStmt&>(s).condition); break;
+        case NodeKind::For:      um(static_cast<const ForStmt&>(s).iterable); break;
+        case NodeKind::Return:   um(static_cast<const ReturnStmt&>(s).value); break;
+        case NodeKind::Throw:    um(static_cast<const ThrowStmt&>(s).value); break;
+        case NodeKind::Yield:    um(static_cast<const YieldStmt&>(s).value); break;
+        default: break;
+    }
+}
+
+void instrucoesDe(const Stmt& s, const std::function<void(const Stmt&)>& f) {
+    auto um = [&](const StmtPtr& x) { if (x) f(*x); };
+    switch (s.node_kind) {
+        case NodeKind::Block:
+            for (const auto& x : static_cast<const BlockStmt&>(s).statements) um(x);
+            break;
+        case NodeKind::If: {
+            auto& i = static_cast<const IfStmt&>(s);
+            um(i.then_branch); um(i.else_branch);
+            break;
+        }
+        case NodeKind::While: um(static_cast<const WhileStmt&>(s).body); break;
+        case NodeKind::For:   um(static_cast<const ForStmt&>(s).body); break;
+        case NodeKind::Try: {
+            auto& t = static_cast<const TryStmt&>(s);
+            um(t.body);
+            for (const auto& h : t.handlers) um(h.body);
+            um(t.finally_block);
+            break;
+        }
+        default: break;
+    }
+}
+
+void blocosDeElse(const Expr& e, const std::function<void(const BlockStmt&)>& f) {
+    if (e.node_kind == NodeKind::Else) {
+        auto& el = static_cast<const ElseExpr&>(e);
+        if (el.block) f(static_cast<const BlockStmt&>(*el.block));
+    }
+    filhosDe(e, [&](const Expr& x) { blocosDeElse(x, f); });
+}
+
 std::string LiteralExpr::toString(int indent_level) const {
     std::ostringstream oss;
     oss << indent(indent_level) << "Literal(";

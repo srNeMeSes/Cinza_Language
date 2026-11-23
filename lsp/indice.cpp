@@ -335,14 +335,28 @@ private:
             case NodeKind::If: {
                 auto* i = static_cast<IfStmt*>(s);
                 expr(i->condition.get());
-                stmt(i->then_branch.get());
+                if (i->decl_type) {   // Q1b: if (T nome = opcional): nome só no primeiro bloco
+                    escopos_.emplace_back();
+                    declara(i->decl_name, i->decl_slot, i->decl_token, mostra(i->decl_resolved), K_VARIAVEL);
+                    stmt(i->then_branch.get());
+                    escopos_.pop_back();
+                } else {
+                    stmt(i->then_branch.get());
+                }
                 stmt(i->else_branch.get());
                 break;
             }
             case NodeKind::While: {
                 auto* w = static_cast<WhileStmt*>(s);
                 expr(w->condition.get());
-                stmt(w->body.get());
+                if (w->decl_type) {
+                    escopos_.emplace_back();
+                    declara(w->decl_name, w->decl_slot, w->decl_token, mostra(w->decl_resolved), K_VARIAVEL);
+                    stmt(w->body.get());
+                    escopos_.pop_back();
+                } else {
+                    stmt(w->body.get());
+                }
                 break;
             }
             case NodeKind::For: {
@@ -370,6 +384,7 @@ private:
             }
             case NodeKind::Throw: expr(static_cast<ThrowStmt*>(s)->value.get()); break;
             case NodeKind::Return: expr(static_cast<ReturnStmt*>(s)->value.get()); break;
+            case NodeKind::Yield: expr(static_cast<YieldStmt*>(s)->value.get()); break;   // Q1b
             default: break;
         }
     }
@@ -513,6 +528,13 @@ private:
                 break;
             }
             case NodeKind::Cast: expr(static_cast<CastExpr*>(e)->operand.get()); break;
+            case NodeKind::Else: {   // Q1b
+                auto* el = static_cast<ElseExpr*>(e);
+                expr(el->value.get());
+                expr(el->alternative.get());
+                if (el->block) stmt(el->block.get());
+                break;
+            }
             default: break;
         }
     }
@@ -520,7 +542,7 @@ private:
 
 const char* const PALAVRAS[] = {"fn", "return", "if", "else", "while", "for", "in", "struct", "enum", "interface",
                                 "class", "pub", "new", "const", "break", "continue", "try", "except", "finally",
-                                "throw", "error", "import", "as", "self", "cast", "true", "false", "and", "or",
+                                "throw", "error", "import", "as", "self", "cast", "true", "false", "null", "yield", "and", "or",
                                 "not", "i32", "i64", "f32", "f64", "string", "bool", "void", "list", "dict", "pair"};
 
 } // namespace

@@ -92,6 +92,8 @@ grava a lista nova.
 
 ## Histórico
 
+- 0.9.0 — o opcional: `null` como constante, `yield` como palavra de fluxo e o `?` de `T?` como
+  operador (antes marcado como caractere inválido).
 - 0.8.0 — o servidor de linguagem do cinza (`cinza --lsp`): os erros enquanto se digita, a
   formatação do documento (`cinza fmt`), o tipo ao passar o mouse, ir para a definição e completar
   nomes; a configuração `cinza.caminho`.

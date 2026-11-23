@@ -22,7 +22,8 @@ para aprender a linguagem, o livro (a ser reescrito) é o caminho.
 
 ## Filosofia
 
-A Cinza é **disciplinada**: tipagem estática, sem `null`, sem herança e sem closures. Tudo o
+A Cinza é **disciplinada**: tipagem estática, `null` só onde o tipo diz (`T?`, resolvido antes
+do uso), sem herança e sem closures. Tudo o
 que pode ser conferido antes de executar é conferido na compilação. Os erros que restam para a execução
 (índice fora da lista, divisão por zero, overflow...) são erros da linguagem, capturáveis com
 `try`/`except`.
@@ -33,8 +34,6 @@ Decisões do autor, não lacunas a preencher depois.
 
 **Nunca, por filosofia:**
 
-- **`null` e o tipo opcional** (`T?`, `Option`): toda variável tem sempre um valor do seu tipo
-  (seção 3.1); como se diz "nenhum", na seção 3.10.
 - **Herança**: o polimorfismo é pelas interfaces (seção 3.7), que não têm código nem campos.
 - **Closures e funções como valor**: o nome de uma função só aparece numa chamada (seção 4.4). O
   que outras linguagens fazem passando uma função adiante, a Cinza faz com um objeto de uma classe

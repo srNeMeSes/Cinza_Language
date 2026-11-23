@@ -1,0 +1,8 @@
+// Q1b: as regras do bloco do else e do yield
+fn main() {
+  string? s;
+  string t = s else {
+    if (true) { yield "a"; }
+  };
+}
+// expect-error: O bloco do 'else' precisa terminar em todos os caminhos

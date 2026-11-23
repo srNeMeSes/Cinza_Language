@@ -7,10 +7,12 @@ import Json;
 fn main() {
   Json.Value v = Json.parse("{\"nome\": \"Ana\", \"idade\": 30, \"notas\": [9.5, 8, -1e3], \"ativo\": true, \"chefe\": null, \"ação\": \"\\u00e7\\ud83d\\ude00\\n\"}");
   print(v.kind(), v.size(), v.keys());
-  print(v.get("nome").as_text(), v.get("idade").as_i64(), v.get("idade").as_f64(), v.get("ativo").as_bool(), v.get("chefe").is_null());
-  Json.Value notas = v.get("notas");
+  Json.Value nada = Json.null_value();   // Q1b: get dá um Value? (null se a chave não existir)
+  print((v.get("nome") else nada).as_text(), (v.get("idade") else nada).as_i64(), (v.get("idade") else nada).as_f64(),
+        (v.get("ativo") else nada).as_bool(), (v.get("chefe") else nada).is_null());
+  Json.Value notas = v.get("notas") else nada;
   print(notas.size(), notas.at(0).as_f64(), notas.at(2).as_f64(), notas.at(1).kind() == Json.Kind.Number);
-  print(v.get("ação").as_text());
+  print((v.get("ação") else nada).as_text());
   print(v.to_text());
   Json.Value o = Json.new_object();
   o.set("b", Json.from_i64(9223372036854775807));
@@ -25,7 +27,7 @@ fn main() {
   print(o.to_text());
   print(o.to_text_pretty(2));
   print(Json.parse(o.to_text()).to_text() == o.to_text(), Json.parse("  [ ]  ").size(), Json.parse("\"x\"").as_text(), Json.parse("12").as_i64());
-  print(Json.parse("9223372036854775807").as_i64(), o.get_or("z", Json.from_i64(-1)).as_i64(), o.has("a"));
+  print(Json.parse("9223372036854775807").as_i64(), (o.get("z") else Json.from_i64(-1)).as_i64(), o.get("a") != null);
   o.remove("a");
   print(o.keys());
 }

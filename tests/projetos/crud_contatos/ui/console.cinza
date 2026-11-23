@@ -8,7 +8,7 @@ import Convert as cv;
 pub enum Opcao { Cadastrar, Listar, Buscar, Atualizar, Remover, Sair, Invalida }
 
 fn le_opcao() -> Opcao {
-  string s = st.trim(input("Opção: "));
+  string s = st.trim(input("Opção: ") else "0");   // o fim da entrada é sair
   if (s == "1") { return Opcao.Cadastrar; }
   if (s == "2") { return Opcao.Listar; }
   if (s == "3") { return Opcao.Buscar; }
@@ -18,11 +18,11 @@ fn le_opcao() -> Opcao {
   return Opcao.Invalida;
 }
 
-fn le_id() -> i32 { return cv.to_i32_or(st.trim(input("Id: ")), 0); }
+fn le_id() -> i32 { return cv.to_i32(st.trim(input("Id: ") else "")) else 0; }
 
 // Vazio mantém o valor atual (na atualização)
 fn le_ou_mantem(string rotulo, string atual) -> string {
-  string s = input(rotulo + " [" + atual + "]: ");
+  string s = input(rotulo + " [" + atual + "]: ") else "";
   if (st.is_empty(st.trim(s))) { return atual; }
   return s;
 }
@@ -41,15 +41,15 @@ fn mostra(list<m.Contato> contatos) {
 
 fn executa_opcao(ag.Agenda agenda, Opcao op) {
   if (op == Opcao.Cadastrar) {
-    string nome = input("Nome: ");
-    string telefone = input("Telefone: ");
-    string email = input("E-mail: ");
+    string nome = input("Nome: ") else "";
+    string telefone = input("Telefone: ") else "";
+    string email = input("E-mail: ") else "";
     m.Contato c = agenda.cria(nome, telefone, email);
     printf("Contato {c.id} cadastrado.");
   } else if (op == Opcao.Listar) {
     mostra(agenda.todos());
   } else if (op == Opcao.Buscar) {
-    mostra(agenda.busca(input("Nome contém: ")));
+    mostra(agenda.busca(input("Nome contém: ") else ""));
   } else if (op == Opcao.Atualizar) {
     i32 id = le_id();
     m.Contato atual = agenda.pega(id);

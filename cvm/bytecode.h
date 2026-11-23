@@ -28,6 +28,7 @@ namespace cinza::cvm {
     X(LOADI32)    /* R[a] = bc (i32)                                 */          \
     X(LOADBOOL)   /* R[a] = (b != 0)                                 */          \
     X(LOADVOID)   /* R[a] = valor vazio                              */          \
+    X(LOADNULL)   /* R[a] = null (Q1b)                               */          \
     X(GETGLOBAL)  /* R[a] = G[b]                                     */          \
     X(SETGLOBAL)  /* G[b] = R[a]                                     */          \
     /* aritmética por tipo (seção K: os dois operandos já têm o tipo da conta) */ \
@@ -55,6 +56,8 @@ namespace cinza::cvm {
     X(JMP)        /* pc += bc                                        */          \
     X(JMPIF)      /* se R[a]: pc += bc                               */          \
     X(JMPIFNOT)   /* se !R[a]: pc += bc                              */          \
+    X(JMPNOTNULL) /* se R[a] não é null: pc += bc (Q1b, o else)      */          \
+    X(JMPNULL)    /* se R[a] é null: pc += bc (Q1b, if/while com declaração) */  \
     /* for: R[a] cópia dos elementos, R[a+1] índice, R[a+2] slot do iterador */ \
     X(FORPREP)    /* R[a] = cópia de R[b]; R[a+1] = 0; R[a+2] = c    */          \
     X(FORNEXT)    /* próximo elemento em R[slot], ou pc += bc        */          \

@@ -1,0 +1,6 @@
+// Q1b: um T? não é usado como T, e null só cabe num T?
+fn main() {
+  i32 n = 1;
+  i32 m = n else 0;
+}
+// expect-error: O valor antes de 'else' não é opcional ('i32'): ele sempre existe

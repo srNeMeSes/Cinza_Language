@@ -1,0 +1,26 @@
+// Q1b: as buscas que podem não achar dão um i32? (null quando não acham; não há -1); positions dá
+// todas as ocorrências (nenhuma: [])
+import Strings as st;
+import Lists as L;
+import Regex as re;
+fn main() {
+  print(st.find("abc", "z"), st.find_last("abc", "z"), st.find_from("abcabc", "a", 4));
+  print(L.index_of([1, 2], 3), L.last_index_of(["a"], "b"), re.find("abc", "[0-9]+"));
+  print(st.find("ação", "ç"), st.find_last("abab", "ab"), st.find_from("abcabc", "a", 1), L.index_of([1, 2, 1], 1),
+        L.last_index_of([1, 2, 1], 1), re.find("ab12", "[0-9]+"), type(st.find("a", "a")));
+  print(st.positions("ação ação", "ç"), st.positions("aaaa", "aa"), st.positions("abc", "z"), st.count("aaaa", "aa"));
+  try { print(st.positions("abc", "")); } except (ValueError e) { print(e.message); }
+  try { print(st.find_from("abc", "a", 9)); } except (IndexError e) { print(e.message); }
+  string s = "nome: Ana";
+  if (i32 i = st.find(s, ":")) { print(st.right(s, s.size() - i - 2)); }
+  i32 j = st.find(s, "#") else s.size();
+  print(j);
+}
+// expect: null null null
+// expect: null null null
+// expect: 1 2 3 0 2 2 i32?
+// expect: [1, 6] [0, 2] [] 2
+// expect: o trecho de 'positions' não pode ser vazio
+// expect: início 9 fora dos limites de uma string de tamanho 3
+// expect: Ana
+// expect: 9

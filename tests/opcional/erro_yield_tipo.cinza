@@ -1,0 +1,6 @@
+// Q1b: as regras do bloco do else e do yield
+fn main() {
+  string? s;
+  string t = s else { yield 1; };
+}
+// expect-error: O yield precisa dar um 'string' (o tipo do valor antes do else), mas dá 'i32'

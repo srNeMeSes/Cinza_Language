@@ -50,6 +50,7 @@ enum class Tipo : std::uint8_t {
     TipoV,   // CzValor de type() e dos literais de tipo, sem referência
     Desc,    // ponteiro para um descritor do runtime (struct, classe)
     Erro,    // ponteiro para ErrorValue (o erro como valor: except, Tipo("msg"))
+    Opc,     // Q1b: um T? — o CzValor inteiro, com posse do que ele segura (null: Kind::NULO)
 };
 
 inline bool ehInteiro(Tipo t)   { return t == Tipo::I32 || t == Tipo::I64; }
@@ -60,7 +61,12 @@ inline bool ehRef(Tipo t) {
            t == Tipo::Obj || t == Tipo::Erro;
 }
 // Representado como um CzValor inteiro (embrulhar não muda nada)
-inline bool ehValorDireto(Tipo t) { return t == Tipo::Valor || t == Tipo::Enum || t == Tipo::TipoV; }
+inline bool ehValorDireto(Tipo t) {
+    return t == Tipo::Valor || t == Tipo::Enum || t == Tipo::TipoV || t == Tipo::Opc;
+}
+// Q1b: um slot dono do que guarda — os ponteiros (ehRef) e o opcional, um CzValor que pode
+// segurar uma referência (copiar: cz_valor_copia; soltar: cz_solta_valor)
+inline bool temPosse(Tipo t) { return ehRef(t) || t == Tipo::Opc; }
 
 // Um operando: constante ou temporário
 struct Operando {
@@ -72,6 +78,7 @@ struct Operando {
         DescStruct, DescClasse,   // desc: o descritor `indice`
         Enum,      // enum: o valor `i` do enum `indice` (Modulo::enums)
         TipoLit,   // tipo: o tipo `indice` da tabela (Modulo::tipos)
+        Ausente,   // opc: o null (Q1b)
     } k = K::Temp;
     std::uint32_t indice = 0;   // Temp: o temporário; Literal: a string do módulo
     std::int64_t  i      = 0;
@@ -86,6 +93,7 @@ struct Operando {
     static Operando f64(double v)            { Operando o; o.k = K::F64; o.f = v; return o; }
     static Operando nulo()                   { Operando o; o.k = K::Nulo; return o; }
     static Operando vazio()                  { Operando o; o.k = K::Vazio; return o; }
+    static Operando ausente()                { Operando o; o.k = K::Ausente; return o; }
     static Operando descStruct(std::uint32_t d) { Operando o; o.k = K::DescStruct; o.indice = d; return o; }
     static Operando descClasse(std::uint32_t d) { Operando o; o.k = K::DescClasse; o.indice = d; return o; }
     static Operando enumerado(std::uint32_t e, std::int64_t v) { Operando o; o.k = K::Enum; o.indice = e; o.i = v; return o; }
@@ -121,6 +129,7 @@ enum class Op : std::uint8_t {
     Ret,           // ret [a]
     RetErro,       // volta ao chamador com o erro pendente (o valor de retorno não importa)
     Inalcancavel,  // fim de um caminho que o semântico garante que não chega
+    EhNulo,        // dst: bool = a (opc) é null (Q1b)
 };
 
 // As funções do runtime chamadas por ChamaRt (llvm/cinzart.h). Na chamada em C, um
@@ -165,6 +174,7 @@ enum class Rt : std::uint8_t {
     PegaErro,        // erro (): tira o erro pendente do estado, com posse
     Lanca,           // void (erro): throw — o erro pendente passa a ser uma cópia dele — falha
     Relanca,         // void (erro com posse): devolve ao estado um erro tirado dele (o fim do finally) — falha
+    ValorCopia,      // valor (valor): uma cópia com posse — retem, ou o clone de um struct (Q1b: guardar um T?)
 };
 struct InfoRt {
     const char*       nome;     // o símbolo em C

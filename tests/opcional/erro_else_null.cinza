@@ -1,0 +1,6 @@
+// Q1b: um T? não é usado como T, e null só cabe num T?
+fn main() {
+  i32? a;
+  print(a else null);
+}
+// expect-error: 'else null' não resolve a ausência

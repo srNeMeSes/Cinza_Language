@@ -18,7 +18,8 @@ deste capítulo são conferidas antes de executar.
 elemento de coleção pode ser `void`, e uma expressão `void` não é um valor (não pode ser
 atribuída nem passada como argumento).
 
-Não existe `null`: toda variável tem sempre um valor do seu tipo.
+Um valor de um desses tipos nunca é `null`: a ausência de valor só existe no tipo opcional, `T?`
+(seção 3.10), e o compilador obriga a resolvê-la antes de usar o valor.
 
 ### Números: duas famílias
 
@@ -196,7 +197,7 @@ família: `[1, 2]` é `list<i32>`, `[1.f, 2.5ff]` é `list<f64>`; elementos de f
 ## 3.6 Valor inicial obrigatório
 
 Toda variável e todo campo precisa de valor inicial na declaração, exceto `list<T>` e
-`dict<K, V>`, que nascem vazios.
+`dict<K, V>`, que nascem vazios, e o opcional `T?`, que nasce `null` (seção 3.10).
 
 ```cinza
 fn main() {
@@ -286,62 +287,143 @@ fn main() {
 
 As regras do `const` global (o que pode aparecer no inicializador) estão na seção 4.3.
 
-## 3.10 Sem `null`: como dizer "nenhum"
+## 3.10 Opcional: `T?` e `null`
 
-A Cinza não tem `null` nem tipo opcional: um valor de um tipo é sempre um valor daquele tipo, e
-nenhuma conta precisa conferir se ele "existe". O que em outras linguagens seria `null` tem um
-destes jeitos, os mesmos da biblioteca (capítulo 6):
+`null` é a ausência de um valor válido ou conhecido. Ele só existe num **tipo opcional**, escrito
+com `?` depois do tipo: um `string?` é uma `string` ou `null`; um `string`, nunca. Qualquer tipo de
+valor pode ser opcional — `i32?`, `list<i32>?`, `Pessoa?`, `Forma?` —, também dentro de coleções
+(`list<string?>`, o valor de um `dict<K, V?>`, `pair<A?, B>`). Não há `T??`, nem `void?` ou
+`var?`, e a chave de um dict não pode ser opcional.
 
-- **Zero ou mais**: uma `list<T>`, vazia quando não há nenhum — o resultado de uma busca que pode
-  achar vários (`Strings.positions`, `Regex.find_all`), os filhos de um nó (`list<No> filhos`).
-- **Pode não existir**: perguntar antes e só então pegar (`d.has(k)`, `l.has(i)`,
-  `Strings.contains`); onde um padrão é comum, `get_or(..., padrao)`, com o padrão escrito por
-  quem chama. Pegar o que não existe lança um erro (`KeyError`, `IndexError`, `ValueError`):
-  nada devolve um valor que finge ser resposta, como um `-1`.
-- **Não deveria faltar**: lançar um erro próprio (seção 4.10) e tratá-lo onde fizer sentido.
-- **Um "nenhum" que se comporta**: um objeto de uma classe que cumpre a mesma interface e não
-  faz nada (seção 3.7) — `SemDesconto` abaixo —, em vez de conferir a ausência a cada uso.
+- Um `T` cabe num `T?` (`string? s = "a";`, também ao passar um argumento ou retornar), e `null`
+  só cabe num `T?`. Um `T?` **nunca** cabe num `T` sem a ausência resolvida.
+- Uma variável ou um campo `T?` declarado sem valor nasce `null`; num struct, um campo `T?` não é
+  obrigatório na criação (seção 4.7). `var` não infere de `null`, que não diz o tipo.
+- Sobre um `T?` só valem `==` e `!=`: com `null`, com outro `T?` do mesmo tipo ou com um valor do
+  tipo dele (`n == 5`); dois `null` são iguais. Operadores, métodos, campos, índices, `for` e
+  condições de `if`/`while` sobre um `T?` são erro de compilação. Comparar com `null` um valor que
+  não é opcional também é erro: ele nunca é `null`.
+- `type(x)` de um `T?` é `T?`, com valor ou sem; `print` e a interpolação mostram `null`.
 
-Uma classe que cria a si mesma nos valores iniciais dos campos é erro (seção 4.6): o "próximo"
-que pode não existir é uma `list`.
+**`valor else alternativa`** resolve a ausência: o resultado é o valor do opcional, ou a
+alternativa quando ele é `null` — e a alternativa **só é avaliada** nesse caso. O valor antes de
+`else` precisa ser opcional, e a alternativa é do tipo de dentro (o resultado é um `T`) ou outro
+`T?` (o resultado continua `T?`, para encadear: `a else b else c`). `else null` é erro: não
+resolve nada.
 
 ```cinza
-import Strings as st;
-
-error SemCadastro;
-
-interface Desconto {
-  fn aplica(f64 v) -> f64;
+fn acha(list<string> nomes, string alvo) -> string? {
+  for (string n in nomes) { if (n == alvo) { return n; } }
+  return null;
 }
 
-class Metade : Desconto {
-  pub { fn aplica(f64 v) -> f64 { return v / 2.ff; } }
-}
-
-class SemDesconto : Desconto {
-  pub { fn aplica(f64 v) -> f64 { return v; } }
-}
-
-fn desconto(string cupom) -> Desconto {
-  if (cupom == "METADE") { return new Metade(); }
-  return new SemDesconto();
-}
-
-fn idade(dict<string, i32> idades, string nome) -> i32 {
-  if (not idades.has(nome)) { throw SemCadastro(nome + " não tem cadastro"); }
-  return idades[nome];
+class No {
+  i32 valor = 0;
+  No? prox;
+  pub {
+    No(i32 v) { valor = v; }
+    fn liga(No n) { prox = n; }
+    fn ultimo() -> bool { return prox == null; }
+  }
 }
 
 fn main() {
-  string s = "chave=valor";
-  if (st.contains(s, "=")) { print(st.left(s, st.find(s, "="))); }
-  print(st.positions(s, "x"), st.positions(s, "a"));
-  print(desconto("METADE").aplica(50.ff), desconto("").aplica(50.ff));
-  dict<string, i32> idades = {{"ana", 30}};
-  try { print(idade(idades, "bia")); } except (SemCadastro e) { print(e.message); }
+  string? a = acha(["ana", "bia"], "bia");
+  string? b = acha(["ana"], "zé");
+  print(a, b, a == "bia", b == null, type(b));
+  string nome = b else "ninguém";
+  print(nome, b else a else "fim");
+  No n = new No(1);
+  print(n.ultimo());
+  n.liga(new No(2));
+  print(n.ultimo());
+  list<i32?> l = [1, null, 3];
+  print(l, l[1] else 0);
 }
-// expect: chave
-// expect: [] [2, 7]
-// expect: 25 50
-// expect: bia não tem cadastro
+// expect: bia null true true string?
+// expect: ninguém bia
+// expect: true
+// expect: false
+// expect: [1, null, 3] 0
 ```
+
+**`valor else { ... }`**: quando a ausência pede mais que um valor — um aviso, uma conta, sair
+—, a alternativa é um bloco. Ele só roda se o valor for `null`, e **todo caminho dele termina**
+com `yield valor` (o valor que a expressão recebe, do tipo de dentro) ou saindo do fluxo
+(`return`, que continua sendo sair da função; `throw`; `break` ou `continue` do laço em volta da
+expressão). Chegar ao `}` é erro de compilação. `yield` só existe no bloco de um else, e não sai
+de dentro de um `try` (guarde o valor numa variável e use `yield` depois do `try`).
+
+**`if (T nome = opcional) { ... } else { ... }`** faz uma coisa quando há valor e outra quando não
+há: o primeiro bloco roda com o valor em `nome` (do tipo de dentro, ou `var`), que só existe
+nele; o `else`, sem ele. **`while (T nome = opcional) { ... }`** repete enquanto houver valor: o
+opcional é avaliado de novo a cada volta. O valor precisa ser opcional, e `nome` é do tipo exato
+de dentro (sem `?` e sem alargar; uma interface que a classe cumpre também vale). Não há
+estreitamento: `x != null` não muda o tipo de `x`.
+
+```cinza
+class Fila {
+  list<string> itens;
+  i32 pos = 0;
+  pub {
+    fn poe(string s) { itens.add(s); }
+    fn proximo() -> string? {
+      if (pos >= itens.size()) { return null; }
+      pos += 1;
+      return itens[pos - 1];
+    }
+  }
+}
+
+fn tamanho(string? s) -> i32 {
+  string t = s else { return -1; };
+  return t.size();
+}
+
+fn main() {
+  string? nada;
+  string nome = nada else {
+    print("sem nome");
+    yield "<semNome>";
+  };
+  print(nome, tamanho("abc"), tamanho(null));
+  Fila f = new Fila();
+  f.poe("a");
+  f.poe("b");
+  while (string s = f.proximo()) { print("item", s); }
+  if (string n = nada) { print("tem", n); } else { print("não tem"); }
+}
+// expect: sem nome
+// expect: <semNome> 3 -1
+// expect: item a
+// expect: item b
+// expect: não tem
+```
+
+```cinza
+fn main() {
+  string? s = "a";
+  print(s.size());
+}
+// expect-error: o valor é opcional; resolva a ausência antes
+```
+
+```cinza
+fn main() {
+  string? s;
+  string t = s else { print("sem valor"); };
+}
+// expect-error: O bloco do 'else' precisa terminar em todos os caminhos
+```
+
+```cinza
+fn main() {
+  i32 n = 1;
+  i32 m = n else 0;
+}
+// expect-error: O valor antes de 'else' não é opcional ('i32')
+```
+
+O que pode faltar de verdade se diz com um `T?`; o que quem chama controla — um índice fora da
+lista, uma chave que não existe, o primeiro elemento de uma lista vazia — continua sendo erro de
+execução (`IndexError`, `KeyError`, `ValueError`), como na biblioteca (capítulo 6).

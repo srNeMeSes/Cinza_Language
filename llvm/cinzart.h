@@ -48,7 +48,7 @@ constexpr std::int32_t CZ_PROFUNDIDADE = 2000;   // spec 5.8, a mesma da CVM
 // elemento que é a string literal número `extra` do programa. O vetor fica constante no
 // executável, sem uma instrução por elemento; essas funções trocam a marca pela string
 constexpr std::uint8_t CZ_TIPO_LITERAL = 0xFE;
-static_assert(CZ_TIPO_LITERAL > static_cast<std::uint8_t>(Value::Kind::VOID_VAL), "um tipo que não existe");
+static_assert(CZ_TIPO_LITERAL > static_cast<std::uint8_t>(Value::Kind::NULO), "um tipo que não existe");
 
 // Estado de execução (seção 5.2). Os campos são contrato de layout com o código
 // gerado (conferido pelo cinzac --confere-layout): o erro pendente, a profundidade
@@ -101,6 +101,8 @@ CZ_FALHA void cz_nativa(const void* fn, const cinza::CzValor* args, std::uint64_
 
 // Solta a referência que um CzValor segura (fim de um temporário embrulhado)
 void cz_solta_valor(cinza::CzValor* v) noexcept;
+// Q1b: uma cópia com posse de v (retem o que ele segura, ou clona um struct): guardar um T?
+void cz_valor_copia(const cinza::CzValor* v, cinza::CzValor* r) noexcept;
 
 // Os nomes dos arquivos do programa, na ordem dos file_id (0 = o principal)
 void cz_arquivos(const char* const* nomes, std::uint64_t n) noexcept;

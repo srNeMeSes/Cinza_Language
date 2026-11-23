@@ -1,0 +1,6 @@
+// Q1b: um T? não é usado como T, e null só cabe num T?
+fn main() {
+  string? s;
+  print(s.size());
+}
+// expect-error: Tipo 'string?' não possui métodos: o valor é opcional; resolva a ausência antes

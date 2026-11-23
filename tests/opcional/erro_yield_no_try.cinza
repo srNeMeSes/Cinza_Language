@@ -1,0 +1,9 @@
+// Q1b: as regras do bloco do else e do yield
+fn main() {
+  string? s;
+  string t = s else {
+    try { yield "a"; } except (Error e) { print(e.message); }
+    yield "b";
+  };
+}
+// expect-error: 'yield' não pode sair de dentro de um try

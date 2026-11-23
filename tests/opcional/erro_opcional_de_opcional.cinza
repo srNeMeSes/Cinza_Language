@@ -1,0 +1,5 @@
+// Q1b: um T? não é usado como T, e null só cabe num T?
+fn main() {
+  i32?? n;
+}
+// expect-error: 'i32??' não existe: um opcional já admite null, e não há opcional de opcional

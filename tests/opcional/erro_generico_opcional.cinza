@@ -1,0 +1,7 @@
+// Q1b: um T? não é usado como T, e null só cabe num T?
+fn embrulha[T](T x) -> T? { return x; }
+fn main() {
+  i32? n = 3;
+  print(embrulha(n));
+}
+// expect-error: Com T = i32?, o corpo de 'embrulha' não é válido: 'i32??' não existe

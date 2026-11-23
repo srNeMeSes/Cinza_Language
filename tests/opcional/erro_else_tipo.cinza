@@ -1,0 +1,6 @@
+// Q1b: um T? não é usado como T, e null só cabe num T?
+fn main() {
+  i32? n = 1;
+  i32 m = n else "x";
+}
+// expect-error: A alternativa do 'else' precisa ser 'i32' (o tipo de 'i32?'), mas é 'string'

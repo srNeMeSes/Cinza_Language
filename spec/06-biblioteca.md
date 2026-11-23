@@ -10,7 +10,7 @@ precedência.
 | `print(valores...)`                           | escreve os valores na saída, separados por um espaço, e pula linha. Aceita qualquer número de argumentos de qualquer tipo (nenhum: só pula linha). Usa a forma textual da seção 5.4. |
 | `printf("texto")`                             | escreve o texto com as expressões `{...}` substituídas (abaixo) e pula linha, como `print` |
 | `format("texto") -> string`                   | o mesmo texto do `printf`, devolvido em vez de escrito |
-| `input(string prompt) -> string`              | escreve `prompt` sem pular linha e lê uma linha da entrada, sem o fim de linha. Fim da entrada lança `IOError`. |
+| `input(string prompt) -> string?`             | escreve `prompt` sem pular linha e lê uma linha da entrada, sem o fim de linha; no fim da entrada, `null` (`while (string l = input("")) { ... }` lê até o fim). |
 | `range(inteiro ini, inteiro fim) -> list<inteiro>` | os inteiros de `ini` (inclusive) até `fim` (exclusive), no tipo dos argumentos: `range(0, 10)` é `list<i32>`; com um `i64`, `list<i64>`. |
 | `range(inteiro ini, inteiro fim, inteiro passo) -> list<inteiro>` | idem, de `passo` em `passo`; passo negativo conta para baixo; passo `0` lança `ValueError`. Como lista, no máximo 100 milhões de elementos (senão `ValueError`); no `for` a lista não é criada e não há limite. |
 | `type(x) -> type`                             | o tipo real de `x` (seção 3.8). |
@@ -119,12 +119,15 @@ Posições, tamanhos e contagens (`find`, `count`, `index_of`, `ord`, `compare`,
 
 Índices e tamanhos de texto contam **caracteres** (code points UTF-8), não bytes.
 
-**O que pode faltar.** Nada devolve um valor que finge ser resposta (como um `-1`): uma busca que
-não acha, uma chave ou um elemento que não existe lançam um erro (`ValueError`, `KeyError`,
-`IndexError`), e para cada um há como perguntar antes (`contains`, `has`). Onde um valor padrão é
-comum — dicts, variáveis de ambiente, objetos JSON — há também `get_or(..., padrao)`, com o padrão
-escrito por quem chama. O que pode ter zero ou mais resultados devolve uma lista (ou um dict),
-vazia quando não há nenhum (`positions`, `find_all`, `groups`, `keys_of`). Seção 3.10.
+**O que pode faltar.** O que pode não existir de verdade devolve um opcional (seção 3.10): uma
+busca que não acha (`find`, `index_of`), uma chave (`Dicts.get`, o `get` de um objeto JSON), uma
+variável de ambiente (`Env.get`), um texto que não é número (`Convert.to_i32`), o fim da entrada
+(`input`), um grupo de `Regex` que não participou. Quem chama resolve: `Env.get("TEMA") else
+"cinza"`, `if (i32 i = Strings.find(s, ":")) { ... }`. Nada devolve um valor que finge ser resposta,
+como um `-1`. O que quem chama controla continua sendo erro de execução: um índice fora da lista,
+`d[k]` com uma chave que não existe, o primeiro elemento de uma lista vazia. O que pode ter zero ou
+mais resultados devolve uma lista (ou um dict), vazia quando não há nenhum (`positions`,
+`find_all`, `groups`, `keys_of`).
 
 ### `Strings`
 
@@ -138,9 +141,9 @@ quebras de linha (`\t \n \r \f \v`).
 |--------|-----------|
 | `contains(string s, string trecho) -> bool` | `true` se `trecho` aparece em `s` |
 | `starts_with(string s, string prefixo) -> bool`, `ends_with(...)` | `true` se `s` começa / termina com o trecho |
-| `find(string s, string trecho) -> i32` | índice da primeira ocorrência; sem nenhuma, `ValueError` |
-| `find_last(string s, string trecho) -> i32` | índice da última ocorrência; sem nenhuma, `ValueError` |
-| `find_from(string s, string trecho, i64 inicio) -> i32` | como `find`, a partir do índice `inicio` (de `0` ao tamanho; senão `IndexError`) |
+| `find(string s, string trecho) -> i32?` | índice da primeira ocorrência, ou `null` |
+| `find_last(string s, string trecho) -> i32?` | índice da última ocorrência, ou `null` |
+| `find_from(string s, string trecho, i64 inicio) -> i32?` | como `find`, a partir do índice `inicio` (de `0` ao tamanho; senão `IndexError`) |
 | `positions(string s, string trecho) -> list<i32>` | os índices de todas as ocorrências, sem sobreposição (as que o `count` conta); nenhuma dá `[]`; trecho vazio lança `ValueError` |
 | `count(string s, string trecho) -> i32` | ocorrências sem sobreposição (`count("aaaa", "aa")` = `2`); trecho vazio lança `ValueError` |
 
@@ -429,16 +432,12 @@ fn main() {
 ### `Convert`
 
 Texto ↔ número é `cast<T>` (seção 3.1): `cast<i64>("42")`, `cast<f64>("2.5")`, `cast<string>(7)`.
-O `Convert` fica com o que o `cast` não faz: `bool`, validação, conversão com padrão e bases.
+O `Convert` fica com o que o `cast` não faz: `bool`, a conversão que pode falhar sem erro e bases.
 
 | Função | Descrição |
 |--------|-----------|
-| `to_bool(string s) -> bool` | só `"true"` ou `"false"`; outro texto lança `ValueError` |
-| `is_i32(string s) -> bool`, `is_i64(...)`, `is_f32(...)`, `is_f64(...)` | `true` se `cast<T>(s)` aceitaria o texto (formato e faixa) |
-| `is_bool(string s) -> bool` | `true` se `to_bool` aceitaria o texto |
-| `to_i32_or(string s, i32 padrao) -> i32`, `to_i64_or(string s, i64 padrao) -> i64` | o valor convertido como no `cast`, ou `padrao` se o texto não for aceito |
-| `to_f32_or(string s, f32 padrao) -> f32`, `to_f64_or(string s, f64 padrao) -> f64` | idem |
-| `to_bool_or(string s, bool padrao) -> bool` | idem |
+| `to_i32(string s) -> i32?`, `to_i64(...) -> i64?`, `to_f32(...) -> f32?`, `to_f64(...) -> f64?` | o valor convertido como no `cast<T>(s)`, ou `null` se o texto não for aceito (formato e faixa): `Convert.to_i32(s) else 0` |
+| `to_bool(string s) -> bool?` | `true` ou `false` para `"true"` e `"false"`; outro texto, `null` |
 
 Para aceitar vírgula decimal, troque-a antes: `cast<f64>(Strings.replace(s, ",", "."))`.
 
@@ -455,7 +454,7 @@ import Convert as cv;
 fn main() {
   print(cast<i64>("42") + 1, cast<f64>("2.5"), cast<string>(10) + "!", cv.to_bool("true"));
   try { print(cast<i64>("12a")); } except (ValueError e) { print(e.message); }
-  print(cv.is_i64("12a"), cv.to_i64_or("12a", 0), cv.to_i64_or("12", 0));
+  print(cv.to_i64("12a") != null, cv.to_i64("12a") else 0, cv.to_i64("12") else 0);
   print(cv.to_hex(255), cv.to_binary(5), cv.from_base("ff", 16), cv.to_base(35, 36));
 }
 // expect: 43 2.5 10! true
@@ -498,8 +497,8 @@ fn main() {
 | Função | Descrição |
 |--------|-----------|
 | `contains(list<T> l, T x) -> bool` | `true` se algum elemento é igual a `x` |
-| `index_of(list<T> l, T x) -> i32` | índice do primeiro elemento igual a `x`; sem nenhum, `ValueError` |
-| `last_index_of(list<T> l, T x) -> i32` | índice do último; sem nenhum, `ValueError` |
+| `index_of(list<T> l, T x) -> i32?` | índice do primeiro elemento igual a `x`, ou `null` |
+| `last_index_of(list<T> l, T x) -> i32?` | índice do último, ou `null` |
 | `count(list<T> l, T x) -> i32` | quantos elementos são iguais a `x` |
 | `first(list<T> l) -> T`, `last(...)` | o primeiro / o último elemento; lista vazia lança `IndexError` |
 | `is_empty(list<T> l) -> bool` | `true` se não tem elementos |
@@ -559,7 +558,7 @@ e valor repetido ao inverter lançam `ValueError` (em vez de ficar só com um de
 
 | Função | Descrição |
 |--------|-----------|
-| `get_or(dict<K, V> d, K chave, V padrao) -> V` | o valor da chave, ou `padrao` se ela não existir |
+| `get(dict<K, V> d, K chave) -> V?` | o valor da chave, ou `null` se ela não existir (`d[k]`, ao contrário, lança `KeyError`) |
 | `contains_value(dict<K, V> d, V v) -> bool` | `true` se alguma chave tem o valor `v` |
 | `keys_of(dict<K, V> d, V v) -> list<K>` | as chaves com o valor `v`, em ordem (nenhuma: `[]`) |
 | `items(dict<K, V> d) -> list<pair<K, V>>` | as entradas como pares, em ordem de chave |
@@ -589,7 +588,7 @@ As funções que alteram o dict (`update`, `pop`, `clear`) são erro num dict `c
 import Dicts;
 fn main() {
   dict<string, i32> estoque = {{"pera", 3}, {"maçã", 0}, {"uva", 3}};
-  print(Dicts.get_or(estoque, "kiwi", 0), Dicts.keys_of(estoque, 3), Dicts.contains_value(estoque, 0));
+  print(Dicts.get(estoque, "kiwi") else 0, Dicts.keys_of(estoque, 3), Dicts.contains_value(estoque, 0));
   Dicts.update(estoque, {{"kiwi", 5}, {"uva", 1}});
   print(estoque, Dicts.pop(estoque, "maçã"));
   print(Dicts.invert({{"um", 1}, {"dois", 2}}), Dicts.from_lists(["a", "b"], [true, false]));
@@ -611,9 +610,7 @@ minúsculas (`Path` e `PATH` são a mesma); nos outros sistemas, diferenciam.
 
 | Função | Descrição |
 |--------|-----------|
-| `get(string nome) -> string` | o valor da variável; se ela não existir, `KeyError` |
-| `get_or(string nome, string padrao) -> string` | o valor, ou `padrao` se ela não existir |
-| `has(string nome) -> bool` | `true` se a variável existe (mesmo vazia) |
+| `get(string nome) -> string?` | o valor da variável, ou `null` se ela não existir (`Env.get("X") else "padrão"`) |
 | `all() -> dict<string, string>` | todas as variáveis, por nome |
 
 Nome vazio ou com `=` lança `ValueError`.
@@ -687,12 +684,12 @@ mil instruções, como `(a{1000}){1000}`) também.
 |--------|-----------|
 | `matches(string s, string padrao) -> bool` | `true` se o padrão casa o texto **inteiro** |
 | `contains(string s, string padrao) -> bool` | `true` se casa em algum lugar |
-| `find(string s, string padrao) -> i32` | o índice da primeira ocorrência; sem nenhuma, `ValueError` |
+| `find(string s, string padrao) -> i32?` | o índice da primeira ocorrência, ou `null` |
 | `find_all(string s, string padrao) -> list<string>` | todas as ocorrências, sem sobreposição |
 | `count(string s, string padrao) -> i32` | quantas ocorrências |
-| `groups(string s, string padrao) -> list<string>` | a primeira ocorrência e os seus grupos (`[0]` é a ocorrência inteira; um grupo que não participou é `""`, como um que casou o texto vazio: os dois não se distinguem); sem ocorrência, `[]` |
-| `groups_all(string s, string padrao) -> list<list<string>>` | o mesmo, para cada ocorrência |
-| `named(string s, string padrao) -> dict<string, string>` | os grupos com nome da primeira ocorrência; sem ocorrência, `{}` |
+| `groups(string s, string padrao) -> list<string?>` | a primeira ocorrência e os seus grupos (`[0]` é a ocorrência inteira; um grupo que não participou é `null`, e um que casou o texto vazio, `""`); sem ocorrência, `[]` |
+| `groups_all(string s, string padrao) -> list<list<string?>>` | o mesmo, para cada ocorrência |
+| `named(string s, string padrao) -> dict<string, string?>` | os grupos com nome da primeira ocorrência (o que não participou, `null`); sem ocorrência, `{}` |
 | `replace_all(string s, string padrao, string troca) -> string` | troca cada ocorrência |
 | `replace_first(string s, string padrao, string troca) -> string` | troca só a primeira |
 | `split(string s, string padrao) -> list<string>` | as partes entre as ocorrências |
@@ -725,8 +722,9 @@ fn main() {
 
 Ler e gravar JSON ([RFC 8259](https://www.rfc-editor.org/rfc/rfc8259)). Um valor JSON é um
 `Json.Value`, e o tipo dele é um `Json.Kind`: `Null`, `Bool`, `Number`, `Text`, `List` ou `Object`.
-A Cinza não tem null nem tipo dinâmico: o `null` do JSON é um valor de tipo `Kind.Null`, e ler um
-valor como o tipo errado (`as_text` de um número) lança `ValueError`. `Json` é um módulo da
+O `null` do JSON é um dado como os outros, um `Json.Value` de tipo `Kind.Null` (diferente do `null`
+de um opcional, que diz que nem há valor); ler um valor como o tipo errado (`as_text` de um
+número) lança `ValueError`. `Json` é um módulo da
 biblioteca escrito na própria Cinza (vem embutido no `cinza` e no `cinzac`; nas mensagens e nos
 traces aparece como `<biblioteca>/Json.cinza`), e é usado como qualquer módulo: `Json.Value`,
 `Json.Kind.Text`, `Json.parse(...)`.
@@ -751,7 +749,7 @@ traces aparece como `<biblioteca>/Json.cinza`), e é usado como qualquer módulo
 | `as_i64() -> i64` | o número inteiro, **exato** em toda a faixa de `i64` (o texto do número é guardado); com ponto ou expoente, `ValueError` |
 | `size() -> i32` | os elementos de uma lista ou as chaves de um objeto |
 | `at(i64 i) -> Value`, `items() -> list<Value>`, `add(Value v)` | lista: o elemento `i` (`IndexError` fora dela), todos, acrescentar no fim |
-| `get(string k) -> Value`, `get_or(string k, Value padrao) -> Value`, `has(string k) -> bool` | objeto: o valor da chave (`KeyError` se não existir), ou `padrao`; se ela existe |
+| `get(string k) -> Value?` | objeto: o valor da chave, ou `null` se ela não existir |
 | `keys() -> list<string>`, `set(string k, Value v)`, `remove(string k)` | objeto: as chaves, **na ordem em que entraram**; gravar (uma chave que já existe troca o valor no mesmo lugar); apagar (`KeyError` se não existir) |
 | `to_text() -> string` | o JSON compacto |
 | `to_text_pretty(i64 recuo) -> string` | o JSON com uma entrada por linha e `recuo` espaços por nível (de 0 a 16) |
@@ -768,17 +766,20 @@ mesmo — também lança `ValueError`. O texto gravado usa os escapes do JSON (`
 import Json;
 fn main() {
   Json.Value v = Json.parse("{\"nome\": \"Ana\", \"notas\": [9.5, 8], \"chefe\": null}");
-  print(v.get("nome").as_text(), v.get("notas").size(), v.get("notas").at(0).as_f64());
-  print(v.get("chefe").is_null(), v.get("notas").kind() == Json.Kind.List, v.keys());
+  Json.Value nada = Json.null_value();
+  Json.Value notas = v.get("notas") else nada;
+  print((v.get("nome") else nada).as_text(), notas.size(), notas.at(0).as_f64(), v.get("idade"));
+  print((v.get("chefe") else nada).is_null(), notas.kind() == Json.Kind.List, v.keys());
   Json.Value p = Json.new_object();
   p.set("id", Json.from_i64(7));
-  p.set("tags", Json.new_list());
-  p.get("tags").add(Json.from_text("novo"));
+  Json.Value tags = Json.new_list();
+  p.set("tags", tags);
+  tags.add(Json.from_text("novo"));
   print(p.to_text());
   print(p.to_text_pretty(2));
   try { Json.parse("[1, 2,]"); } except (ValueError e) { print(e.message); }
 }
-// expect: Ana 2 9.5
+// expect: Ana 2 9.5 null
 // expect: true true ["nome", "notas", "chefe"]
 // expect: {"id":7,"tags":["novo"]}
 // expect: {

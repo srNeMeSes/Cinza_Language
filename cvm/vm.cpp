@@ -116,6 +116,7 @@ Value VM::dispatch(std::size_t entrada) {
                 case Op::LOADI32:   R[in.a] = Value::i32(in.bc()); break;
                 case Op::LOADBOOL:  R[in.a] = Value(in.b != 0); break;
                 case Op::LOADVOID:  R[in.a] = Value(); break;
+                case Op::LOADNULL:  R[in.a] = Value::nulo(); break;
                 case Op::GETGLOBAL: R[in.a] = globals[in.b]; break;
                 case Op::SETGLOBAL: globals[in.b] = R[in.a]; break;
 
@@ -273,6 +274,8 @@ Value VM::dispatch(std::size_t entrada) {
                 case Op::JMP:      f->pc += in.bc(); break;
                 case Op::JMPIF:    if (R[in.a].asBool())  f->pc += in.bc(); break;
                 case Op::JMPIFNOT: if (!R[in.a].asBool()) f->pc += in.bc(); break;
+                case Op::JMPNOTNULL: if (!R[in.a].isNull()) f->pc += in.bc(); break;
+                case Op::JMPNULL:    if (R[in.a].isNull()) f->pc += in.bc(); break;
                 // compara e salta: se verdadeiro, faz aqui o JMP seguinte; senão o pula
 #define CVM_SALTA_SE(cond) f->pc += (cond) ? 1 + code[f->pc].bc() : 1
                 case Op::JLT_I:  CVM_SALTA_SE(R[in.a].asInt() <  R[in.b].asInt()); break;

@@ -1,13 +1,13 @@
-// Convert: validar sem try (is_*), converter com padrão (to_*_or) e bases numéricas.
-// is_* e to_*_or aceitam exatamente os mesmos textos que to_*.
+// Convert: converter sem try (to_* dá um T?: null se o texto não for válido; Q1b) e bases numéricas.
+// to_* aceita exatamente os mesmos textos que o cast<T>.
 import Convert as cv;
 fn main() {
-  print(cv.is_i64("42"), cv.is_i64("+7"), cv.is_i64("-0"), cv.is_i64(""), cv.is_i64(" 1"), cv.is_i64("1.0"), cv.is_i64("99999999999999999999"));
-  print(cv.is_f64("2.5"), cv.is_f64("-3"), cv.is_f64("1e3"), cv.is_f64("2,5"), cv.is_f64(".5"), cv.is_f64("1e999"));
-  print(cv.is_bool("true"), cv.is_bool("false"), cv.is_bool("True"), cv.is_bool("1"));
-  print(cv.to_i64_or("42", 0), cv.to_i64_or("abc", -1), cv.to_i64_or("99999999999999999999", 0));
-  f64 d = cv.to_f64_or("x", 1.ff);
-  print(cv.to_f64_or("2.5", 0.0ff), d, type(d), cv.to_bool_or("false", true), cv.to_bool_or("sim", true));
+  print(cv.to_i64("42") != null, cv.to_i64("+7") != null, cv.to_i64("-0") != null, cv.to_i64("") != null, cv.to_i64(" 1") != null, cv.to_i64("1.0") != null, cv.to_i64("99999999999999999999") != null);
+  print(cv.to_f64("2.5") != null, cv.to_f64("-3") != null, cv.to_f64("1e3") != null, cv.to_f64("2,5") != null, cv.to_f64(".5") != null, cv.to_f64("1e999") != null);
+  print(cv.to_bool("true") != null, cv.to_bool("false") != null, cv.to_bool("True") != null, cv.to_bool("1") != null);
+  print(cv.to_i64("42") else 0, cv.to_i64("abc") else -1, cv.to_i64("99999999999999999999") else 0);
+  f64 d = cv.to_f64("x") else 1.ff;
+  print(cv.to_f64("2.5") else 0.0ff, d, type(d), cv.to_bool("false") else true, cv.to_bool("sim") else true);
   // bases: dígitos minúsculos, sem prefixo; negativo com '-'
   print(cv.to_hex(255), cv.to_binary(10), cv.to_octal(8), cv.to_base(35, 36), cv.to_base(0, 2), cv.to_hex(-255));
   print(cv.to_hex(-9223372036854775807 - 1), cv.to_binary(9223372036854775807).size());

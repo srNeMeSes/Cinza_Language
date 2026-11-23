@@ -76,7 +76,8 @@ bool eh(const Peca& p, const char* s) { return p.t != Peca::T::Texto && p.t != P
 // Palavras depois das quais um ( é de uma instrução (if (...)), não de uma chamada
 bool controle(const std::string& s) {
     return s == "if" || s == "while" || s == "for" || s == "except" || s == "return" || s == "in" ||
-           s == "and" || s == "or" || s == "not" || s == "throw";
+           s == "and" || s == "or" || s == "not" || s == "throw" ||
+           s == "else" || s == "yield";   // Q1b: x else (a + b), x else [1], x else -1; yield v
 }
 
 // Palavras depois das quais vem uma expressão (então - e ! são unários, [ e { abrem um literal)
@@ -201,6 +202,7 @@ private:
         const bool ga = angulo_generico_[i - 1], gb = angulo_generico_[i];
         if (b.t == Peca::T::Comentario) return std::string(static_cast<std::size_t>(b.espaco_antes < 1 ? 1 : b.espaco_antes), ' ');
         if (eh(a, ".") || eh(b, ".")) return "";
+        if (eh(b, "?")) return "";   // Q1b: o opcional, colado ao tipo (string?, list<i32>?)
         if (eh(b, ",") || eh(b, ";") || eh(b, ")") || eh(b, "]")) return "";
         if (eh(a, "(") || eh(a, "[")) return "";
         if (eh(a, ",") || eh(a, ";")) return " ";
@@ -293,8 +295,8 @@ private:
                 if (j > 0) {
                     const Peca& a = ps[j - 1];
                     e = (a.t == Peca::T::Simbolo && a.s != ")" && a.s != "]" && a.s != "}" && a.s != "->" &&
-                         a.s != ">") ||
-                        (a.t == Peca::T::Palavra && antesDeExpressao(a.s));
+                         a.s != ">" && a.s != "?") ||   // Q1b: fn f() -> T? { é um bloco
+                        (a.t == Peca::T::Palavra && antesDeExpressao(a.s) && a.s != "else");   // else { é bloco
                     if (eh(a, ">") && angulo_generico_[j - 1]) e = false;
                     if (eh(a, "}") && !pilha.empty() && pilha.back()) e = true;   // }, { num literal
                 } else {

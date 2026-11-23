@@ -1,0 +1,6 @@
+// Q1b: as regras do if/while com declaração
+fn main() {
+  string? x;
+  if (string? n = x) { print(n); }
+}
+// expect-error: 'n' recebe o valor já resolvido: declare 'string', sem '?'

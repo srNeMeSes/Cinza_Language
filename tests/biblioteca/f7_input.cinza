@@ -1,8 +1,9 @@
-// Fase 7: input(prompt) é embutido: mostra o prompt sem pular linha e lê uma linha.
+// Fase 7: input(prompt) é embutido: mostra o prompt sem pular linha e lê uma linha. Q1b: devolve
+// um string? (null no fim da entrada).
 fn main() {
-  str nome = input("Nome: ");
+  str nome = input("Nome: ") else "";
   print("Olá, " + nome);
-  str idade = input("Idade: ");
+  str idade = input("Idade: ") else "";
   print(idade.size());
 }
 // stdin: Evans

@@ -148,11 +148,22 @@ void Parser::synchronize() {
 // TYPE PARSING
 // ============================================================================
 
-// C5: guarda no Type o token onde ele foi escrito
+// C5: guarda no Type o token onde ele foi escrito. Q1b: T? é o tipo que admite null
 TypePtr Parser::parseType() {
     Token start = peek();
     TypePtr type = parseTypeInner();
     type->token = start;
+    if (match(TokenType::QUESTION)) {
+        if (check(TokenType::QUESTION)) {
+            error("'" + type->toString() + "?" "?' não existe: um opcional já admite null, e não há "
+                  "opcional de opcional", peek());
+            throw ParseError("opcional de opcional", peek());
+        }
+        auto opcional = std::make_unique<Type>(Type::Kind::OPTIONAL);
+        opcional->token = start;
+        opcional->type_params.push_back(std::move(type));
+        return opcional;
+    }
     return type;
 }
 
@@ -318,7 +329,20 @@ struct Niveis {
 ExprPtr Parser::parseExpression() {
     Niveis nv{*this};
     nv.mais(peek());
-    return parseLogicalOrExpr();
+    return parseElseExpr();
+}
+
+// Q1b: valor else alternativa — a precedência mais baixa; a else b else c é a else (b else c)
+ExprPtr Parser::parseElseExpr() {
+    ExprPtr expr = parseLogicalOrExpr();
+    if (!match(TokenType::KW_ELSE)) return expr;
+    Token else_tok = previous();
+    Niveis nv{*this};
+    nv.mais(else_tok);
+    if (check(TokenType::LBRACE))   // valor else { ...; yield v; }
+        return std::make_unique<ElseExpr>(else_tok, std::move(expr), parseBlockStatement());
+    ExprPtr alternativa = parseElseExpr();
+    return std::make_unique<ElseExpr>(else_tok, std::move(expr), std::move(alternativa));
 }
 
 // r: a || b
@@ -449,6 +473,9 @@ ExprPtr Parser::parsePrimaryExpr() {
     }
     if (match(TokenType::KW_FALSE)) {
         return std::make_unique<LiteralExpr>(previous(), false);
+    }
+    if (match(TokenType::KW_NULL)) {   // Q1b
+        return std::make_unique<NullExpr>(previous());
     }
     
     
@@ -944,6 +971,12 @@ StmtPtr Parser::parseStatement() {
     Niveis nv{*this};   // instruções umas dentro das outras (blocos, else if)
     try {
         nv.mais(peek());
+        if (match(TokenType::KW_YIELD)) {   // Q1b: yield valor; — no bloco de um else
+            Token tok = previous();
+            ExprPtr valor = parseExpression();
+            consume(TokenType::SEMICOLON, "Esperado ';' após o valor do yield");
+            return std::make_unique<YieldStmt>(tok, std::move(valor));
+        }
         // A8: fn e class só no nível superior (fn também dentro de class).
         // Antes, uma fn aninhada era aceita e nunca registrada.
         if (block_depth > 0 && (check(TokenType::KW_FN) || check(TokenType::KW_CLASS) ||
@@ -1077,9 +1110,10 @@ StmtPtr Parser::parseVarDeclStatement() {
     Token name_token = consume(TokenType::IDENTIFIER, "Esperado nome da variável");
     std::string var_name = name_token.lexeme;
 
-    // list<T> e dict<K,V> podem ser declarados sem inicializador (nascem vazios)
+    // list<T> e dict<K,V> podem ser declarados sem inicializador (nascem vazios); Q1b: T?
+    // nasce null
     bool can_omit_init = (type->kind == Type::Kind::LIST ||
-                          type->kind == Type::Kind::DICT);
+                          type->kind == Type::Kind::DICT || type->kind == Type::Kind::OPTIONAL);
 
     ExprPtr initializer = nullptr;
     if (match(TokenType::OP_ASSIGN)) {
@@ -1105,7 +1139,8 @@ StmtPtr Parser::parseVarDeclStatement() {
         }
         error(
             "'" + var_name + "'" + " deve ser inicializado na declaração" + extra_note + ". "
-            "Somente list<T> e dict<K,V> podem omitir o inicializador. "
+            "Somente list<T> e dict<K,V> (que nascem vazios) e um opcional T? (que nasce null) "
+            "podem omitir o inicializador. "
             "Use: " + (is_const ? "const " : "") + type->toString() +
             " " + var_name + " " + suggestion + ";",
             name_token);
@@ -1157,6 +1192,14 @@ StmtPtr Parser::parseIfStatement() {
     Token if_token = advance(); // consome 'if'
     
     consume(TokenType::LPAREN, "Esperado '(' após 'if'");
+    // Q1b: if (T nome = opcional)
+    TypePtr decl_type;
+    Token   decl_tok;
+    if (checkDeclaracaoNaCondicao()) {
+        decl_type = parseType();
+        decl_tok  = consume(TokenType::IDENTIFIER, "Esperado o nome da variável");
+        consume(TokenType::OP_ASSIGN, "Esperado '=' depois do nome da variável");
+    }
     ExprPtr condition = parseExpression();
     consume(TokenType::RPAREN, "Esperado ')' após condição do if");
     
@@ -1181,8 +1224,57 @@ StmtPtr Parser::parseIfStatement() {
         }
     }
     
-    return std::make_unique<IfStmt>(if_token, std::move(condition), 
-                                    std::move(then_branch), std::move(else_branch));
+    auto se = std::make_unique<IfStmt>(if_token, std::move(condition),
+                                       std::move(then_branch), std::move(else_branch));
+    if (decl_type) {
+        se->decl_type  = std::move(decl_type);
+        se->decl_name  = decl_tok.lexeme;
+        se->decl_token = decl_tok;
+    }
+    return se;
+}
+
+// Q1b: depois do '(' de um if ou while, uma declaração (tipo nome =) e não uma expressão: o
+// tipo (primitivo, var, list<...>, dict<...>, pair<...>, um nome, apelido.Nome, Nome[...]), um '?'
+// opcional, o nome e '=' — assim if (i32 == type(x)) continua sendo uma expressão
+bool Parser::checkDeclaracaoNaCondicao() const {
+    size_t i = current;
+    auto tipo = [&](size_t k) { return k < tokens.size() ? tokens[k].type : TokenType::END_OF_FILE; };
+    const TokenType t0 = tipo(i);
+    const bool primitivo = t0 == TokenType::TYPE_I32 || t0 == TokenType::TYPE_I64 || t0 == TokenType::TYPE_F32 ||
+                           t0 == TokenType::TYPE_F64 || t0 == TokenType::TYPE_STRING || t0 == TokenType::TYPE_BOOL ||
+                           t0 == TokenType::TYPE_VAR;
+    if (primitivo) {
+        ++i;
+    } else if (t0 == TokenType::TYPE_LIST || t0 == TokenType::TYPE_DICT || t0 == TokenType::TYPE_PAIR) {
+        ++i;
+        if (tipo(i) != TokenType::OP_LESS) return false;
+        int nivel = 0;
+        for (; i < tokens.size(); ++i) {
+            if (tipo(i) == TokenType::OP_LESS) ++nivel;
+            else if (tipo(i) == TokenType::OP_GREATER && --nivel == 0) break;
+            else if (tipo(i) == TokenType::RPAREN || tipo(i) == TokenType::SEMICOLON || tipo(i) == TokenType::LBRACE)
+                return false;
+        }
+        ++i;
+    } else if (t0 == TokenType::IDENTIFIER) {
+        ++i;
+        if (tipo(i) == TokenType::DOT && tipo(i + 1) == TokenType::IDENTIFIER) i += 2;   // apelido.Nome
+        if (tipo(i) == TokenType::LBRACKET) {   // Nome[tipos]
+            int nivel = 0;
+            for (; i < tokens.size(); ++i) {
+                if (tipo(i) == TokenType::LBRACKET) ++nivel;
+                else if (tipo(i) == TokenType::RBRACKET && --nivel == 0) break;
+                else if (tipo(i) == TokenType::RPAREN || tipo(i) == TokenType::SEMICOLON || tipo(i) == TokenType::LBRACE)
+                    return false;
+            }
+            ++i;
+        }
+    } else {
+        return false;
+    }
+    if (tipo(i) == TokenType::QUESTION) ++i;
+    return tipo(i) == TokenType::IDENTIFIER && tipo(i + 1) == TokenType::OP_ASSIGN;
 }
 
 // r: while(condition) {...}
@@ -1190,6 +1282,14 @@ StmtPtr Parser::parseWhileStatement() {
     Token while_token = advance(); // consome 'while'
     
     consume(TokenType::LPAREN, "Esperado '(' após 'while'");
+    // Q1b: while (T nome = opcional)
+    TypePtr decl_type;
+    Token   decl_tok;
+    if (checkDeclaracaoNaCondicao()) {
+        decl_type = parseType();
+        decl_tok  = consume(TokenType::IDENTIFIER, "Esperado o nome da variável");
+        consume(TokenType::OP_ASSIGN, "Esperado '=' depois do nome da variável");
+    }
     ExprPtr condition = parseExpression();
     consume(TokenType::RPAREN, "Esperado ')' após condição do while");
     
@@ -1200,7 +1300,13 @@ StmtPtr Parser::parseWhileStatement() {
     }
     StmtPtr body = parseBlockStatement();
     
-    return std::make_unique<WhileStmt>(while_token, std::move(condition), std::move(body));
+    auto enquanto = std::make_unique<WhileStmt>(while_token, std::move(condition), std::move(body));
+    if (decl_type) {
+        enquanto->decl_type  = std::move(decl_type);
+        enquanto->decl_name  = decl_tok.lexeme;
+        enquanto->decl_token = decl_tok;
+    }
+    return enquanto;
 }
 
 // r: for(type in iterable) {...}
@@ -1557,6 +1663,7 @@ bool Parser::checkCustomTypeDecl() const {
         }
         ++i;   // depois do ']'
     }
+    if (i < tokens.size() && tokens[i].type == TokenType::QUESTION) ++i;   // Q1b: No? prox
     return i < tokens.size() && tokens[i].type == TokenType::IDENTIFIER;
 }
 
@@ -1578,7 +1685,8 @@ ClassDecl::Field Parser::parseFieldDeclaration(bool em_struct) {
 
     // list<T> e dict<K,V> podem ser declarados sem inicializador
     bool field_can_omit = em_struct || field_type->kind == Type::Kind::LIST ||
-                          field_type->kind == Type::Kind::DICT;
+                          field_type->kind == Type::Kind::DICT ||
+                          field_type->kind == Type::Kind::OPTIONAL;
 
     ExprPtr initializer = nullptr;
     if (match(TokenType::OP_ASSIGN)) {
@@ -1604,7 +1712,8 @@ ClassDecl::Field Parser::parseFieldDeclaration(bool em_struct) {
         }
         error(
             "Campo '" + field_name.lexeme + "' deve ser inicializado na declaração" + extra_note + ". "
-            "Somente list<T> e dict<K,V> podem omitir o inicializador. "
+            "Somente list<T> e dict<K,V> (que nascem vazios) e um opcional T? (que nasce null) "
+            "podem omitir o inicializador. "
             "Use: " + field_type->toString() + " " +
             field_name.lexeme + " " + suggestion + ";",
             field_name);

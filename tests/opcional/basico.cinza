@@ -1,0 +1,42 @@
+// Q1b: T? admite null; um T vira T? sozinho; o T? sem valor nasce null; só == e !=; else
+// resolve a ausência (a alternativa só é avaliada se o valor for null)
+fn acha(list<string> l, string s) -> string? {
+  for (string x in l) { if (x == s) { return x; } }
+  return null;
+}
+
+fn alternativa(string s) -> string {
+  print("avaliou " + s);
+  return s;
+}
+
+fn main() {
+  string? a = acha(["ana", "bia"], "bia");
+  string? b = acha(["ana"], "zé");
+  string? c;
+  print(a, b, c, a == null, b == null, a == "bia", a != "x", null == b);
+  string r = b else "ninguém";
+  print(a else "?", r, b else c else "fim");
+  print(a else alternativa("não devia"));
+  print(b else alternativa("sim"));
+  i64? n = 5;
+  i64 m = n else 0;
+  f64? f;
+  print(m + 1, f else 2.5ff, type(n), type(m), type(f) == f64?);
+  string? d = "x";
+  d = null;
+  print(d);
+  var v = acha(["x"], "x");
+  print(v, type(v));
+  const string? k = "fixo";
+  print(k, "[" + (k else "") + "]");
+}
+// expect: bia null null false true true true true
+// expect: bia ninguém fim
+// expect: bia
+// expect: avaliou sim
+// expect: sim
+// expect: 6 2.5 i64? i64 true
+// expect: null
+// expect: x string?
+// expect: fixo [fixo]

@@ -74,7 +74,7 @@ std::string disassemble(const Image& img) {
                                     ops = ra + ", " + std::to_string(in.bc()); break;
                 case Op::CONV:      ops = ra + ", " + rb; nota = "cast<" + convTipo(in.c)->str() + ">"; break;
                 case Op::LOADBOOL:  ops = ra + (in.b ? ", true" : ", false"); break;
-                case Op::LOADVOID: case Op::RET:
+                case Op::LOADVOID: case Op::LOADNULL: case Op::RET:
                                     ops = ra; break;
                 case Op::RETVOID:   break;
                 case Op::GETGLOBAL: case Op::SETGLOBAL:
@@ -104,7 +104,7 @@ std::string disassemble(const Image& img) {
                                     std::to_string(in.b + 1) + ":r" + std::to_string(in.b + 2) + ":r" +
                                     std::to_string(in.b + 3) + "]"; break;
                 case Op::RANGEPREP: ops = ra; nota = "iterador em r" + std::to_string(in.b); break;
-                case Op::JMPIF: case Op::JMPIFNOT: case Op::FORNEXT: case Op::FORNEXT_W:
+                case Op::JMPIF: case Op::JMPIFNOT: case Op::JMPNOTNULL: case Op::JMPNULL: case Op::FORNEXT: case Op::FORNEXT_W:
                 case Op::FORRANGE:
                                     ops = ra + ", " + alvo(); break;
                 case Op::FORPREP:   ops = ra + ", " + rb;

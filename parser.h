@@ -122,6 +122,8 @@ private:
     // primary          : literals, identifiers, calls, member access
     
     ExprPtr parseExpression();
+    ExprPtr parseElseExpr();        // Q1b: valor else alternativa
+    bool    checkDeclaracaoNaCondicao() const;   // Q1b: if (T nome = ...) / while (T nome = ...)
     ExprPtr parseLogicalOrExpr();
     ExprPtr parseLogicalAndExpr();
     ExprPtr parseEqualityExpr();

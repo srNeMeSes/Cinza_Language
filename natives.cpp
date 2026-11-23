@@ -51,8 +51,7 @@ static Value nativeRange(std::span<const Value> args) {
 static Value nativeInput(std::span<const Value> args) {
     std::cout << args[0].asString() << std::flush;
     std::string linha;
-    if (!std::getline(std::cin, linha))
-        throw RuntimeError("IOError: fim da entrada em 'input'");
+    if (!std::getline(std::cin, linha)) return Value::nulo();   // Q1b: o fim da entrada é null
     if (!linha.empty() && linha.back() == '\r') linha.pop_back();
     return Value(std::move(linha));
 }
@@ -73,7 +72,7 @@ const NativeFn* findPrelude(const std::string& name) {
         {"print", {"print", {t.typeVar("any")}, t.voidType(), nativePrint, 0, true}},
         {"range", {"range", {t.typeVar("inteiro"), t.typeVar("inteiro"), t.typeVar("inteiro")},
                    t.list(t.typeVar("inteiro")), nativeRange, 2, false}},
-        {"input", {"input", {t.stringType()}, t.stringType(), nativeInput}},
+        {"input", {"input", {t.stringType()}, t.optional(t.stringType()), nativeInput}},
         {"exit",  {"exit",  {t.i64Type()}, t.voidType(), nativeExit, NativeFn::SEM_OBRIGATORIOS}},
     };
     auto it = prelude.find(name);

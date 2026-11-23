@@ -1,0 +1,5 @@
+// Q1b: um T? não é usado como T, e null só cabe num T?
+fn main() {
+  string s = null;
+}
+// expect-error: null só cabe num tipo opcional: declare 'string?'

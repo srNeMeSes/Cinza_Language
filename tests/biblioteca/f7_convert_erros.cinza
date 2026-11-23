@@ -8,7 +8,7 @@ fn main() {
   try { print(cast<i32>("3000000000")); } except (OverflowError e) { print(e.message); }
   try { print(cast<f64>("abc")); } except (ValueError e) { print(e.message); }
   try { print(cast<f64>("1.")); } except (ValueError e) { print(e.message); }
-  try { print(Convert.to_bool("sim")); } except (ValueError e) { print(e.kind); }
+  print(Convert.to_bool("sim"), Convert.to_bool("true"));   // Q1b: o texto inválido dá null
 }
 // expect: cast<i64>("12a"): não é um número inteiro (só sinal e dígitos)
 // expect: cast<i64>(" 1"): não é um número inteiro (só sinal e dígitos)
@@ -17,4 +17,4 @@ fn main() {
 // expect: cast<i32>("3000000000"): o valor não cabe em i32
 // expect: cast<f64>("abc"): não é um número (ex.: 2.5, -3, 1e10)
 // expect: cast<f64>("1."): não é um número (ex.: 2.5, -3, 1e10)
-// expect: ValueError
+// expect: null true

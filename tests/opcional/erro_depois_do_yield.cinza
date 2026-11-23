@@ -1,0 +1,9 @@
+// Q1b: as regras do bloco do else e do yield
+fn main() {
+  string? s;
+  string t = s else {
+    yield "a";
+    print(1);
+  };
+}
+// expect-error: Código inalcançável

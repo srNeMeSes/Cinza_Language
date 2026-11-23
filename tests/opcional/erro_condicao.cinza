@@ -1,0 +1,6 @@
+// Q1b: um T? não é usado como T, e null só cabe num T?
+fn main() {
+  bool? b = true;
+  if (b) { print(1); }
+}
+// expect-error: Condição do 'if' deve ser 'bool', mas recebeu 'bool?': o valor é opcional

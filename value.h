@@ -132,7 +132,8 @@ struct Value {
         // NÃO representa variável não-inicializada do usuário — a linguagem
         // não possui estados UNBOUND. Toda variável não-coleção chega ao
         // runtime com um valor concreto avaliado pelo inicializador obrigatório.
-        VOID_VAL
+        VOID_VAL,
+        NULO         // Q1b: o null de um T? (a ausência de um valor válido ou conhecido)
     };
 
     // P1: o valor, no formato C (o antigo std::variant saiu). O Value é o dono:
@@ -151,6 +152,9 @@ struct Value {
     // ── Construtores convenientes ─────────────────────────────────────────
 
     Value() noexcept { poe(Kind::VOID_VAL); v.u.i64 = 0; }
+    // Q1b: o null de um T?
+    static Value nulo() noexcept { Value r; r.poe(Kind::NULO); return r; }
+    bool isNull() const noexcept { return kind() == Kind::NULO; }
 
     explicit Value(std::int64_t x) noexcept { poe(Kind::I64); v.u.i64 = x; }
     // int do C++ (literais do próprio runtime: Value(0)) é i64; i32 só por Value::i32
@@ -464,6 +468,7 @@ inline bool igualRaso(const Value& a, const Value& b,
     }
     switch (a.kind()) {
         case Kind::VOID_VAL:  return true;
+        case Kind::NULO:      return true;   // null == null
         case Kind::I64: case Kind::I32: return a.asInt()   == b.asInt();
         case Kind::F64: case Kind::F32: return a.asFloat() == b.asFloat();
         case Kind::STRING:    return a.asString() == b.asString();
@@ -557,6 +562,7 @@ inline std::string folhaTexto(const Value& v) {
     using Kind = Value::Kind;
     switch (v.kind()) {
         case Kind::VOID_VAL:  return "void";
+        case Kind::NULO:      return "null";
         case Kind::I64: case Kind::I32: return std::to_string(v.asInt());
         case Kind::F64: case Kind::F32: {
             // A menor forma que volta ao mesmo número, na precisão do próprio

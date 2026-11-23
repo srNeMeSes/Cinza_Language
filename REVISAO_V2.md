@@ -1942,6 +1942,104 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
     > `run_tests.py` passa a exigir a saída de erro vazia num programa que termina com código 0
     > (em todos os modos). Testes: `tests/classes/q1b_criacao_*`,
     > `tests/biblioteca/q1b_buscas_sem_menos_um.cinza`, os exemplos novos da spec (3.10 e 4.6).
+    >
+    > **Reaberto pelo autor (2026-11-23): o opcional `T?` com `null`.** Depois de conversar com
+    > outra IA, o autor quer a ausência dentro da linguagem, de forma segura: um tipo que a admite e
+    > o compilador exigindo que ela seja resolvida antes do uso. Substitui os itens 1, 3, 4 (o
+    > `list<No>` como "zero ou um"), 5 e 6 acima e as entradas "null e opcional" do Q1c; o erro de
+    > ciclo de criação e o `uwtable` ficam. **Desenho** (decidido com o autor, falta implementar):
+    > 1. **O tipo.** `T?` admite `null`; `T` nunca. Vale para todo tipo menos `void`, também dentro
+    >    de `list`, `dict` (só no valor: uma chave não pode ser opcional) e `pair`. `T??` é erro; numa
+    >    cópia de genérico, `T?` com `T` já opcional é erro com o rastro.
+    > 2. **`null`** ("ausência de um valor válido ou conhecido") é palavra reservada e só entra onde
+    >    se espera um `T?` (`var x = null;` é erro: sem tipo). `T` vira `T?` sozinho; `T?` nunca vira
+    >    `T` sem resolver.
+    > 3. **Sem valor inicial**, uma variável ou um campo `T?` nasce `null`, como `list` e `dict`
+    >    nascem vazios; num struct, o campo `T?` não é obrigatório no `new`. Assim o campo de um
+    >    genérico (`T? ct;`) e o "próximo" de uma estrutura (`No? prox;`) não precisam de valor de
+    >    mentira — resolve os itens (6) e (8) do Q1a.
+    > 4. **Um `T?` não se usa como `T`**: operadores, métodos, campos, índices e `for` sobre ele são
+    >    erro de compilação ("valor opcional: resolva com else ou com if (T v = ...)"). Só `==` e `!=`
+    >    valem: `x == null`; dois opcionais iguais se os dois são `null` ou têm valores iguais.
+    > 5. **`expr else alternativa`**: o valor de `expr` (um `T?`), ou a alternativa (um `T`) se for
+    >    `null`; a alternativa só é avaliada na ausência. A precedência é a mais baixa dos operadores;
+    >    `a else b else c` encadeia (`b` pode ser `T?`).
+    > 6. **`expr else { ... }`**: todo caminho do bloco termina com `yield valor` (o valor que a
+    >    expressão recebe) ou sai do fluxo (`return`, `throw`, `break`, `continue`); chegar ao `}` é
+    >    erro de compilação (a mesma análise do "retorna em todos os caminhos"). `return` continua
+    >    sempre "sair da função"; `yield` fora de um bloco de `else` é erro.
+    > 7. **`if (T nome = expr) { ... } else { ... }`** e **`while (T nome = expr) { ... }`** (também
+    >    com `var`): o bloco roda quando há valor, com `nome` do tipo `T`, que só existe nele; `expr`
+    >    precisa ser opcional. Sem estreitamento: `x != null` não muda o tipo de `x` (com campos ele
+    >    não seria seguro).
+    > 8. **Na execução**: `print` e a interpolação mostram `null`; `type()` de um `string?` é
+    >    `string?` (também escrito como valor); `const T?` vale.
+    > 9. **Biblioteca** (migra já; sem compatibilidade). Regra: o que quem chama controla lança (`l[i]`,
+    >    `d[k]`, `first`/`last`/`pop`/`min`/`max` e `Random.choice` de lista vazia); o que pode não
+    >    existir de verdade devolve `T?`, e somem os atalhos redundantes:
+    >    - `Strings.find`, `find_last`, `find_from` (o início inválido continua `IndexError`),
+    >      `Lists.index_of`, `last_index_of`, `Regex.find` → `i32?` (desfaz o `ValueError` do item 1);
+    >    - `Dicts.get(d, k) -> V?` entra e `Dicts.get_or` sai (`d.has(k)` fica: é da coleção);
+    >    - `Env.get -> string?`; saem `Env.get_or` e `Env.has`;
+    >    - `Json.Value.get -> Value?`; saem `get_or` e `has` do objeto (o `Kind.Null` fica: é dado);
+    >    - `Convert.to_i32`/`to_i64`/`to_f32`/`to_f64`/`to_bool(s) -> T?`; saem os `is_*` e os `*_or`
+    >      (o `cast<T>(s)`, que lança, fica);
+    >    - `Regex.groups -> list<string?>` e `named -> dict<string, string?>`: o grupo que não
+    >      participou é `null`, o que casou o vazio é `""`;
+    >    - `input() -> string?`: `null` no fim da entrada (`while (string l = input("")) { ... }`).
+    > 10. **Spec**: a 3.10 reescrita (a ausência com `T?`), a gramática (o sufixo `?`, `null`, `else`
+    >    numa expressão, `yield`, a declaração no `if`/`while`), os capítulos 3, 5 e 6, a filosofia e
+    >    "O que fica fora" do README (sai "null e opcional").
+    > 11. **Implementação**: nos dois backends (na CVM um valor marcado; no `cinzac` um `T?` vai como
+    >    `CzValor`, com a marca, inclusive `i32?`), no LSP, no formatador e na gramática do VS Code.
+    > 12. Decidido depois: o valor de um bloco de else é dado por **`yield`** (o `return` continua
+    >    sendo sempre "sair da função"); todo caminho do bloco termina com `yield` ou saindo.
+    >
+    > **Feito (2026-11-23), no ramo `q1-opcional`, em fatias — cada uma no front-end e nos dois
+    > backends, com a suíte e o ASan verdes antes da próxima:**
+    > 1. **O tipo, `null`, `==`/`!=` e o `else` com valor.** Léxico (`?`, `null`, `yield`), o tipo
+    >    `OPTIONAL` na AST e `Optional`/`Null` no `TypeContext`; no semântico, a atribuição (`T` →
+    >    `T?` por um cast implícito; `T?` nunca → `T`), a comparação, a dica do `else` em toda
+    >    mensagem de tipo incompatível, o literal que se adapta ao `T` de dentro, o `T?` sem valor
+    >    que nasce `null` (locais, campos de classe, campos de struct, que deixam de ser
+    >    obrigatórios), `T??` e `void?` recusados (também numa cópia de genérico, com o rastro; o `T`
+    >    deduzido de um `T?`; `null` não diz o tipo). Na CVM, `Value::Kind::NULO` (no fim da
+    >    enumeração, que o runtime nativo também usa) e `LOADNULL`/`JMPNOTNULL`; no `cinzac`, o tipo
+    >    `Opc` da CIR — o `CzValor` inteiro, dono do que segura: os lugares de posse passam a
+    >    perguntar `temPosse` (copiar é `cz_valor_copia`, que retem ou clona o struct; soltar,
+    >    `cz_solta_valor`), o slot nasce `null`, `EhNulo` testa a marca em linha. `type()` de um `T?`
+    >    é `T?` (`runtimeType`, comum aos dois).
+    > 2. **O `else` com bloco e o `yield`.** O bloco roda no meio de uma expressão: no `cinzac`, os
+    >    temporários da expressão em volta continuam vivos — um `return` ou um `break` para um laço
+    >    de fora os solta antes de sair, e a captura de um `try` de dentro do bloco não os toca. Na
+    >    AST, os percursos comuns (`filhosDe`, `expressoesDe`, `blocosDeElse`, `instrucoesDe`) para
+    >    quem só olhava instruções: `hasBreak`, `basesDeAtribuicao`, o verificador de ciclos de
+    >    criação e o índice do LSP. `yield` não sai de um `try` (o `finally` ficaria para trás).
+    > 3. **`if (T nome = opcional)` e `while (T nome = opcional)`.** O parser olha adiante (tipo, nome,
+    >    `=`), então `if (i32 == type(x))` continua sendo uma expressão; a variável é do tipo exato de
+    >    dentro (ou `var`, ou a interface que a classe cumpre) e só existe no primeiro bloco. CVM:
+    >    `JMPNULL`; `cinzac`: os temporários da condição soltos nos dois caminhos.
+    > 4. **A biblioteca.** As buscas (`Strings.find`/`find_last`/`find_from`, `Lists.index_of`/
+    >    `last_index_of`, `Regex.find`) dão `i32?`; `Dicts.get`, `Env.get`, o `get` do `Json.Value`,
+    >    `Convert.to_i32`/`to_i64`/`to_f32`/`to_f64`/`to_bool` e `input()` dão `T?`; `Regex.groups`/
+    >    `groups_all`/`named` dão `null` no grupo que não participou. Saíram `Dicts.get_or`,
+    >    `Env.get_or`/`has`, `has`/`get_or` do `Json.Value`, os `Convert.is_*` e `to_*_or`. O menu do
+    >    projeto de teste `crud_contatos` passou a tratar o fim da entrada como "sair".
+    > 5. **Ferramentas.** O formatador cola o `?` ao tipo e trata `else`/`yield` como antes de uma
+    >    expressão (o `else {` continua bloco); a gramática do VS Code marca `null`, `yield` e o `?`
+    >    (que deixou de ser inválido); o LSP indexa o bloco do else, o `yield` e a variável da
+    >    condição de um if/while.
+    >
+    > A spec foi reescrita onde o opcional entra: 3.10 (o opcional inteiro, com exemplos), 3.1, 3.6,
+    > 4.6, 4.7, 5.2, 5.3, 5.5, 8.6, a gramática (2.2, 2.3, 2.4: o `else` como o operador de menor
+    > precedência, associando à direita), o capítulo 6 ("O que pode faltar" e as assinaturas) e a
+    > filosofia do README. Testes em `tests/opcional/` (o básico, estruturas, posse, o bloco com
+    > `yield`, o if/while com declaração e 24 erros de compilação) e os da biblioteca migrados.
+    >
+    > **Um custo que apareceu na migração (para o autor decidir):** com `Json.Value.get` devolvendo
+    > `Value?`, uma cadeia de acesso ao JSON precisa resolver cada nível —
+    > `(v.get("nome") else nada).as_text()`. Saídas possíveis: um acesso que lança, para quando o
+    > formato é conhecido (como `d[k]`), ou o `?.` deixado para depois.
   - [x] Q1c. **O que fica fora da 1.0 por filosofia**, registrado como decisão para quem chegar:
     closures e funções como valor (e com elas `map`/`filter` que recebem função), herança, `null`
     (conforme Q1b), métodos genéricos, restrições nos genéricos, threads. Confirmar a lista.
@@ -2262,6 +2360,8 @@ ao passar o mouse, ir para a definição e completar nomes no servidor de lingua
 | 2026-10-04 | J2 | `Files.read_bytes(caminho) -> list<int>` e `Files.write_bytes(caminho, list<int>)`, bytes de 0 a 255 (fora disso, `ValueError`). | Decisão do autor da linguagem; formatos binários sem passar por texto UTF-8. |
 | 2026-10-03 | I4 | `menor_int % -1` dá `0` (revê A5); `-0.0` continua `-0` no `print`; decimais extremos continuam em notação científica. | Decisão do autor da linguagem; `x % -1` cabe sempre em `int`. |
 | 2026-10-03 | H3 | `exit([código])`: padrão 0, de 0 a 255; roda os `finally` pendentes e nenhum `except` o captura; encerra o caminho na análise de fluxo. | Decisão do autor da linguagem; 0–255 dá o mesmo resultado em todo sistema. |
+| 2026-11-23 | Q1b | `yield` dá o valor do bloco de um else; `return` continua sendo sempre sair da função. | Decisão do autor: a mesma palavra não pode fazer duas coisas, e sair da função de dentro do bloco é o uso mais comum. |
+| 2026-11-23 | Q1b | **Reaberto: o opcional `T?` com `null`** — `else` (valor, ou bloco com `yield`/saída), `if`/`while` com declaração, sem estreitamento; `T?` sem valor nasce `null`; a biblioteca devolve `T?` no que pode não existir e perde os `get_or`/`has`/`is_*`/`*_or`; o que quem chama controla continua lançando; `Regex.groups` com `string?`. | Decisão do autor: a ausência total gerava gambiarras (o "zero ou um" em `list<No>`, os campos `T` sem valor nos genéricos); a segurança vem do tipo, que obriga a resolver a ausência. |
 | 2026-11-23 | Q1b | Sem `null`, como dizer "nenhum": as buscas que não acham lançam `ValueError` (sem `-1`; `contains` antes; `Strings.positions` para percorrer); um `new` nos valores iniciais que volta ao próprio tipo é erro de compilação; os idiomas na spec (3.10); ficam o `IOError` do `input()`, o `""` do grupo do Regex e a 3.6 (sem atribuição definida); nada de tipo soma. | Decisão do autor: o `-1` é um null com outro nome; a ausência se diz com perguntas, listas, erros e objetos, todos estáticos. |
 | 2026-11-23 | Q1c | O que fica fora: nunca `null`/opcional, herança, closures e funções como valor (nem sem captura), globais mutáveis, sobrecarga (de funções e de operadores), conversões implícitas, tipo dinâmico, reflexão, ponteiros e memória manual, métodos genéricos e restrições nos genéricos, infinito e NaN, import relativo; fora só da 1.0: concorrência e macros. Na spec (`spec/README.md`). | Decisão do autor: o que é filosofia não é lacuna; a concorrência e as macros esperam o uso real (o contador de referências de hoje não é seguro entre threads). |
 | 2026-11-22 | Q | Prioridade: segurança e maturidade antes da divulgação. A ordem: Q6 (o resto do LSP), Q1c, Q1b (levantamento da ausência de valor, sem `T?`), Q1a, Q1f, o gerenciador de pacotes (Q10, agora antes da 1.0) e o desempenho (Q11). | Decisão do autor: a linguagem precisa ser séria e funcionar de verdade antes de ser mostrada; o gerenciador de pacotes mexe na estrutura dos projetos e não pode mudar depois da 1.0. |

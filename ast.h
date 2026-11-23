@@ -2,6 +2,7 @@
 #define CINZA_AST_H
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <vector>
 #include <string>
@@ -45,7 +46,8 @@ public:
         DICT,      // dict<K, V> 
         PAIR,      // par genérico pair<F, S>
         VAR,       // tipo inferido
-        CUSTOM     // tipos customizados (class / struct)
+        CUSTOM,    // tipos customizados (class / struct)
+        OPTIONAL   // T? (Q1b): type_params[0] é o T; admite null
     };
     
     Kind kind;
@@ -75,10 +77,12 @@ enum class NodeKind {
     // expressões
     Literal, Identifier, Binary, Unary, Call, MemberAccess, ListLiteral,
     DictLiteral, PairLiteral, IndexAccess, MethodCall, New, Cast, TypeLiteral, Slice,
+    Null, Else,   // Q1b: null e o 'expr else alternativa' do opcional
     // statements
     VarDecl, Assign, ExprStmt, Block, If, While, For,
     Return, Break, Continue, Try, Throw, FunctionDecl, ClassDecl, StructDecl, ErrorDecl, EnumDecl,
-    InterfaceDecl
+    InterfaceDecl,
+    Yield   // Q1b: yield valor; — o valor do bloco de um else
 };
 
 // classe base para espressões
@@ -111,6 +115,30 @@ public:
     LiteralExpr(const Token& tok, bool val)             : Expr(NodeKind::Literal, tok), value(val) {}
     
     // sobrescreve  a toString
+    std::string toString(int indent = 0) const override;
+};
+
+// Q1b: null, a ausência de um valor; só cabe num T?
+class NullExpr : public Expr {
+public:
+    explicit NullExpr(const Token& tok) : Expr(NodeKind::Null, tok) {}
+    std::string toString(int indent = 0) const override;
+};
+
+// Q1b: valor else alternativa — o valor de um T?, ou a alternativa quando ele é null (só então
+// avaliada). A alternativa pode ser um bloco (valor else { ...; yield v; }): então `alternative`
+// é nulo e `block` tem o bloco, que termina com yield ou saindo (return, throw, break, continue)
+class ElseExpr : public Expr {
+public:
+    ExprPtr value;
+    ExprPtr alternative;
+    StmtPtr block;
+
+    ElseExpr(const Token& tok, ExprPtr v, ExprPtr alt)
+        : Expr(NodeKind::Else, tok), value(std::move(v)), alternative(std::move(alt)) {}
+    ElseExpr(const Token& tok, ExprPtr v, StmtPtr b)
+        : Expr(NodeKind::Else, tok), value(std::move(v)), block(std::move(b)) {}
+    ~ElseExpr() override;   // em ast.cpp, onde Stmt está completo
     std::string toString(int indent = 0) const override;
 };
 
@@ -463,6 +491,13 @@ public:
     ExprPtr condition;
     StmtPtr then_branch;
     StmtPtr else_branch; // pode ser nullptr
+    // Q1b: if (T nome = opcional) — a condição é o opcional, e o bloco roda com o valor dele em
+    // `nome` (só quando não é null). decl_type nulo: uma condição bool comum
+    TypePtr       decl_type;
+    std::string   decl_name;
+    Token         decl_token;
+    std::uint32_t decl_slot = 0;          // B2: o slot local da variável
+    TypeRef       decl_resolved = nullptr; // o tipo da variável (o T de dentro)
     
     IfStmt(const Token& tok, ExprPtr cond, StmtPtr then_stmt, StmtPtr else_stmt)
         : Stmt(NodeKind::If, tok), condition(std::move(cond)), 
@@ -477,6 +512,13 @@ class WhileStmt : public Stmt {
 public:
     ExprPtr condition;
     StmtPtr body;
+    // Q1b: while (T nome = opcional) — a condição é o opcional, e o corpo roda com o valor dele em
+    // `nome` (enquanto não é null). decl_type nulo: uma condição bool comum
+    TypePtr       decl_type;
+    std::string   decl_name;
+    Token         decl_token;
+    std::uint32_t decl_slot = 0;          // B2: o slot local da variável
+    TypeRef       decl_resolved = nullptr; // o tipo da variável (o T de dentro)
     
     WhileStmt(const Token& tok, ExprPtr cond, StmtPtr body_stmt)
         : Stmt(NodeKind::While, tok), condition(std::move(cond)), body(std::move(body_stmt)) {}
@@ -526,6 +568,14 @@ public:
 };
 
 // C4: throw expr;  — expr é um erro: ValueError("msg"), SaldoInsuficiente("msg"), e
+// Q1b: yield valor; — dentro do bloco de um else, o valor que a expressão recebe
+class YieldStmt : public Stmt {
+public:
+    ExprPtr value;
+    YieldStmt(const Token& tok, ExprPtr v) : Stmt(NodeKind::Yield, tok), value(std::move(v)) {}
+    std::string toString(int indent = 0) const override;
+};
+
 class ThrowStmt : public Stmt {
 public:
     ExprPtr value;
@@ -709,7 +759,7 @@ public:
     // N5: campo sem valor inicial que não é list nem dict — informado na criação
     static bool obrigatorio(const ClassDecl::Field& f) {
         return !f.initializer && f.type->kind != Type::Kind::LIST &&
-               f.type->kind != Type::Kind::DICT;
+               f.type->kind != Type::Kind::DICT && f.type->kind != Type::Kind::OPTIONAL;
     }
 
     StructDecl(const Token& tok, const std::string& n, std::vector<ClassDecl::Field> flds)
@@ -806,6 +856,17 @@ std::string tokenTypeToOperatorString(TokenType type);      // retorna: +, -, /,
 // C1: operador base de um operador composto (+= → +, -= → -, ...);
 // devolve o próprio `op` se ele não for composto
 TokenType compoundBaseOp(TokenType op);
+
+// Q1b: percursos usados por quem olha só as instruções (semântico, LSP, os backends), agora que
+// uma expressão pode ter instruções dentro (o bloco de um else)
+// As subexpressões diretas de e (sem as instruções de um bloco de else)
+void filhosDe(const Expr& e, const std::function<void(const Expr&)>& f);
+// As expressões diretas de uma instrução (sem as das instruções de dentro dela)
+void expressoesDe(const Stmt& s, const std::function<void(const Expr&)>& f);
+// Os blocos de else dentro de e, em qualquer profundidade (sem entrar neles)
+void blocosDeElse(const Expr& e, const std::function<void(const BlockStmt&)>& f);
+// As instruções diretamente dentro de s (os blocos de if, while, for, try, except, finally)
+void instrucoesDe(const Stmt& s, const std::function<void(const Stmt&)>& f);
 
 } // namespace cinza
 

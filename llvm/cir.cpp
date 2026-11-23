@@ -57,6 +57,7 @@ const InfoRt& infoRt(Rt r) {
         {"cz_pega_erro",         T::Erro,  {}, false},
         {"cz_lanca",             T::Void,  {T::Erro}, true},
         {"cz_relanca",           T::Void,  {T::Erro}, true},
+        {"cz_valor_copia",       T::Valor, {T::Valor}, false},
     };
     return tabela[static_cast<std::size_t>(r)];
 }
@@ -83,6 +84,7 @@ const char* nomeTipo(Tipo t) {
         case Tipo::F64:   return "f64";
         case Tipo::Str:   return "str";
         case Tipo::Valor: return "valor";
+        case Tipo::Opc:   return "opc";
         case Tipo::Lista: return "lista";
         case Tipo::Dict:  return "dict";
         case Tipo::Par:   return "par";
@@ -125,6 +127,7 @@ std::string operando(const Modulo& m, const Operando& o) {
         case Operando::K::Literal: return "str " + citado(m.literais[o.indice]);
         case Operando::K::Nulo:    return "str nulo";
         case Operando::K::Vazio:   return "valor vazio";
+        case Operando::K::Ausente: return "null";
         case Operando::K::DescStruct: return "desc " + m.structs[o.indice].nome;
         case Operando::K::DescClasse: return "desc " + m.classes[o.indice].nome;
         case Operando::K::Enum:    return m.enums[o.indice].nome + "." + m.enums[o.indice].valores[static_cast<std::size_t>(o.i)];
@@ -215,6 +218,7 @@ std::string texto(const Modulo& m) {
                     case Op::Ret:      out << "ret"; if (!in.args.empty()) { out << " "; args(); } break;
                     case Op::RetErro:  out << "ret.erro"; break;
                     case Op::Inalcancavel: out << "inalcançável"; break;
+                    case Op::EhNulo:   dst(); out << "eh.null "; args(); break;
                 }
                 if (podeFalhar(in)) out << "   ! " << f.blocos[in.erro].nome;
                 if (in.pos.line) out << "   ; " << in.pos.line << ":" << in.pos.column;
