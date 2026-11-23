@@ -2036,10 +2036,11 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
     > filosofia do README. Testes em `tests/opcional/` (o básico, estruturas, posse, o bloco com
     > `yield`, o if/while com declaração e 24 erros de compilação) e os da biblioteca migrados.
     >
-    > **Um custo que apareceu na migração (para o autor decidir):** com `Json.Value.get` devolvendo
-    > `Value?`, uma cadeia de acesso ao JSON precisa resolver cada nível —
-    > `(v.get("nome") else nada).as_text()`. Saídas possíveis: um acesso que lança, para quando o
-    > formato é conhecido (como `d[k]`), ou o `?.` deixado para depois.
+    > **Um custo que apareceu na migração, decidido pelo autor:** com `Json.Value.get` devolvendo
+    > `Value?`, uma cadeia de acesso ao JSON precisava resolver cada nível
+    > (`(v.get("nome") else nada).as_text()`). Entra `field(k) -> Value`, que lança `KeyError` sem a
+    > chave, como `d[k]` num dict: `v.field("nome").as_text()` quando o formato é conhecido, `get`
+    > quando a chave pode faltar. A versão sobe para **0.6.0** (versao.h e a spec).
   - [x] Q1c. **O que fica fora da 1.0 por filosofia**, registrado como decisão para quem chegar:
     closures e funções como valor (e com elas `map`/`filter` que recebem função), herança, `null`
     (conforme Q1b), métodos genéricos, restrições nos genéricos, threads. Confirmar a lista.
@@ -2360,6 +2361,7 @@ ao passar o mouse, ir para a definição e completar nomes no servidor de lingua
 | 2026-10-04 | J2 | `Files.read_bytes(caminho) -> list<int>` e `Files.write_bytes(caminho, list<int>)`, bytes de 0 a 255 (fora disso, `ValueError`). | Decisão do autor da linguagem; formatos binários sem passar por texto UTF-8. |
 | 2026-10-03 | I4 | `menor_int % -1` dá `0` (revê A5); `-0.0` continua `-0` no `print`; decimais extremos continuam em notação científica. | Decisão do autor da linguagem; `x % -1` cabe sempre em `int`. |
 | 2026-10-03 | H3 | `exit([código])`: padrão 0, de 0 a 255; roda os `finally` pendentes e nenhum `except` o captura; encerra o caminho na análise de fluxo. | Decisão do autor da linguagem; 0–255 dá o mesmo resultado em todo sistema. |
+| 2026-11-23 | Q1b | `Json.Value.field(k)` lança `KeyError` sem a chave (o `get` dá `Value?`); a versão vai para 0.6.0. | Decisão do autor: a cadeia de acesso a um JSON de formato conhecido não pode pedir um `else` em cada nível; o opcional muda a linguagem o bastante para uma versão nova. |
 | 2026-11-23 | Q1b | `yield` dá o valor do bloco de um else; `return` continua sendo sempre sair da função. | Decisão do autor: a mesma palavra não pode fazer duas coisas, e sair da função de dentro do bloco é o uso mais comum. |
 | 2026-11-23 | Q1b | **Reaberto: o opcional `T?` com `null`** — `else` (valor, ou bloco com `yield`/saída), `if`/`while` com declaração, sem estreitamento; `T?` sem valor nasce `null`; a biblioteca devolve `T?` no que pode não existir e perde os `get_or`/`has`/`is_*`/`*_or`; o que quem chama controla continua lançando; `Regex.groups` com `string?`. | Decisão do autor: a ausência total gerava gambiarras (o "zero ou um" em `list<No>`, os campos `T` sem valor nos genéricos); a segurança vem do tipo, que obriga a resolver a ausência. |
 | 2026-11-23 | Q1b | Sem `null`, como dizer "nenhum": as buscas que não acham lançam `ValueError` (sem `-1`; `contains` antes; `Strings.positions` para percorrer); um `new` nos valores iniciais que volta ao próprio tipo é erro de compilação; os idiomas na spec (3.10); ficam o `IOError` do `input()`, o `""` do grupo do Regex e a 3.6 (sem atribuição definida); nada de tipo soma. | Decisão do autor: o `-1` é um null com outro nome; a ausência se diz com perguntas, listas, erros e objetos, todos estáticos. |

@@ -750,6 +750,7 @@ traces aparece como `<biblioteca>/Json.cinza`), e é usado como qualquer módulo
 | `size() -> i32` | os elementos de uma lista ou as chaves de um objeto |
 | `at(i64 i) -> Value`, `items() -> list<Value>`, `add(Value v)` | lista: o elemento `i` (`IndexError` fora dela), todos, acrescentar no fim |
 | `get(string k) -> Value?` | objeto: o valor da chave, ou `null` se ela não existir |
+| `field(string k) -> Value` | objeto: o valor da chave que precisa existir (o formato é conhecido), como `d[k]` num dict: sem ela, `KeyError` |
 | `keys() -> list<string>`, `set(string k, Value v)`, `remove(string k)` | objeto: as chaves, **na ordem em que entraram**; gravar (uma chave que já existe troca o valor no mesmo lugar); apagar (`KeyError` se não existir) |
 | `to_text() -> string` | o JSON compacto |
 | `to_text_pretty(i64 recuo) -> string` | o JSON com uma entrada por linha e `recuo` espaços por nível (de 0 a 16) |
@@ -766,10 +767,9 @@ mesmo — também lança `ValueError`. O texto gravado usa os escapes do JSON (`
 import Json;
 fn main() {
   Json.Value v = Json.parse("{\"nome\": \"Ana\", \"notas\": [9.5, 8], \"chefe\": null}");
-  Json.Value nada = Json.null_value();
-  Json.Value notas = v.get("notas") else nada;
-  print((v.get("nome") else nada).as_text(), notas.size(), notas.at(0).as_f64(), v.get("idade"));
-  print((v.get("chefe") else nada).is_null(), notas.kind() == Json.Kind.List, v.keys());
+  Json.Value notas = v.field("notas");
+  print(v.field("nome").as_text(), notas.size(), notas.at(0).as_f64(), v.get("idade"));
+  print(v.field("chefe").is_null(), notas.kind() == Json.Kind.List, v.keys());
   Json.Value p = Json.new_object();
   p.set("id", Json.from_i64(7));
   Json.Value tags = Json.new_list();

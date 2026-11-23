@@ -7,12 +7,12 @@ import Json;
 fn main() {
   Json.Value v = Json.parse("{\"nome\": \"Ana\", \"idade\": 30, \"notas\": [9.5, 8, -1e3], \"ativo\": true, \"chefe\": null, \"ação\": \"\\u00e7\\ud83d\\ude00\\n\"}");
   print(v.kind(), v.size(), v.keys());
-  Json.Value nada = Json.null_value();   // Q1b: get dá um Value? (null se a chave não existir)
-  print((v.get("nome") else nada).as_text(), (v.get("idade") else nada).as_i64(), (v.get("idade") else nada).as_f64(),
-        (v.get("ativo") else nada).as_bool(), (v.get("chefe") else nada).is_null());
-  Json.Value notas = v.get("notas") else nada;
+  // Q1b: field lê a chave que precisa existir (KeyError se não); get dá um Value? (null se não)
+  print(v.field("nome").as_text(), v.field("idade").as_i64(), v.field("idade").as_f64(),
+        v.field("ativo").as_bool(), v.field("chefe").is_null(), v.get("sobrenome"));
+  Json.Value notas = v.field("notas");
   print(notas.size(), notas.at(0).as_f64(), notas.at(2).as_f64(), notas.at(1).kind() == Json.Kind.Number);
-  print((v.get("ação") else nada).as_text());
+  print(v.field("ação").as_text());
   print(v.to_text());
   Json.Value o = Json.new_object();
   o.set("b", Json.from_i64(9223372036854775807));
@@ -32,7 +32,7 @@ fn main() {
   print(o.keys());
 }
 // expect: Kind.Object 6 ["nome", "idade", "notas", "ativo", "chefe", "ação"]
-// expect: Ana 30 30 true true
+// expect: Ana 30 30 true true null
 // expect: 3 9.5 -1000 true
 // expect: ç😀
 // expect:

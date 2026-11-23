@@ -170,6 +170,12 @@ pub class Value {
       if (!campos.has(k)) { return null; }
       return campos[k];
     }
+    // Q1b: a chave que precisa existir (o formato é conhecido), como d[k] num dict
+    fn field(string k) -> Value {
+      confere(Kind.Object, "field");
+      if (!campos.has(k)) { throw KeyError("Json: 'field': a chave '" + k + "' não existe"); }
+      return campos[k];
+    }
     fn keys() -> list<string> {
       confere(Kind.Object, "keys");
       list<string> r;

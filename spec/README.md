@@ -1,6 +1,6 @@
 # Especificação da linguagem Cinza
 
-Versão 0.5.0 · novembro de 2026 (a biblioteca da 1.0: Dicts, Env, Process, Regex e Json)
+Versão 0.6.0 · novembro de 2026 (o opcional: `T?`, `null`, `else` e `yield`)
 
 Este documento define a linguagem Cinza: o que é um programa válido e o que ele faz ao
 executar. É a referência para quem implementa a linguagem — a máquina virtual (CVM) e o
