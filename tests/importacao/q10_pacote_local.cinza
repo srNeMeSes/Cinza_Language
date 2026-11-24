@@ -1,0 +1,11 @@
+// Q10: uma dependência local declarada no czm.mod (requer pacotes/saudacao): import pacote; é o
+// módulo principal dele (saudacao.cinza), import pacote.modulo; um módulo de dentro; dentro do
+// pacote, os imports partem da raiz dele
+import saudacao;
+import saudacao.formal as f;
+fn main() {
+  print(saudacao.ola("ana"));
+  print(f.ola("bia"));
+}
+// expect: *olá, ana*
+// expect: *prezado(a) bia*

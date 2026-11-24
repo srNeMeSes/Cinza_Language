@@ -94,7 +94,7 @@ executados_nativos = 0   # testes que rodaram como executável nativo (não só 
 def ler_ambiente(caminho):
     """Ambiente do processo: o atual mais as variáveis de `// env: NOME=valor`.
     (tests/czm.mod faz de tests/ a raiz do projeto: `import modulos.geom;` vale em
-    qualquer subpasta, sem CINZA_PATH.) Com o modo sem vazamento (o padrão), o
+    qualquer subpasta.) Com o modo sem vazamento (o padrão), o
     programa sai com código 70 se sobrar algum objeto do runtime ao terminar."""
     env = dict(os.environ)
     if VAZAMENTOS:
@@ -336,6 +336,255 @@ def testes_do_formatador(binario, programas):
     return resultados
 
 
+def testes_de_pacotes(binario):
+    """Q10: as dependências locais do czm.mod (requer ./caminho [as nome]): a transitiva, o 'as',
+    e os erros do czm.mod e dos nomes de pacote, cada caso numa pasta temporária."""
+    r = []
+
+    def projeto(base, arquivos):
+        for caminho, texto in arquivos.items():
+            p = base / caminho
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(texto, encoding="utf-8")
+
+    def roda(base, *args):
+        p = subprocess.run([str(binario), *args], cwd=base, capture_output=True, timeout=TIMEOUT_S)
+        return p.returncode, p.stdout.decode("utf-8", "replace").replace("\r\n", "\n"), p.stderr.decode("utf-8", "replace")
+
+    LIB_A = {"libs/a/czm.mod": "projeto alfa\nrequer ../b\n",
+             "libs/a/x.cinza": "module x;\nimport beta.y;\npub fn f() -> string { return \"x+\" + y.g(); }\n",
+             "libs/b/czm.mod": "projeto beta\n",
+             "libs/b/y.cinza": "module y;\npub fn g() -> string { return \"y\"; }\n"}
+    casos = [
+        ("transitiva", {**LIB_A, "czm.mod": "projeto app\nrequer ./libs/a\n",
+                        "main.cinza": "import alfa.x;\nfn main() { print(x.f()); }\n"}, 0, "x+y\n"),
+        ("as", {**LIB_A, "czm.mod": "requer ./libs/a as outro\n",
+                "main.cinza": "import outro.x;\nfn main() { print(x.f()); }\n"}, 0, "x+y\n"),
+        ("sem nome", {"czm.mod": "requer ./libs/c\n", "libs/c/czm.mod": "// sem projeto\n",
+                      "main.cinza": "fn main() { }\n"}, 1, "não declara o nome no czm.mod dela"),
+        ("nomes repetidos", {"czm.mod": "requer ./libs/c\nrequer ./libs/d\n", "libs/c/czm.mod": "projeto util\n",
+                             "libs/d/czm.mod": "projeto util\n", "main.cinza": "fn main() { }\n"},
+         1, "dois pacotes com o nome 'util' (linhas 1 e 2)"),
+        ("nome igual a pasta", {"czm.mod": "requer ./libs/c\n", "libs/c/czm.mod": "projeto libs\n",
+                                "main.cinza": "fn main() { }\n"}, 1, "é também uma pasta ou um arquivo do projeto"),
+        ("nome de nativo", {"czm.mod": "requer ./libs/c as Math\n", "libs/c/czm.mod": "projeto c\n",
+                            "main.cinza": "fn main() { }\n"}, 1, "tem o nome de um módulo da biblioteca padrão"),
+        ("declaração desconhecida", {"czm.mod": "projeto app\nversao 1\n", "main.cinza": "fn main() { }\n"},
+         1, "czm.mod:2:1: ImportError: declaração desconhecida no czm.mod: 'versao'"),
+        ("cinza nova demais", {"czm.mod": "cinza 9.0\n", "main.cinza": "fn main() { }\n"}, 1, "o projeto pede a Cinza 9.0"),
+        ("dependência que não existe", {"czm.mod": "requer ../nada\n", "main.cinza": "fn main() { }\n"},
+         1, "a dependência '../nada' não é um projeto"),
+        ("módulo que falta", {**LIB_A, "czm.mod": "requer ./libs/a\n", "main.cinza": "import alfa.zz;\nfn main() { }\n"},
+         1, "o pacote 'alfa' não tem o módulo 'zz'"),
+        ("git sem versão", {"czm.mod": "requer github.com/ana/json\n", "main.cinza": "fn main() { }\n"},
+         1, "precisa da versão (uma tag)"),
+    ]
+    for nome, arquivos, rc_esperado, esperado in casos:
+        with tempfile.TemporaryDirectory(prefix="cinza_pacote_") as pasta:
+            base = Path(pasta)
+            projeto(base, arquivos)
+            rc, out, err = roda(base, "main.cinza")
+            ok = rc == rc_esperado and (esperado in out if rc_esperado == 0 else esperado in err)
+            r.append((f"pacotes/{nome}", ok, f"código {rc}, saída {out!r}, stderr {err.strip()!r}"))
+    return r
+
+
+def testes_de_pacotes_git(binario):
+    """Q10: os pacotes git — cinza add/get/remove com repositórios git temporários (file://), o
+    czm.lock (a versão, o commit e o hash), a seleção das versões (a maior pedida na mesma major;
+    majors diferentes são erro) e as conferências da compilação (o lock, o cache e o hash)."""
+    import shutil
+    r = []
+    try:
+        subprocess.run(["git", "--version"], capture_output=True, check=True)
+    except (OSError, subprocess.CalledProcessError):
+        return [("pacotes-git/git instalado", False, "os testes de pacotes git precisam do git")]
+
+    def git(pasta, *args):
+        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "core.autocrlf=false", *args],
+                       cwd=pasta, capture_output=True, check=True)
+
+    def escreve(base, arquivos):
+        for caminho, texto in arquivos.items():
+            p = base / caminho
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_bytes(texto.encode("utf-8"))
+
+    def repo(base, nome, versoes):
+        """um repositório com um commit e uma tag por versão: {tag: {arquivo: texto}}"""
+        pasta = base / "repos" / nome
+        pasta.mkdir(parents=True)
+        git(pasta, "init", "-q")
+        for tag, arquivos in versoes.items():
+            escreve(pasta, arquivos)
+            git(pasta, "add", "-A")
+            git(pasta, "commit", "-qm", tag)
+            git(pasta, "tag", tag)
+        return "file://" + pasta.as_posix()
+
+    def roda(base, *args):
+        amb = dict(os.environ, CINZA_PACOTES=str(base / "cache"))
+        p = subprocess.run([str(binario), *args], cwd=base / "app", capture_output=True, timeout=TIMEOUT_S * 2, env=amb)
+        return p.returncode, p.stdout.decode("utf-8", "replace").replace("\r\n", "\n"), p.stderr.decode("utf-8", "replace")
+
+    def json_v(v, extra=""):
+        return {"czm.mod": "projeto json\ncinza 0.6\n" + extra,
+                "json.cinza": "module json;\npub fn v() -> string { return \"" + v + "\"; }\n"}
+
+    APP = {"app/czm.mod": "projeto app\n", "app/main.cinza": "import json;\nfn main() { print(json.v()); }\n"}
+
+    def caso(nome, passo):
+        with tempfile.TemporaryDirectory(prefix="cz_") as pasta:
+            base = Path(pasta)
+            try:
+                ok, detalhe = passo(base)
+            except subprocess.CalledProcessError as e:
+                ok, detalhe = False, f"git falhou: {e.cmd} {e.stderr!r}"
+            r.append((f"pacotes-git/{nome}", ok, detalhe))
+
+    def add_e_roda(base):
+        url = repo(base, "json", {"v1.0.0": json_v("1.0"), "v1.1.0": json_v("1.1")})
+        escreve(base, APP)
+        rc1, _, e1 = roda(base, "add", url, "v1.0.0")
+        lock = (base / "app" / "czm.lock").read_text(encoding="utf-8") if (base / "app" / "czm.lock").exists() else ""
+        rc2, o2, e2 = roda(base, "main.cinza")
+        mod = (base / "app" / "czm.mod").read_text(encoding="utf-8")
+        ok = (rc1 == 0 and rc2 == 0 and o2 == "1.0\n" and f"requer {url} v1.0.0" in mod and
+              re.search(r"pacote \S+ v1\.0\.0 [0-9a-f]{40} sha256-[0-9a-f]{64}", lock) is not None)
+        return ok, f"add {rc1} {e1!r}; roda {rc2} {o2!r} {e2!r}; lock {lock!r}"
+    caso("add com versão grava o czm.mod e o czm.lock", add_e_roda)
+
+    def add_ultima(base):
+        url = repo(base, "json", {"v1.0.0": json_v("1.0"), "v1.10.0": json_v("1.10"), "v1.9.0": json_v("1.9")})
+        escreve(base, APP)
+        rc1, _, e1 = roda(base, "add", url)
+        rc2, o2, e2 = roda(base, "main.cinza")
+        return rc1 == 0 and o2 == "1.10\n", f"add {rc1} {e1!r}; roda {rc2} {o2!r} {e2!r}"
+    caso("add sem versão pega a maior tag", add_ultima)
+
+    def mvs(base):
+        url = repo(base, "json", {"v1.0.0": json_v("1.0"), "v1.2.0": json_v("1.2"), "v1.3.0": json_v("1.3")})
+        url_b = repo(base, "beta", {"v0.1.0": {"czm.mod": f"projeto beta\nrequer {url} v1.2.0\n",
+                                               "beta.cinza": "module beta;\nimport json;\npub fn b() -> string { return json.v(); }\n"}})
+        escreve(base, {"app/czm.mod": f"projeto app\nrequer {url} v1.0.0\nrequer {url_b} v0.1.0\n",
+                       "app/main.cinza": "import json;\nimport beta;\nfn main() { print(json.v() + \" \" + beta.b()); }\n"})
+        rc1, _, e1 = roda(base, "get")
+        rc2, o2, e2 = roda(base, "main.cinza")
+        return rc1 == 0 and o2 == "1.2 1.2\n", f"get {rc1} {e1!r}; roda {rc2} {o2!r} {e2!r}"
+    caso("a maior versão pedida vale para todos", mvs)
+
+    def major(base):
+        url = repo(base, "json", {"v1.0.0": json_v("1.0"), "v2.0.0": json_v("2.0")})
+        url_b = repo(base, "beta", {"v0.1.0": {"czm.mod": f"projeto beta\nrequer {url} v2.0.0\n",
+                                               "beta.cinza": "module beta;\n"}})
+        escreve(base, {"app/czm.mod": f"projeto app\nrequer {url} v1.0.0\nrequer {url_b} v0.1.0\n",
+                       "app/main.cinza": "fn main() { }\n"})
+        rc, _, e = roda(base, "get")
+        return rc == 1 and "conflito de versões" in e and "pede v1.0.0" in e and "pede v2.0.0" in e, f"{rc} {e!r}"
+    caso("majors diferentes são erro", major)
+
+    def sem_get(base):
+        url = repo(base, "json", {"v1.0.0": json_v("1.0")})
+        escreve(base, {"app/czm.mod": f"requer {url} v1.0.0\n", "app/main.cinza": "fn main() { }\n"})
+        rc, _, e = roda(base, "main.cinza")
+        return rc == 1 and "não está no czm.lock: rode 'cinza get'" in e, f"{rc} {e!r}"
+    caso("sem o cinza get, a compilação pede", sem_get)
+
+    def sem_cache(base):
+        url = repo(base, "json", {"v1.0.0": json_v("1.0")})
+        escreve(base, APP)
+        roda(base, "add", url)
+        shutil.rmtree(base / "cache")
+        rc, _, e = roda(base, "main.cinza")
+        rc2, _, _ = roda(base, "get")
+        rc3, o3, _ = roda(base, "main.cinza")
+        return rc == 1 and "não está no cache" in e and rc2 == 0 and o3 == "1.0\n", f"{rc} {e!r}; get {rc2}; {o3!r}"
+    caso("sem o cache, o cinza get baixa de novo", sem_cache)
+
+    def alterado(base):
+        url = repo(base, "json", {"v1.0.0": json_v("1.0")})
+        escreve(base, APP)
+        roda(base, "add", url)
+        [arq] = (base / "cache").glob("json-*@v1.0.0/json.cinza")
+        arq.write_text("module json;\npub fn v() -> string { return \"mexido\"; }\n", encoding="utf-8")
+        rc, _, e = roda(base, "main.cinza")
+        rc2, _, e2 = roda(base, "get")
+        rc3, o3, _ = roda(base, "main.cinza")
+        return (rc == 1 and "não confere com o hash do czm.lock" in e and rc2 == 0 and o3 == "1.0\n",
+                f"{rc} {e!r}; get {rc2} {e2!r}; {o3!r}")
+    caso("o cache alterado é recusado, e o get o refaz", alterado)
+
+    def tag_movida(base):
+        url = repo(base, "json", {"v1.0.0": json_v("1.0")})
+        escreve(base, APP)
+        roda(base, "add", url)
+        pasta = base / "repos" / "json"
+        escreve(pasta, json_v("outro"))
+        git(pasta, "commit", "-qam", "outro")
+        git(pasta, "tag", "-f", "v1.0.0")
+        shutil.rmtree(base / "cache")
+        rc, _, e = roda(base, "get")
+        return rc == 1 and "mudou no repositório (a tag foi movida)" in e, f"{rc} {e!r}"
+    caso("a tag movida no repositório é recusada", tag_movida)
+
+    def desatualizado(base):
+        url = repo(base, "json", {"v1.0.0": json_v("1.0"), "v1.1.0": json_v("1.1")})
+        escreve(base, APP)
+        roda(base, "add", url, "v1.0.0")
+        escreve(base, {"app/czm.mod": f"projeto app\nrequer {url} v1.1.0\n"})
+        rc, _, e = roda(base, "main.cinza")
+        return rc == 1 and "o czm.lock está desatualizado; rode 'cinza get'" in e, f"{rc} {e!r}"
+    caso("o czm.lock desatualizado é recusado", desatualizado)
+
+    def remove(base):
+        url = repo(base, "json", {"v1.0.0": json_v("1.0")})
+        escreve(base, APP)
+        roda(base, "add", url, "as", "js")
+        rc, _, e = roda(base, "remove", "js")
+        mod = (base / "app" / "czm.mod").read_text(encoding="utf-8")
+        return (rc == 0 and "requer" not in mod and not (base / "app" / "czm.lock").exists(),
+                f"{rc} {e!r}; czm.mod {mod!r}")
+    caso("remove tira a linha e o czm.lock", remove)
+
+    def git_com_local(base):
+        url = repo(base, "json", {"v1.0.0": json_v("1.0", "requer ../outro\n")})
+        escreve(base, {"app/czm.mod": f"requer {url} v1.0.0\n", "app/main.cinza": "fn main() { }\n"})
+        rc, _, e = roda(base, "get")
+        return rc == 1 and "um pacote git não pode ter" in e, f"{rc} {e!r}"
+    caso("um pacote git com dependência local é erro", git_com_local)
+
+    def tag_inexistente(base):
+        url = repo(base, "json", {"v1.0.0": json_v("1.0")})
+        escreve(base, APP)
+        rc, _, e = roda(base, "add", url, "v9.0.0")
+        mod = (base / "app" / "czm.mod").read_text(encoding="utf-8")
+        return rc == 1 and "não foi possível baixar" in e and mod == "projeto app\n", f"{rc} {e!r}; {mod!r}"
+    caso("a tag que não existe é erro, e o czm.mod fica como estava", tag_inexistente)
+
+    def comentario_e_url(base):
+        url = repo(base, "json", {"v1.0.0": json_v("1.0")})
+        escreve(base, {"app/czm.mod": f"projeto app // o app\nrequer {url} v1.0.0 // o json\n",
+                       "app/main.cinza": "import json;\nfn main() { print(json.v()); }\n"})
+        rc1, _, e1 = roda(base, "get")
+        rc2, o2, e2 = roda(base, "main.cinza")
+        return rc1 == 0 and o2 == "1.0\n", f"get {rc1} {e1!r}; {rc2} {o2!r} {e2!r}"
+    caso("o // de uma URL não é comentário", comentario_e_url)
+
+    def add_local_de_subpasta(base):
+        escreve(base, {"app/czm.mod": "projeto app\n", "app/src/main.cinza": "import util.u;\nfn main() { print(u.f()); }\n",
+                       "libs/util/czm.mod": "projeto util\n",
+                       "libs/util/u.cinza": "module u;\npub fn f() -> string { return \"u\"; }\n"})
+        amb = dict(os.environ, CINZA_PACOTES=str(base / "cache"))
+        p = subprocess.run([str(binario), "add", "../../libs/util"], cwd=base / "app" / "src", capture_output=True,
+                           timeout=TIMEOUT_S, env=amb)
+        mod = (base / "app" / "czm.mod").read_text(encoding="utf-8")
+        rc2, o2, e2 = roda(base, "src/main.cinza")
+        return (p.returncode == 0 and "requer ../libs/util\n" in mod and o2 == "u\n",
+                f"add {p.returncode} {p.stderr!r}; czm.mod {mod!r}; roda {rc2} {o2!r} {e2!r}")
+    caso("add local de uma subpasta grava o caminho a partir da raiz", add_local_de_subpasta)
+    return r
+
+
 def testes_do_projeto(binario):
     """Q1f: sem czm.mod, um import de arquivo é erro (só os nativos valem); 'cinza init' cria o
     czm.mod e o mesmo programa passa a rodar; um segundo 'init' recusa."""
@@ -356,7 +605,10 @@ def testes_do_projeto(binario):
         rc, out, err = roda("so.cinza")
         r.append(("projeto/só nativos, sem czm.mod", rc == 0 and out == "2\n", f"código {rc}, saída {out!r} {err.strip()!r}"))
         rc, out, err = roda("init")
-        r.append(("projeto/cinza init cria o czm.mod", rc == 0 and (pasta / "czm.mod").is_file(), f"código {rc}, {out!r} {err!r}"))
+        mod = (pasta / "czm.mod").read_text(encoding="utf-8") if (pasta / "czm.mod").is_file() else ""
+        # Q10: com o nome do projeto (o da pasta) e a versão da linguagem
+        r.append(("projeto/cinza init cria o czm.mod", rc == 0 and f"projeto {pasta.name}" in mod and "cinza 0.6" in mod,
+                  f"código {rc}, {out!r} {err!r}, czm.mod {mod!r}"))
         rc, out, err = roda("main.cinza")
         r.append(("projeto/com czm.mod, o import vale", rc == 0 and out == "42 1\n", f"código {rc}, saída {out!r} {err.strip()!r}"))
         rc, out, err = roda("init")
@@ -589,6 +841,9 @@ def main():
         extras_lista += testes_do_lsp(binario)
     if not CINZAC and "projeto" in (filtro or "projeto"):
         extras_lista += testes_do_projeto(binario)
+    if not CINZAC and "pacote" in (filtro or "pacote"):
+        extras_lista += testes_de_pacotes(binario)
+        extras_lista += testes_de_pacotes_git(binario)
     if extras_lista:
         for nome, passou, motivo in extras_lista:
             extras += 1

@@ -411,17 +411,17 @@ import util.texto;          // apelido: texto
 import util.texto as tx;    // apelido: tx
 ```
 
-`import a.b.c;` procura o arquivo `a/b/c.cinza` **a partir da raiz do projeto**, e depois em cada
-pasta da variável de ambiente `CINZA_PATH` (separadas por `;` no Windows e `:` nos demais
-sistemas), que serve para bibliotecas fora do projeto. O caminho é o mesmo em qualquer arquivo
-do programa: não depende da pasta de quem importa, e não há import relativo nem `..`. Assim um
-módulo tem um nome só. Cada arquivo é carregado uma só vez, mesmo que vários módulos o importem.
+`import a.b.c;` procura o arquivo `a/b/c.cinza` **a partir da raiz do projeto** — ou, se `a` for o
+nome de um pacote do `czm.mod`, o arquivo `b/c.cinza` a partir da raiz do pacote (veja Pacotes,
+abaixo). O caminho é o mesmo em qualquer arquivo do projeto: não depende da pasta de quem importa,
+e não há import relativo nem `..`. Assim um módulo tem um nome só. Cada arquivo é carregado uma só
+vez, mesmo que vários módulos o importem.
 
 A **raiz do projeto** é a pasta do arquivo `czm.mod` mais próximo: o compilador procura esse
 arquivo na pasta do arquivo principal e, se não achar, em cada pasta acima dela. **Sem `czm.mod`
 não há projeto**: o programa é de um arquivo só e importa apenas os módulos nativos (um `import`
-de arquivo é `ImportError`). `cinza init [pasta]` cria o `czm.mod`. Ele só marca o projeto; por
-enquanto o conteúdo dele é ignorado.
+de arquivo é `ImportError`). `cinza init [pasta]` cria o `czm.mod`, com o nome do projeto (o da
+pasta) e a versão da linguagem.
 
 ```
 projeto/
@@ -432,8 +432,6 @@ projeto/
   servicos/teste.cinza       import modelos.usuario;   (rodado direto: a raiz continua projeto/)
 ```
 
-- Achar o mesmo caminho em mais de um lugar (na raiz e numa pasta de `CINZA_PATH`, ou em duas
-  delas) é `ImportError`: nenhum módulo encobre outro em silêncio.
 - Os `import` vêm antes de qualquer declaração; um `import` depois é erro.
 - Dois imports com o mesmo apelido são erro (use `as`).
 - Importação circular (`a` importa `b`, que importa `a`) é erro, com a cadeia completa.
@@ -442,9 +440,8 @@ projeto/
 
 ### Declarar o nome
 
-Todo arquivo importado começa com **`module`** e o nome pelo qual ele é importado — o caminho dele
-a partir da raiz do projeto (ou da pasta do `CINZA_PATH` em que foi achado), com `.` no lugar das
-pastas:
+Todo arquivo importado começa com **`module`** e o seu nome — o caminho dele a partir da raiz do
+projeto a que pertence (num pacote, a raiz do pacote), com `.` no lugar das pastas:
 
 ```
 // servicos/cadastro.cinza
@@ -474,6 +471,67 @@ fn auxiliar() -> i64 { return 0; }       // privado do módulo
 
 `pub` vale antes de `fn`, `class`, `struct`, `enum`, `interface`, `error` e `const`. Usar um nome
 sem `pub` de outro módulo é erro.
+
+### O `czm.mod`
+
+Uma declaração por linha; `//` no começo da linha ou depois de um espaço começa um comentário:
+
+```
+projeto loja                              // o nome do projeto (o de um pacote, para quem o usa)
+cinza 0.6                                 // a versão mínima da linguagem
+requer github.com/ana/json v1.2.0         // um pacote git: o repositório e uma tag
+requer github.com/bia/http v0.3.1 as web  // com outro nome
+requer ../utilidades                      // uma dependência local: uma pasta com czm.mod
+```
+
+- `projeto nome`: letras, dígitos e `_`. Opcional no projeto principal; um pacote sem nome
+  precisa de um `as` em quem o usa.
+- `cinza x.y`: uma versão da linguagem acima desta é `ImportError`.
+- `requer origem [versão] [as nome]`: a origem é um caminho (começa com `./`, `../`, `/` ou uma
+  letra de disco) ou um repositório git; o repositório precisa da versão, uma tag `vX.Y.Z`
+  (`github.com/ana/json` vira `https://github.com/ana/json`; uma URL com esquema, ou `git@...`,
+  fica como está).
+- Outra declaração, uma linha mal formada ou a mesma origem duas vezes é `ImportError`, com a linha.
+
+### Pacotes
+
+Um **pacote** é um projeto usado por outro: uma pasta com `czm.mod`, no disco (dependência local)
+ou num repositório git. O primeiro trecho do `import` é o nome do pacote; o resto, o caminho dentro
+dele; `import pacote;` sozinho é o módulo `pacote.cinza` da raiz do pacote:
+
+```
+import json;                  // json.cinza, na raiz do pacote json
+import json.leitor;           // leitor.cinza
+import web.rotas as rotas;    // rotas.cinza do pacote 'web' (o 'as' do czm.mod)
+```
+
+Dentro de um pacote, os imports partem da raiz **dele**, e os pacotes visíveis são os do
+`czm.mod` dele: um pacote é compilado igual em qualquer projeto que o use. O nome de um pacote não
+pode ser o de um módulo da biblioteca padrão, nem o de uma pasta ou arquivo da raiz do projeto, e
+dois pacotes do mesmo `czm.mod` não podem ter o mesmo nome (`as` resolve) — todos `ImportError`.
+
+**Pacotes git.** O compilador nunca acessa a rede: os comandos fazem isso, pelo `git` instalado.
+
+| Comando | O que faz |
+|---|---|
+| `cinza add <repositório> [versão] [as nome]` | Põe (ou troca) a linha `requer` no `czm.mod`; sem versão, a maior tag `vX.Y.Z` do repositório. Depois, o mesmo que `get` |
+| `cinza add <./caminho> [as nome]` | Uma dependência local |
+| `cinza remove <nome ou origem>` | Tira a linha do `czm.mod`. Depois, o mesmo que `get` |
+| `cinza get` | Escolhe as versões, baixa as que faltam para o cache e grava o `czm.lock` |
+
+- **A escolha das versões.** Cada pacote git entra com uma versão só: a **maior pedida** por
+  qualquer `czm.mod` do projeto (o principal, os pacotes e os pacotes deles). Pedidos de majors
+  diferentes (`v1.4.0` e `v2.0.0`) são erro, com a cadeia de quem pediu cada um: majors diferentes
+  não são compatíveis. Um pacote git não pode ter dependências locais.
+- **O cache.** Cada versão é baixada uma vez, em `~/.cinza/pacotes` (ou na pasta da variável
+  `CINZA_PACOTES`), sem o histórico do git e sem converter os fins de linha.
+- **O `czm.lock`.** Gerado pelo `get`, ao lado do `czm.mod` (e versionado com ele): uma linha
+  `pacote <origem> <versão> <commit> sha256-<hash>` por pacote git; o hash é o do conteúdo
+  baixado. Se uma tag já travada no lock passa a apontar para outro conteúdo, o `get` recusa.
+- **Na compilação**, cada pacote git vem do `czm.lock` do projeto principal e do cache. É
+  `ImportError`, com a sugestão de rodar `cinza get`: o pacote fora do lock, o lock com uma versão
+  menor que a pedida ou de outra major, a versão fora do cache, e o conteúdo no cache diferente do
+  hash do lock.
 
 ### Módulos nativos
 

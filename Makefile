@@ -9,7 +9,7 @@ CXX = g++
 CXXFLAGS = -std=c++20 -O3 -Wall -Wextra -pedantic
 DEPFLAGS = -MMD -MP
 TARGET = cinza
-SOURCES = main.cpp lexer.cpp parser.cpp ast.cpp semantic.cpp operacoes.cpp natives.cpp stdlib.cpp regex.cpp plataforma.cpp module_loader.cpp biblioteca.cpp formatador.cpp lsp/servidor.cpp lsp/indice.cpp \
+SOURCES = main.cpp lexer.cpp parser.cpp ast.cpp semantic.cpp operacoes.cpp natives.cpp stdlib.cpp regex.cpp plataforma.cpp module_loader.cpp pacotes.cpp biblioteca.cpp formatador.cpp lsp/servidor.cpp lsp/indice.cpp \
           cvm/compiler.cpp cvm/vm.cpp cvm/disasm.cpp
 OBJECTS = $(SOURCES:.cpp=.o)
 DEPS = $(OBJECTS:.o=.d)
@@ -181,7 +181,7 @@ CZ_DIR      = build/cinzac
 # o runtime em objetos à parte: no Linux estático ele usa a libc++ (RUNTIME_STDLIB), e o cinzac a
 # libstdc++ do LLVM do sistema
 RT_DIR      = build/runtime
-CINZAC_SRC  = lexer.cpp parser.cpp ast.cpp semantic.cpp module_loader.cpp biblioteca.cpp operacoes.cpp \
+CINZAC_SRC  = lexer.cpp parser.cpp ast.cpp semantic.cpp module_loader.cpp pacotes.cpp biblioteca.cpp operacoes.cpp \
               natives.cpp stdlib.cpp regex.cpp plataforma.cpp llvm/cir.cpp llvm/gera_cir.cpp llvm/emissor.cpp \
               llvm/cinzac.cpp $(CINZAC_LLD)
 RUNTIME_SRC = operacoes.cpp natives.cpp stdlib.cpp regex.cpp plataforma.cpp llvm/cinzart.cpp

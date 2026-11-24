@@ -1,0 +1,3 @@
+module formal;   // import saudacao.formal; (de fora); dentro do pacote, formal
+import interno.texto;
+pub fn ola(string nome) -> string { return texto.enfeita("prezado(a) " + nome); }

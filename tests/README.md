@@ -36,13 +36,14 @@ código 70 e falha como "vazamento de memória" (`--sem-vazamentos` desliga a co
 | `interfaces/` | `interface` |
 | `excecoes/` | `error`, `throw`, `try`/`except`/`finally` |
 | `strings_e_printf/` | índices e fatias de texto, `printf`/`format` |
-| `importacao/` | `import`, módulos, `pub`, `CINZA_PATH`, nomes de módulos nativos |
+| `importacao/` | `import`, módulos, `pub`, pacotes (`czm.mod`), nomes de módulos nativos |
 | `biblioteca/` | funções embutidas e módulos nativos (`Strings`, `Files`, `Math`...) |
 | `genericos/` | funções e structs genéricos (spec, capítulo 8) |
 | `cvm/` | casos específicos da máquina virtual |
 | `nativo/` | o backend nativo (`cinzac`): o que cada etapa da seção P do REVISAO passa a compilar; rodam também na CVM |
 | `gc/` | memória: coleta de ciclos, contagem de referências, cadeias longas |
 | `programas/` | programas maiores (rede neural, lista ligada) |
+| `pacotes/` | pacotes de apoio, dependências locais de `tests/` (`requer ./pacotes/saudacao` no `tests/czm.mod`); os pacotes git são testados pelo `run_tests.py`, com repositórios temporários |
 | `projetos/` | projetos de várias pastas, cada um com `czm.mod` próprio (`crud_contatos/`: CRUD de contatos em arquivo) |
 | `fuzz/` | o fuzzer (`python tests/fuzz/fuzz.py --tempo 300`: mutações dos programas da suíte contra os dois backends) e o gerador de programas válidos (`python tests/fuzz/gera.py --tempo 300`: o teste diferencial CVM × `cinzac -O0` × `cinzac -O2`); não fazem parte do `make test` |
 

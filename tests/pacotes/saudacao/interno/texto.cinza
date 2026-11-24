@@ -1,0 +1,2 @@
+module interno.texto;   // dentro do pacote, os caminhos partem da raiz dele
+pub fn enfeita(string s) -> string { return "*" + s + "*"; }

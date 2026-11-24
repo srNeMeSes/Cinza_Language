@@ -2128,6 +2128,56 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
     >    o completar do LSP conhecem o `module`.
     >
     > Spec: 2.1, 4.3 e 4.11.
+- [x] Q10. Gerenciador de pacotes (antes da 1.0, decisão do autor de 2026-11-22). **Desenho
+  decidido com o autor (2026-11-24):**
+  1. **Origem**: repositórios git — uma dependência é a URL do repositório e uma versão (uma tag
+     semver, `v1.2.0`); sem servidor central. Uma dependência local (para desenvolver uma
+     biblioteca junto) é um caminho no disco, sem versão. O **`CINZA_PATH` sai**: os módulos vêm
+     só do projeto e das dependências declaradas.
+  2. **`czm.mod`**, formato próprio, uma declaração por linha, com comentários `//`:
+     `projeto nome` (o nome do pacote; `cinza init` escreve o da pasta), `cinza 0.6` (a versão
+     mínima da linguagem, opcional), `requer github.com/ana/json v1.2.0 [as outro]`,
+     `requer ../minha_lib`.
+  3. **Reprodutível**: um `czm.lock` guarda, de cada dependência (também as transitivas), a
+     versão escolhida, o commit e um hash do conteúdo; a compilação confere o hash.
+  4. **Versões**: vale a maior versão pedida dentro da mesma major (seleção mínima, como no Go);
+     majors diferentes (v1.x e v2.x) são erro, com as cadeias de quem pediu cada uma.
+  5. **Cache do usuário**: uma pasta por pacote e versão (`~/.cinza/pacotes`), compartilhada entre
+     os projetos; o projeto não guarda cópias.
+  6. **Download pelo `git` instalado** (sem HTTPS dentro do compilador; repositório privado usa a
+     autenticação do git), e **só por comandos**: `cinza add <url> [versão] [as nome]`,
+     `cinza remove <nome>`, `cinza get` (o que o `czm.lock` pede). Compilar nunca acessa a rede:
+     falta um pacote no cache, o erro manda rodar `cinza get`.
+  7. **Import pelo nome do pacote**: `import json.leitor;` — o primeiro trecho é o pacote (o
+     nome declarado no `czm.mod` dele, ou o `as` do `requer`), o resto o caminho dentro dele. Dois
+     pacotes com o mesmo nome são erro; um nome de pacote igual a uma pasta do projeto também.
+  8. **Dentro de um pacote**, os módulos se importam pelo caminho a partir da raiz dele (`import
+     util.texto;`, `module util.texto;`), como num projeto comum: escrever uma biblioteca não
+     muda nada; só quem está de fora acrescenta o nome do pacote.
+  > Feito em 2026-11-24. `pacotes.h/.cpp` (novo, nos dois binários): o leitor do `czm.mod`
+  > (`leManifesto`, o mesmo do carregador), o do `czm.lock`, o cache (`CINZA_PACOTES` ou
+  > `~/.cinza/pacotes`, uma pasta `<último trecho>-<12 dígitos do SHA-256 da origem>@<versão>`, curta
+  > para o limite de caminho do Windows), o hash (SHA-256 próprio, dos arquivos em ordem, com o
+  > caminho e o tamanho de cada um, sem o `.git`) e os comandos `cinza add/remove/get` no `main.cpp`.
+  > O `get` percorre os `czm.mod` (o principal, os locais e os dos pacotes no cache), escolhe a
+  > maior versão de cada origem na mesma major, baixa pelo `git clone --depth 1 --branch <tag>`
+  > (sem `core.autocrlf`: o hash é o mesmo em todo sistema), tira o `.git` e grava o lock; uma
+  > versão já travada cujo conteúdo mudou é baixada de novo e, se ainda não conferir (a tag foi
+  > movida), recusada. O `add` sem versão pega a maior tag (`git ls-remote --tags`) e devolve o
+  > `czm.mod` como estava se o `get` falhar. O `ModuleLoader` lê os projetos (`Projeto`,
+  > `Dependencia`): o primeiro trecho de um import que é um pacote resolve dentro da raiz dele, com
+  > o nome esperado no `module` relativo a ela; uma dependência git vem do lock do projeto
+  > principal e do cache, conferida pela versão (não menor que a pedida, mesma major) e pelo hash;
+  > um pacote git com dependência local é erro. O `//` só é comentário no começo da linha ou depois
+  > de um espaço (o de `https://` fica). O `CINZA_PATH` saiu (o carregador, a busca dupla e o erro
+  > de "mais de um lugar"); `tests/` virou um projeto com duas dependências locais
+  > (`tests/pacotes/saudacao` e `exemplos/rede_neural`, que ganhou `projeto rede_neural`), e os
+  > testes do `CINZA_PATH` saíram. `cinza init` passa a escrever `projeto <pasta>` e `cinza 0.6`.
+  > Testes: `importacao/q10_pacote_local.cinza`, e no `run_tests.py` 11 casos de dependências locais
+  > e 13 de pacotes git (repositórios temporários `file://`: add com e sem versão, a maior versão
+  > pedida, majors diferentes, sem `get`, sem cache, o cache alterado, a tag movida, o lock
+  > desatualizado, remove, dependência local num pacote git, tag que não existe, o `//` da URL).
+  > Spec: 4.11 (o `czm.mod` e os pacotes).
 - [ ] Q2. Robustez.
   - Fuzzing do front-end: nenhuma entrada derruba o `cinza` nem o `cinzac` (um erro interno ou uma
     queda é defeito), começando por mutações dos programas da suíte.
@@ -2426,6 +2476,7 @@ ao passar o mouse, ir para a definição e completar nomes no servidor de lingua
 | 2026-10-04 | J2 | `Files.read_bytes(caminho) -> list<int>` e `Files.write_bytes(caminho, list<int>)`, bytes de 0 a 255 (fora disso, `ValueError`). | Decisão do autor da linguagem; formatos binários sem passar por texto UTF-8. |
 | 2026-10-03 | I4 | `menor_int % -1` dá `0` (revê A5); `-0.0` continua `-0` no `print`; decimais extremos continuam em notação científica. | Decisão do autor da linguagem; `x % -1` cabe sempre em `int`. |
 | 2026-10-03 | H3 | `exit([código])`: padrão 0, de 0 a 255; roda os `finally` pendentes e nenhum `except` o captura; encerra o caminho na análise de fluxo. | Decisão do autor da linguagem; 0–255 dá o mesmo resultado em todo sistema. |
+| 2026-11-24 | Q10 | Pacotes: repositórios git (URL + tag) e dependências locais; `czm.mod` próprio (`projeto`, `cinza`, `requer`); `czm.lock` com commit e hash; seleção mínima (major diferente é erro); cache do usuário; o `git` instalado, só por `cinza add/remove/get` (compilar nunca usa a rede); `import pacote.caminho`; dentro do pacote, o caminho a partir da raiz dele; o `CINZA_PATH` sai. | Decisão do autor: sem servidor para manter, builds reprodutíveis e uma fonte só para os módulos. |
 | 2026-11-24 | Q1f | Módulos: `module a.b;` no início de todo arquivo importável (conferido contra o caminho); a raiz é sempre a pasta do `czm.mod` (sem ele, um arquivo só; `cinza init` o cria); os `const` são calculados na compilação, sem ordem de inicialização. | Decisão do autor: o nome do módulo e a raiz do projeto precisam estar escritos, e a ordem dos `const` não pode depender de quem lê seguir os imports. |
 | 2026-11-23 | Q1a | As oito questões das classes genéricas: usado = chamado, exigido por interface ou chamado por um usado; assinaturas já, corpos se usados; `new` de genéricos e de `T`, erros nunca genéricos; sem `self` nos valores iniciais com campo obrigatório; o construtor atribui no nível de cima antes de usar; campo `T` de struct segue obrigatório; uma cópia de cada interface genérica; campo obrigatório do próprio tipo é erro. | Decisão do autor, com o opcional já na linguagem (o "pode faltar" é `T?`). |
 | 2026-11-23 | Q1b | `Json.Value.field(k)` lança `KeyError` sem a chave (o `get` dá `Value?`); a versão vai para 0.6.0. | Decisão do autor: a cadeia de acesso a um JSON de formato conhecido não pode pedir um `else` em cada nível; o opcional muda a linguagem o bastante para uma versão nova. |

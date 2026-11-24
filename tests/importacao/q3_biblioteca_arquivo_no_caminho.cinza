@@ -1,6 +1,0 @@
-// Q3: import de um módulo da biblioteca (Json) com um arquivo de mesmo nome no caminho de busca é
-// erro: o arquivo não encobre o módulo, nem o contrário.
-// env: CINZA_PATH=tests/modulos/nativo
-import Json;
-fn main() { }
-// expect-error: o arquivo 'tests/modulos/nativo/Json.cinza' tem o nome do módulo da biblioteca 'Json'

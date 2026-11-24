@@ -1,10 +1,10 @@
 // Exemplo exemplos/rede_neural: o formato .czr guarda decimais bit a bit, o
 // modelo relido prevê exatamente o mesmo que o treinado, a rede aprende uma
 // regra simples e arquivo corrompido é recusado.
-// env: CINZA_PATH=exemplos/rede_neural
-import czr;
-import mlp;
-import dados;
+// Q10: o exemplo é uma dependência local de tests/ (requer ../exemplos/rede_neural)
+import rede_neural.czr as czr;
+import rede_neural.mlp as mlp;
+import rede_neural.dados as dados;
 import Files;
 import Random;
 import Math;

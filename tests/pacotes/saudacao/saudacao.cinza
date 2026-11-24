@@ -1,0 +1,3 @@
+module saudacao;   // o módulo principal do pacote: import saudacao;
+import interno.texto;
+pub fn ola(string nome) -> string { return texto.enfeita("olá, " + nome); }

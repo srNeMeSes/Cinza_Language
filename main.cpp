@@ -8,8 +8,10 @@
 #include "plataforma.h"
 #include "versao.h"
 #include "formatador.h"
+#include "pacotes.h"       // Q10: cinza add/remove/get
 #include "lsp/servidor.h"
 #include "gc.h"            // P1: modo sem vazamento (coleta final e contagem)
+#include <cctype>
 #include <filesystem>
 #include <iostream>
 #include <fstream>
@@ -202,6 +204,10 @@ void printHelp() {
     std::cout << "  --version        Mostra a versão da linguagem e do cinza\n";
     std::cout << "  fmt [--check] arquivo...  Formata os arquivos (o estilo da Cinza; --check só confere)\n";
     std::cout << "  init [pasta]     Cria o czm.mod: a pasta vira a raiz de um projeto (os imports partem dela)\n";
+    std::cout << "  add <url> [versão] [as nome]   Adiciona um pacote git ao czm.mod (sem versão: a última tag)\n";
+    std::cout << "  add <./caminho> [as nome]      Adiciona uma dependência local\n";
+    std::cout << "  remove <nome>    Tira a dependência do czm.mod\n";
+    std::cout << "  get              Escolhe as versões, baixa os pacotes git para o cache e grava o czm.lock\n";
     std::cout << "  --lsp            O servidor de linguagem (LSP), pela entrada e saída padrão\n";
     std::cout << "  --help, -h       Exibe esta ajuda\n\n";
     std::cout << "Exemplo:\n";
@@ -211,8 +217,8 @@ void printHelp() {
 
 static int principal(int argc, char* argv[]);
 
-// Q1f: cinza init [pasta] — cria o czm.mod, o marcador da raiz do projeto (o gerenciador de
-// pacotes, Q10, vai usá-lo para o nome e as dependências)
+// Q1f: cinza init [pasta] — cria o czm.mod, o marcador da raiz do projeto; Q10: com o nome do
+// projeto (o da pasta, se for um nome válido) e a versão da linguagem
 static int iniciaProjeto(const std::vector<std::string>& args) {
     namespace fs = std::filesystem;
     if (args.size() > 3) {
@@ -230,8 +236,15 @@ static int iniciaProjeto(const std::vector<std::string>& args) {
         std::cerr << "cinza init: '" << textoCaminho(arquivo) << "' já existe: a pasta já é a raiz de um projeto\n";
         return 1;
     }
+    std::string nome = textoCaminho(fs::absolute(pasta, ec).lexically_normal().filename());
+    if (nome.empty()) nome = textoCaminho(fs::absolute(pasta, ec).lexically_normal().parent_path().filename());
+    bool valido = !nome.empty() && (std::isalpha(static_cast<unsigned char>(nome[0])) || nome[0] == '_');
+    for (char c : nome) valido = valido && (std::isalnum(static_cast<unsigned char>(c)) || c == '_');
+    const std::string versao = CINZA_VERSAO;
     std::ofstream out(arquivo, std::ios::binary);
     out << "// czm.mod: esta pasta é a raiz de um projeto Cinza (os imports partem dela)\n";
+    if (valido) out << "projeto " << nome << "\n";
+    out << "cinza " << versao.substr(0, versao.rfind('.')) << "\n";
     if (!out) {
         std::cerr << "cinza init: não foi possível criar '" << textoCaminho(arquivo) << "'\n";
         return 1;
@@ -332,6 +345,12 @@ static int principal(int argc, char* argv[]) {
     const std::vector<std::string> argumentos = argumentosUtf8(argc, argv);
     if (argumentos.size() > 1 && argumentos[1] == "fmt") return formatar(argumentos);
     if (argumentos.size() > 1 && argumentos[1] == "init") return iniciaProjeto(argumentos);   // Q1f
+    if (argumentos.size() > 1 && (argumentos[1] == "add" || argumentos[1] == "remove" || argumentos[1] == "get")) {
+        const std::vector<std::string> resto(argumentos.begin() + 2, argumentos.end());   // Q10
+        if (argumentos[1] == "add") return pacotes::comandoAdd(resto);
+        if (argumentos[1] == "remove") return pacotes::comandoRemove(resto);
+        return pacotes::comandoGet(resto);
+    }
     if (argumentos.size() > 1 && argumentos[1] == "--lsp") return lsp::rodaServidor();   // Q6
     for (size_t i = 1; i < argumentos.size(); i++) {
         const std::string& arg = argumentos[i];

@@ -1,2 +1,0 @@
-// Módulo auxiliar: arquivo com nome de módulo nativo (proibido).
-pub fn f() -> i64 { return 1; }

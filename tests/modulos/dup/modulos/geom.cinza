@@ -1,2 +1,0 @@
-// Módulo auxiliar (o_mesmo_caminho_em_dois_lugares): mesmo caminho de tests/modulos/geom.cinza
-pub fn area(i64 l) -> i64 { return 0; }
