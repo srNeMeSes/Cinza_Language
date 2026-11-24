@@ -1,0 +1,11 @@
+// Q1a: a regra dos campos obrigatórios da classe
+class A {
+  string n;
+  i32 t = tam();
+  pub {
+    A() { n = "x"; }
+    fn tam() -> i32 { return 1; }
+  }
+}
+fn main() {}
+// expect-error: O valor inicial de 't' não pode usar o objeto (self, os campos ou os métodos)

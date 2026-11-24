@@ -194,7 +194,7 @@ public:
     // fora da pilha e do trace, como na CVM)
     void declaraClasse(const ClassDecl& c) {
         for (const FunctionDecl* mt : metodos(c)) declara(*mt, &c);
-        if (c.constructor) {
+        if (c.constructor && c.constructor->corpo_analisado) {   // Q1a: na cópia, só com um new
             std::vector<Tipo> ps{Tipo::Obj};
             for (const Parameter& p : c.constructor->parameters)
                 ps.push_back(tipoDe(TypeChecker::fromAst(p.type.get()), p.token));
@@ -204,11 +204,13 @@ public:
         if (!c.fields.empty())
             init_de[&c] = novaFuncao(simbolo(c.class_name + ".init"), "", c.token, {Tipo::Obj}, Tipo::Void, true);
     }
+    // Q1a: só os métodos com o corpo conferido (numa cópia de classe genérica, os usados)
     static std::vector<const FunctionDecl*> metodos(const ClassDecl& c) {
         std::vector<const FunctionDecl*> v;
         for (const auto* lista : {&c.priv_methods, &c.pub_methods})
             for (const auto& mt : *lista)
-                if (mt->node_kind == NodeKind::FunctionDecl) v.push_back(static_cast<const FunctionDecl*>(mt.get()));
+                if (mt->node_kind == NodeKind::FunctionDecl && static_cast<const FunctionDecl*>(mt.get())->corpo_analisado)
+                    v.push_back(static_cast<const FunctionDecl*>(mt.get()));
         return v;
     }
 
@@ -224,7 +226,7 @@ public:
     void corpo(const FunctionDecl& fn) { corpoDe(funcao_de.at(&fn), fn.parameters, *fn.body, fn.token); }
     void corpoClasse(const ClassDecl& c) {
         for (const FunctionDecl* mt : metodos(c)) corpo(*mt);
-        if (c.constructor)
+        if (c.constructor && c.constructor->corpo_analisado)
             corpoDe(funcao_de.at(c.constructor.get()), c.constructor->parameters, *c.constructor->body,
                     c.constructor->token);
         if (!c.fields.empty()) corpoInit(c);
@@ -286,6 +288,10 @@ public:
         emprestados.insert(self_slot);   // não é dono: a saída de erro não o solta
         for (std::size_t i = 0; i < c.fields.size(); ++i) {
             const auto& campo = c.fields[i];
+            // Q1a: o campo obrigatório fica vazio: o construtor o atribui antes de qualquer uso
+            if (!campo.initializer && campo.type->kind != Type::Kind::LIST && campo.type->kind != Type::Kind::DICT &&
+                campo.type->kind != Type::Kind::OPTIONAL)
+                continue;
             const Operando v = campo.initializer ? expr(*campo.initializer) : vazioDe(*campo.type, campo.token);
             gravaCampo(carrega(self_slot, campo.token), static_cast<std::uint32_t>(i), v, campo.token);
             fimInstrucao(campo.token);
@@ -1700,7 +1706,10 @@ Modulo gera(const std::vector<Module>& modulos, const GlobalLayout& layout,
                 if (st->type_params.empty()) g.registraStruct(*st);   // N5: só as cópias existem
                 break;
             }
-            case NodeKind::ClassDecl: classes.push_back(static_cast<const ClassDecl*>(s.get())); break;
+            case NodeKind::ClassDecl:   // Q1a: a genérica só existe nas cópias
+                if (static_cast<const ClassDecl*>(s.get())->type_params.empty())
+                    classes.push_back(static_cast<const ClassDecl*>(s.get()));
+                break;
             case NodeKind::EnumDecl: g.registraEnum(*static_cast<const EnumDecl*>(s.get())); break;
             case NodeKind::InterfaceDecl: break;   // as tabelas saem das classes
             case NodeKind::ErrorDecl: break;   // só um nome de tipo: nada a gerar
@@ -1709,6 +1718,8 @@ Modulo gera(const std::vector<Module>& modulos, const GlobalLayout& layout,
     }
     for (const auto& s : prog.instancias) {   // N2/N5: cópias das funções e dos structs genéricos
         if (s->node_kind == NodeKind::StructDecl) g.registraStruct(*static_cast<const StructDecl*>(s.get()));
+        else if (s->node_kind == NodeKind::ClassDecl) classes.push_back(static_cast<const ClassDecl*>(s.get()));   // Q1a
+        else if (s->node_kind == NodeKind::InterfaceDecl) continue;   // Q1a: as tabelas saem das classes
         else funcoes.push_back(static_cast<const FunctionDecl*>(s.get()));
     }
     }

@@ -139,6 +139,7 @@ objeto atual (em métodos) e os `const` globais.
 ```
 class Nome : Interface1, Interface2 {
   tipo campo = valor;            // campos: sempre privados
+  tipo obrigatorio;              // sem valor inicial: o construtor atribui
   fn auxiliar() { ... }          // método privado
   pub {
     Nome(parâmetros) { ... }     // construtor (opcional, no máximo um)
@@ -157,10 +158,57 @@ duas vezes (inclusive um dentro e outro fora do `pub`) é erro. Um campo e um m�
 mesmo nome, porque são usados de formas diferentes (`x` e `x()`). Dentro de um método, `m()`
 chama o método `m` do próprio objeto, com precedência sobre uma função global de mesmo nome.
 
+**Campo sem valor inicial.** `list` e `dict` nascem vazios e um opcional (`T?`) nasce `null`
+(seção 3.10). Qualquer outro campo sem valor inicial é **obrigatório**, e então:
+
+- a classe precisa de um construtor, que atribui cada campo obrigatório (`campo = valor;`) **no
+  nível de cima** do corpo — fora de `if`, laço e `try` — **antes** de ler um campo, chamar um
+  método, usar `self` ou retornar; um caminho que não atribua é erro de compilação;
+- os valores iniciais dos outros campos não podem usar o objeto (`self`, os campos, os métodos),
+  porque rodam antes do construtor;
+- um campo obrigatório do próprio tipo (`class No { No prox; }`), ou um ciclo deles entre classes
+  (`A` exige um `B` e `B` exige um `A`), é erro de compilação: o primeiro objeto nunca poderia ser
+  criado. O que pode faltar é um opcional: `No? prox;`.
+
+Assim nenhum objeto existe com um campo sem valor.
+
 **Criação**: `new Nome(argumentos)`. Primeiro os campos recebem seus valores iniciais, na ordem
 em que estão declarados (um valor inicial pode usar campos anteriores, `self` e `const`
-globais); depois roda o construtor, se houver. Os argumentos de `new` precisam casar com o
-construtor (sem construtor, nenhum argumento).
+globais, se a classe não tiver campo obrigatório); depois roda o construtor, se houver. Os
+argumentos de `new` precisam casar com o construtor (sem construtor, nenhum argumento).
+
+```cinza
+class Conta {
+  string titular;
+  i64 saldo;
+  list<string> historico;
+  pub {
+    Conta(string t, i64 inicial) {
+      titular = t;
+      saldo = inicial;
+      registra("aberta");
+    }
+    fn registra(string s) { historico.add(s); }
+    fn resumo() -> string { return titular + " " + cast<string>(saldo) + " " + cast<string>(historico.size()); }
+  }
+}
+fn main() { print(new Conta("ana", 10).resumo()); }
+// expect: ana 10 1
+```
+
+```cinza
+class Conta {
+  string titular;
+  pub {
+    Conta(string t) {
+      print(titular);
+      titular = t;
+    }
+  }
+}
+fn main() { }
+// expect-error: O construtor de 'Conta' não pode ler o campo 'titular' antes de atribuir o campo obrigatório 'titular'
+```
 
 Os valores iniciais rodam a cada criação, então um `new` escrito neles que volta ao próprio tipo
 — direto (`No prox = new No();`) ou por outros tipos (`A` cria `B` e `B` cria `A`, também pelos

@@ -1,0 +1,9 @@
+// Q1a: classes genéricas — erros na cópia, com o rastro
+class F[T] {
+  pub { fn nova() -> T { return new T(); } }
+}
+fn main() {
+  F[i32] f = new F[i32]();
+  print(f.nova());
+}
+// expect-error: Com T = i32, a classe 'F' não é válida

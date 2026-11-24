@@ -1,0 +1,7 @@
+// Q1a: interfaces genéricas
+interface I[T] { fn f(T x); }
+class A : I[i32] {
+  pub { fn f(string x) { print(x); } }
+}
+fn main() {}
+// expect-error: O método f(string) da classe 'A' não tem a assinatura exigida por 'I[i32]': f(i32).

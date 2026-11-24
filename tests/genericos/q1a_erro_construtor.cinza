@@ -1,0 +1,9 @@
+// Q1a: classes genéricas — erros na cópia, com o rastro
+class C[T] {
+  T v;
+  pub { C(T x) { print(v); v = x; } }
+}
+fn main() {
+  C[i32] c = new C[i32](1);
+}
+// expect-error: O construtor de 'C[i32]' não pode ler o campo 'v' antes de atribuir o campo obrigatório 'v'

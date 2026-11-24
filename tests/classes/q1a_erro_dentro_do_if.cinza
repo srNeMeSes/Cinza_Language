@@ -1,0 +1,11 @@
+// Q1a: a regra dos campos obrigatórios da classe
+class A {
+  string n;
+  pub {
+    A(bool b) {
+      if (b) { n = "x"; } else { n = "y"; }
+    }
+  }
+}
+fn main() {}
+// expect-error: O construtor de 'A' não atribui o campo obrigatório 'n' no nível de cima do corpo

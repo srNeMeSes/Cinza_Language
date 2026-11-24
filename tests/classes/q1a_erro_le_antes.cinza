@@ -1,0 +1,7 @@
+// Q1a: a regra dos campos obrigatórios da classe
+class A {
+  string n;
+  pub { A() { print(n); n = "x"; } }
+}
+fn main() {}
+// expect-error: O construtor de 'A' não pode ler o campo 'n' antes de atribuir o campo obrigatório 'n'

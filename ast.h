@@ -631,6 +631,9 @@ public:
     StmtPtr body; // sempre um BlockStmt
     std::uint32_t num_slots = 0;   // B2: parâmetros (slots 0..n-1) + locais
     std::string trace_name;        // nome no stack trace ("f", "Classe.metodo"), montado uma vez
+    // Q1a: num método de uma cópia de classe genérica, o corpo só é conferido (e compilado) se o
+    // método for usado; os backends pulam os que ficaram com false
+    bool corpo_analisado = true;
     // N: função genérica, fn f[T, U](...). Vazio numa função comum. `fonte` guarda os tokens
     // da declaração (de 'fn' ao '}' do corpo): cada cópia para tipos concretos é gerada
     // reparseando-os, com a própria AST
@@ -702,6 +705,7 @@ public:
         Token                  token;
         std::uint32_t          num_slots = 0;   // B2
         std::string            trace_name;      // "new Classe", para o stack trace
+        bool                   corpo_analisado = true;   // Q1a: na cópia de uma genérica, só com um new
 
         Constructor(std::vector<Parameter> params, StmtPtr b, const Token& tok)
             : parameters(std::move(params)), body(std::move(b)), token(tok) {}
@@ -712,6 +716,10 @@ public:
     };
 
     std::string                        class_name;
+    // Q1a: classe genérica, class Pilha[T] { ... }: os parâmetros de tipo e os tokens da declaração
+    // (de 'class' ao '}'), relidos em cada cópia (Pilha[i32]), como num struct genérico
+    std::vector<Token>                 type_params;
+    std::vector<Token>                 fonte;
     std::vector<Field>                 fields;        // campos privados (fora do pub{})
     std::unique_ptr<Constructor>       constructor;   // nullptr → sem construtor
     std::vector<StmtPtr>               priv_methods;  // fn fora do pub{} → privados
@@ -719,6 +727,8 @@ public:
     // class X : Forma, Desenhavel — interfaces declaradas (nomes como escritos)
     std::vector<std::string>           interfaces;
     std::vector<Token>                 interface_tokens;
+    // Q1a: os tipos de uma interface genérica (class Nota : Comparavel[Nota]); vazio na comum
+    std::vector<std::vector<TypePtr>>  interface_args;
     // Preenchido pelo semântico: para cada interface cumprida, os métodos da
     // classe na ordem dos métodos da interface
     std::vector<std::pair<const InterfaceDecl*, std::vector<const FunctionDecl*>>> itables;
@@ -781,6 +791,9 @@ public:
     };
     std::string         name;
     std::vector<Method> methods;
+    // Q1a: interface genérica, interface Comparavel[T] { ... }: relida em cada cópia
+    std::vector<Token>  type_params;
+    std::vector<Token>  fonte;
 
     InterfaceDecl(const Token& tok, const std::string& n, std::vector<Method> m)
         : Stmt(NodeKind::InterfaceDecl, tok), name(n), methods(std::move(m)) {}

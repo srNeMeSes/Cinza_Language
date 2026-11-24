@@ -1884,6 +1884,42 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
     regra do construtor; (6) tirar dos structs a proibição de valor inicial num campo `T`; (7) no
     máximo uma cópia de cada interface genérica por classe; (8) classe com campo obrigatório do
     próprio tipo (depende de Q1b).
+    > **Decidido (2026-11-23), as oito:** (1) um método é **usado** se é chamado de código conferido,
+    > se é exigido por uma interface que a cópia cumpre, ou se é chamado por outro método usado;
+    > (2) as **assinaturas** de todos são conferidas já na cópia, os **corpos** só dos usados; (3)
+    > `new` aceita uma classe ou um struct genérico com os tipos (`new No[T](v)`) e o próprio `T`
+    > (conferido em cada cópia: `new T()` com `T = i32` é erro com o rastro); `except` e `throw` só
+    > tipos de erro, que nunca são genéricos; (4) com um campo obrigatório na classe, os valores
+    > iniciais dos outros campos não usam `self` nem chamam métodos; (5) o construtor atribui cada
+    > campo obrigatório **no nível de cima** do corpo (fora de if, laço e try), antes de ler um
+    > campo, chamar um método, usar `self` ou retornar; (6) o campo `T` de struct continua sem
+    > valor inicial (obrigatório) — o "pode faltar" é `T?`; (7) no máximo uma cópia de cada
+    > interface genérica por classe (sem sobrecarga, duas exigiriam métodos com o mesmo nome); (8)
+    > um campo obrigatório do próprio tipo é erro de compilação (o primeiro objeto nunca poderia
+    > ser criado), com a dica `No? prox`.
+    > **Feito (2026-11-23), no ramo `q1-classes-genericas`, em fatias, nos dois backends:**
+    > 1. **Campos obrigatórios em toda classe.** O parser aceita campo sem valor inicial; o
+    >    semântico (`confereCamposObrigatorios`) exige o construtor, confere as instruções do nível
+    >    de cima dele até todos os obrigatórios estarem atribuídos (nada de ler um campo, chamar um
+    >    método, usar `self` ou retornar antes), recusa `self`/campos/métodos nos valores iniciais
+    >    dos outros campos e (`checkRequiredFieldCycles`) um ciclo de campos obrigatórios entre
+    >    classes, com o caminho. O inicializador de campos dos dois backends deixa o obrigatório
+    >    vazio para o construtor.
+    > 2. **Classes genéricas.** `class Pilha[T]` guarda os próprios tokens, como o struct; cada uso
+    >    (`Pilha[i32]`, também em `new`, no tipo escrito como valor e dentro da própria classe)
+    >    gera uma cópia registrada com `registerClass` (sem símbolo global). Os campos, os valores
+    >    iniciais e as interfaces da cópia são conferidos na fila das cópias; o construtor e o corpo
+    >    de cada método, só quando usados (`usaCorpo`: chamada, `new`, interface, e o que um corpo
+    >    usado chama), com o rastro da cópia nos erros. `FunctionDecl::corpo_analisado` (e o do
+    >    construtor) diz aos backends o que gerar: a CVM e o `cinzac` compilam só os corpos
+    >    conferidos, e o índice do LSP só os indexa. `new T()` vale quando `T` é uma classe ou um
+    >    struct; com `T = i32` a cópia não é válida, com o rastro.
+    > 3. **Interfaces genéricas.** `interface Comparavel[T]`; a lista de interfaces de uma classe
+    >    aceita os tipos (`: Comparavel[Nota]`, `: Colecao[T]` numa classe genérica); cada uso é uma
+    >    cópia registrada com `registerInterface`; uma classe cumpre no máximo uma cópia de cada.
+    >
+    > Spec: 3.6 e 4.6 (os campos obrigatórios), 8.7 (classes e interfaces genéricas, com exemplos);
+    > testes em `tests/classes/q1a_*` e `tests/genericos/q1a_*`.
   - [x] Q1b. **Ausência de valor.** A Cinza não tem `null` (filosofia); opcionais (`T?`) foram
     discutidos em 2026-11-15, sem decisão. Entram na 1.0, e como? Ou ficam fora de vez (e uma
     lista vazia continua sendo o jeito de dizer "nenhum", como em `list<No>`)?
@@ -2063,6 +2099,17 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
     principal) e o `CINZA_PATH`, os módulos nativos com `import` obrigatório, o que um módulo pode
     declarar no nível de cima, a ordem de inicialização dos `const` — e propor um desenho, nos dois
     backends.
+    > **Levantamento com o autor (2026-11-24):** confundem o nome do módulo vir só do caminho, as
+    > duas regras da raiz do projeto e a ordem de inicialização dos `const`. Os apelidos, o `import`
+    > dos nativos, o `pub` item por item, o `CINZA_PATH` (que fica para o Q10) e os nomes nas
+    > mensagens não incomodam. **Decidido:** (1) todo arquivo importável começa com
+    > **`module util.texto;`**, conferido contra o caminho a partir da raiz (ou da pasta do
+    > `CINZA_PATH` em que foi achado); o erro diz o nome certo; o principal não precisa; (2) a raiz
+    > é **sempre a pasta do `czm.mod`**: sem ele, o programa é de um arquivo só (importa só os
+    > módulos nativos); um `cinza init` cria o `czm.mod`, que o Q10 vai usar para o nome e as
+    > dependências; (3) os **`const` são calculados na compilação** (já são expressões constantes),
+    > também os que usam `const` de outros módulos: não há ordem de inicialização na execução, e
+    > uma conta inválida (estouro, divisão por zero) é erro de compilação no `const`.
 - [ ] Q2. Robustez.
   - Fuzzing do front-end: nenhuma entrada derruba o `cinza` nem o `cinzac` (um erro interno ou uma
     queda é defeito), começando por mutações dos programas da suíte.
@@ -2361,6 +2408,8 @@ ao passar o mouse, ir para a definição e completar nomes no servidor de lingua
 | 2026-10-04 | J2 | `Files.read_bytes(caminho) -> list<int>` e `Files.write_bytes(caminho, list<int>)`, bytes de 0 a 255 (fora disso, `ValueError`). | Decisão do autor da linguagem; formatos binários sem passar por texto UTF-8. |
 | 2026-10-03 | I4 | `menor_int % -1` dá `0` (revê A5); `-0.0` continua `-0` no `print`; decimais extremos continuam em notação científica. | Decisão do autor da linguagem; `x % -1` cabe sempre em `int`. |
 | 2026-10-03 | H3 | `exit([código])`: padrão 0, de 0 a 255; roda os `finally` pendentes e nenhum `except` o captura; encerra o caminho na análise de fluxo. | Decisão do autor da linguagem; 0–255 dá o mesmo resultado em todo sistema. |
+| 2026-11-24 | Q1f | Módulos: `module a.b;` no início de todo arquivo importável (conferido contra o caminho); a raiz é sempre a pasta do `czm.mod` (sem ele, um arquivo só; `cinza init` o cria); os `const` são calculados na compilação, sem ordem de inicialização. | Decisão do autor: o nome do módulo e a raiz do projeto precisam estar escritos, e a ordem dos `const` não pode depender de quem lê seguir os imports. |
+| 2026-11-23 | Q1a | As oito questões das classes genéricas: usado = chamado, exigido por interface ou chamado por um usado; assinaturas já, corpos se usados; `new` de genéricos e de `T`, erros nunca genéricos; sem `self` nos valores iniciais com campo obrigatório; o construtor atribui no nível de cima antes de usar; campo `T` de struct segue obrigatório; uma cópia de cada interface genérica; campo obrigatório do próprio tipo é erro. | Decisão do autor, com o opcional já na linguagem (o "pode faltar" é `T?`). |
 | 2026-11-23 | Q1b | `Json.Value.field(k)` lança `KeyError` sem a chave (o `get` dá `Value?`); a versão vai para 0.6.0. | Decisão do autor: a cadeia de acesso a um JSON de formato conhecido não pode pedir um `else` em cada nível; o opcional muda a linguagem o bastante para uma versão nova. |
 | 2026-11-23 | Q1b | `yield` dá o valor do bloco de um else; `return` continua sendo sempre sair da função. | Decisão do autor: a mesma palavra não pode fazer duas coisas, e sair da função de dentro do bloco é o uso mais comum. |
 | 2026-11-23 | Q1b | **Reaberto: o opcional `T?` com `null`** — `else` (valor, ou bloco com `yield`/saída), `if`/`while` com declaração, sem estreitamento; `T?` sem valor nasce `null`; a biblioteca devolve `T?` no que pode não existir e perde os `get_or`/`has`/`is_*`/`*_or`; o que quem chama controla continua lançando; `Regex.groups` com `string?`. | Decisão do autor: a ausência total gerava gambiarras (o "zero ou um" em `list<No>`, os campos `T` sem valor nos genéricos); a segurança vem do tipo, que obriga a resolver a ausência. |

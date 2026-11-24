@@ -17,8 +17,8 @@ para aprender a linguagem, o livro (a ser reescrito) é o caminho.
 5. [Execução](05-execucao.md) — valores, operadores, ordem de avaliação, instruções, exceções
 6. [Biblioteca padrão](06-biblioteca.md) — funções embutidas e os módulos nativos
 7. [Erros e diagnósticos](07-erros.md) — tipos de erro, quando ocorrem, formato das mensagens
-8. [Genéricos](08-genericos.md) — funções e structs genéricos: declaração, conferência no uso,
-   inferência, erros com rastro
+8. [Genéricos](08-genericos.md) — funções, structs e classes genéricos: declaração, conferência no
+   uso, inferência, erros com rastro
 
 ## Filosofia
 

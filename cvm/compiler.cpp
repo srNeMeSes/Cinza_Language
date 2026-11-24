@@ -1094,6 +1094,10 @@ void Compiler::classInit(const ClassDecl* cls, std::size_t idx) {
     p->num_params = 1;
     for (std::size_t i = 0; i < cls->fields.size(); ++i) {
         const auto& f = cls->fields[i];
+        // Q1a: o campo obrigatório fica vazio: o construtor o atribui antes de qualquer uso
+        if (!f.initializer && f.type->kind != Type::Kind::LIST && f.type->kind != Type::Kind::DICT &&
+            f.type->kind != Type::Kind::OPTIONAL)
+            continue;
         const std::uint16_t t = alloc(f.token);
         if (f.initializer) expr(f.initializer.get(), t);
         else vazio(*f.type, t, f.token);
@@ -1130,11 +1134,24 @@ Image Compiler::run() {
     img.num_globals    = layout.count;
     img.native_globals = layout.natives;
 
+    // Q1a: só os métodos com o corpo conferido (numa cópia de classe genérica, os usados)
     auto metodos = [](const ClassDecl* c) {
         std::vector<const FunctionDecl*> v;
         for (const auto* lista : {&c->priv_methods, &c->pub_methods})
             for (const auto& m : *lista)
-                if (m->node_kind == NodeKind::FunctionDecl) v.push_back(static_cast<const FunctionDecl*>(m.get()));
+                if (m->node_kind == NodeKind::FunctionDecl && static_cast<const FunctionDecl*>(m.get())->corpo_analisado)
+                    v.push_back(static_cast<const FunctionDecl*>(m.get()));
+        return v;
+    };
+    // Q1a: o construtor de uma cópia de classe genérica só existe se algum new a usou
+    auto temConstrutor = [](const ClassDecl* c) { return c->constructor && c->constructor->corpo_analisado; };
+    // as classes de um programa: as escritas (sem as genéricas) e as cópias das genéricas
+    auto classesDe = [](const Program* prog) {
+        std::vector<const ClassDecl*> v;
+        for (const auto* lista : {&prog->statements, &prog->instancias})
+            for (const auto& s : *lista)
+                if (s->node_kind == NodeKind::ClassDecl && static_cast<const ClassDecl*>(s.get())->type_params.empty())
+                    v.push_back(static_cast<const ClassDecl*>(s.get()));
         return v;
     };
 
@@ -1146,21 +1163,6 @@ Image Compiler::run() {
                 auto* fn = static_cast<const FunctionDecl*>(s.get());
                 if (!fn->type_params.empty()) continue;   // N2: só as cópias são compiladas
                 proto_of[fn] = newProto(fn->trace_name, fn->token);
-            } else if (s->node_kind == NodeKind::ClassDecl) {
-                auto* c = static_cast<const ClassDecl*>(s.get());
-                ClassRef ref;
-                ref.decl = c;
-                for (const auto* m : metodos(c)) proto_of[m] = newProto(m->trace_name, m->token);
-                if (c->constructor) {
-                    ref.ctor = newProto(c->constructor->trace_name, c->constructor->token);
-                    proto_of[c->constructor.get()] = ref.ctor;
-                }
-                if (!c->fields.empty()) ref.init = newProto("", c->token);   // oculto
-                img.desc_classes.push_back(std::make_unique<CzClasseDesc>(CzClasseDesc{
-                    c->class_name, static_cast<std::uint32_t>(img.classes.size()),
-                    static_cast<std::uint32_t>(c->fields.size())}));
-                class_of[c->class_name] = img.classes.size();
-                img.classes.push_back(ref);
             } else if (s->node_kind == NodeKind::StructDecl) {
                 auto* st = static_cast<const StructDecl*>(s.get());
                 if (!st->type_params.empty()) continue;   // N5: só as cópias existem
@@ -1170,10 +1172,29 @@ Image Compiler::run() {
             }
         }
 
+    // as classes (Q1a: também as cópias das genéricas)
+    for (const auto* prog : programs)
+        for (const ClassDecl* c : classesDe(prog)) {
+            ClassRef ref;
+            ref.decl = c;
+            for (const auto* m : metodos(c)) proto_of[m] = newProto(m->trace_name, m->token);
+            if (temConstrutor(c)) {
+                ref.ctor = newProto(c->constructor->trace_name, c->constructor->token);
+                proto_of[c->constructor.get()] = ref.ctor;
+            }
+            if (!c->fields.empty()) ref.init = newProto("", c->token);   // oculto
+            img.desc_classes.push_back(std::make_unique<CzClasseDesc>(CzClasseDesc{
+                c->class_name, static_cast<std::uint32_t>(img.classes.size()),
+                static_cast<std::uint32_t>(c->fields.size())}));
+            class_of[c->class_name] = img.classes.size();
+            img.classes.push_back(ref);
+        }
+
     // N2: cópias das funções genéricas (maior[i32]...), funções comuns; N5: cópias dos
     // structs genéricos (Par[i32, string]), structs comuns
     for (const auto* prog : programs)
         for (const auto& s : prog->instancias) {
+            if (s->node_kind == NodeKind::ClassDecl || s->node_kind == NodeKind::InterfaceDecl) continue;   // Q1a
             if (s->node_kind == NodeKind::StructDecl) {
                 auto* st = static_cast<const StructDecl*>(s.get());
                 struct_of[st->name] = img.structs.size();
@@ -1197,10 +1218,13 @@ Image Compiler::run() {
             for (const FunctionDecl* m : da_interface) protos.push_back(proto_of.at(m));
             ref.itables.emplace_back(iface, std::move(protos));
         }
-    // interfaces que nenhuma classe cumpre ainda podem aparecer em chamadas
+    // interfaces que nenhuma classe cumpre ainda podem aparecer em chamadas (Q1a: também as cópias
+    // das genéricas; a genérica em si não)
     for (const auto* prog : programs)
-        for (const auto& s : prog->statements)
-            if (s->node_kind == NodeKind::InterfaceDecl) {
+        for (const auto* lista : {&prog->statements, &prog->instancias})
+          for (const auto& s : *lista)
+            if (s->node_kind == NodeKind::InterfaceDecl &&
+                static_cast<const InterfaceDecl*>(s.get())->type_params.empty()) {
                 auto* in = static_cast<const InterfaceDecl*>(s.get());
                 if (!iface_of.count(in)) {
                     iface_of[in] = img.interfaces.size();
@@ -1219,23 +1243,24 @@ Image Compiler::run() {
                 if (!fn->type_params.empty()) continue;   // N2
                 body(&img.protos[proto_of.at(fn)], fn->num_slots, fn->parameters.size(), false,
                      fn->body.get(), fn->token, fn->return_type->kind == Type::Kind::VOID);
-            } else if (s->node_kind == NodeKind::ClassDecl) {
-                auto* c = static_cast<const ClassDecl*>(s.get());
-                const ClassRef& ref = img.classes[class_of.at(c->class_name)];
-                for (const auto* m : metodos(c))
-                    body(&img.protos[proto_of.at(m)], m->num_slots, m->parameters.size(), true,
-                         m->body.get(), m->token, m->return_type->kind == Type::Kind::VOID);
-                if (c->constructor)
-                    body(&img.protos[ref.ctor], c->constructor->num_slots,
-                         c->constructor->parameters.size(), true, c->constructor->body.get(),
-                         c->constructor->token, true);
-                if (ref.init != ClassRef::none) classInit(c, ref.init);
             }
+        }
+    for (const auto* prog : programs)   // as classes (Q1a: também as cópias das genéricas)
+        for (const ClassDecl* c : classesDe(prog)) {
+            const ClassRef& ref = img.classes[class_of.at(c->class_name)];
+            for (const auto* m : metodos(c))
+                body(&img.protos[proto_of.at(m)], m->num_slots, m->parameters.size(), true,
+                     m->body.get(), m->token, m->return_type->kind == Type::Kind::VOID);
+            if (temConstrutor(c))
+                body(&img.protos[ref.ctor], c->constructor->num_slots,
+                     c->constructor->parameters.size(), true, c->constructor->body.get(),
+                     c->constructor->token, true);
+            if (ref.init != ClassRef::none) classInit(c, ref.init);
         }
 
     for (const auto* prog : programs)   // N2: as cópias das genéricas
         for (const auto& s : prog->instancias) {
-            if (s->node_kind != NodeKind::FunctionDecl) continue;   // N5: struct
+            if (s->node_kind != NodeKind::FunctionDecl) continue;   // N5: struct; Q1a: classe
             auto* fn = static_cast<const FunctionDecl*>(s.get());
             body(&img.protos[proto_of.at(fn)], fn->num_slots, fn->parameters.size(), false,
                  fn->body.get(), fn->token, fn->return_type->kind == Type::Kind::VOID);

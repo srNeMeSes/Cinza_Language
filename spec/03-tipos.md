@@ -196,8 +196,10 @@ família: `[1, 2]` é `list<i32>`, `[1.f, 2.5ff]` é `list<f64>`; elementos de f
 
 ## 3.6 Valor inicial obrigatório
 
-Toda variável e todo campo precisa de valor inicial na declaração, exceto `list<T>` e
-`dict<K, V>`, que nascem vazios, e o opcional `T?`, que nasce `null` (seção 3.10).
+Toda variável precisa de valor inicial na declaração, exceto `list<T>` e `dict<K, V>`, que nascem
+vazios, e o opcional `T?`, que nasce `null` (seção 3.10). Um campo sem valor inicial (que não é
+list, dict nem opcional) é **obrigatório**: num struct, quem o cria o informa (seção 4.7); numa
+classe, o construtor o atribui (seção 4.6).
 
 ```cinza
 fn main() {

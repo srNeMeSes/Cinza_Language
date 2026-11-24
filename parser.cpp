@@ -1510,16 +1510,19 @@ std::vector<Parameter> Parser::parseParameterList() {
 // ============================================================================
 
 StmtPtr Parser::parseClassDeclaration() {
+    const size_t inicio = current;   // Q1a: a classe genérica guarda os próprios tokens
     Token class_token = advance(); // consome 'class'
 
     Token name_token = consume(TokenType::IDENTIFIER,
                                 "Esperado nome da classe após 'class'");
     std::string class_name = name_token.lexeme;
-    recusaParametrosTipo("class");   // N1
+    std::vector<Token> type_params;   // Q1a: class Pilha[T]
+    if (check(TokenType::LBRACKET)) type_params = parseTypeParams(true);
 
     // class X : Forma, Desenhavel — interfaces cumpridas
     std::vector<std::string> interfaces;
     std::vector<Token>       interface_tokens;
+    std::vector<std::vector<TypePtr>> interface_args;
     if (match(TokenType::COLON)) {
         do {
             Token t = peek();
@@ -1530,6 +1533,12 @@ StmtPtr Parser::parseClassDeclaration() {
             }
             interfaces.push_back(t.lexeme);
             interface_tokens.push_back(t);
+            std::vector<TypePtr> args;   // Q1a: Comparavel[Nota]
+            if (match(TokenType::LBRACKET)) {
+                do { args.push_back(parseType()); } while (match(TokenType::COMMA));
+                consume(TokenType::RBRACKET, "Esperado ']' após os tipos da interface");
+            }
+            interface_args.push_back(std::move(args));
         } while (match(TokenType::COMMA));
     }
 
@@ -1631,6 +1640,12 @@ StmtPtr Parser::parseClassDeclaration() {
                                        std::move(pub_methods));
     classe->interfaces       = std::move(interfaces);
     classe->interface_tokens = std::move(interface_tokens);
+    classe->interface_args   = std::move(interface_args);
+    if (!type_params.empty()) {
+        classe->type_params = std::move(type_params);
+        classe->fonte.assign(tokens.begin() + static_cast<std::ptrdiff_t>(inicio),
+                             tokens.begin() + static_cast<std::ptrdiff_t>(current));
+    }
     return classe;
 }
 
@@ -1684,9 +1699,10 @@ ClassDecl::Field Parser::parseFieldDeclaration(bool em_struct) {
     }
 
     // list<T> e dict<K,V> podem ser declarados sem inicializador
-    bool field_can_omit = em_struct || field_type->kind == Type::Kind::LIST ||
-                          field_type->kind == Type::Kind::DICT ||
-                          field_type->kind == Type::Kind::OPTIONAL;
+    // Q1a: num struct e numa classe, um campo sem valor inicial é obrigatório (informado na
+    // criação, ou atribuído pelo construtor); list, dict e T? nascem vazios. Só var exige o valor
+    (void)em_struct;
+    bool field_can_omit = field_type->kind != Type::Kind::VAR;
 
     ExprPtr initializer = nullptr;
     if (match(TokenType::OP_ASSIGN)) {
@@ -1729,10 +1745,12 @@ ClassDecl::Field Parser::parseFieldDeclaration(bool em_struct) {
 
 // interface Forma { fn area() -> f64; fn escala(f64 f); }
 StmtPtr Parser::parseInterfaceDeclaration() {
+    const size_t inicio = current;   // Q1a: a interface genérica guarda os próprios tokens
     Token iface_token = advance();   // consome 'interface'
     Token name_token  = consume(TokenType::IDENTIFIER,
                                 "Esperado o nome da interface, ex.: interface Forma { ... }");
-    recusaParametrosTipo("interface");   // N1
+    std::vector<Token> type_params;   // Q1a: interface Comparavel[T]
+    if (check(TokenType::LBRACKET)) type_params = parseTypeParams(true);
     consume(TokenType::LBRACE, "Esperado '{' após o nome da interface");
     DepthGuard guard{brace_depth};
     std::vector<InterfaceDecl::Method> metodos;
@@ -1764,7 +1782,13 @@ StmtPtr Parser::parseInterfaceDeclaration() {
         error("A interface '" + name_token.lexeme + "' precisa de pelo menos um método.", name_token);
         throw ParseError("interface vazia", name_token);
     }
-    return std::make_unique<InterfaceDecl>(iface_token, name_token.lexeme, std::move(metodos));
+    auto in = std::make_unique<InterfaceDecl>(iface_token, name_token.lexeme, std::move(metodos));
+    if (!type_params.empty()) {
+        in->type_params = std::move(type_params);
+        in->fonte.assign(tokens.begin() + static_cast<std::ptrdiff_t>(inicio),
+                         tokens.begin() + static_cast<std::ptrdiff_t>(current));
+    }
+    return in;
 }
 
 // enum Cor { Vermelho, Verde, Azul }
@@ -2015,8 +2039,10 @@ StmtPtr Parser::parseGenericCopy(std::vector<Token> tokens, const std::set<std::
     p.silencioso     = true;
     StmtPtr fn;
     try {
-        // N5: a cópia de um struct genérico começa por 'struct'
+        // N5: a cópia de um struct genérico começa por 'struct'; Q1a: a de uma classe, por 'class'
         fn = p.check(TokenType::KW_STRUCT) ? p.parseStructDeclaration()
+           : p.check(TokenType::KW_CLASS)  ? p.parseClassDeclaration()
+           : p.check(TokenType::KW_INTERFACE) ? p.parseInterfaceDeclaration()
                                            : p.parseFunctionDeclaration(false);
     } catch (const ParseError& e) {
         if (p.primeiro_erro.empty()) { p.primeiro_erro = e.what(); p.primeiro_erro_tok = e.error_token; }

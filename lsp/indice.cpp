@@ -267,7 +267,8 @@ private:
                     ocorre(f.token, f.name, mostra(f.type) + " " + f.name, mostra(f.type), &f.token, f.name);
                     expr(f.initializer.get());
                 }
-                if (c->constructor) {
+                if (!c->type_params.empty()) break;   // Q1a: a genérica — o índice vem das cópias
+                if (c->constructor && c->constructor->corpo_analisado) {
                     escopos_.emplace_back();
                     for (std::size_t i = 0; i < c->constructor->parameters.size(); ++i) {
                         const Parameter& p = c->constructor->parameters[i];
@@ -276,8 +277,9 @@ private:
                     corpo(c->constructor->body.get());
                     escopos_.pop_back();
                 }
-                for (auto& m : c->priv_methods) funcao(static_cast<FunctionDecl*>(m.get()), n);
-                for (auto& m : c->pub_methods) funcao(static_cast<FunctionDecl*>(m.get()), n);
+                for (auto* lista : {&c->priv_methods, &c->pub_methods})
+                    for (auto& m : *lista)
+                        if (static_cast<FunctionDecl*>(m.get())->corpo_analisado) funcao(static_cast<FunctionDecl*>(m.get()), n);
                 classe_ = antes;
                 break;
             }

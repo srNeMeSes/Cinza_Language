@@ -1,7 +1,11 @@
-// 4.6: na classe, o campo continua precisando de valor inicial (só no struct mudou)
+// 4.6 / Q1a: na classe, um campo sem valor inicial é obrigatório, e o construtor o atribui (antes
+// do Q1a, a classe exigia o valor na declaração)
 class Conta {
   string dono;
-  pub { Conta(string d) { dono = d; } }
+  pub {
+    Conta(string d) { dono = d; }
+    fn nome() -> string { return dono; }
+  }
 }
-fn main() {}
-// expect-error: Campo 'dono' deve ser inicializado na declaração
+fn main() { print(new Conta("ana").nome()); }
+// expect: ana

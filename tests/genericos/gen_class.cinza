@@ -1,6 +1,15 @@
-// N1: class genérica fica fora desta versão
+// N1 / Q1a: classe genérica — a cópia (Pilha[i32]) é uma classe comum; o T aparece nos campos,
+// no construtor e nos métodos; o tipo é sempre escrito com os colchetes
 class Pilha[T] {
   list<T> itens;
+  pub {
+    fn poe(T x) { itens.add(x); }
+    fn tamanho() -> i32 { return itens.size(); }
+  }
 }
-fn main() {}
-// expect-error: class não aceita parâmetros de tipo
+fn main() {
+  Pilha[string] p = new Pilha[string]();
+  p.poe("a");
+  print(p.tamanho(), type(p));
+}
+// expect: 1 Pilha[string]

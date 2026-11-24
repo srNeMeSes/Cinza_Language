@@ -386,6 +386,9 @@ void SemanticAnalyzer::preRegisterDeclarations(const Program& program) {
             auto* st = static_cast<const StructDecl*>(stmt.get());
             if (st->type_params.empty()) types.declareStruct(st->name);
             else structs_genericos[st->name] = StructGenerico{st, current_module};
+        } else if (stmt->node_kind == NodeKind::ClassDecl) {   // Q1a: class Pilha[T]
+            auto* c = static_cast<const ClassDecl*>(stmt.get());
+            if (!c->type_params.empty()) classes_genericas[c->class_name] = ClasseGenerica{c, current_module};
         }
 
     // enum: também antes de tudo, para `Cor c` virar tipo enum em qualquer assinatura
@@ -396,8 +399,11 @@ void SemanticAnalyzer::preRegisterDeclarations(const Program& program) {
     // interface: os nomes antes de tudo (uma assinatura pode citar outra
     // interface declarada mais abaixo); as assinaturas depois
     for (const auto& stmt : program.statements)
-        if (stmt->node_kind == NodeKind::InterfaceDecl)
-            types.declareInterface(static_cast<const InterfaceDecl*>(stmt.get())->name);
+        if (stmt->node_kind == NodeKind::InterfaceDecl) {
+            auto* in = static_cast<const InterfaceDecl*>(stmt.get());
+            if (in->type_params.empty()) types.declareInterface(in->name);
+            else interfaces_genericas[in->name] = InterfaceGenerica{in, current_module};   // Q1a
+        }
 
     // C4: tipos de erro declarados com `error Nome;` também antes de tudo
     // (os embutidos são registrados uma vez, em analyze)
@@ -459,7 +465,18 @@ void SemanticAnalyzer::registerStruct(const StructDecl& st, bool simbolo) {
 }
 
 // interface Forma { ... }: nome de tipo no escopo global e as assinaturas
-void SemanticAnalyzer::registerInterface(const InterfaceDecl& in) {
+void SemanticAnalyzer::registerInterface(const InterfaceDecl& in, bool simbolo) {
+    if (!in.type_params.empty()) {   // Q1a: genérica — só o nome; as assinaturas vêm em cada cópia
+        Symbol sym;
+        sym.name          = in.name;
+        sym.kind          = Symbol::Kind::CLASS;
+        sym.resolved_type = types.interfaceType(in.name);
+        sym.line          = in.token.line;
+        sym.column        = in.token.column;
+        sym.module        = current_module;
+        symbol_table.declare(sym, in.token);
+        return;
+    }
     InterfaceInfo info;
     info.decl = &in;
     for (const auto& m : in.methods) {
@@ -474,6 +491,7 @@ void SemanticAnalyzer::registerInterface(const InterfaceDecl& in) {
         info.metodos.push_back(std::move(mi));
     }
     interface_table[in.name] = std::move(info);
+    if (!simbolo) return;   // Q1a: a cópia de uma genérica
 
     Symbol sym;
     sym.name          = in.name;
@@ -651,7 +669,18 @@ void SemanticAnalyzer::registerFunction(const FunctionDecl& fn) {
 }
 
 // Registra uma classe em class_table E como Symbol::Kind::CLASS no escopo global.
-void SemanticAnalyzer::registerClass(const ClassDecl& cls) {
+void SemanticAnalyzer::registerClass(const ClassDecl& cls, bool simbolo) {
+    if (!cls.type_params.empty()) {   // Q1a: genérica — só o nome; o resto vem em cada cópia
+        Symbol sym;
+        sym.name          = cls.class_name;
+        sym.kind          = Symbol::Kind::CLASS;
+        sym.resolved_type = types.classType(cls.class_name);
+        sym.line          = cls.token.line;
+        sym.column        = cls.token.column;
+        sym.module        = current_module;
+        symbol_table.declare(sym, cls.token);
+        return;
+    }
     ClassInfo info;
     info.name = cls.class_name;
     info.line = cls.token.line;
@@ -659,7 +688,23 @@ void SemanticAnalyzer::registerClass(const ClassDecl& cls) {
     // class X : Forma — a relação vale já no pré-registro (para qualquer função
     // aceitar X onde se pede Forma); a conferência dos métodos vem na análise
     for (size_t k = 0; k < cls.interfaces.size(); ++k) {
-        const std::string nome = qualifyName(cls.interfaces[k], cls.interface_tokens[k]);
+        std::string nome = qualifyName(cls.interfaces[k], cls.interface_tokens[k]);
+        // Q1a: Comparavel[Nota] vira a cópia
+        const bool com_tipos = k < cls.interface_args.size() && !cls.interface_args[k].empty();
+        if (auto g = interfaces_genericas.find(nome); g != interfaces_genericas.end()) {
+            static const std::vector<TypePtr> sem_tipos;
+            nome = usoInterfaceGenerica(g->second, com_tipos ? cls.interface_args[k] : sem_tipos,
+                                        cls.interface_tokens[k])->name;
+            for (const auto& ja : info.interfaces)
+                if (origem_da_iface.count(ja) && origem_da_iface[ja] == g->second.decl)
+                    throwError("A classe '" + stripModulePrefixes(cls.class_name) + "' já cumpre '" +
+                               stripModulePrefixes(ja) + "': no máximo uma cópia de cada interface genérica (as duas "
+                               "exigiriam métodos com o mesmo nome, e a Cinza não tem sobrecarga)",
+                               cls.interface_tokens[k]);
+        } else if (com_tipos) {
+            throwError("'" + cls.interfaces[k] + "' não é uma interface genérica e não aceita tipos entre colchetes",
+                       cls.interface_tokens[k]);
+        }
         if (!interface_table.count(nome))
             throwError("'" + cls.interfaces[k] + "' não é uma interface: depois de ':' vêm só "
                        "interfaces (a Cinza não tem herança).", cls.interface_tokens[k]);
@@ -713,6 +758,7 @@ void SemanticAnalyzer::registerClass(const ClassDecl& cls) {
 
     // Registra na class_table
     class_table[cls.class_name] = std::move(info);
+    if (!simbolo) return;   // Q1a: a cópia de uma genérica não entra no escopo global
 
     // Registra no escopo global como CLASS (para checar em declarações de variável)
     Symbol sym;
@@ -835,6 +881,7 @@ void SemanticAnalyzer::analyze(std::vector<ModuleUnit>& units) {
 
     // Q1b: com todos os módulos analisados (os new resolvidos, as cópias criadas)
     checkConstructionCycles(units);
+    checkRequiredFieldCycles(units);   // Q1a
 }
 
 // Q1b: os `new` escritos numa expressão (sem entrar em funções chamadas: essas contam no limite
@@ -975,6 +1022,170 @@ void SemanticAnalyzer::checkConstructionCycles(const std::vector<ModuleUnit>& un
         if (estado[no] == 0) visita(no);
 }
 
+// Q1a: um campo de classe sem valor inicial que não é list, dict nem T? (que nascem vazios)
+static bool campoObrigatorio(const ClassDecl::Field& f) {
+    return !f.initializer && f.type->kind != Type::Kind::LIST && f.type->kind != Type::Kind::DICT &&
+           f.type->kind != Type::Kind::OPTIONAL;
+}
+
+// Q1a: o primeiro uso do objeto ainda incompleto numa expressão (ler um campo, chamar um
+// método, usar self), para a mensagem; nulo se não há
+static const Expr* usoDoObjeto(const Expr& e) {
+    switch (e.node_kind) {
+        case NodeKind::Identifier: {
+            auto& id = static_cast<const IdentifierExpr&>(e);
+            if (id.res.kind == Resolution::Kind::Field || id.res.kind == Resolution::Kind::Self) return &e;
+            return nullptr;
+        }
+        case NodeKind::Call:
+            if (static_cast<const CallExpr&>(e).implicit_method) return &e;
+            break;
+        default: break;
+    }
+    const Expr* achou = nullptr;
+    filhosDe(e, [&](const Expr& x) { if (!achou) achou = usoDoObjeto(x); });
+    if (!achou)   // o bloco de um else dentro da expressão
+        blocosDeElse(e, [&](const BlockStmt& b) {
+            std::function<void(const Stmt&)> instr = [&](const Stmt& s) {
+                expressoesDe(s, [&](const Expr& x) { if (!achou) achou = usoDoObjeto(x); });
+                instrucoesDe(s, instr);
+            };
+            if (!achou) instr(b);
+        });
+    return achou;
+}
+
+// Q1a: o primeiro uso do objeto incompleto numa instrução (e nas de dentro dela); um return
+// também conta. O alvo direto de `campo = valor` não é um uso (é a atribuição)
+static const Token* usoNaInstrucao(const Stmt& s, std::string& o_que) {
+    if (s.node_kind == NodeKind::Return) { o_que = "retornar"; return &s.token; }
+    const Token* t = nullptr;
+    auto expr = [&](const Expr& e) {
+        if (t) return;
+        if (const Expr* u = usoDoObjeto(e)) {
+            t = &u->token;
+            o_que = u->node_kind == NodeKind::Call ? "chamar um método"
+                  : static_cast<const IdentifierExpr*>(u)->res.kind == Resolution::Kind::Self ? "usar self"
+                  : "ler o campo '" + static_cast<const IdentifierExpr*>(u)->name + "'";
+        }
+    };
+    if (s.node_kind == NodeKind::Assign) {
+        auto& a = static_cast<const AssignStmt&>(s);
+        const bool campo_direto = a.op == TokenType::OP_ASSIGN && a.target->node_kind == NodeKind::Identifier &&
+            static_cast<const IdentifierExpr&>(*a.target).res.kind == Resolution::Kind::Field;
+        if (!campo_direto) expr(*a.target);
+        expr(*a.value);
+    } else {
+        expressoesDe(s, expr);
+    }
+    if (t) return t;
+    instrucoesDe(s, [&](const Stmt& x) { if (!t) t = usoNaInstrucao(x, o_que); });
+    return t;
+}
+
+void SemanticAnalyzer::confereCamposObrigatorios(ClassDecl* stmt, bool com_construtor) {
+    const std::string nome = stripModulePrefixes(stmt->class_name);
+    std::vector<std::size_t> obrigatorios;
+    for (std::size_t i = 0; i < stmt->fields.size(); ++i)
+        if (campoObrigatorio(stmt->fields[i])) obrigatorios.push_back(i);
+    if (obrigatorios.empty()) return;
+    const auto& primeiro = stmt->fields[obrigatorios[0]];
+
+    // os valores iniciais dos outros campos rodam antes do construtor: sem o objeto
+    for (const auto& f : stmt->fields) {
+        if (!f.initializer) continue;
+        if (const Expr* u = usoDoObjeto(*f.initializer))
+            throwError("O valor inicial de '" + f.name + "' não pode usar o objeto (self, os campos ou os métodos): "
+                       "a classe '" + nome + "' tem o campo obrigatório '" + primeiro.name +
+                       "', que só recebe valor no construtor", u->token);
+    }
+
+    if (!stmt->constructor)
+        throwError("O campo '" + primeiro.name + "' da classe '" + nome + "' não tem valor inicial: declare um "
+                   "construtor que o atribua (" + nome + "(...) { " + primeiro.name + " = ...; }), dê a ele um "
+                   "valor inicial, ou declare-o opcional ('" + primeiro.type->toString() + "?', que nasce null)",
+                   primeiro.token);
+
+    if (!com_construtor) return;   // Q1a: numa cópia, o construtor só é conferido quando usado
+    // o construtor: cada obrigatório atribuído no nível de cima, antes de qualquer uso do objeto
+    auto& ctor = *stmt->constructor;
+    std::set<std::size_t> faltam(obrigatorios.begin(), obrigatorios.end());
+    std::vector<const Stmt*> corpo;
+    if (ctor.body->node_kind == NodeKind::Block)
+        for (const auto& s : static_cast<BlockStmt*>(ctor.body.get())->statements) corpo.push_back(s.get());
+    else
+        corpo.push_back(ctor.body.get());
+    for (const Stmt* s : corpo) {
+        if (faltam.empty()) break;
+        std::string o_que;
+        if (const Token* t = usoNaInstrucao(*s, o_que)) {
+            std::string lista;
+            for (std::size_t k : faltam) lista += (lista.empty() ? "'" : ", '") + stmt->fields[k].name + "'";
+            throwError("O construtor de '" + nome + "' não pode " + o_que + " antes de atribuir " +
+                       (faltam.size() == 1 ? "o campo obrigatório " : "os campos obrigatórios ") + lista +
+                       " (no nível de cima do corpo, fora de if, laço e try)", *t);
+        }
+        if (s->node_kind == NodeKind::Assign) {
+            auto& a = static_cast<const AssignStmt&>(*s);
+            if (a.op == TokenType::OP_ASSIGN && a.target->node_kind == NodeKind::Identifier) {
+                auto& id = static_cast<const IdentifierExpr&>(*a.target);
+                if (id.res.kind == Resolution::Kind::Field) faltam.erase(id.res.slot);
+            }
+        }
+    }
+    if (!faltam.empty()) {
+        const auto& f = stmt->fields[*faltam.begin()];
+        throwError("O construtor de '" + nome + "' não atribui o campo obrigatório '" + f.name + "' no nível de "
+                   "cima do corpo (fora de if, laço e try): todo objeto precisa sair do construtor com ele",
+                   ctor.token);
+    }
+}
+
+// Q1a: um campo obrigatório de um tipo de classe exige um objeto desse tipo já pronto ao criar
+// este; um ciclo deles (No { No prox; }, A exige B e B exige A) não deixa criar o primeiro
+void SemanticAnalyzer::checkRequiredFieldCycles(const std::vector<ModuleUnit>& units) {
+    struct Aresta { std::string alvo; Token tok; };
+    std::map<std::string, std::vector<Aresta>> grafo;
+    for (const auto& u : units) {
+        if (u.native || !u.program) continue;
+        for (const auto* lista : {&u.program->statements, &u.program->instancias})
+            for (const auto& s : *lista) {
+                if (s->node_kind != NodeKind::ClassDecl) continue;
+                auto* c = static_cast<const ClassDecl*>(s.get());
+                if (!c->type_params.empty()) continue;   // Q1a: só as cópias
+                auto& arestas = grafo[c->class_name];
+                for (const auto& f : c->fields) {
+                    if (!campoObrigatorio(f)) continue;
+                    TypeRef t = TypeChecker::fromAst(f.type.get());
+                    if (t->is(TK::Class)) arestas.push_back({t->name, f.token});
+                }
+            }
+    }
+    std::map<std::string, int> estado;
+    std::vector<std::string> caminho;
+    std::function<void(const std::string&)> visita = [&](const std::string& no) {
+        estado[no] = 1;
+        caminho.push_back(no);
+        if (auto it = grafo.find(no); it != grafo.end())
+            for (const Aresta& a : it->second) {
+                if (estado[a.alvo] == 1) {
+                    std::string texto;
+                    for (auto c = std::find(caminho.begin(), caminho.end(), a.alvo); c != caminho.end(); ++c)
+                        texto += displayName(*c) + " → ";
+                    texto += displayName(a.alvo);
+                    throwError("O campo obrigatório de '" + displayName(no) + "' do tipo '" + displayName(a.alvo) +
+                               "' fecha um ciclo (" + texto + "): o primeiro objeto nunca poderia ser criado. "
+                               "Declare-o opcional ('" + displayName(a.alvo) + "?', que nasce null)", a.tok);
+                }
+                if (estado[a.alvo] == 0) visita(a.alvo);
+            }
+        caminho.pop_back();
+        estado[no] = 2;
+    };
+    for (const auto& [no, arestas] : grafo)
+        if (estado[no] == 0) visita(no);
+}
+
 // ============================================================================
 // C5 — RESOLUÇÃO DE NOMES ENTRE MÓDULOS
 // ============================================================================
@@ -1047,6 +1258,18 @@ TypeRef SemanticAnalyzer::typeOf(Type* type) {
             // N5: Par[i32, string] vira o nome da cópia, um struct comum
             if (auto g = structs_genericos.find(t->name); g != structs_genericos.end()) {
                 t->name = usoStructGenerico(g->second, t->type_params, t->token)->name;
+                t->type_params.clear();
+                return;
+            }
+            // Q1a: Comparavel[i32] vira o nome da cópia, uma interface comum
+            if (auto g = interfaces_genericas.find(t->name); g != interfaces_genericas.end()) {
+                t->name = usoInterfaceGenerica(g->second, t->type_params, t->token)->name;
+                t->type_params.clear();
+                return;
+            }
+            // Q1a: Pilha[i32] vira o nome da cópia, uma classe comum
+            if (auto g = classes_genericas.find(t->name); g != classes_genericas.end()) {
+                t->name = usoClasseGenerica(g->second, t->type_params, t->token)->name;
                 t->type_params.clear();
                 return;
             }
@@ -1159,6 +1382,11 @@ void SemanticAnalyzer::analyzeStmt(Stmt* stmt) {
         case NodeKind::ErrorDecl:       return;   // C4: registrado no pré-registro
         case NodeKind::EnumDecl:        return;   // registrado no pré-registro
         case NodeKind::InterfaceDecl: {           // tipos das assinaturas existem?
+            if (!static_cast<InterfaceDecl*>(stmt)->type_params.empty()) {   // Q1a: genérica, nas cópias
+                confereParametrosTipo(static_cast<InterfaceDecl*>(stmt)->type_params,
+                                      stripModulePrefixes(static_cast<InterfaceDecl*>(stmt)->name));
+                return;
+            }
             for (const auto& m : static_cast<InterfaceDecl*>(stmt)->methods) {
                 auto confere = [&](Type* t) {
                     if (t->kind == Type::Kind::CUSTOM && !isKnownType(t->name))
@@ -2056,25 +2284,13 @@ void SemanticAnalyzer::analyzeStructDecl(StructDecl* stmt) {
 // Declaração de classe:  class Nome { campos... pub { métodos... } }
 //   - Não re-registra (já feito em registerClass)
 //   - Analisa campos, construtor e métodos com acesso à classe
-void SemanticAnalyzer::analyzeClassDecl(ClassDecl* stmt) {
-    // Verifica que a classe foi registrada (sempre verdade se chegou aqui)
-    auto it = class_table.find(stmt->class_name);
-    if (it == class_table.end()) {
-        throwError("Classe '" + stmt->class_name + "' não registrada", stmt->token);
-    }
+namespace {
+int indiceParametro(const std::vector<Token>& params, const std::string& nome);   // mais abaixo
+}
 
-    checkInterfaces(stmt);   // class X : Forma
-
-    std::string saved_class = current_class_name;
-    current_class_name      = stmt->class_name;
-
-    // ── Escopo dos campos (visível dentro de todos os métodos da classe) ──
-    symbol_table.pushScope();
-
-    // Registra campos no escopo da classe para que sejam visíveis
-    // dentro de todos os métodos. Campos list<T>/dict<K,V> sem inicializador
-    // têm inicialização vazia implícita; os demais obrigatoriamente possuem
-    // inicializador (garantido pelo parser).
+// Q1a: os campos da classe no escopo atual (visíveis nos métodos e no construtor); com
+// analisa_valores, também confere os valores iniciais
+void SemanticAnalyzer::declaraCamposNoEscopo(ClassDecl* stmt, bool analisa_valores) {
     for (auto& field : stmt->fields) {
         // A4: void é proibido em campos (inclusive list<void> etc.)
         if (containsVoid(field.type.get())) {
@@ -2098,7 +2314,7 @@ void SemanticAnalyzer::analyzeClassDecl(ClassDecl* stmt) {
 
         // Analisa inicializador do campo (se houver).
         // Invariante: campo sem inicializador só é válido para list<T>/dict<K,V>.
-        if (field.initializer) {
+        if (field.initializer && analisa_valores) {
             TypeRef init_type = analyzeExpr(field.initializer.get(), fsym.resolved_type);
             if (!TypeChecker::isAssignable(fsym.resolved_type, init_type)) {
                 throwError(
@@ -2107,77 +2323,96 @@ void SemanticAnalyzer::analyzeClassDecl(ClassDecl* stmt) {
                     field.token);
             }
             coerceInPlace(field.initializer, fsym.resolved_type);
-        } else {
-            // Blindagem defensiva: campo não-coleção sem inicializador indica
-            // inconsistência na pipeline — o parser deveria ter rejeitado.
-            if (!fsym.resolved_type->is(TK::List) && !fsym.resolved_type->is(TK::Dict) &&
-                !fsym.resolved_type->is(TK::Optional)) {   // Q1b: T? nasce null
-                throwError(
-                    "Erro interno: campo '" + field.name + "' de tipo '" +
-                    fsym.resolved_type->str() + "' chegou ao semântico sem inicializador. "
-                    "O parser deveria ter rejeitado esta declaração.",
-                    field.token);
-            }
         }
+        // Q1a: sem inicializador, list e dict nascem vazios, o T? nasce null e os demais são
+        // obrigatórios (confereCamposObrigatorios)
 
         symbol_table.declare(fsym, field.token);
     }
+}
 
-    // ── Analisa o construtor ──────────────────────────────────────────────
-    if (stmt->constructor) {
-        auto& ctor = *stmt->constructor;
+// O construtor (no escopo dos campos)
+void SemanticAnalyzer::analisaConstrutor(ClassDecl* stmt) {
+    auto& ctor = *stmt->constructor;
 
-        TypeRef saved_ret    = current_function_return_type;
-        bool    saved_inside = inside_function;
-        current_function_return_type = types.voidType();
-        inside_function              = true;
-        const std::uint32_t saved_slot = next_slot;
-        next_slot                    = 0;   // B2
-        ctor.trace_name = "new " + stripModulePrefixes(stmt->class_name);
+    TypeRef saved_ret    = current_function_return_type;
+    bool    saved_inside = inside_function;
+    current_function_return_type = types.voidType();
+    inside_function              = true;
+    const std::uint32_t saved_slot = next_slot;
+    next_slot                    = 0;   // B2
+    ctor.trace_name = "new " + stripModulePrefixes(stmt->class_name);
 
-        symbol_table.pushScope();
+    symbol_table.pushScope();
 
-        for (const auto& param : ctor.parameters) {
-            if (containsVoid(param.type.get())) {
-                throwError(
-                    "Tipo 'void' não pode ser usado no parâmetro '" + param.name + "'. "
-                    "'void' é reservado exclusivamente para retorno de funções.",
-                    param.token);
-            }
-
-            Symbol p;
-            p.name          = param.name;
-            p.kind          = Symbol::Kind::PARAMETER;
-
-            p.resolved_type = typeOf(param.type.get());
-            p.is_const      = param.is_const;
-            p.line          = param.token.line;
-            p.column        = param.token.column;
-            p.res           = newLocal();   // B2
-
-            if (TypeRef bad = invalidDictKey(p.resolved_type))
-                throwError(dictKeyMessage(bad), param.token);
-            // C3: const não se aplica a objeto de classe
-            if (p.is_const && isClassLike(p.resolved_type))
-                throwError(constClassMessage(p.resolved_type), param.token);
-
-            symbol_table.declare(p, param.token);
+    for (const auto& param : ctor.parameters) {
+        if (containsVoid(param.type.get())) {
+            throwError(
+                "Tipo 'void' não pode ser usado no parâmetro '" + param.name + "'. "
+                "'void' é reservado exclusivamente para retorno de funções.",
+                param.token);
         }
 
-        // Analisa o corpo do construtor
-        if (ctor.body->node_kind == NodeKind::Block) {
-            analyzeStatements(static_cast<BlockStmt*>(ctor.body.get())->statements);
-        } else {
-            analyzeStmt(ctor.body.get());
-        }
+        Symbol p;
+        p.name          = param.name;
+        p.kind          = Symbol::Kind::PARAMETER;
 
-        symbol_table.popScope();
+        p.resolved_type = typeOf(param.type.get());
+        p.is_const      = param.is_const;
+        p.line          = param.token.line;
+        p.column        = param.token.column;
+        p.res           = newLocal();   // B2
 
-        ctor.num_slots               = next_slot;   // B2
-        next_slot                    = saved_slot;
-        current_function_return_type = saved_ret;
-        inside_function              = saved_inside;
+        if (TypeRef bad = invalidDictKey(p.resolved_type))
+            throwError(dictKeyMessage(bad), param.token);
+        // C3: const não se aplica a objeto de classe
+        if (p.is_const && isClassLike(p.resolved_type))
+            throwError(constClassMessage(p.resolved_type), param.token);
+
+        symbol_table.declare(p, param.token);
     }
+
+    // Analisa o corpo do construtor
+    if (ctor.body->node_kind == NodeKind::Block) {
+        analyzeStatements(static_cast<BlockStmt*>(ctor.body.get())->statements);
+    } else {
+        analyzeStmt(ctor.body.get());
+    }
+
+    symbol_table.popScope();
+
+    ctor.num_slots               = next_slot;   // B2
+    next_slot                    = saved_slot;
+    current_function_return_type = saved_ret;
+    inside_function              = saved_inside;
+}
+
+void SemanticAnalyzer::analyzeClassDecl(ClassDecl* stmt) {
+    if (!stmt->type_params.empty()) {   // Q1a: genérica — conferida em cada cópia
+        const std::string nome = stripModulePrefixes(stmt->class_name);
+        confereParametrosTipo(stmt->type_params, nome);
+        for (const auto& f : stmt->fields)
+            if (indiceParametro(stmt->type_params, f.name) >= 0)
+                throwError("Em '" + nome + "', o campo '" + f.name + "' tem o nome de um parâmetro de tipo; "
+                           "escolha outro nome", f.token);
+        return;
+    }
+    // Verifica que a classe foi registrada (sempre verdade se chegou aqui)
+    auto it = class_table.find(stmt->class_name);
+    if (it == class_table.end()) {
+        throwError("Classe '" + stmt->class_name + "' não registrada", stmt->token);
+    }
+
+    checkInterfaces(stmt);   // class X : Forma
+
+    std::string saved_class = current_class_name;
+    current_class_name      = stmt->class_name;
+
+    // ── Escopo dos campos (visível dentro de todos os métodos da classe) ──
+    symbol_table.pushScope();
+    declaraCamposNoEscopo(stmt, true);
+    if (stmt->constructor) analisaConstrutor(stmt);
+    confereCamposObrigatorios(stmt, true);   // Q1a
 
     // ── Analisa métodos privados e públicos ───────────────────────────────
     for (auto* methods : {&stmt->priv_methods, &stmt->pub_methods}) {
@@ -2431,6 +2666,7 @@ TypeRef SemanticAnalyzer::analyzeCall(CallExpr* expr) {
                 }
                 expr->target          = mi.decl;
                 expr->implicit_method = true;
+                usaCorpo(mi.decl);   // Q1a
                 return expr->resolved_type = mi.return_type;
             }
         }
@@ -2850,6 +3086,7 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
 
     const MethodInfo& mi = meth_it->second;
     expr->target = mi.decl;
+    usaCorpo(mi.decl);   // Q1a: numa cópia de classe genérica, o corpo passa a ser conferido
 
     // Acesso a método privado só dentro da própria classe
     if (!mi.is_public && current_class_name != obj_type->name) {
@@ -2975,7 +3212,9 @@ TypeRef SemanticAnalyzer::analyzeIndexAccess(IndexAccessExpr* expr) {
     // é o tipo escrito como valor
     if (expr->como_tipo && expr->object->node_kind == NodeKind::Identifier) {
         const std::string& nome = static_cast<IdentifierExpr*>(expr->object.get())->name;
-        if (!symbol_table.resolveLocal(nome) && structs_genericos.count(qualifyName(nome, expr->token))) {
+        const std::string completo = symbol_table.resolveLocal(nome) ? std::string() : qualifyName(nome, expr->token);
+        if (!completo.empty() && (structs_genericos.count(completo) || classes_genericas.count(completo) ||
+                                  interfaces_genericas.count(completo))) {
             expr->eh_tipo = true;
             analyzeExpr(expr->como_tipo.get());
             return expr->resolved_type = types.typeType();
@@ -3173,15 +3412,19 @@ TypeRef SemanticAnalyzer::analyzeNew(NewExpr* expr) {
     // N5: new Par[i32, string](...) cria a cópia; o nome dela fica no lugar do genérico
     if (!expr->tipos_resolvidos) {
         auto g = structs_genericos.find(expr->class_name);
+        auto gc = classes_genericas.find(expr->class_name);   // Q1a
         if (!expr->type_args.empty()) {
-            if (g == structs_genericos.end())
-                throwError("'" + stripModulePrefixes(expr->class_name) + "' não é um struct "
-                           "genérico e não aceita tipos entre colchetes no 'new'", expr->token);
-            expr->class_name = usoStructGenerico(g->second, expr->type_args, expr->token)->name;
-        } else if (g != structs_genericos.end()) {
+            if (g != structs_genericos.end())
+                expr->class_name = usoStructGenerico(g->second, expr->type_args, expr->token)->name;
+            else if (gc != classes_genericas.end())
+                expr->class_name = usoClasseGenerica(gc->second, expr->type_args, expr->token)->name;
+            else
+                throwError("'" + stripModulePrefixes(expr->class_name) + "' não é um struct nem uma "
+                           "classe genérica e não aceita tipos entre colchetes no 'new'", expr->token);
+        } else if (g != structs_genericos.end() || gc != classes_genericas.end()) {
             const std::string nome = stripModulePrefixes(expr->class_name);
-            throwError("o struct genérico '" + nome + "' precisa dos tipos entre colchetes, ex.: "
-                       "new " + nome + "[i32](...)", expr->token);
+            throwError(std::string(g != structs_genericos.end() ? "o struct genérico '" : "a classe genérica '") +
+                       nome + "' precisa dos tipos entre colchetes, ex.: new " + nome + "[i32](...)", expr->token);
         }
         expr->tipos_resolvidos = true;
     }
@@ -3283,6 +3526,8 @@ TypeRef SemanticAnalyzer::analyzeNew(NewExpr* expr) {
                    "em ordem", expr->token);
 
     // checando aridade
+    if (auto cc = copia_classe.find(expr->class_name); cc != copia_classe.end() && cc->second->decl->constructor)
+        usaCorpo(cc->second->decl->constructor.get());   // Q1a
     if (expr->arguments.size() != cls.ctor_param_types.size()) {
         throwError(
             "Construtor de '" + expr->class_name +
@@ -4037,7 +4282,19 @@ SemanticAnalyzer::Instancia* SemanticAnalyzer::instancia(const FunctionDecl& g, 
 }
 
 void SemanticAnalyzer::analisaInstancias() {
-    while (!fila_instancias.empty() || !fila_structs.empty()) {
+    while (!fila_instancias.empty() || !fila_structs.empty() || !fila_classes.empty() || !fila_corpos.empty()) {
+        if (!fila_classes.empty()) {   // Q1a: os campos e as interfaces de uma cópia de classe
+            InstanciaClasse* c = fila_classes.front();
+            fila_classes.pop_front();
+            analisaCopiaDeClasse(c);
+            continue;
+        }
+        if (!fila_corpos.empty() && fila_structs.empty()) {   // Q1a: um método (ou o construtor) usado
+            CorpoPendente p = fila_corpos.front();
+            fila_corpos.pop_front();
+            analisaCorpoDaCopia(p);
+            continue;
+        }
         // N5: os valores iniciais das cópias de struct, no escopo global (como os de um
         // struct escrito à mão), e a conferência dos tipos usados
         if (!fila_structs.empty()) {
@@ -4104,6 +4361,251 @@ std::vector<std::string> SemanticAnalyzer::rastro(const std::string& nome, const
 // campos são registrados na hora (o tipo dela é preciso já, numa assinatura ou numa
 // variável); os valores iniciais são analisados depois, no escopo global.
 // ============================================================================
+
+// Q1a: Comparavel[i32] — a cópia da interface (criada no primeiro uso): só as assinaturas
+TypeRef SemanticAnalyzer::usoInterfaceGenerica(const InterfaceGenerica& g, const std::vector<TypePtr>& args,
+                                               const Token& tok) {
+    const std::string nome = stripModulePrefixes(g.decl->name);
+    const size_t n = g.decl->type_params.size();
+    if (args.empty())
+        throwError("a interface genérica '" + nome + "' precisa dos tipos entre colchetes, ex.: " + nome + "[i32]", tok);
+    if (args.size() != n)
+        throwError("'" + nome + "' tem " + std::to_string(n) + " parâmetro(s) de tipo, mas recebeu " +
+                   std::to_string(args.size()), tok);
+    std::vector<TypeRef> tipos;
+    for (const auto& a : args) {
+        TypeRef t = typeOf(a.get());
+        if (t->is(TK::Void) || t->is(TK::Var))
+            throwError("'" + t->str() + "' não pode ser o tipo de '" + g.decl->type_params[tipos.size()].lexeme +
+                       "' em '" + nome + "'", tok);
+        tipos.push_back(t);
+    }
+    auto chave = std::make_pair(g.decl, tipos);
+    if (auto it = instancias_iface.find(chave); it != instancias_iface.end()) return types.interfaceType(it->second);
+
+    const std::string copia_nome = nomeCopia(g.decl->name, tipos);
+    const std::vector<Token>& F = g.decl->fonte;
+    std::vector<Token> toks{F[0], F[1]};
+    size_t k = 2;
+    while (k < F.size() && F[k].type != TokenType::RBRACKET) ++k;
+    const bool marca = !modules[static_cast<size_t>(g.modulo)].prefix.empty();
+    trocaParametros(g.decl->type_params, tipos, marca, F, k + 1, toks);
+    Token fim = F.back();
+    fim.type   = TokenType::END_OF_FILE;
+    fim.lexeme = "";
+    toks.push_back(fim);
+    std::set<std::string> apelidos;
+    for (const auto& [apelido, _] : modules[static_cast<size_t>(g.modulo)].imports) apelidos.insert(apelido);
+    std::string erro;
+    Token       erro_tok;
+    StmtPtr copia = Parser::parseGenericCopy(std::move(toks), apelidos, erro, erro_tok);
+    if (!copia) {
+        std::string ligacoes;
+        for (size_t j = 0; j < tipos.size(); ++j)
+            ligacoes += (j ? ", " : "") + g.decl->type_params[j].lexeme + " = " + tipos[j]->str();
+        SemanticError e("Com " + ligacoes + ", a interface '" + nome + "' não é válida: " + erro, erro_tok);
+        e.notes = rastro(copia_nome, tok, instancia_atual);
+        throw e;
+    }
+    auto* in = static_cast<InterfaceDecl*>(copia.get());
+    in->name = copia_nome;
+    instancias_iface.emplace(std::move(chave), copia_nome);
+    origem_da_iface[copia_nome] = g.decl;
+    types.declareInterface(copia_nome);
+    programas[static_cast<size_t>(g.modulo)]->instancias.push_back(std::move(copia));
+    const int salvo = current_module;
+    current_module = g.modulo;
+    try {
+        registerInterface(*in, false);
+    } catch (SemanticError& e) {
+        current_module = salvo;
+        if (e.notes.empty()) e.notes = rastro(copia_nome, tok, instancia_atual);
+        throw;
+    }
+    current_module = salvo;
+    return types.interfaceType(copia_nome);
+}
+
+// Q1a: Pilha[i32] — confere os tipos e devolve a cópia (criada no primeiro uso)
+TypeRef SemanticAnalyzer::usoClasseGenerica(const ClasseGenerica& g, const std::vector<TypePtr>& args,
+                                            const Token& tok) {
+    const std::string nome = stripModulePrefixes(g.decl->class_name);
+    const size_t n = g.decl->type_params.size();
+    if (args.empty())
+        throwError("a classe genérica '" + nome + "' precisa dos tipos entre colchetes, ex.: " + nome + "[i32]", tok);
+    if (args.size() != n) {
+        std::string lista;
+        for (size_t k = 0; k < n; ++k) lista += (k ? ", " : "") + g.decl->type_params[k].lexeme;
+        throwError("'" + nome + "' tem " + std::to_string(n) + " parâmetro(s) de tipo (" + lista + "), mas recebeu " +
+                   std::to_string(args.size()), tok);
+    }
+    std::vector<TypeRef> tipos;
+    for (const auto& a : args) {
+        TypeRef t = typeOf(a.get());
+        if (t->is(TK::Void) || t->is(TK::Var))
+            throwError("'" + t->str() + "' não pode ser o tipo de '" + g.decl->type_params[tipos.size()].lexeme +
+                       "' em '" + nome + "': um argumento de tipo é um tipo de valor (i32, string, list<i32>, "
+                       "uma classe...)", tok);
+        tipos.push_back(t);
+    }
+    return instanciaClasse(g, tipos, tok);
+}
+
+TypeRef SemanticAnalyzer::instanciaClasse(const ClasseGenerica& g, const std::vector<TypeRef>& tipos,
+                                          const Token& uso) {
+    auto chave = std::make_pair(g.decl, tipos);
+    if (auto it = instancias_classe.find(chave); it != instancias_classe.end())
+        return types.classType(it->second->decl->class_name);
+
+    const std::string nome = nomeCopia(g.decl->class_name, tipos);
+    if (instancias_classe.size() >= 4096 || structs_abertos >= MAX_COPIAS_ENCADEADAS) {
+        SemanticError e("Instanciações genéricas encadeadas demais: '" + stripModulePrefixes(g.decl->class_name) +
+                        "' usa a si mesma com tipos que só crescem (como T → list<T>); isso nunca termina na "
+                        "compilação.", uso);
+        e.notes = rastro(nome, uso, instancia_atual);
+        throw e;
+    }
+
+    // os tokens da cópia: "class nome" + o resto depois do ']' dos parâmetros de tipo
+    const std::vector<Token>& F = g.decl->fonte;
+    std::vector<Token> toks{F[0], F[1]};
+    size_t k = 2;
+    while (k < F.size() && F[k].type != TokenType::RBRACKET) ++k;
+    const bool marca = !modules[static_cast<size_t>(g.modulo)].prefix.empty();
+    trocaParametros(g.decl->type_params, tipos, marca, F, k + 1, toks);
+    Token fim = F.back();
+    fim.type   = TokenType::END_OF_FILE;
+    fim.lexeme = "";
+    toks.push_back(fim);
+
+    std::set<std::string> apelidos;
+    for (const auto& [apelido, _] : modules[static_cast<size_t>(g.modulo)].imports) apelidos.insert(apelido);
+    std::string erro;
+    Token       erro_tok;
+    StmtPtr copia = Parser::parseGenericCopy(std::move(toks), apelidos, erro, erro_tok);
+    if (!copia) {   // ex.: new T() com T = i32
+        std::string ligacoes;
+        for (size_t j = 0; j < tipos.size(); ++j)
+            ligacoes += (j ? ", " : "") + g.decl->type_params[j].lexeme + " = " + tipos[j]->str();
+        SemanticError e("Com " + ligacoes + ", a classe '" + stripModulePrefixes(g.decl->class_name) +
+                        "' não é válida: " + erro, erro_tok);
+        e.notes = rastro(nome, uso, instancia_atual);
+        throw e;
+    }
+
+    auto* cls = static_cast<ClassDecl*>(copia.get());
+    cls->class_name = nome;
+    auto inst = std::make_unique<InstanciaClasse>();
+    inst->origem = g.decl;
+    inst->tipos  = tipos;
+    inst->decl   = cls;
+    inst->modulo = g.modulo;
+    inst->uso    = uso;
+    inst->pai    = instancia_atual;
+    InstanciaClasse* r = inst.get();
+    // os corpos esperam o uso
+    for (auto* lista : {&cls->priv_methods, &cls->pub_methods})
+        for (auto& m : *lista)
+            if (m->node_kind == NodeKind::FunctionDecl) {
+                auto* fn = static_cast<FunctionDecl*>(m.get());
+                fn->corpo_analisado = false;
+                corpo_da_copia[fn] = {r, fn};
+            }
+    if (cls->constructor) {
+        cls->constructor->corpo_analisado = false;
+        corpo_da_copia[cls->constructor.get()] = {r, nullptr};
+    }
+    programas[static_cast<size_t>(g.modulo)]->instancias.push_back(std::move(copia));
+    instancias_classe.emplace(std::move(chave), std::move(inst));
+    copia_classe[nome] = r;
+
+    // as assinaturas, no módulo da declaração (podem criar outras cópias: No[T] dentro de No[T]
+    // acha esta, já registrada no mapa)
+    const int salvo = current_module;
+    current_module = g.modulo;
+    ++structs_abertos;
+    try {
+        registerClass(*cls, false);
+    } catch (SemanticError& e) {
+        --structs_abertos;
+        current_module = salvo;
+        if (e.notes.empty()) e.notes = rastro(nome, uso, instancia_atual);
+        throw;
+    }
+    --structs_abertos;
+    current_module = salvo;
+    fila_classes.push_back(r);
+    return types.classType(nome);
+}
+
+void SemanticAnalyzer::usaCorpo(const void* corpo) {
+    auto it = corpo_da_copia.find(corpo);
+    if (it == corpo_da_copia.end() || !corpos_pedidos.insert(corpo).second) return;
+    fila_corpos.push_back(it->second);
+}
+
+// Q1a: a cópia, no escopo global e no módulo da declaração: os tipos usados, as interfaces (os
+// métodos exigidos por elas passam a ser usados), os campos e os valores iniciais
+void SemanticAnalyzer::analisaCopiaDeClasse(InstanciaClasse* c) {
+    const int        salvo_modulo = current_module;
+    const Instancia* salva_atual  = instancia_atual;
+    const std::string salva_classe = current_class_name;
+    current_module  = c->modulo;
+    instancia_atual = nullptr;
+    try {
+        for (size_t k = 0; k < c->tipos.size(); ++k)
+            confereArgumentoDeTipo(c->tipos[k], c->origem->type_params[k].lexeme,
+                                   stripModulePrefixes(c->origem->class_name), c->uso);
+        checkInterfaces(c->decl);
+        for (const auto& [iface, tabela] : c->decl->itables)
+            for (const FunctionDecl* fn : tabela) usaCorpo(fn);
+        current_class_name = c->decl->class_name;
+        symbol_table.pushScope();
+        declaraCamposNoEscopo(c->decl, true);
+        symbol_table.popScope();
+        confereCamposObrigatorios(c->decl, false);
+    } catch (SemanticError& e) {
+        if (e.notes.empty()) e.notes = rastro(c->decl->class_name, c->uso, c->pai);
+        current_class_name = salva_classe;
+        throw;
+    }
+    current_class_name = salva_classe;
+    current_module  = salvo_modulo;
+    instancia_atual = salva_atual;
+}
+
+// Q1a: o corpo de um método (ou o construtor) usado de uma cópia, no escopo dos campos dela
+void SemanticAnalyzer::analisaCorpoDaCopia(const CorpoPendente& p) {
+    const int        salvo_modulo = current_module;
+    const Instancia* salva_atual  = instancia_atual;
+    const std::string salva_classe = current_class_name;
+    ClassDecl* cls = p.classe->decl;
+    current_module     = p.classe->modulo;
+    instancia_atual    = nullptr;
+    current_class_name = cls->class_name;
+    symbol_table.pushScope();
+    try {
+        declaraCamposNoEscopo(cls, false);
+        if (p.metodo) {
+            auto* fn = const_cast<FunctionDecl*>(p.metodo);
+            fn->corpo_analisado = true;
+            analyzeFunctionDecl(fn);
+        } else {
+            cls->constructor->corpo_analisado = true;
+            analisaConstrutor(cls);
+            confereCamposObrigatorios(cls, true);
+        }
+    } catch (SemanticError& e) {
+        if (e.notes.empty()) e.notes = rastro(cls->class_name, p.classe->uso, p.classe->pai);
+        symbol_table.popScope();
+        current_class_name = salva_classe;
+        throw;
+    }
+    symbol_table.popScope();
+    current_class_name = salva_classe;
+    current_module     = salvo_modulo;
+    instancia_atual    = salva_atual;
+}
 
 void SemanticAnalyzer::checkGenericStructDecl(StructDecl* st) {
     const std::string nome = stripModulePrefixes(st->name);

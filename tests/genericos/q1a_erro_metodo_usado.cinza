@@ -1,0 +1,14 @@
+// Q1a: classes genéricas — erros na cópia, com o rastro
+struct P { i32 x = 0; }
+class C[T] {
+  list<T> l;
+  pub {
+    fn poe(T x) { l.add(x); }
+    fn maior() -> bool { return l[0] > l[0]; }
+  }
+}
+fn main() {
+  C[P] c = new C[P]();
+  c.maior();
+}
+// expect-error: Comparação '>' não é suportada entre 'P' e 'P'

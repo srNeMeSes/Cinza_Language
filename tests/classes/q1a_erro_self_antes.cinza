@@ -1,0 +1,13 @@
+// Q1a: a regra dos campos obrigatórios da classe
+class A {
+  string n;
+  pub {
+    A() {
+      self.f();
+      n = "x";
+    }
+    fn f() {}
+  }
+}
+fn main() {}
+// expect-error: O construtor de 'A' não pode usar self antes de atribuir

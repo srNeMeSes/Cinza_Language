@@ -1,0 +1,12 @@
+// Q1a: classes genéricas — erros na cópia, com o rastro
+class C[T] {
+  pub {
+    fn a() -> T { return b(); }
+    fn b() -> T { return 1; }
+  }
+}
+fn main() {
+  C[string] c = new C[string]();
+  print(c.a());
+}
+// expect-error: Tipo de retorno incompatível: esperado 'string', mas retornando 'i32'

@@ -1,0 +1,7 @@
+// Q1a: interfaces genéricas
+interface I[T] { fn f(T x); }
+class A : I {
+  pub { fn f(i32 x) { print(x); } }
+}
+fn main() {}
+// expect-error: a interface genérica 'I' precisa dos tipos entre colchetes

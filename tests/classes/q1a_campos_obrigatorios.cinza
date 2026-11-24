@@ -1,0 +1,47 @@
+// Q1a: um campo de classe sem valor inicial (que não é list, dict nem T?) é obrigatório: o
+// construtor o atribui no nível de cima antes de usar o objeto; depois disso, vale tudo
+struct Ponto { i32 x = 0; i32 y = 0; }
+
+class Conta {
+  string titular;
+  i64 saldo;
+  Ponto local;
+  list<string> historico;
+  string? apelido;
+  i32 versao = 1;
+  pub {
+    Conta(string t, i64 inicial) {
+      i64 dobro = inicial * 2;
+      titular = t + "!";
+      saldo = dobro;
+      local = new Ponto(1, 2);
+      historico.add("criada");
+      registra("aberta");
+    }
+    fn registra(string s) { historico.add(s); }
+    fn mostra() -> string { return titular + " " + cast<string>(saldo) + " " + cast<string>(historico.size()); }
+  }
+}
+
+class No {
+  i32 valor;
+  No? prox;
+  pub {
+    No(i32 v) { valor = v; }
+    fn liga(No n) { prox = n; }
+    fn soma() -> i32 {
+      if (No p = prox) { return valor + p.soma(); }
+      return valor;
+    }
+  }
+}
+
+fn main() {
+  Conta c = new Conta("ana", 10);
+  print(c.mostra());
+  No a = new No(1);
+  a.liga(new No(2));
+  print(a.soma());
+}
+// expect: ana! 20 2
+// expect: 3

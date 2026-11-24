@@ -1,0 +1,7 @@
+// Q1a: a regra dos campos obrigatórios da classe
+class A {
+  string n;
+  pub { A() { return; } }
+}
+fn main() {}
+// expect-error: O construtor de 'A' não pode retornar antes de atribuir

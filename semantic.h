@@ -239,7 +239,16 @@ private:
         }
     };
     std::unordered_map<std::string, InterfaceInfo> interface_table;
-    void registerInterface(const InterfaceDecl& in);
+    void registerInterface(const InterfaceDecl& in, bool simbolo = true);
+    // Q1a: interfaces genéricas, como as classes: a declaração e as cópias (Comparavel[i32])
+    struct InterfaceGenerica {
+        const InterfaceDecl* decl   = nullptr;
+        int                  modulo = -1;
+    };
+    std::unordered_map<std::string, InterfaceGenerica> interfaces_genericas;
+    std::map<std::pair<const InterfaceDecl*, std::vector<TypeRef>>, std::string> instancias_iface;
+    std::unordered_map<std::string, const InterfaceDecl*> origem_da_iface;   // cópia → a genérica
+    TypeRef usoInterfaceGenerica(const InterfaceGenerica& g, const std::vector<TypePtr>& args, const Token& tok);
     // class X : Forma — confere que a classe tem cada método, com a mesma
     // assinatura e em pub{}, e monta a tabela usada nas chamadas pela interface
     void checkInterfaces(ClassDecl* cls);
@@ -280,7 +289,7 @@ private:
 
     // ── Pré-registro (forward-reference support) ──────────────────────────
     void preRegisterDeclarations(const Program& program);
-    void registerClass   (const ClassDecl&    cls);
+    void registerClass   (const ClassDecl&    cls, bool simbolo = true);
     void registerFunction(const FunctionDecl& fn);
     // C3. N5: `simbolo` falso numa cópia de struct genérico (Par[i32, string]), que não é
     // um nome escrito no código e pode nascer dentro de uma função
@@ -289,6 +298,11 @@ private:
     void checkStructCycles();
     void checkConstructionCycles(const std::vector<ModuleUnit>& units);
     TypeRef analyzeElse(ElseExpr* expr, TypeRef expected);   // Q1b
+    // Q1a: os campos obrigatórios de uma classe (sem valor inicial e que não são list, dict nem T?):
+    // o construtor os atribui no nível de cima antes de qualquer uso, os valores iniciais dos
+    // outros campos não usam self nem métodos, e nenhum ciclo deles entre classes
+    void confereCamposObrigatorios(ClassDecl* stmt, bool com_construtor);
+    void checkRequiredFieldCycles(const std::vector<ModuleUnit>& units);
     void analyzeYield(YieldStmt* stmt);                       // Q1b
     // Q1b: a declaração de um if/while (T nome = opcional): confere e declara a variável no escopo
     // atual (o do bloco); devolve o slot
@@ -436,6 +450,40 @@ private:
              std::unique_ptr<InstanciaStruct>> instancias_struct;
     std::unordered_map<std::string, const InstanciaStruct*> copia_struct;   // nome → cópia
     std::deque<InstanciaStruct*> fila_structs;    // valores iniciais ainda não analisados
+    // Q1a: classes genéricas, como os structs: a declaração guardada e as cópias por tipos. Os
+    // campos e as assinaturas da cópia são conferidos já; o construtor e os corpos dos métodos,
+    // só quando usados (fila_corpos)
+    struct ClasseGenerica {
+        const ClassDecl* decl   = nullptr;
+        int              modulo = -1;
+    };
+    std::unordered_map<std::string, ClasseGenerica> classes_genericas;   // nome completo
+    struct InstanciaClasse {
+        const ClassDecl*     origem = nullptr;
+        std::vector<TypeRef> tipos;
+        ClassDecl*           decl   = nullptr;   // a cópia
+        int                  modulo = -1;
+        Token                uso;
+        const Instancia*     pai    = nullptr;
+    };
+    std::map<std::pair<const ClassDecl*, std::vector<TypeRef>>,
+             std::unique_ptr<InstanciaClasse>> instancias_classe;
+    std::unordered_map<std::string, InstanciaClasse*> copia_classe;   // nome → cópia
+    std::deque<InstanciaClasse*> fila_classes;   // campos e interfaces ainda não conferidos
+    struct CorpoPendente {
+        InstanciaClasse*    classe = nullptr;
+        const FunctionDecl* metodo = nullptr;   // nulo: o construtor
+    };
+    std::unordered_map<const void*, CorpoPendente> corpo_da_copia;   // método/construtor → a cópia
+    std::set<const void*>     corpos_pedidos;
+    std::deque<CorpoPendente> fila_corpos;
+    TypeRef usoClasseGenerica(const ClasseGenerica& g, const std::vector<TypePtr>& args, const Token& tok);
+    TypeRef instanciaClasse(const ClasseGenerica& g, const std::vector<TypeRef>& tipos, const Token& uso);
+    void usaCorpo(const void* corpo);   // um método (ou o construtor) de uma cópia foi usado
+    void analisaCopiaDeClasse(InstanciaClasse* c);
+    void analisaCorpoDaCopia(const CorpoPendente& p);
+    void declaraCamposNoEscopo(ClassDecl* stmt, bool analisa_valores);
+    void analisaConstrutor(ClassDecl* stmt);
     int                          structs_abertos = 0;   // cópias montadas umas dentro das outras
 
     void    checkGenericStructDecl(StructDecl* st);

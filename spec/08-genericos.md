@@ -10,8 +10,9 @@ Os colchetes são a sintaxe dos genéricos declarados no programa: na declaraç�
 nomes dos parâmetros de tipo; no uso, apenas os tipos. Os tipos parametrizados embutidos
 continuam com `<>` (`list<T>`, `dict<K, V>`, `pair<A, B>`, `cast<T>(...)`).
 
-Nesta versão podem ser genéricas as funções do nível superior (seções 8.1 a 8.5) e os structs
-(seção 8.6).
+Podem ser genéricas as funções do nível superior (seções 8.1 a 8.5), os structs (seção 8.6), as
+classes e as interfaces (seção 8.7). Métodos genéricos e restrições nos parâmetros de tipo (`T: Forma`) não existem
+(filosofia, README): um método usa os parâmetros de tipo da classe.
 
 ## 8.1 Declaração
 
@@ -51,11 +52,6 @@ fn main() {}
 // expect-error: o parâmetro de tipo 'Ponto' tem o nome de um tipo
 ```
 
-```cinza
-class Caixa[T] { list<T> itens; }
-fn main() {}
-// expect-error: class não aceita parâmetros de tipo
-```
 
 ```cinza
 class Caixa {
@@ -391,6 +387,139 @@ fn main() {
 variável, campo, parâmetro, retorno, `list<...>`, `cast<...>`) e depois de `new`. No começo de
 uma instrução, `Nome[...]` seguido de um nome é uma declaração de variável (`Caixa[i32] c = ...`);
 seguido de qualquer outra coisa, é um índice, como sempre (`l[0] = 5;`). Numa expressão,
-`Nome[...]` é o tipo escrito como valor quando `Nome` é um struct genérico (e não uma variável
-local com esse nome); senão, é índice. Com mais de um tipo, ou um tipo que não é um nome
+`Nome[...]` é o tipo escrito como valor quando `Nome` é um struct ou uma classe genérica (e não
+uma variável local com esse nome); senão, é índice. Com mais de um tipo, ou um tipo que não é um nome
 (`l[i32]`), só pode ser tipo: depois de uma variável, é erro.
+
+## 8.7 Classes e interfaces genéricas
+
+Uma classe também declara parâmetros de tipo, depois do nome: `class Pilha[T] { ... }`. Valem nos
+campos, no construtor e nos métodos, onde se escreve um tipo (`T valor;`, `list<T>`, `No[T]? prox;`,
+`fn poe(T x)`, `-> T?`), e depois de `new` (`new No[T](v)`, e `new T()`, que só vale numa cópia em
+que `T` é uma classe ou um struct). Como no struct, **os tipos são sempre escritos** no uso
+(`Pilha[i32] p = new Pilha[i32]();`), e `Pilha` sozinho é erro; dentro da classe, a própria
+classe é `Pilha[T]`, e o construtor tem o nome puro (`Pilha(...)`). Cada combinação de tipos gera
+uma cópia, uma classe comum: `type(p)` é `Pilha[i32]`, também escrito como valor
+(`type(p) == Pilha[i32]`).
+
+**Conferência no uso, por método.** Na cópia, os campos, os valores iniciais e as assinaturas de
+todos os métodos são conferidos já; o **corpo** de um método só quando ele é **usado** — chamado
+de código conferido, exigido por uma interface que a classe cumpre, ou chamado por outro método
+usado — e o do construtor, quando há um `new` da cópia. Assim uma `Pilha[Ponto]` existe mesmo que
+a classe tenha um método `maior()` que compara os elementos com `>` (que um struct não tem),
+enquanto ninguém chamar `maior()`. Um erro no corpo de um método usado traz o rastro da cópia
+(seção 8.4). As regras dos campos obrigatórios (seção 4.6) valem em cada cópia.
+
+```cinza
+struct Ponto { i32 x = 0; i32 y = 0; }
+
+class Pilha[T] {
+  list<T> itens;
+  pub {
+    fn poe(T x) { itens.add(x); }
+    fn tira() -> T? {
+      if (itens.size() == 0) { return null; }
+      T x = itens[itens.size() - 1];
+      itens.remove(itens.size() - 1);
+      return x;
+    }
+    fn maior() -> T {
+      T m = itens[0];
+      for (T x in itens) { if (x > m) { m = x; } }
+      return m;
+    }
+  }
+}
+
+class No[T] {
+  T valor;
+  No[T]? prox;
+  pub {
+    No(T v) { valor = v; }
+    fn liga(No[T] n) { prox = n; }
+    fn soma() -> T {
+      if (No[T] p = prox) { return valor + p.soma(); }
+      return valor;
+    }
+  }
+}
+
+fn main() {
+  Pilha[i32] p = new Pilha[i32]();
+  p.poe(3);
+  p.poe(9);
+  print(p.maior(), p.tira(), type(p), type(p) == Pilha[i32]);
+  Pilha[Ponto] q = new Pilha[Ponto]();
+  q.poe(new Ponto(1, 2));
+  print(q.tira() else new Ponto());
+  No[i32] a = new No[i32](1);
+  a.liga(new No[i32](2));
+  print(a.soma());
+}
+// expect: 9 9 Pilha[i32] true
+// expect: Ponto{x: 1, y: 2}
+// expect: 3
+```
+
+```cinza
+struct Ponto { i32 x = 0; }
+class Pilha[T] {
+  list<T> itens;
+  pub {
+    fn poe(T x) { itens.add(x); }
+    fn maior() -> bool { return itens[0] > itens[0]; }
+  }
+}
+fn main() {
+  Pilha[Ponto] p = new Pilha[Ponto]();
+  print(p.maior());
+}
+// expect-error: Comparação '>' não é suportada entre 'Ponto' e 'Ponto'
+// expect-error: em Pilha[Ponto], usada em
+```
+
+**Interfaces genéricas.** Uma interface também declara parâmetros de tipo:
+`interface Comparavel[T] { fn compara(T outro) -> i32; }`. Cada uso, `Comparavel[Nota]`, é uma
+cópia, uma interface comum: vale como tipo (de variável, parâmetro, campo...) e depois do `:` de
+uma classe, que a cumpre como qualquer interface (seção 3.7). Uma classe genérica pode cumprir uma
+interface com os parâmetros dela (`class Pilha[T] : Colecao[T]`). Uma classe cumpre **no máximo
+uma cópia** de cada interface genérica: `class A : Comparavel[i32], Comparavel[string]` é erro,
+porque as duas exigiriam dois métodos com o mesmo nome, e não há sobrecarga.
+
+```cinza
+interface Comparavel[T] {
+  fn compara(T outro) -> i32;
+}
+
+class Nota : Comparavel[Nota] {
+  i32 valor;
+  pub {
+    Nota(i32 v) { valor = v; }
+    fn compara(Nota outra) -> i32 { return valor - outra.valor; }
+    fn mostra() -> i32 { return valor; }
+  }
+}
+
+fn maior[T](list<T> l) -> T {
+  T m = l[0];
+  for (T x in l) { if (x.compara(m) > 0) { m = x; } }
+  return m;
+}
+
+fn main() {
+  Comparavel[Nota] c = new Nota(5);
+  print(c.compara(new Nota(3)), maior([new Nota(4), new Nota(9), new Nota(2)]).mostra());
+}
+// expect: 2 9
+```
+
+```cinza
+interface Comparavel[T] {
+  fn compara(T outro) -> i32;
+}
+class A : Comparavel[i32], Comparavel[string] {
+  pub { fn compara(i32 x) -> i32 { return x; } }
+}
+fn main() { }
+// expect-error: no máximo uma cópia de cada interface genérica
+```

@@ -1,6 +1,6 @@
-// 8.6: colchetes no new só para struct genérico
+// 8.6: colchetes no new só para struct ou classe genérica
 class Pilha { list<i32> itens; }
 fn main() {
   Pilha p = new Pilha[i32]();
 }
-// expect-error: 'Pilha' não é um struct genérico e não aceita tipos entre colchetes no 'new'
+// expect-error: 'Pilha' não é um struct nem uma classe genérica e não aceita tipos entre colchetes no 'new'

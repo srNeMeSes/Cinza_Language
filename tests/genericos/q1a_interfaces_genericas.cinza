@@ -1,0 +1,51 @@
+// Q1a: interfaces genéricas — cumpridas por uma classe comum (Nota : Comparavel[Nota]) e por uma
+// classe genérica (Pilha[T] : Colecao[T]); usadas como tipo de parâmetro e de variável
+interface Comparavel[T] {
+  fn compara(T outro) -> i32;
+}
+
+interface Colecao[T] {
+  fn poe(T x);
+  fn tamanho() -> i32;
+}
+
+class Nota : Comparavel[Nota] {
+  i32 valor;
+  pub {
+    Nota(i32 v) { valor = v; }
+    fn compara(Nota outra) -> i32 { return valor - outra.valor; }
+    fn mostra() -> i32 { return valor; }
+  }
+}
+
+class Pilha[T] : Colecao[T] {
+  list<T> itens;
+  pub {
+    fn poe(T x) { itens.add(x); }
+    fn tamanho() -> i32 { return itens.size(); }
+  }
+}
+
+fn maior[T](list<T> l) -> T {
+  T m = l[0];
+  for (T x in l) { if (x.compara(m) > 0) { m = x; } }
+  return m;
+}
+
+fn enche(Colecao[string] c) {
+  c.poe("a");
+  c.poe("b");
+}
+
+fn main() {
+  Comparavel[Nota] c = new Nota(5);
+  print(c.compara(new Nota(3)));
+  print(maior([new Nota(4), new Nota(9), new Nota(2)]).mostra());
+  Pilha[string] p = new Pilha[string]();
+  enche(p);
+  Colecao[string] col = p;
+  print(col.tamanho(), p.tamanho(), type(c));
+}
+// expect: 2
+// expect: 9
+// expect: 2 2 Nota

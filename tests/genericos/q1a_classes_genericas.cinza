@@ -1,0 +1,60 @@
+// Q1a: classes genéricas — cada uso gera uma cópia; só os corpos dos métodos usados são
+// conferidos (Pilha[Ponto] existe sem o maior(), que precisa de >); new T() numa cópia com T classe
+struct Ponto { i32 x = 0; i32 y = 0; }
+
+class No[T] {
+  T valor;
+  No[T]? prox;
+  pub {
+    No(T v) { valor = v; }
+    fn pega() -> T { return valor; }
+    fn liga(No[T] n) { prox = n; }
+    fn proximo() -> No[T]? { return prox; }
+  }
+}
+
+class Pilha[T] {
+  list<T> itens;
+  pub {
+    fn poe(T x) { itens.add(x); }
+    fn tira() -> T? {
+      if (itens.size() == 0) { return null; }
+      T x = itens[itens.size() - 1];
+      itens.remove(itens.size() - 1);
+      return x;
+    }
+    fn tamanho() -> i32 { return itens.size(); }
+    fn maior() -> T {
+      T m = itens[0];
+      for (T x in itens) { if (x > m) { m = x; } }
+      return m;
+    }
+    fn topo() -> T { return itens[itens.size() - 1]; }
+  }
+}
+
+class Fabrica[T] {
+  pub { fn nova() -> T { return new T(); } }
+}
+
+fn main() {
+  Pilha[i32] p = new Pilha[i32]();
+  p.poe(3); p.poe(9); p.poe(4);
+  print(p.tamanho(), p.maior(), p.tira(), p.tamanho(), type(p), type(p) == Pilha[i32]);
+  Pilha[Ponto] q = new Pilha[Ponto]();   // maior() não é usado: o '>' entre Ponto não é conferido
+  q.poe(new Ponto(1, 2));
+  print(q.topo(), q.tamanho());
+  Pilha[string] s = new Pilha[string]();
+  s.poe("a");
+  print(s.tira(), s.tira() else "vazia");
+  No[string] a = new No[string]("um");
+  a.liga(new No[string]("dois"));
+  if (No[string] b = a.proximo()) { print(a.pega(), b.pega()); }
+  Fabrica[Ponto] f = new Fabrica[Ponto]();
+  print(f.nova(), p);
+}
+// expect: 3 9 4 2 Pilha[i32] true
+// expect: Ponto{x: 1, y: 2} 1
+// expect: a vazia
+// expect: um dois
+// expect: Ponto{x: 0, y: 0} <Pilha[i32] object>

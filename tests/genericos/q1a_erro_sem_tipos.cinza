@@ -1,0 +1,9 @@
+// Q1a: classes genéricas — erros na cópia, com o rastro
+class C[T] {
+  T v;
+  pub { C(T x) { v = x; } }
+}
+fn main() {
+  C c = new C(1);
+}
+// expect-error: a classe genérica 'C' precisa dos tipos entre colchetes

@@ -1,0 +1,6 @@
+// Q1a: a regra dos campos obrigatórios da classe
+class A {
+  string n;
+}
+fn main() {}
+// expect-error: O campo 'n' da classe 'A' não tem valor inicial: declare um construtor que o atribua

@@ -1,0 +1,7 @@
+// Q1a: a regra dos campos obrigatórios da classe
+class No {
+  No prox;
+  pub { No(No p) { prox = p; } }
+}
+fn main() {}
+// expect-error: O campo obrigatório de 'No' do tipo 'No' fecha um ciclo (No → No)

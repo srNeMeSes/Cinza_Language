@@ -1,3 +1,16 @@
-interface Forma[T] { fn area() -> f64; }
-fn main() {}
-// expect-error: interface não aceita parâmetros de tipo
+// N1 / Q1a: interface genérica — cada uso (Comparavel[Nota]) é uma cópia comum, que a classe cumpre
+interface Comparavel[T] {
+  fn compara(T outro) -> i32;
+}
+class Nota : Comparavel[Nota] {
+  i32 valor;
+  pub {
+    Nota(i32 v) { valor = v; }
+    fn compara(Nota outra) -> i32 { return valor - outra.valor; }
+  }
+}
+fn main() {
+  Comparavel[Nota] c = new Nota(5);
+  print(c.compara(new Nota(3)));
+}
+// expect: 2
