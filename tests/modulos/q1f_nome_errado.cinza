@@ -1,0 +1,2 @@
+module outro.nome;   // Módulo auxiliar (Q1f): declara um nome que não é o caminho dele.
+pub fn f() -> i32 { return 1; }

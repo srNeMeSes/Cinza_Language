@@ -1,4 +1,4 @@
-// N5: structs genéricos exportados por um módulo (testes gen_struct_modulo*)
+module modulos.structs_genericos;   // N5: structs genéricos exportados por um módulo (testes gen_struct_modulo*)
 const i32 LIMITE = 100;
 struct Ponto { string nome = "do módulo"; }
 pub struct Conta[T] { T dono; i32 limite = LIMITE; }

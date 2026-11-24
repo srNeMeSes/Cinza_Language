@@ -336,6 +336,34 @@ def testes_do_formatador(binario, programas):
     return resultados
 
 
+def testes_do_projeto(binario):
+    """Q1f: sem czm.mod, um import de arquivo é erro (só os nativos valem); 'cinza init' cria o
+    czm.mod e o mesmo programa passa a rodar; um segundo 'init' recusa."""
+    r = []
+    with tempfile.TemporaryDirectory(prefix="cinza_projeto_") as pasta:
+        pasta = Path(pasta)
+        (pasta / "util.cinza").write_text("module util;\npub fn dobro(i32 x) -> i32 { return x * 2; }\n", encoding="utf-8")
+        (pasta / "main.cinza").write_text("import util;\nimport Math;\nfn main() { print(util.dobro(21), Math.abs(-1)); }\n",
+                                          encoding="utf-8")
+        (pasta / "so.cinza").write_text("import Math;\nfn main() { print(Math.abs(-2)); }\n", encoding="utf-8")
+        def roda(*args):
+            p = subprocess.run([str(binario), *args], cwd=pasta, capture_output=True, timeout=TIMEOUT_S)
+            return p.returncode, p.stdout.decode("utf-8", "replace").replace("\r\n", "\n"), \
+                   p.stderr.decode("utf-8", "replace")
+        rc, out, err = roda("main.cinza")
+        r.append(("projeto/import sem czm.mod é erro", rc == 1 and "não está num projeto" in err and "cinza init" in err,
+                  f"código {rc}, stderr {err.strip()!r}"))
+        rc, out, err = roda("so.cinza")
+        r.append(("projeto/só nativos, sem czm.mod", rc == 0 and out == "2\n", f"código {rc}, saída {out!r} {err.strip()!r}"))
+        rc, out, err = roda("init")
+        r.append(("projeto/cinza init cria o czm.mod", rc == 0 and (pasta / "czm.mod").is_file(), f"código {rc}, {out!r} {err!r}"))
+        rc, out, err = roda("main.cinza")
+        r.append(("projeto/com czm.mod, o import vale", rc == 0 and out == "42 1\n", f"código {rc}, saída {out!r} {err.strip()!r}"))
+        rc, out, err = roda("init")
+        r.append(("projeto/init de novo recusa", rc == 1 and "já existe" in err, f"código {rc}, stderr {err.strip()!r}"))
+    return r
+
+
 def testes_do_lsp(binario):
     """Q6: o servidor de linguagem (cinza --lsp), por um cliente mínimo (tests/lsp/cliente.py): os
     erros do front-end como diagnósticos (com a coluna em UTF-16, depois de acentos), limpos quando
@@ -346,6 +374,7 @@ def testes_do_lsp(binario):
     r = []
     with tempfile.TemporaryDirectory(prefix="cinza_lsp_") as pasta:
         pasta = Path(pasta)
+        (pasta / "czm.mod").write_text("", encoding="utf-8")   # Q1f: os imports exigem o projeto
         principal = pasta / "prog.cinza"
         uri = uri_de(principal)
         c = Cliente(binario, pasta)
@@ -387,7 +416,7 @@ def testes_do_lsp(binario):
             r.append(("lsp/formatação (o cinza fmt)", len(edicoes) == 1 and edicoes[0]["newText"] == "fn main() { print(1); }\n",
                       f"resposta: {f}"))
 
-            (pasta / "util.cinza").write_text("pub fn f() -> i32 {\n  return \"texto\";\n}\n", encoding="utf-8")
+            (pasta / "util.cinza").write_text("module util; pub fn f() -> i32 {\n  return \"texto\";\n}\n", encoding="utf-8")
             muda("import util;\nfn main() {\n  print(util.f());\n}\n", 31)
             du = c.diagnosticos(uri_de(pasta / "util.cinza"))
             r.append(("lsp/erro num módulo importado, no arquivo dele", bool(du) and du[0]["range"]["start"]["line"] == 1,
@@ -439,7 +468,7 @@ def testes_do_indice(c, pasta):
     """O tipo ao passar o mouse, ir para a definição e completar nomes, sobre um programa com classe,
     struct, enum, genérico, módulo da Cinza, módulo nativo, laço e except."""
     from cliente import uri_de, normaliza
-    (pasta / "util.cinza").write_text("pub fn dobro(i32 x) -> i32 {\n  return x * 2;\n}\n", encoding="utf-8")
+    (pasta / "util.cinza").write_text("module util; pub fn dobro(i32 x) -> i32 {\n  return x * 2;\n}\n", encoding="utf-8")
     uri = uri_de(pasta / "indice.cinza")
     c.avisa("textDocument/didOpen", {"textDocument": {"uri": uri, "languageId": "cinza", "version": 1, "text": PROGRAMA_LSP}})
     ds = c.diagnosticos(uri)
@@ -471,7 +500,7 @@ def testes_do_indice(c, pasta):
         ("saldo", 1, "i64 saldo", ("indice.cinza", 11, 6)),
         ("Verde", 1, "Cor.Verde", ("indice.cinza", 8, 21)),
         ("maior", 1, "fn maior(i32 a, i32 b) -> i32", ("indice.cinza", 18, 3)),
-        ("dobro", 0, "fn util.dobro(i32 x) -> i32", ("util.cinza", 0, 7)),
+        ("dobro", 0, "fn util.dobro(i32 x) -> i32", ("util.cinza", 0, 20)),
         ("upper", 0, "fn Strings.upper(string) -> string", None),
         ("e.message", 0, "ValueError e", ("indice.cinza", 31, 64)),
         ("Conta()", 0, "class Conta", ("indice.cinza", 10, 6)),
@@ -558,6 +587,8 @@ def main():
         extras_lista += testes_do_formatador(binario, [c for _, c in testes])
     if not CINZAC and "lsp" in (filtro or "lsp"):
         extras_lista += testes_do_lsp(binario)
+    if not CINZAC and "projeto" in (filtro or "projeto"):
+        extras_lista += testes_do_projeto(binario)
     if extras_lista:
         for nome, passou, motivo in extras_lista:
             extras += 1

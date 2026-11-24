@@ -1,4 +1,4 @@
-// Módulo do teste nativo/p9_modulos: usa o p9_banco (módulos encadeados).
+module modulos.p9_caixa;   // Módulo do teste nativo/p9_modulos: usa o p9_banco (módulos encadeados).
 import modulos.p9_banco as banco;
 
 pub const f64 LIMITE = 100.0ff * banco.TAXA;

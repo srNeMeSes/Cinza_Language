@@ -1,4 +1,4 @@
-// As operações do CRUD. Cada alteração grava a lista inteira no repositório.
+module servicos.agenda;   // As operações do CRUD. Cada alteração grava a lista inteira no repositório.
 import modelo.contato as m;
 import dados.repositorio as repo;
 import util.listas;

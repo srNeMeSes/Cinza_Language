@@ -544,7 +544,7 @@ private:
 
 const char* const PALAVRAS[] = {"fn", "return", "if", "else", "while", "for", "in", "struct", "enum", "interface",
                                 "class", "pub", "new", "const", "break", "continue", "try", "except", "finally",
-                                "throw", "error", "import", "as", "self", "cast", "true", "false", "null", "yield", "and", "or",
+                                "throw", "error", "import", "as", "self", "cast", "true", "false", "null", "yield", "module", "and", "or",
                                 "not", "i32", "i64", "f32", "f64", "string", "bool", "void", "list", "dict", "pair"};
 
 } // namespace

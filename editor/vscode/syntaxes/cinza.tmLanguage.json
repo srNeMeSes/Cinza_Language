@@ -530,7 +530,7 @@
         },
         {
           "name": "keyword.control.import.cinza",
-          "match": "\\b(import|as)\\b"
+          "match": "\\b(import|as|module)\\b"
         },
         {
           "name": "keyword.operator.logical.word.cinza",

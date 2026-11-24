@@ -5,6 +5,7 @@
 #include "types.h"
 #include "natives.h"
 #include "source_files.h"
+#include <optional>
 #include <unordered_map>
 #include <vector>
 #include <string>
@@ -298,6 +299,12 @@ private:
     void checkStructCycles();
     void checkConstructionCycles(const std::vector<ModuleUnit>& units);
     TypeRef analyzeElse(ElseExpr* expr, TypeRef expected);   // Q1b
+    // Q1f: os const globais são calculados na compilação (o valor inicial já é uma expressão
+    // constante): o valor de cada um, pelo slot global; nullopt numa expressão com enum (que não
+    // precisa de conta e fica como está)
+    std::unordered_map<std::uint32_t, Value> valor_const;
+    std::optional<Value> avaliaConst(const Expr* e);
+    void dobraConst(VarDeclStmt* stmt, TypeRef tipo);
     // Q1a: os campos obrigatórios de uma classe (sem valor inicial e que não são list, dict nem T?):
     // o construtor os atribui no nível de cima antes de qualquer uso, os valores iniciais dos
     // outros campos não usam self nem métodos, e nenhum ciclo deles entre classes

@@ -1,4 +1,4 @@
-// Onde os contatos ficam guardados. A agenda só conhece a interface; o
+module dados.repositorio;   // Onde os contatos ficam guardados. A agenda só conhece a interface; o
 // arquivo de texto é uma implementação (os testes usam outra, em memória).
 import modelo.contato as m;
 import dados.formato;

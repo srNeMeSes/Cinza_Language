@@ -2110,6 +2110,24 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
     > dependências; (3) os **`const` são calculados na compilação** (já são expressões constantes),
     > também os que usam `const` de outros módulos: não há ordem de inicialização na execução, e
     > uma conta inválida (estouro, divisão por zero) é erro de compilação no `const`.
+    > **Feito (2026-11-24), no ramo `q1-modulos`, em fatias, nos dois backends:**
+    > 1. **`const` na compilação.** O semântico (`avaliaConst`/`dobraConst`) calcula cada `const`
+    >    global com as contas da execução (`operacoes.cpp`: `applyBinaryOp`, `negateOp`,
+    >    `convertValue`), também `null`, o `else` e os `const` de outros módulos e os nativos; um
+    >    `RuntimeError` vira erro de compilação no `const`, com a mensagem da execução. O valor
+    >    inicial vira o literal do resultado (número, texto, bool, null), então nenhum `const`
+    >    depende de outro na execução; um `const` de enum fica como está (não há conta).
+    > 2. **A raiz só pelo `czm.mod`.** Sem ele, `projectRoot` devolve "sem projeto" e um `import`
+    >    de arquivo é `ImportError` (sugere o `cinza init`); os nativos continuam valendo. `cinza
+    >    init [pasta]` cria o `czm.mod` (recusa se já existe). Testes no `run_tests.py`
+    >    (`testes_do_projeto`, numa pasta temporária).
+    > 3. **`module a.b;`.** Palavra reservada; o parser a lê antes dos imports; o carregador confere
+    >    o nome contra o caminho do `import` (e o do principal, se ele declarar). Os 33 módulos dos
+    >    testes, dos exemplos e a biblioteca (`module Json;`) migrados — na mesma primeira linha do
+    >    comentário, para os números de linha das mensagens não mudarem. A gramática do VS Code e
+    >    o completar do LSP conhecem o `module`.
+    >
+    > Spec: 2.1, 4.3 e 4.11.
 - [ ] Q2. Robustez.
   - Fuzzing do front-end: nenhuma entrada derruba o `cinza` nem o `cinzac` (um erro interno ou uma
     queda é defeito), começando por mutações dos programas da suíte.

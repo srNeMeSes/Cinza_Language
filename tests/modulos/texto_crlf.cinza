@@ -1,3 +1,3 @@
-// Módulo com fins de linha \r\n (teste lexico_e_sintaxe/rev_texto_crlf)
+module modulos.texto_crlf;   // Módulo com fins de linha \r\n (teste lexico_e_sintaxe/rev_texto_crlf)
 pub const string DUAS = "a
 b";

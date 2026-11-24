@@ -1,3 +1,3 @@
-// Módulo auxiliar: ciclo a → b → a.
+module modulos.ciclo_b;   // Módulo auxiliar: ciclo a → b → a.
 import modulos.ciclo_a;
 pub fn fb() -> i64 { return 2; }

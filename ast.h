@@ -848,6 +848,10 @@ class Program {
 public:
     std::vector<StmtPtr>    statements; // funções e statements globais
     std::vector<ImportDecl> imports;    // C5
+    // Q1f: module a.b; — o nome que o arquivo declara (vazio: não declara), conferido contra o
+    // caminho pelo qual ele é importado
+    std::vector<std::string> module_path;
+    Token                    module_token;
     // N2: cópias das funções genéricas declaradas neste arquivo (maior[i32]...),
     // criadas pelo semântico; compiladas como funções comuns. N5: também as cópias
     // dos structs genéricos (Par[i32, string]), structs comuns

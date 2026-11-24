@@ -1,6 +1,7 @@
 #include "semantic.h"
 #include "parser.h"          // printf/format: as expressões dentro do texto
 #include "runtime_error.h"   // C4: builtinErrorKinds
+#include "operacoes.h"       // Q1f: as contas dos const, as mesmas da execução
 #include <sstream>
 #include <limits>
 #include <algorithm>
@@ -882,6 +883,7 @@ void SemanticAnalyzer::analyze(std::vector<ModuleUnit>& units) {
     // Q1b: com todos os módulos analisados (os new resolvidos, as cópias criadas)
     checkConstructionCycles(units);
     checkRequiredFieldCycles(units);   // Q1a
+    valor_const.clear();   // Q1f: os valores já estão nos literais (as strings não ficam vivas até o fim)
 }
 
 // Q1b: os `new` escritos numa expressão (sem entrar em funções chamadas: essas contam no limite
@@ -1351,6 +1353,12 @@ bool SemanticAnalyzer::isConstantExpr(const Expr* expr) const {
         }
         case NodeKind::MemberAccess:   // Cor.Verde
             return static_cast<const MemberAccessExpr*>(expr)->enum_decl != nullptr;
+        case NodeKind::Null:           // Q1b: const string? X = null;
+            return true;
+        case NodeKind::Else: {         // Q1b: a else b, com os dois constantes (sem bloco)
+            auto* el = static_cast<const ElseExpr*>(expr);
+            return !el->block && isConstantExpr(el->value.get()) && isConstantExpr(el->alternative.get());
+        }
         default:
             return false;   // chamada, new, literal de list/dict/pair, acesso a membro...
     }
@@ -1672,6 +1680,7 @@ void SemanticAnalyzer::analyzeVarDecl(VarDeclStmt* stmt) {
     // B2: o slot vem depois do inicializador (`i64 x = x;` não enxerga o novo x)
     sym.res   = (symbol_table.depth() == 1) ? newGlobal() : newLocal();
     stmt->res = sym.res;
+    if (symbol_table.depth() == 1 && stmt->initializer) dobraConst(stmt, sym.resolved_type);   // Q1f
     symbol_table.declare(sym, stmt->token);
 }
 
@@ -2286,6 +2295,101 @@ void SemanticAnalyzer::analyzeStructDecl(StructDecl* stmt) {
 //   - Analisa campos, construtor e métodos com acesso à classe
 namespace {
 int indiceParametro(const std::vector<Token>& params, const std::string& nome);   // mais abaixo
+}
+
+// Q1f: o valor de uma expressão constante, com as contas da execução (operacoes.cpp): um erro
+// (estouro, divisão por zero, um cast que não cabe) sai como o RuntimeError dela
+std::optional<Value> SemanticAnalyzer::avaliaConst(const Expr* e) {
+    switch (e->node_kind) {
+        case NodeKind::Literal:
+            return literalValue(static_cast<const LiteralExpr*>(e)->value, e->resolved_type);
+        case NodeKind::Null:
+            return Value::nulo();
+        case NodeKind::Cast: {
+            auto* c = static_cast<const CastExpr*>(e);
+            auto v = avaliaConst(c->operand.get());
+            if (!v) return std::nullopt;
+            if (c->resolved_type->is(TK::Optional) || c->resolved_type == c->operand->resolved_type) return v;
+            return convertValue(*v, c->resolved_type);
+        }
+        case NodeKind::Unary: {
+            auto* u = static_cast<const UnaryExpr*>(e);
+            auto v = avaliaConst(u->operand.get());
+            if (!v) return std::nullopt;
+            if (u->op == TokenType::OP_NOT) return Value(!v->asBool());
+            return negateOp(*v);
+        }
+        case NodeKind::Binary: {
+            auto* b = static_cast<const BinaryExpr*>(e);
+            auto l = avaliaConst(b->left.get());
+            if (!l) return std::nullopt;
+            if (b->op == TokenType::OP_AND || b->op == TokenType::OP_OR) {   // curto-circuito
+                if (b->op == TokenType::OP_AND ? !l->asBool() : l->asBool()) return Value(b->op == TokenType::OP_OR);
+                auto r = avaliaConst(b->right.get());
+                if (!r) return std::nullopt;
+                return Value(r->asBool());
+            }
+            auto r = avaliaConst(b->right.get());
+            if (!r) return std::nullopt;
+            return applyBinaryOp(b->op, *l, *r);
+        }
+        case NodeKind::Else: {
+            auto* el = static_cast<const ElseExpr*>(e);
+            auto v = avaliaConst(el->value.get());
+            if (!v) return std::nullopt;
+            return v->isNull() ? avaliaConst(el->alternative.get()) : v;
+        }
+        case NodeKind::Identifier: {
+            auto* id = static_cast<const IdentifierExpr*>(e);
+            if (id->res.kind != Resolution::Kind::Global) return std::nullopt;
+            if (auto it = valor_const.find(id->res.slot); it != valor_const.end()) return it->second;
+            for (const auto& [slot, nc] : global_layout.natives)   // Math.pi
+                if (slot == id->res.slot) return nc->value;
+            return std::nullopt;
+        }
+        default:
+            return std::nullopt;   // enum (Cor.Verde): sem conta
+    }
+}
+
+// Q1f: calcula o const e troca o valor inicial pelo literal do resultado (número, texto, bool
+// ou null): na execução, nenhum const depende de outro, e não há ordem de inicialização
+void SemanticAnalyzer::dobraConst(VarDeclStmt* stmt, TypeRef tipo) {
+    std::optional<Value> v;
+    try {
+        v = avaliaConst(stmt->initializer.get());
+    } catch (const RuntimeError& e) {
+        throwError("O valor do const '" + stmt->name + "' não pode ser calculado: " + e.kind + ": " + e.message,
+                   stmt->token);
+    }
+    if (!v) return;
+    valor_const[stmt->res.slot] = *v;
+    const Token& tok = stmt->initializer->token;
+    TypeRef t = tipo->is(TK::Optional) ? tipo->elem() : tipo;
+    ExprPtr lit;
+    if (tipo->is(TK::Optional) && v->isNull()) {
+        lit = std::make_unique<NullExpr>(tok);
+        lit->resolved_type = types.nullType();
+        stmt->initializer = std::move(lit);
+        return;
+    }
+    switch (v->kind()) {
+        case Value::Kind::I32: case Value::Kind::I64:
+            lit = std::make_unique<LiteralExpr>(tok, v->asInt());
+            break;
+        case Value::Kind::F32: case Value::Kind::F64: {
+            auto f = std::make_unique<LiteralExpr>(tok, v->asFloat());
+            f->f32 = v->kind() == Value::Kind::F32;
+            lit = std::move(f);
+            break;
+        }
+        case Value::Kind::STRING: lit = std::make_unique<LiteralExpr>(tok, v->asString()); break;
+        case Value::Kind::BOOL:   lit = std::make_unique<LiteralExpr>(tok, v->asBool()); break;
+        default: return;   // enum, tipo: o valor inicial já não depende de conta
+    }
+    lit->resolved_type = t;
+    if (tipo->is(TK::Optional)) lit = std::make_unique<CastExpr>(std::move(lit), tipo);
+    stmt->initializer = std::move(lit);
 }
 
 // Q1a: os campos da classe no escopo atual (visíveis nos métodos e no construtor); com

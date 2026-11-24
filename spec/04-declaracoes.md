@@ -53,10 +53,22 @@ const i64 LIMITE = 100;
 const f64 TAXA = LIMITE * 0.5ff;
 ```
 
-O valor inicial de um `const` global precisa ser uma **expressão constante**: literais, valores
-de enum, operadores (aritméticos, de comparação e lógicos), parênteses e outros `const` globais
-**já declarados**. Chamadas de função, `new` e literais de `list`, `dict` e `pair` não são
-permitidos.
+O valor inicial de um `const` global precisa ser uma **expressão constante**: literais, `null`,
+valores de enum, operadores (aritméticos, de comparação, lógicos e o `else`), `cast<T>`,
+parênteses e outros `const` globais **já declarados** — também os de um módulo importado
+(`util.LIMITE`) e os nativos (`Math.pi`). Chamadas de função, `new` e literais de `list`, `dict` e
+`pair` não são permitidos.
+
+O valor é **calculado na compilação**, com as mesmas regras das contas da execução (seção 5.3):
+na execução não há ordem de inicialização, e um `const` vale o mesmo em qualquer módulo. Uma conta
+que falharia (um estouro, uma divisão por zero, um `cast` que não cabe) é erro de compilação no
+`const`.
+
+```cinza
+const i32 X = 2147483647 + 1;
+fn main() { print(X); }
+// expect-error: O valor do const 'X' não pode ser calculado: OverflowError
+```
 
 ```cinza
 const i64 A = 2;
@@ -406,10 +418,10 @@ do programa: não depende da pasta de quem importa, e não há import relativo n
 módulo tem um nome só. Cada arquivo é carregado uma só vez, mesmo que vários módulos o importem.
 
 A **raiz do projeto** é a pasta do arquivo `czm.mod` mais próximo: o compilador procura esse
-arquivo na pasta do arquivo principal e, se não achar, em cada pasta acima dela. Sem `czm.mod`,
-a raiz é a pasta do arquivo principal, então um programa de um arquivo só (ou com os módulos ao
-lado) não precisa de configuração. O `czm.mod` só marca o projeto; por enquanto o conteúdo dele
-é ignorado.
+arquivo na pasta do arquivo principal e, se não achar, em cada pasta acima dela. **Sem `czm.mod`
+não há projeto**: o programa é de um arquivo só e importa apenas os módulos nativos (um `import`
+de arquivo é `ImportError`). `cinza init [pasta]` cria o `czm.mod`. Ele só marca o projeto; por
+enquanto o conteúdo dele é ignorado.
 
 ```
 projeto/
@@ -427,6 +439,23 @@ projeto/
 - Importação circular (`a` importa `b`, que importa `a`) é erro, com a cadeia completa.
 - Um arquivo que não existe é `ImportError`.
 - Uma variável ou parâmetro com o nome de um apelido é erro.
+
+### Declarar o nome
+
+Todo arquivo importado começa com **`module`** e o nome pelo qual ele é importado — o caminho dele
+a partir da raiz do projeto (ou da pasta do `CINZA_PATH` em que foi achado), com `.` no lugar das
+pastas:
+
+```
+// servicos/cadastro.cinza
+module servicos.cadastro;
+import modelos.usuario;
+```
+
+Assim quem abre o arquivo sabe como importá-lo, e quem lê um `import` acha o arquivo. O `module`
+vem antes de tudo (antes dos `import`). Um arquivo importado sem ele, ou com outro nome, é
+`ImportError` — a mensagem diz o nome certo. O arquivo principal não precisa declarar; se declarar,
+o nome também é conferido contra o caminho dele.
 
 ### Usar
 

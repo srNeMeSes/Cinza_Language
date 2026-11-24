@@ -1,4 +1,4 @@
-// O menu no console: lê com input, mostra com print/printf.
+module ui.console;   // O menu no console: lê com input, mostra com print/printf.
 import servicos.agenda as ag;
 import modelo.contato as m;
 import util.listas;

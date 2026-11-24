@@ -201,6 +201,7 @@ void printHelp() {
     std::cout << "  --bytecode       Mostra o bytecode da CVM antes de executar\n";
     std::cout << "  --version        Mostra a versão da linguagem e do cinza\n";
     std::cout << "  fmt [--check] arquivo...  Formata os arquivos (o estilo da Cinza; --check só confere)\n";
+    std::cout << "  init [pasta]     Cria o czm.mod: a pasta vira a raiz de um projeto (os imports partem dela)\n";
     std::cout << "  --lsp            O servidor de linguagem (LSP), pela entrada e saída padrão\n";
     std::cout << "  --help, -h       Exibe esta ajuda\n\n";
     std::cout << "Exemplo:\n";
@@ -209,6 +210,35 @@ void printHelp() {
 }
 
 static int principal(int argc, char* argv[]);
+
+// Q1f: cinza init [pasta] — cria o czm.mod, o marcador da raiz do projeto (o gerenciador de
+// pacotes, Q10, vai usá-lo para o nome e as dependências)
+static int iniciaProjeto(const std::vector<std::string>& args) {
+    namespace fs = std::filesystem;
+    if (args.size() > 3) {
+        std::cerr << "Uso: cinza init [pasta]\n";
+        return 2;
+    }
+    const fs::path pasta = caminhoUtf8(args.size() == 3 ? args[2] : ".");
+    std::error_code ec;
+    if (!fs::is_directory(pasta, ec)) {
+        std::cerr << "cinza init: a pasta '" << textoCaminho(pasta) << "' não existe\n";
+        return 1;
+    }
+    const fs::path arquivo = pasta / "czm.mod";
+    if (fs::exists(arquivo, ec)) {
+        std::cerr << "cinza init: '" << textoCaminho(arquivo) << "' já existe: a pasta já é a raiz de um projeto\n";
+        return 1;
+    }
+    std::ofstream out(arquivo, std::ios::binary);
+    out << "// czm.mod: esta pasta é a raiz de um projeto Cinza (os imports partem dela)\n";
+    if (!out) {
+        std::cerr << "cinza init: não foi possível criar '" << textoCaminho(arquivo) << "'\n";
+        return 1;
+    }
+    std::cout << "projeto criado: " << textoCaminho(arquivo) << "\n";
+    return 0;
+}
 
 // Q6: cinza fmt [--check] arquivo... | cinza fmt -   (o formatador, formatador.h)
 //   arquivos: reescreve os que mudam e mostra os nomes; --check: só mostra, e sai com 1 se algum
@@ -301,6 +331,7 @@ static int principal(int argc, char* argv[]) {
     // Em UTF-8 também no Windows: o nome do arquivo e o que vai para main(args)
     const std::vector<std::string> argumentos = argumentosUtf8(argc, argv);
     if (argumentos.size() > 1 && argumentos[1] == "fmt") return formatar(argumentos);
+    if (argumentos.size() > 1 && argumentos[1] == "init") return iniciaProjeto(argumentos);   // Q1f
     if (argumentos.size() > 1 && argumentos[1] == "--lsp") return lsp::rodaServidor();   // Q6
     for (size_t i = 1; i < argumentos.size(); i++) {
         const std::string& arg = argumentos[i];

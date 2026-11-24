@@ -1,0 +1,4 @@
+// Q1f: uma conta inválida num const é erro de compilação
+const i32 X = 2147483647 + 1;
+fn main() { print(X); }
+// expect-error: O valor do const 'X' não pode ser calculado: OverflowError: 2147483647 + 1 excede a faixa de i32

@@ -74,7 +74,8 @@ bool ModuleLoader::load(const std::string& main_path, const std::string& main_co
 }
 
 // Sobe a partir da pasta do arquivo principal até achar um czm.mod (o marcador
-// do projeto, por enquanto vazio). Sem marcador, a raiz é a pasta do principal.
+// do projeto, por enquanto vazio). Q1f: sem marcador, não há projeto (vazio): o
+// programa é de um arquivo só e importa só os módulos nativos.
 // Caminho principal relativo dá raiz relativa à pasta atual, para as mensagens
 // mostrarem "tests/modulos/geom.cinza" como antes.
 std::string ModuleLoader::projectRoot(const std::string& main_path) {
@@ -86,7 +87,7 @@ std::string ModuleLoader::projectRoot(const std::string& main_path) {
         if (fs::is_regular_file(p / "czm.mod", ec)) { achada = p; break; }
         if (p == p.parent_path()) break;   // chegou à raiz do disco
     }
-    if (achada.empty()) achada = pasta;
+    if (achada.empty()) return "";   // Q1f: sem projeto
     if (principal.is_relative()) {
         fs::path rel = achada.lexically_relative(fs::current_path(ec));
         if (!rel.empty()) return textoCaminho(rel);
@@ -96,6 +97,7 @@ std::string ModuleLoader::projectRoot(const std::string& main_path) {
 
 std::vector<std::string> ModuleLoader::resolve(const ImportDecl& imp,
                                                std::vector<std::string>& tentados) const {
+    if (raiz.empty()) return {};   // Q1f: sem projeto, nenhum arquivo é importável
     fs::path rel;
     for (const auto& parte : imp.path) rel /= parte;
     rel += ".cinza";
@@ -195,6 +197,34 @@ long ModuleLoader::visit(const std::string& path, const std::string& display,
     mod.program = std::make_unique<Program>(parser.parse());
     if (parser.hasErrors()) return -1;   // B6: já estão em diagnostics()
 
+    // Q1f: o nome declarado (module a.b;) é o caminho pelo qual o arquivo é importado; o
+    // principal não precisa declarar, mas se declarar, vale o caminho dele a partir da raiz
+    {
+        std::string declarado;
+        for (const auto& parte : mod.program->module_path) declarado += (declarado.empty() ? "" : ".") + parte;
+        std::string esperado = prefix;
+        if (!import_tok) {
+            esperado.clear();
+            if (!declarado.empty() && !raiz.empty()) {
+                std::error_code ec;
+                fs::path rel = fs::absolute(caminhoUtf8(path), ec).lexically_relative(fs::absolute(caminhoUtf8(raiz), ec));
+                rel.replace_extension();
+                for (const auto& parte : rel) esperado += (esperado.empty() ? "" : ".") + textoCaminho(parte);
+            }
+        }
+        if (import_tok && declarado.empty()) {
+            importError("o arquivo '" + display + "' é importado como '" + prefix + "', mas não declara o nome: "
+                        "comece-o com 'module " + prefix + ";'", *import_tok);
+            return -1;
+        }
+        if (!declarado.empty() && !esperado.empty() && declarado != esperado) {
+            importError("o arquivo '" + display + "' declara 'module " + declarado + ";', mas o nome dele é '" +
+                        esperado + "' (o caminho a partir da raiz do projeto): troque para 'module " + esperado + ";'",
+                        mod.program->module_token);
+            return -1;
+        }
+    }
+
     // Imports, em profundidade
     estados[canon] = Estado::Visitando;
     pilha.emplace_back(canon, display);
@@ -234,12 +264,19 @@ long ModuleLoader::visit(const std::string& path, const std::string& display,
                 continue;
             }
 
+        // Q1f: um módulo de arquivo só existe num projeto (a pasta do czm.mod)
+        if (raiz.empty()) {
+            importError("'import " + nome + "': este programa não está num projeto (não há um czm.mod na "
+                        "pasta dele nem acima). Sem projeto, só se importam os módulos nativos; crie o "
+                        "projeto com 'cinza init' na pasta dele", imp.token);
+            return -1;
+        }
         if (achado.empty()) {
             std::string lista;
             for (const auto& t : tentados) lista += (lista.empty() ? "" : ", ") + t;
             importError("módulo '" + nome + "' não encontrado (procurado em: " + lista + "). "
-                        "O caminho do import parte da raiz do projeto (a pasta do czm.mod, ou "
-                        "a do arquivo principal), não da pasta de quem importa", imp.token);
+                        "O caminho do import parte da raiz do projeto (a pasta do czm.mod), não "
+                        "da pasta de quem importa", imp.token);
             return -1;
         }
         // O mesmo caminho na raiz e numa pasta de CINZA_PATH (ou em duas delas):

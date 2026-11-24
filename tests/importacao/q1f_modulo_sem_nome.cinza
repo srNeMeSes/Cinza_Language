@@ -1,0 +1,4 @@
+// Q1f: um arquivo importado precisa declarar o nome (module a.b;), o caminho dele a partir da raiz
+import modulos.q1f_sem_nome as m;
+fn main() { print(m.f()); }
+// expect-error: o arquivo 'tests/modulos/q1f_sem_nome.cinza' é importado como 'modulos.q1f_sem_nome', mas não declara o nome: comece-o com 'module modulos.q1f_sem_nome;'

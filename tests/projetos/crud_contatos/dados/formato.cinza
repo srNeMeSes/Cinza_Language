@@ -1,4 +1,4 @@
-// Uma linha do arquivo por contato: id;nome;telefone;email
+module dados.formato;   // Uma linha do arquivo por contato: id;nome;telefone;email
 import modelo.contato as m;
 import Strings as st;
 import Convert as cv;

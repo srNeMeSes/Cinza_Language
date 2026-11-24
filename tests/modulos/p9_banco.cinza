@@ -1,4 +1,4 @@
-// Módulo do teste nativo/p9_modulos: classe, struct genérico, enum, error, const e uma
+module modulos.p9_banco;   // Módulo do teste nativo/p9_modulos: classe, struct genérico, enum, error, const e uma
 // função genérica, usados de outro módulo e do principal.
 pub error SemSaldo;
 

@@ -1,4 +1,4 @@
-// Módulo auxiliar (o_*): importa de uma pasta irmã pelo caminho a partir da raiz
+module modulos.servicos.cadastro;   // Módulo auxiliar (o_*): importa de uma pasta irmã pelo caminho a partir da raiz
 import modulos.modelos.usuario;
 import modulos.modelos.usuario as u;
 pub fn cadastra(string nome) -> usuario.Usuario { return usuario.novo(nome, 1); }

@@ -1916,6 +1916,22 @@ StmtPtr Parser::parseStructDeclaration() {
 Program Parser::parse() {
     std::vector<StmtPtr> statements;
 
+    // Q1f: module a.b; — antes de tudo
+    std::vector<std::string> module_path;
+    Token module_token{};
+    if (check(TokenType::KW_MODULE)) {
+        try {
+            module_token = advance();
+            module_path.push_back(consume(TokenType::IDENTIFIER,
+                                          "Esperado o nome do módulo após 'module', ex.: module util.texto;").lexeme);
+            while (match(TokenType::DOT))
+                module_path.push_back(consume(TokenType::IDENTIFIER, "Esperado nome após '.' no nome do módulo").lexeme);
+            consume(TokenType::SEMICOLON, "Esperado ';' após o nome do módulo");
+        } catch (const ParseError&) {
+            synchronize();
+        }
+    }
+
     // C5: imports vêm antes de tudo (o parser precisa dos apelidos)
     std::vector<ImportDecl> imports;
     while (check(TokenType::KW_IMPORT)) {
@@ -1931,6 +1947,10 @@ Program Parser::parse() {
             if (check(TokenType::KW_IMPORT)) {
                 error("'import' deve vir no início do arquivo, antes das declarações.", peek());
                 throw ParseError("import fora do início", peek());
+            }
+            if (check(TokenType::KW_MODULE)) {   // Q1f
+                error("'module' vem antes de tudo no arquivo (antes dos imports), e só uma vez.", peek());
+                throw ParseError("module fora do início", peek());
             }
 
             // C5: pub no nível superior exporta a declaração do módulo
@@ -1980,6 +2000,8 @@ Program Parser::parse() {
     
     Program program(std::move(statements));
     program.imports = std::move(imports);
+    program.module_path  = std::move(module_path);
+    program.module_token = module_token;
     return program;
 }
 

@@ -1,4 +1,4 @@
-// ============================================================================
+module dados;   // ============================================================================
 // dados — leitura do CSV de treino e utilidades de apresentação
 //
 // A primeira linha traz os cabeçalhos. Todas as colunas são numéricas; a última

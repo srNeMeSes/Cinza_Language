@@ -1,0 +1,19 @@
+// Q1f: os const são calculados na compilação, com as contas da execução: números, texto, bool,
+// null e else, const de módulo nativo (Math.pi), enum, cast
+import Math;
+enum Cor { Vermelho, Verde }
+const i32 A = 2;
+const i64 B = A * 3000000000;
+const f64 C = 1.5ff * 2.ff;
+const f32 D = 0.1f + 0.2f;
+const string S = "v" + A + "-" + (A > 1);
+const bool E = A > 1 and not (B < 0);
+const string? N = null;
+const string? M = "m";
+const string T = N else M else "x";
+const f64 P = Math.pi * 2.ff;
+const Cor K = Cor.Verde;
+const i32 NEG = -A;
+const i64 CONV = cast<i64>(C);
+fn main() { print(A, B, C, D, S, E, N, M, T, P, K, NEG, CONV, type(B), type(D)); }
+// expect: 2 6000000000 3 0.3 v2-true true null m m 6.283185307179586 Cor.Verde -2 3 i64 f32

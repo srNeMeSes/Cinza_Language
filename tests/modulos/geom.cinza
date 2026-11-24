@@ -1,4 +1,4 @@
-// Módulo auxiliar dos testes c5 (não é teste: fica fora de tests/*.cinza).
+module modulos.geom;   // Módulo auxiliar dos testes c5 (não é teste: fica fora de tests/*.cinza).
 pub const i64 LADO = 3;
 const i64 SEGREDO = 7;
 

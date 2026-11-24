@@ -1,0 +1,4 @@
+// Q1f: uma conta inválida num const é erro de compilação
+const i32 X = cast<i32>(3000000000);
+fn main() { print(X); }
+// expect-error: O valor do const 'X' não pode ser calculado: OverflowError: cast<i32>(3000000000): o valor não cabe em i32

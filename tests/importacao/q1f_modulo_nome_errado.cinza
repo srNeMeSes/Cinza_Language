@@ -1,0 +1,4 @@
+// Q1f: o nome declarado precisa ser o caminho do arquivo a partir da raiz
+import modulos.q1f_nome_errado as m;
+fn main() { print(m.f()); }
+// expect-error: declara 'module outro.nome;', mas o nome dele é 'modulos.q1f_nome_errado' (o caminho a partir da raiz do projeto): troque para 'module modulos.q1f_nome_errado;'

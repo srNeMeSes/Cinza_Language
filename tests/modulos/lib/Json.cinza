@@ -1,2 +1,2 @@
-// Um arquivo com o nome de um módulo da biblioteca (q3_biblioteca_arquivo_importado).
+module modulos.lib.Json;   // Um arquivo com o nome de um módulo da biblioteca (q3_biblioteca_arquivo_importado).
 pub fn f() { }

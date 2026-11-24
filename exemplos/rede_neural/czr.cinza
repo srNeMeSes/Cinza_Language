@@ -1,4 +1,4 @@
-// ============================================================================
+module czr;   // ============================================================================
 // czr — formato binário próprio para guardar modelos (.czr)
 //
 // Cada byte do arquivo vai de 0 a 127 e carrega 7 bits de dados: o arquivo é

@@ -1,3 +1,3 @@
-// Módulo auxiliar: erro de runtime ao avaliar um const.
+module modulos.cvm_const_quebra;   // Módulo auxiliar: erro de runtime ao avaliar um const.
 pub const i64 ZERO = 0;
 pub const i64 RUIM = 10 / ZERO;

@@ -52,6 +52,7 @@ enum class TokenType {
     KW_CAST,           // cast<T>(valor)
     KW_NULL,           // null: a ausência de um valor (só num T?)
     KW_YIELD,          // yield: o valor de um bloco de else
+    KW_MODULE,         // module a.b; — o nome do módulo, no início do arquivo (Q1f)
 
     // Tipos
     TYPE_I32,          // inteiro de 32 bits

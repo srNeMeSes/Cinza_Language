@@ -1,4 +1,4 @@
-// Módulo auxiliar dos testes cvm_modulo_*: importa outro módulo.
+module modulos.cvm_usa;   // Módulo auxiliar dos testes cvm_modulo_*: importa outro módulo.
 import modulos.cvm_base as base;
 pub const i64 DOBRO = base.LIMITE * 2;
 pub fn soma_caixas(list<base.Medida> l) -> i64 {

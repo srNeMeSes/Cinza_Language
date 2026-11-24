@@ -1,0 +1,4 @@
+module importacao.q1f_principal_declara;   // Q1f: o principal pode declarar o nome (o caminho dele)
+import modulos.geom;
+fn main() { print("ok"); }
+// expect: ok

@@ -1,4 +1,4 @@
-// N2: funções genéricas exportadas por um módulo (testes gen_modulo*)
+module modulos.genericos;   // N2: funções genéricas exportadas por um módulo (testes gen_modulo*)
 struct Ponto { string nome = "do módulo"; }
 pub fn primeiro[T](list<T> l) -> T { return l[0]; }
 pub fn nome_de[T](T x) -> string { return x.nome; }

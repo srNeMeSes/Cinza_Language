@@ -1,5 +1,6 @@
-// CVM etapa 8: erro ao avaliar um const de módulo encerra antes da main, sem stack trace.
+// CVM etapa 8 / Q1f: um const de módulo cuja conta falha é erro de compilação, apontando o const
+// no arquivo do módulo (os const são calculados na compilação)
 import modulos.cvm_const_quebra as q;
 fn main() { print(q.RUIM); }
-// expect-error: tests/modulos/cvm_const_quebra.cinza:3:25: ZeroDivisionError: divisão por zero
+// expect-error: tests/modulos/cvm_const_quebra.cinza:3:15: SemanticError: O valor do const 'RUIM' não pode ser calculado: ZeroDivisionError: divisão por zero
 // expect-not: em main

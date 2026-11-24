@@ -1,10 +1,10 @@
-// P4: erro na inicialização dos const no código nativo: fora da pilha de chamadas
-// (sem stack trace), como na CVM. Roda nos dois backends.
+// P4 / Q1f: um const cuja conta estoura é erro de compilação (os const são calculados na
+// compilação), igual nos dois backends.
 const f32 GRANDE = 300000000000000000000000000000000000000.0f;
 const f32 DEMAIS = GRANDE * 2.0f;
 
 fn main() {
   print(DEMAIS);
 }
-// expect-error: p4_const_erro.cinza:4:27: OverflowError: 3e+38 * 2 excede a faixa de f32
+// expect-error: p4_const_erro.cinza:4:11: SemanticError: O valor do const 'DEMAIS' não pode ser calculado: OverflowError: 3e+38 * 2 excede a faixa de f32
 // expect-not: em main

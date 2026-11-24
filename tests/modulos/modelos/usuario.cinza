@@ -1,3 +1,3 @@
-// Módulo auxiliar (o_*): modelos/ e servicos/ são pastas irmãs
+module modulos.modelos.usuario;   // Módulo auxiliar (o_*): modelos/ e servicos/ são pastas irmãs
 pub struct Usuario { string nome = ""; i32 id = 0; }
 pub fn novo(string nome, i32 id) -> Usuario { return new Usuario(nome, id); }

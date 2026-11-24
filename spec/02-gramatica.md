@@ -9,7 +9,8 @@ nos capítulos seguintes.
 ## 2.1 Programa e declarações
 
 ```ebnf
-programa      = { import } { declaracao } ;
+programa      = [ modulo ] { import } { declaracao } ;
+modulo        = "module" nome { "." nome } ";" ;        (* o nome do arquivo: seção 4.11 *)
 
 import        = "import" nome { "." nome } [ "as" nome ] ";" ;
                 (* todos os imports vêm antes de qualquer declaração *)

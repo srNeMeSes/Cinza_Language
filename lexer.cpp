@@ -36,6 +36,7 @@ const std::unordered_map<std::string, TokenType> Lexer::keywords = {
     {"cast",     TokenType::KW_CAST},      // cast<T>(valor): conversão explícita (seção K)
     {"null",     TokenType::KW_NULL},      // a ausência de um valor, só num T? (Q1b)
     {"yield",    TokenType::KW_YIELD},     // o valor de um bloco de else (Q1b)
+    {"module",   TokenType::KW_MODULE},    // module a.b; — o nome do módulo (Q1f)
     // C1: and/or/not são sinônimos de &&, || e ! (mesmo token)
     {"and", TokenType::OP_AND},
     {"or",  TokenType::OP_OR},

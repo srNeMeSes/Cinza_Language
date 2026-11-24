@@ -1,4 +1,4 @@
-// Funções genéricas de apoio (spec, capítulo 8): servem a qualquer tipo
+module util.listas;   // Funções genéricas de apoio (spec, capítulo 8): servem a qualquer tipo
 // que aceite as operações usadas no corpo.
 
 // O maior elemento, ou `padrao` se a lista for vazia (T precisa aceitar >)

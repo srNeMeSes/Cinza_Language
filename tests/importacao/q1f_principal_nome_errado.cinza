@@ -1,0 +1,3 @@
+module outro;   // Q1f: se o principal declara, o nome é conferido
+fn main() { print("ok"); }
+// expect-error: declara 'module outro;', mas o nome dele é 'importacao.q1f_principal_nome_errado'

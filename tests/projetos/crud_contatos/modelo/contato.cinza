@@ -1,4 +1,4 @@
-// O contato e as regras de um contato válido.
+module modelo.contato;   // O contato e as regras de um contato válido.
 import Strings as st;
 
 pub error ContatoInvalido;

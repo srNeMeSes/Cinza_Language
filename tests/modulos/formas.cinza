@@ -1,4 +1,4 @@
-// Módulo auxiliar dos testes de interface.
+module modulos.formas;   // Módulo auxiliar dos testes de interface.
 pub interface Forma {
   fn area() -> f64;
 }

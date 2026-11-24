@@ -1,0 +1,2 @@
+// Módulo auxiliar (Q1f): não declara o nome com module — importá-lo é erro.
+pub fn f() -> i32 { return 1; }

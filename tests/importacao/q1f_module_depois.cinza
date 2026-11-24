@@ -1,0 +1,5 @@
+// Q1f: module vem antes de tudo
+import Math;
+module importacao.q1f_module_depois;
+fn main() { }
+// expect-error: 'module' vem antes de tudo no arquivo (antes dos imports), e só uma vez.

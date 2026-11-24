@@ -1,2 +1,2 @@
-// Módulo auxiliar: erro de sintaxe.
+module modulos.lib.quebrado;   // Módulo auxiliar: erro de sintaxe.
 pub fn f( { }

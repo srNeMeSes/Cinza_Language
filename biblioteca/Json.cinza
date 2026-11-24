@@ -1,4 +1,4 @@
-// Json — ler e gravar JSON (REVISAO_V2.md, Q3; spec/06-biblioteca.md, Json).
+module Json;   // Json — ler e gravar JSON (REVISAO_V2.md, Q3; spec/06-biblioteca.md, Json).
 //
 // Um módulo da biblioteca escrito na própria Cinza, embutido no cinza e no cinzac
 // (biblioteca.cpp): `import Json;` o carrega como qualquer módulo, e ele vale nos dois
