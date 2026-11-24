@@ -117,5 +117,50 @@ int main() {
     }
     CHECK(gc_registro.objetos == 0);
 
+    // Q11: um struct de tipo acíclico (o descritor diz) fica fora do registro, e o clone também;
+    // um rastreado entra, e o clone dele também
+    {
+        CzStructDesc aciclico{"Ponto", {"x"}, false};
+        CzStructDesc ciclico{"No", {"f"}, true};
+        auto a = novo<StructValue>(&aciclico);
+        a->fields.push_back(Value(1));
+        Value va(std::move(a));
+        CHECK(gc_registro.objetos == 1 && gc_registro.vivos == 0);
+        Value copia = va;   // o Value clona o struct
+        CHECK(gc_registro.objetos == 2 && gc_registro.vivos == 0);
+        Value vc(novo<StructValue>(&ciclico));
+        Value copia_c = vc;
+        CHECK(gc_registro.vivos == 2);
+    }
+    CHECK(gc_registro.objetos == 0 && gc_registro.vivos == 0);
+
+    // Q11: gerações. Um velho (sobreviveu a uma coleta) que segura um jovem: a coleta dos jovens
+    // não pode tocar no jovem (a referência do velho conta como de fora)
+    {
+        Value velho = makeList();
+        gcCollectJovens();   // velho passa para a lista dos velhos
+        CHECK(gc_registro.jovens == 0 && gc_registro.vivos == 1);
+        {
+            Value jovem = makeList();
+            jovem.asList()->elements.push_back(Value(42));
+            velho.asList()->elements.push_back(jovem);
+        }
+        CHECK(gcCollectJovens() == 0);
+        CHECK(velho.asList()->elements[0].asList()->elements.size() == 1);   // intacto
+        // um ciclo entre velhos que vira lixo: só a completa o pega
+        {
+            Value a = makeList();
+            Value b = makeList();
+            a.asList()->elements.push_back(b);
+            b.asList()->elements.push_back(a);
+            gcCollectJovens();   // os dois envelhecem
+        }
+        CHECK(gcCollectJovens() == 0);
+        CHECK(gcCollect() == 2);
+        CHECK(gc_registro.vivos == 2);   // o velho e o jovem que ele segura
+    }
+    CHECK(gcCollect() == 0);
+    CHECK(gc_registro.objetos == 0 && gc_registro.vivos == 0 && gc_registro.jovens == 0);
+
     return falhas ? 1 : 0;
 }

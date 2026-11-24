@@ -1715,7 +1715,7 @@ Value filesModified(Args a) {
 // valor repetido ao inverter lançam ValueError, chave ausente lança KeyError.
 // ============================================================================
 
-std::map<Value, Value>& entradas(const Value& d) { return d.asDict()->entries; }
+Entradas& entradas(const Value& d) { return d.asDict()->entries; }
 
 // Q1b: o valor da chave, ou null se ela não existir (Dicts.get(d, k) else padrão)
 Value dictGet(Args a) {
@@ -1748,7 +1748,7 @@ Value dictItems(Args a) {
 
 // update(d, outra): as entradas de outra entram em d (as chaves repetidas ficam com o valor de outra)
 Value dictUpdate(Args a) {
-    const std::map<Value, Value> outra = entradas(a[1]);   // cópia: outra pode ser d
+    const Entradas outra = entradas(a[1]);   // cópia: outra pode ser d
     for (const auto& [k, v] : outra) entradas(a[0])[k] = v;
     return Value();
 }
@@ -1782,7 +1782,7 @@ Value dictCopy(Args a) {
 }
 
 // insere sem substituir: chave repetida é ValueError (o dict perderia um valor calado)
-void insereNova(std::map<Value, Value>& e, const Value& k, const Value& v, const char* fn) {
+void insereNova(Entradas& e, const Value& k, const Value& v, const char* fn) {
     if (!e.emplace(k, v).second)
         falha(std::string("ValueError: '") + fn + "': a chave '" + k.toString() + "' aparece mais de uma vez");
 }

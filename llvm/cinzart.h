@@ -176,8 +176,9 @@ CZ_FALHA void cz_grava_indice(const cinza::CzValor* o, const cinza::CzValor* k, 
 
 // ── Structs, objetos, enums e tipos ───────────────────────────────────────
 // Os descritores do programa, criados na partida (vivem até o fim do processo)
-const void* cz_desc_struct(const char* nome, const char* const* campos, std::uint64_t n) noexcept;
-const void* cz_desc_classe(const char* nome, std::uint32_t indice, std::uint32_t campos) noexcept;
+// Q11: `rastreia` 0 para um tipo acíclico (os objetos dele ficam fora da coleta de ciclos)
+const void* cz_desc_struct(const char* nome, const char* const* campos, std::uint64_t n, std::uint32_t rastreia) noexcept;
+const void* cz_desc_classe(const char* nome, std::uint32_t indice, std::uint32_t campos, std::uint32_t rastreia) noexcept;
 const void* cz_desc_enum(const char* nome, const char* const* valores, std::uint64_t n) noexcept;
 // Um tipo de type() pelo TypeContext: o TypeInfo::Kind, o nome e os parâmetros (já feitos)
 const void* cz_tipo(std::uint8_t kind, const char* nome, const void* const* params, std::uint64_t n) noexcept;

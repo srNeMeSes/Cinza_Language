@@ -1,0 +1,65 @@
+// Q11: os tipos que não alcançam a si mesmos ficam fora da coleta de ciclos (só a contagem os
+// solta); os que alcançam continuam nela. Cada ciclo abaixo passa por um caminho de tipo
+// diferente — campo opcional, dict, pair, interface, classe genérica, struct copiado para dentro
+// da própria lista —, e todos precisam ser liberados (o modo sem vazamento confere no fim). No
+// meio, objetos de tipos acíclicos (fora do registro) que seguram listas rastreadas.
+// env: CINZA_GC_STATS=1
+interface Elo { fn n() -> i32; }
+
+class A { B? b; pub { fn liga(B x) { b = x; } } }
+class B { list<A> todos; pub { fn liga(A x) { todos.add(x); } } }
+
+class D { dict<string, D> filhos; pub { fn liga(string k, D x) { filhos.add({k, x}); } } }
+
+class P { list<pair<i32, P>> pares; pub { fn liga(P x) { pares.add({1, x}); } } }
+
+class I : Elo { Elo? outro; pub { fn liga(Elo e) { outro = e; } fn n() -> i32 { return 1; } } }
+
+class Caixa[T] { list<T> itens; pub { fn poe(T x) { itens.add(x); } } }
+class G { Caixa[G]? c; pub { fn liga(Caixa[G] x) { c = x; } } }
+
+struct S { list<S> l; i32 v = 0; }
+
+// acíclicos: só números, textos e listas de números
+struct Ponto { f64 x = 0.0ff; f64 y = 0.0ff; }
+class Conta { i64 total = 0; list<i32> parcelas; pub { fn poe(i32 p) { parcelas.add(p); total += cast<i64>(p); } fn soma() -> i64 { return total; } } }
+struct Registro { string nome = ""; list<Ponto> pontos; }
+
+fn main() {
+  i64 conferido = 0;
+  for (i32 i in range(0, 3000)) {
+    A a = new A();
+    B b = new B();
+    a.liga(b);
+    b.liga(a);
+
+    D d = new D();
+    d.liga("eu", d);
+
+    P p = new P();
+    p.liga(p);
+
+    I x = new I();
+    I y = new I();
+    x.liga(y);
+    y.liga(x);
+
+    G g = new G();
+    Caixa[G] c = new Caixa[G]();
+    c.poe(g);
+    g.liga(c);
+
+    S s = new S(v: i);
+    s.l.add(s);
+
+    Ponto pt = new Ponto(cast<f64>(i), 1.0ff);
+    Conta k = new Conta();
+    k.poe(i % 7);
+    Registro r = new Registro(nome: "r");
+    r.pontos.add(pt);
+    conferido += k.soma() + cast<i64>(r.pontos.size()) + cast<i64>(s.l[0].v - i);
+  }
+  print(conferido);
+}
+// expect: 11994
+// expect: [gc] liberados em ciclos: 45000, contêineres vivos: 0

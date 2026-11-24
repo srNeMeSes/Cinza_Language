@@ -1,0 +1,25 @@
+// Benchmark Q11: árvores binárias de objetos (alocação, campos opcionais, recursão, liberação).
+class No {
+  No? esq;
+  No? dir;
+  pub {
+    fn liga(No e, No d) { esq = e; dir = d; }
+    fn conta() -> i32 {
+      if (No e = esq) {
+        if (No d = dir) { return 1 + e.conta() + d.conta(); }
+      }
+      return 1;
+    }
+  }
+}
+fn cria(i32 prof) -> No {
+  No n = new No();
+  if (prof > 0) { n.liga(cria(prof - 1), cria(prof - 1)); }
+  return n;
+}
+fn main() {
+  i64 total = 0;
+  for (i32 i in range(0, 20)) { total += cast<i64>(cria(15).conta()); }
+  No longa = cria(18);
+  print(total, longa.conta());
+}

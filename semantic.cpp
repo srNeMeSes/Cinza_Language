@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <functional>
 #include <set>
+#include <unordered_set>
 
 namespace cinza {
 
@@ -883,7 +884,72 @@ void SemanticAnalyzer::analyze(std::vector<ModuleUnit>& units) {
     // Q1b: com todos os módulos analisados (os new resolvidos, as cópias criadas)
     checkConstructionCycles(units);
     checkRequiredFieldCycles(units);   // Q1a
+    marcaAciclicos(units);             // Q11
     valor_const.clear();   // Q1f: os valores já estão nos literais (as strings não ficam vivas até o fim)
+}
+
+// Q11: um objeto só pode estar num ciclo de referências se o tipo dele alcança a si mesmo pelo
+// grafo dos tipos: os campos (classe, struct) e os parâmetros (list, dict, pair, T?). Uma
+// interface, ou um tipo não resolvido, pode ser qualquer classe: conta como alcançar tudo. Os
+// tipos que não alcançam a si mesmos (struct Ponto { f64 x; f64 y; }, uma classe só com números
+// e textos, ou com uma list<i32>) ficam fora do registro da coleta de ciclos: a contagem de
+// referências basta para eles, e a coleta não os percorre.
+bool SemanticAnalyzer::tipoAciclico(TypeRef tipo) const {
+    using K = TypeInfo::Kind;
+    // os tipos que um valor de `t` referencia diretamente; false se `t` é coringa
+    auto vizinhos = [&](TypeRef t, std::vector<TypeRef>& out) -> bool {
+        switch (t->kind) {
+            case K::I32: case K::I64: case K::F32: case K::F64: case K::Bool: case K::String:
+            case K::Void: case K::Null: case K::Type: case K::Enum: case K::Error:
+                return true;
+            case K::List: case K::Dict: case K::Pair: case K::Optional:
+                for (TypeRef p : t->params) out.push_back(p);
+                return true;
+            case K::Struct: {
+                auto it = struct_table.find(t->name);
+                if (it == struct_table.end()) return false;
+                for (const auto& [nome, ft] : it->second.fields) out.push_back(ft);
+                return true;
+            }
+            case K::Class: {
+                auto it = class_table.find(t->name);
+                if (it == class_table.end()) return false;
+                for (const auto& [nome, f] : it->second.fields) out.push_back(f.type);
+                return true;
+            }
+            default:
+                return false;   // interface, variável de tipo, var: pode ser qualquer coisa
+        }
+    };
+    std::vector<TypeRef> pilha;
+    if (!vizinhos(tipo, pilha)) return false;
+    std::unordered_set<TypeRef> vistos;
+    while (!pilha.empty()) {
+        TypeRef t = pilha.back();
+        pilha.pop_back();
+        if (t == tipo) return false;
+        if (!vistos.insert(t).second) continue;
+        if (!vizinhos(t, pilha)) return false;
+    }
+    return true;
+}
+
+void SemanticAnalyzer::marcaAciclicos(const std::vector<ModuleUnit>& units) {
+    auto marca = [&](Stmt* s) {
+        TypeContext& tc = TypeContext::instance();
+        if (s->node_kind == NodeKind::ClassDecl) {
+            auto* c = static_cast<ClassDecl*>(s);
+            if (c->type_params.empty()) c->aciclico = tipoAciclico(tc.classType(c->class_name));
+        } else if (s->node_kind == NodeKind::StructDecl) {
+            auto* st = static_cast<StructDecl*>(s);
+            if (st->type_params.empty()) st->aciclico = tipoAciclico(tc.structType(st->name));
+        }
+    };
+    for (auto& u : units) {
+        if (u.native || !u.program) continue;
+        for (auto& s : u.program->statements) marca(s.get());
+        for (auto& s : u.program->instancias) marca(s.get());
+    }
 }
 
 // Q1b: os `new` escritos numa expressão (sem entrar em funções chamadas: essas contam no limite

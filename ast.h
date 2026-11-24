@@ -732,6 +732,9 @@ public:
     // Preenchido pelo semântico: para cada interface cumprida, os métodos da
     // classe na ordem dos métodos da interface
     std::vector<std::pair<const InterfaceDecl*, std::vector<const FunctionDecl*>>> itables;
+    // Q11, preenchido pelo semântico: o tipo não alcança a si mesmo pelos campos — um objeto dele
+    // nunca está num ciclo, e o runtime não o registra na coleta de ciclos
+    bool                               aciclico = false;
 
     ClassDecl(const Token& tok,
               const std::string& name,
@@ -765,6 +768,7 @@ public:
     // tipo e os tokens da declaração (de 'struct' ao '}'), reparseados em cada cópia
     std::vector<Token>            type_params;
     std::vector<Token>            fonte;
+    bool                          aciclico = false;   // Q11: como em ClassDecl
 
     // N5: campo sem valor inicial que não é list nem dict — informado na criação
     static bool obrigatorio(const ClassDecl::Field& f) {

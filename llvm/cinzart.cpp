@@ -207,6 +207,30 @@ extern "C" void cz_literais(const CzTextoLiteral* tabela, std::uint64_t n, CzObj
     });
 }
 
+namespace {
+// Q11: os argumentos de uma chamada ao runtime como Value, numa área da pilha: só os `n` usados
+// são construídos e destruídos (um `Value vals[N]` constrói e destrói os N a cada chamada)
+template <std::size_t N>
+class ArgsNaPilha {
+    alignas(Value) unsigned char area[N * sizeof(Value)];
+    std::size_t n = 0;
+    Value* base() noexcept { return reinterpret_cast<Value*>(area); }
+
+public:
+    ArgsNaPilha(const CzValor* args, std::size_t k) {
+        for (; n < k; ++n) new (base() + n) Value(Value::empresta(args[n]));
+    }
+    explicit ArgsNaPilha(std::initializer_list<const CzValor*> args) {
+        for (const CzValor* a : args) { new (base() + n) Value(Value::empresta(*a)); ++n; }
+    }
+    ArgsNaPilha(const ArgsNaPilha&) = delete;
+    ArgsNaPilha& operator=(const ArgsNaPilha&) = delete;
+    ~ArgsNaPilha() { for (std::size_t i = 0; i < n; ++i) base()[i].~Value(); }
+    std::span<const Value> span() noexcept { return {base(), n}; }
+};
+
+}  // namespace
+
 extern "C" const void* cz_nativa_resolve(const char* modulo, const char* nome) noexcept {
     const void* r = nullptr;
     fronteira([&] {
@@ -225,12 +249,17 @@ extern "C" void cz_nativa(const void* fn, const CzValor* args, std::uint64_t n,
     *resultado = Value().entrega();
     fronteira([&] {
         // Os argumentos viram Value (cópia com retain, llvm/DESENHO.md 2.3): a NativeFn de
-        // hoje é chamada sem mudança
+        // hoje é chamada sem mudança. Q11: até 8 argumentos na pilha (sem alocar a cada chamada)
+        const auto* nativa = static_cast<const NativeFn*>(fn);
+        if (n <= 8) {
+            ArgsNaPilha<8> vals(args, static_cast<std::size_t>(n));
+            *resultado = nativa->impl(vals.span()).entrega();
+            return;
+        }
         std::vector<Value> vals;
         vals.reserve(static_cast<std::size_t>(n));
         for (std::uint64_t i = 0; i < n; ++i) vals.push_back(Value::empresta(args[i]));
-        Value r = static_cast<const NativeFn*>(fn)->impl(std::span<const Value>(vals.data(), vals.size()));
-        *resultado = r.entrega();
+        *resultado = nativa->impl(std::span<const Value>(vals.data(), vals.size())).entrega();
     }, p);
 }
 
@@ -391,10 +420,8 @@ void metodo(std::int32_t b, const CzValor* o, std::initializer_list<const CzValo
     *r = Value().entrega();
     fronteira([&] {
         Value obj = Value::empresta(*o);
-        Value vals[2];   // no máximo dois argumentos (cz_metodo0..2): sem alocar
-        std::size_t n = 0;
-        for (const CzValor* a : args) vals[n++] = Value::empresta(*a);
-        *r = callBuiltin(static_cast<Builtin>(b), obj, std::span<const Value>(vals, n)).entrega();
+        ArgsNaPilha<2> vals(args);   // no máximo dois argumentos (cz_metodo0..2): sem alocar
+        *r = callBuiltin(static_cast<Builtin>(b), obj, vals.span()).entrega();
     }, p);
 }
 
@@ -570,18 +597,20 @@ std::vector<std::unique_ptr<CzClasseDesc>> descs_classe;
 std::vector<std::unique_ptr<CzEnumDesc>>   descs_enum;
 
 // Os campos de um objeto ou struct, sem copiar o dono (um struct não é clonado)
-std::vector<Value>& camposDe(const CzValor* o) {
+Campos& camposDe(const CzValor* o) {
     if (o->tipo == static_cast<std::uint8_t>(Value::Kind::STRUCT)) return static_cast<StructValue*>(o->u.obj)->fields;
     return static_cast<ClassInstance*>(o->u.obj)->fields;
 }
 
 }  // namespace
 
-extern "C" const void* cz_desc_struct(const char* nome, const char* const* campos, std::uint64_t n) noexcept {
+extern "C" const void* cz_desc_struct(const char* nome, const char* const* campos, std::uint64_t n,
+                                      std::uint32_t rastreia) noexcept {
     const void* r = nullptr;
     fronteira([&] {
         auto d = std::make_unique<CzStructDesc>();
         d->nome = nome;
+        d->rastreia = rastreia != 0;
         for (std::uint64_t i = 0; i < n; ++i) d->campos.emplace_back(campos[i]);
         r = d.get();
         descs_struct.push_back(std::move(d));
@@ -589,10 +618,11 @@ extern "C" const void* cz_desc_struct(const char* nome, const char* const* campo
     return r;
 }
 
-extern "C" const void* cz_desc_classe(const char* nome, std::uint32_t indice, std::uint32_t campos) noexcept {
+extern "C" const void* cz_desc_classe(const char* nome, std::uint32_t indice, std::uint32_t campos,
+                                      std::uint32_t rastreia) noexcept {
     const void* r = nullptr;
     fronteira([&] {
-        descs_classe.push_back(std::make_unique<CzClasseDesc>(CzClasseDesc{nome, indice, campos}));
+        descs_classe.push_back(std::make_unique<CzClasseDesc>(CzClasseDesc{nome, indice, campos, rastreia != 0}));
         r = descs_classe.back().get();
     });
     return r;

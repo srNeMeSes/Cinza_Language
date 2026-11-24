@@ -163,14 +163,14 @@ public:
     // Os descritores do runtime (antes das funções: os tipos dos parâmetros os usam)
     void registraStruct(const StructDecl& st) {
         struct_de[st.name] = static_cast<std::uint32_t>(m.structs.size());
-        DescStruct d{st.name, {}};
+        DescStruct d{st.name, {}, !st.aciclico};   // Q11
         for (const auto& c : st.fields) d.campos.push_back(c.name);
         m.structs.push_back(std::move(d));
         struct_decl.push_back(&st);
     }
     void registraClasse(const ClassDecl& c) {
         classe_de[c.class_name] = static_cast<std::uint32_t>(m.classes.size());
-        m.classes.push_back({c.class_name, static_cast<std::uint32_t>(c.fields.size())});
+        m.classes.push_back({c.class_name, static_cast<std::uint32_t>(c.fields.size()), !c.aciclico});   // Q11
         classe_decl.push_back(&c);
     }
     void registraEnum(const EnumDecl& e) {

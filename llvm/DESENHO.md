@@ -114,6 +114,14 @@ suíte normal e no modo sem vazamento.
   rastreados (lista, dict, par, objeto, struct), com `refs` no lugar de `use_count`. Não precisa
   enumerar raízes na pilha: uma referência de uma variável local é contagem que sobra. Strings e
   erros **não** são rastreados (não contêm contêineres, não formam ciclo).
+- **Q11 (2026-11-24): gerações e tipos acíclicos.** Os contêineres nascem jovens; a coleta comum
+  percorre só os jovens (uma referência de um velho para um jovem conta como de fora) e promove
+  os que sobram; a completa, as duas gerações, roda quando os velhos crescem metade desde a
+  última. Os objetos de classes e structs cujo tipo não alcança a si mesmo pelos campos (o
+  semântico decide; o descritor leva `rastreia`) nem entram no registro: nunca estão num ciclo.
+- **Q11: alocação.** Os objetos do runtime, os vetores de campos e os nós dos dicts vêm de um
+  alocador de objetos pequenos (`aloca::` em `gc_object.h`: classes de 16 bytes até 256, listas
+  livres, sem trava); no build de depuração, direto do heap (para o ASan).
 - **Quando a coleta roda:** nas funções do runtime que criam contêineres (o equivalente ao
   `NEWOBJ` de hoje), quando nasceram contêineres suficientes. É seguro porque todo ponteiro vivo no
   código gerado é **dono** de uma referência (seção 3): nenhum ponteiro emprestado atravessa uma

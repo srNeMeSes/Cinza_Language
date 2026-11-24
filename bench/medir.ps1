@@ -2,6 +2,8 @@
 # nativo (cinzac -O2, se llvm/bin/cinzac.exe existir: make cinzac). A saída dos dois tem de
 # ser a mesma; programa que falha aparece como "-".
 # Uso (na raiz do projeto): powershell -File bench/medir.ps1
+# Q11: os mesmos programas em Python, para a ordem de grandeza: python bench/python/referencias.py
+# (o tempo de uma rodada varia com a máquina; para comparar duas versões, rode-as intercaladas)
 $cinzac = ".\llvm\bin\cinzac.exe"
 $pasta  = Join-Path $env:TEMP "cinza_bench"
 New-Item -ItemType Directory -Force $pasta | Out-Null

@@ -42,6 +42,7 @@ private:
         auto d = std::make_unique<CzStructDesc>();
         d->nome = st->name;
         for (const auto& f : st->fields) d->campos.push_back(f.name);
+        d->rastreia = !st->aciclico;   // Q11
         return d;
     }
     const CzEnumDesc* descEnum(const EnumDecl* en) {
@@ -1185,7 +1186,7 @@ Image Compiler::run() {
             if (!c->fields.empty()) ref.init = newProto("", c->token);   // oculto
             img.desc_classes.push_back(std::make_unique<CzClasseDesc>(CzClasseDesc{
                 c->class_name, static_cast<std::uint32_t>(img.classes.size()),
-                static_cast<std::uint32_t>(c->fields.size())}));
+                static_cast<std::uint32_t>(c->fields.size()), !c->aciclico}));   // Q11
             class_of[c->class_name] = img.classes.size();
             img.classes.push_back(ref);
         }

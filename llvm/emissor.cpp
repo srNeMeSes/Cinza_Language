@@ -161,7 +161,11 @@ struct Emissor::Impl {
     LLVMBuilderRef       be  = nullptr;   // os alloca, no bloco de entrada
 
     LLVMTypeRef tI1{}, tI8{}, tI32{}, tI64{}, tF32{}, tF64{}, tPtr{}, tVoid{};
-    LLVMTypeRef tValor{};    // CzValor: { i8 tipo, [3 x i8], i32 extra, i64 u }
+    // CzValor: { i64 cabeça, i64 u }, a cabeça = tipo | extra << 32 (o layout do C, em little-endian).
+    // Q11: antes { i8, [3 x i8], i32, i64 }, gravado em pedaços (um byte, um memset de 7, o u); o
+    // runtime lê o tipo com uma leitura de 4 ou 8 bytes, que não aproveita gravações menores ainda
+    // em trânsito (store-to-load forwarding) e espera cada uma chegar ao cache
+    LLVMTypeRef tValor{};
     LLVMTypeRef tPos{};      // CzPos: { i32 arquivo, i32 linha, i32 coluna }
     LLVMTypeRef tFuncao{};   // CzFuncao: { ptr nome, i32 arquivo, i32 linha, i32 coluna }
     LLVMTypeRef tExec{};     // CzExec: { ptr erro, i32 prof, i32, [N x { ptr f, ptr pos }] }
@@ -299,8 +303,8 @@ struct Emissor::Impl {
         tPtr = LLVMPointerTypeInContext(ctx, 0);
         tVoid = LLVMVoidTypeInContext(ctx);
         tValor = LLVMStructCreateNamed(ctx, "CzValor");
-        LLVMTypeRef cv[] = {tI8, LLVMArrayType2(tI8, 3), tI32, tI64};
-        LLVMStructSetBody(tValor, cv, 4, 0);
+        LLVMTypeRef cv[] = {tI64, tI64};
+        LLVMStructSetBody(tValor, cv, 2, 0);
         tPos = LLVMStructCreateNamed(ctx, "CzPos");
         LLVMTypeRef cp[] = {tI32, tI32, tI32};
         LLVMStructSetBody(tPos, cp, 3, 0);
@@ -359,16 +363,10 @@ struct Emissor::Impl {
             case cir::Operando::K::Bool:    return LLVMConstInt(tI1, o.i ? 1 : 0, 0);
             case cir::Operando::K::Literal: return LLVMBuildLoad2(b, tPtr, literais[o.indice], "lit");
             case cir::Operando::K::Nulo:    return LLVMConstNull(tPtr);
-            case cir::Operando::K::Vazio: {   // o CzValor void: tipo VOID_VAL, o resto zerado
-                LLVMValueRef campos[] = {LLVMConstInt(tI8, kind(Value::Kind::VOID_VAL), 0),
-                                         LLVMConstNull(LLVMArrayType2(tI8, 3)), ci32(0), ci64(0)};
-                return LLVMConstNamedStruct(tValor, campos, 4);
-            }
-            case cir::Operando::K::Ausente: {   // Q1b: o CzValor null
-                LLVMValueRef campos[] = {LLVMConstInt(tI8, kind(Value::Kind::NULO), 0),
-                                         LLVMConstNull(LLVMArrayType2(tI8, 3)), ci32(0), ci64(0)};
-                return LLVMConstNamedStruct(tValor, campos, 4);
-            }
+            case cir::Operando::K::Vazio:     // o CzValor void: tipo VOID_VAL, o resto zerado
+                return valorConst(kind(Value::Kind::VOID_VAL), 0);
+            case cir::Operando::K::Ausente:   // Q1b: o CzValor null
+                return valorConst(kind(Value::Kind::NULO), 0);
             case cir::Operando::K::DescStruct: return LLVMBuildLoad2(b, tPtr, descs_struct[o.indice], "desc");
             case cir::Operando::K::DescClasse: return LLVMBuildLoad2(b, tPtr, descs_classe[o.indice], "desc");
             case cir::Operando::K::Enum:   // { ENUM, extra = o índice do valor, u = o descritor }
@@ -380,12 +378,18 @@ struct Emissor::Impl {
         return nullptr;
     }
 
+    // A cabeça do CzValor: o tipo no byte 0, o extra nos bytes 4 a 7
+    LLVMValueRef cabeca(std::uint8_t k, std::uint32_t extra) {
+        return ci64(static_cast<std::int64_t>(static_cast<std::uint64_t>(k) | (static_cast<std::uint64_t>(extra) << 32)));
+    }
+    LLVMValueRef valorConst(std::uint8_t k, std::uint32_t extra, std::int64_t u = 0) {
+        LLVMValueRef campos[] = {cabeca(k, extra), ci64(u)};
+        return LLVMConstNamedStruct(tValor, campos, 2);
+    }
     LLVMValueRef valorDireto(std::uint8_t k, std::uint32_t extra, LLVMValueRef ptr) {
         LLVMValueRef v = LLVMGetUndef(tValor);
-        v = LLVMBuildInsertValue(b, v, LLVMConstInt(tI8, k, 0), 0, "");
-        v = LLVMBuildInsertValue(b, v, LLVMConstNull(LLVMArrayType2(tI8, 3)), 1, "");
-        v = LLVMBuildInsertValue(b, v, LLVMConstInt(tI32, extra, 0), 2, "");
-        return LLVMBuildInsertValue(b, v, LLVMBuildPtrToInt(b, ptr, tI64, ""), 3, "");
+        v = LLVMBuildInsertValue(b, v, cabeca(k, extra), 0, "");
+        return LLVMBuildInsertValue(b, v, LLVMBuildPtrToInt(b, ptr, tI64, ""), 1, "");
     }
 
     // Um valor como os bits do campo `u` do CzValor (os altos zerados, como no Value)
@@ -616,10 +620,8 @@ struct Emissor::Impl {
     LLVMValueRef embrulha(const cir::Operando& o) {
         const cir::Tipo t = tipoOp(o);
         LLVMValueRef v = LLVMGetUndef(tValor);
-        v = LLVMBuildInsertValue(b, v, LLVMConstInt(tI8, kindDe(t), 0), 0, "");
-        v = LLVMBuildInsertValue(b, v, LLVMConstNull(LLVMArrayType2(tI8, 3)), 1, "");
-        v = LLVMBuildInsertValue(b, v, LLVMConstInt(tI32, 0, 0), 2, "");
-        return LLVMBuildInsertValue(b, v, bits(val(o), t), 3, "valor");
+        v = LLVMBuildInsertValue(b, v, cabeca(kindDe(t), 0), 0, "");
+        return LLVMBuildInsertValue(b, v, bits(val(o), t), 1, "valor");
     }
 
     void instrucao(const cir::Instr& in) {
@@ -668,7 +670,7 @@ struct Emissor::Impl {
             case Op::Desembrulha:   // enum e tipo já são o CzValor inteiro
                 temps[in.dst] = cir::ehValorDireto(cf->temps[in.dst])
                                     ? val(in.args[0])
-                                    : deBits(LLVMBuildExtractValue(b, val(in.args[0]), 3, ""), cf->temps[in.dst]);
+                                    : deBits(LLVMBuildExtractValue(b, val(in.args[0]), 1, ""), cf->temps[in.dst]);
                 break;
             case Op::ChamaNativa: {
                 LLVMValueRef vetor = LLVMConstNull(tPtr);
@@ -740,7 +742,7 @@ struct Emissor::Impl {
                     if (cir::ehValorDireto(t)) {
                         temps[in.dst] = LLVMBuildLoad2(b, tValor, lugar, "");
                     } else {
-                        LLVMValueRef pu = LLVMBuildStructGEP2(b, tValor, lugar, 3, "");
+                        LLVMValueRef pu = LLVMBuildStructGEP2(b, tValor, lugar, 1, "");
                         temps[in.dst] = deBits(LLVMBuildLoad2(b, tI64, pu, ""), t);
                     }
                 } else {   // o valor inteiro (o tipo também): o antigo não tem referência
@@ -811,7 +813,8 @@ struct Emissor::Impl {
                 break;
             case Op::Inalcancavel: LLVMBuildUnreachable(b); break;
             case Op::EhNulo:   // Q1b: o tipo do CzValor é o do null
-                temps[in.dst] = LLVMBuildICmp(b, LLVMIntEQ, LLVMBuildExtractValue(b, val(in.args[0]), 0, ""),
+                temps[in.dst] = LLVMBuildICmp(b, LLVMIntEQ,
+                                              LLVMBuildTrunc(b, LLVMBuildExtractValue(b, val(in.args[0]), 0, ""), tI8, ""),
                                               LLVMConstInt(tI8, kind(Value::Kind::NULO), 0), "eh.null");
                 break;
             case Op::RetErro:
@@ -870,9 +873,7 @@ struct Emissor::Impl {
                     const cir::Operando& a = in.args[info.params.size() + i];
                     auto lit = a.k == cir::Operando::K::Temp ? literal_de.find(a.indice) : literal_de.end();
                     if (n >= 8 && lit != literal_de.end()) {   // a string literal como marca constante
-                        LLVMValueRef c[] = {LLVMConstInt(tI8, CZ_TIPO_LITERAL, 0), LLVMConstNull(LLVMArrayType2(tI8, 3)),
-                                            ci32(lit->second), ci64(0)};
-                        vs.push_back(LLVMConstNamedStruct(tValor, c, 4));
+                        vs.push_back(valorConst(CZ_TIPO_LITERAL, lit->second));
                     } else {
                         vs.push_back(val(a));
                     }
@@ -1061,15 +1062,17 @@ struct Emissor::Impl {
         };
         for (std::size_t i = 0; i < m.structs.size(); ++i) {
             const std::string n = "cz.ds." + std::to_string(i);
-            LLVMValueRef d = chamaRt(rt("cz_desc_struct", tPtr, {tPtr, tPtr, tI64}),
+            LLVMValueRef d = chamaRt(rt("cz_desc_struct", tPtr, {tPtr, tPtr, tI64, tI32}),
                                      {textoC(m.structs[i].nome, n + ".nome"), textos(m.structs[i].campos, n + ".campos"),
-                                      ci64(static_cast<std::int64_t>(m.structs[i].campos.size()))});
+                                      ci64(static_cast<std::int64_t>(m.structs[i].campos.size())),
+                                      ci32(m.structs[i].rastreia ? 1 : 0)});
             LLVMBuildStore(b, d, descs_struct[i]);
         }
         for (std::size_t i = 0; i < m.classes.size(); ++i) {
-            LLVMValueRef d = chamaRt(rt("cz_desc_classe", tPtr, {tPtr, tI32, tI32}),
+            LLVMValueRef d = chamaRt(rt("cz_desc_classe", tPtr, {tPtr, tI32, tI32, tI32}),
                                      {textoC(m.classes[i].nome, "cz.dc." + std::to_string(i) + ".nome"),
-                                      ci32(static_cast<std::int64_t>(i)), ci32(m.classes[i].campos)});
+                                      ci32(static_cast<std::int64_t>(i)), ci32(m.classes[i].campos),
+                                      ci32(m.classes[i].rastreia ? 1 : 0)});
             LLVMBuildStore(b, d, descs_classe[i]);
         }
         for (std::size_t i = 0; i < m.enums.size(); ++i) {
@@ -1372,8 +1375,9 @@ bool Emissor::confereLayout(std::string& relato) {
         ok = ok && certo;
         return t;
     };
-    confere("CzValor", {i8, LLVMArrayType2(i8, 3), i32, i64}, sizeof(CzValor),
-            {offsetof(CzValor, tipo), offsetof(CzValor, _r), offsetof(CzValor, extra), offsetof(CzValor, u)});
+    // Q11: a cabeça (tipo, _r, extra) é um i64 no código gerado: tipo no byte 0, extra no 4
+    static_assert(offsetof(CzValor, tipo) == 0 && offsetof(CzValor, extra) == 4, "a cabeça do CzValor");
+    confere("CzValor", {i64, i64}, sizeof(CzValor), {offsetof(CzValor, tipo), offsetof(CzValor, u)});
     confere("CzObjeto", {i32, i8, i8, i16, ptr, ptr, ptr}, sizeof(CzObjeto),
             {offsetof(CzObjeto, refs), offsetof(CzObjeto, gc_kind), offsetof(CzObjeto, marcas),
              offsetof(CzObjeto, _reservado), offsetof(CzObjeto, desc), offsetof(CzObjeto, ant),

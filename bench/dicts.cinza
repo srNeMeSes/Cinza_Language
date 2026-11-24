@@ -1,0 +1,14 @@
+// Benchmark Q11: dict com chave número e com chave texto — contar, ler, trocar.
+fn main() {
+  dict<i32, i32> conta;
+  for (i32 i in range(0, 1000000)) {
+    i32 k = (i * 31) % 5000;
+    if (conta.has(k)) { conta[k] = conta[k] + 1; } else { conta.add({k, 1}); }
+  }
+  dict<string, i32> nomes;
+  for (i32 i in range(0, 300000)) {
+    string k = "n" + cast<string>(i % 2000);
+    if (nomes.has(k)) { nomes[k] = nomes[k] + 1; } else { nomes.add({k, 1}); }
+  }
+  print(conta.size(), conta[0], nomes.size(), nomes["n7"]);
+}

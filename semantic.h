@@ -310,6 +310,9 @@ private:
     // outros campos não usam self nem métodos, e nenhum ciclo deles entre classes
     void confereCamposObrigatorios(ClassDecl* stmt, bool com_construtor);
     void checkRequiredFieldCycles(const std::vector<ModuleUnit>& units);
+    // Q11: marca as classes e os structs cujo tipo não alcança a si mesmo (fora da coleta de ciclos)
+    void marcaAciclicos(const std::vector<ModuleUnit>& units);
+    bool tipoAciclico(TypeRef tipo) const;
     void analyzeYield(YieldStmt* stmt);                       // Q1b
     // Q1b: a declaração de um if/while (T nome = opcional): confere e declara a variável no escopo
     // atual (o do bloco); devolve o slot

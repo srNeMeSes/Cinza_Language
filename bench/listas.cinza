@@ -1,0 +1,12 @@
+// Benchmark Q11: list<i32> grande — preencher, somar pelo índice e pelo for, ordenar.
+import Lists;
+fn main() {
+  list<i32> l;
+  for (i32 i in range(0, 2000000)) { l.add(cast<i32>((cast<i64>(i) * 7919) % 100003)); }
+  i64 soma = 0;
+  for (i32 i in range(0, l.size())) { soma += cast<i64>(l[i]); }
+  for (i32 x in l) { soma += cast<i64>(x); }
+  for (i32 i in range(0, l.size())) { l[i] = l[i] + 1; }
+  Lists.sort(l);
+  print(soma, l[0], l[l.size() - 1]);
+}

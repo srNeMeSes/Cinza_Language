@@ -1,0 +1,46 @@
+// Q11: a coleta por gerações. (1) Um velho (a lista `guarda`, que sobrevive às coletas) segura
+// jovens criados depois: a coleta dos jovens não pode tocá-los (a referência do velho conta como
+// de fora). (2) Ciclos que envelhecem enquanto ainda são usados (ficam em `vivos` por algumas
+// coletas) e só depois viram lixo: a coleta dos jovens não os vê, e a completa os libera. (3) Um
+// jovem preso só por um ciclo velho que virou lixo: continua inteiro até a completa.
+// env: CINZA_GC_STATS=1
+class No {
+  i64 valor = 0;
+  list<No> vizinhos;
+  pub {
+    No(i64 v) { valor = v; }
+    fn liga(No o) { vizinhos.add(o); }
+    fn soma() -> i64 {
+      i64 s = valor;
+      for (No n in vizinhos) { s += n.valor; }
+      return s;
+    }
+  }
+}
+fn main() {
+  list<No> guarda;
+  list<No> vivos;
+  i64 conferido = 0;
+  for (i64 i in range(0, 60000)) {
+    // (1) o velho guarda um jovem a cada 10 voltas
+    if (i % 10 == 0) { guarda.add(new No(i)); }
+    // (2) um ciclo que fica vivo por um tempo
+    No a = new No(1);
+    No b = new No(2);
+    a.liga(b);
+    b.liga(a);
+    vivos.add(a);
+    if (vivos.size() == 25000) {
+      for (No n in vivos) { conferido += n.soma(); }
+      // (3) um jovem preso só pelo ciclo velho que vai virar lixo
+      vivos[0].liga(new No(100));
+      list<No> nova;
+      vivos = nova;
+    }
+  }
+  i64 total = 0;
+  for (No n in guarda) { total += n.soma(); }
+  print(guarda.size(), total, conferido, vivos.size());
+}
+// expect: 6000 179970000 150000 10000
+// expect: [gc] liberados em ciclos: 240004, contêineres vivos: 0

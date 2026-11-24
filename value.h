@@ -40,10 +40,12 @@ struct CzClasseDesc {
     std::string   nome;
     std::uint32_t indice = 0;   // na tabela de classes do backend (métodos, interfaces)
     std::uint32_t campos = 0;
+    bool          rastreia = true;   // Q11: falso se o tipo é acíclico (fora da coleta de ciclos)
 };
 struct CzStructDesc {
     std::string              nome;
     std::vector<std::string> campos;   // na ordem da declaração (print, s.campo)
+    bool                     rastreia = true;   // Q11: como em CzClasseDesc
 };
 struct CzEnumDesc {
     std::string              nome;
@@ -303,6 +305,10 @@ static_assert(sizeof(Value) == 16, "o Value é o CzValor com posse");
 // Definidos APÓS Value para que Value seja completo quando são usados.
 // ============================================================================
 
+// Q11: os campos (struct, objeto) e os nós do dict vêm do alocador de objetos pequenos
+using Campos   = std::vector<Value, aloca::Pequeno<Value>>;
+using Entradas = std::map<Value, Value, std::less<Value>, aloca::Pequeno<std::pair<const Value, Value>>>;
+
 // Lista homogênea: list<T>
 struct CinzaList : GcObject {
     std::vector<Value> elements;
@@ -315,7 +321,7 @@ struct CinzaList : GcObject {
 // Dicionário: dict<K, V>
 // Usa std::map para aproveitar a ordem total definida em Value.
 struct CinzaDict : GcObject {
-    std::map<Value, Value> entries;
+    Entradas entries;   // Q11: os nós pelo alocador de objetos pequenos
 
     CinzaDict() : GcObject(GcKind::Dict) {}
 };
@@ -341,11 +347,11 @@ struct CinzaPair : GcObject {
 // ============================================================================
 
 struct ClassInstance : GcObject {
-    std::vector<Value> fields;
+    Campos fields;   // Q11: pelo alocador de objetos pequenos
 
     ClassInstance() : GcObject(GcKind::Instance) {}
     explicit ClassInstance(const CzClasseDesc* d)
-        : GcObject(GcKind::Instance), fields(d ? d->campos : 0) { desc = d; }
+        : GcObject(GcKind::Instance, !d || d->rastreia), fields(d ? d->campos : 0) { desc = d; }
 
     const CzClasseDesc* classe() const { return static_cast<const CzClasseDesc*>(desc); }
 };
@@ -359,10 +365,10 @@ struct ClassInstance : GcObject {
 // ============================================================================
 
 struct StructValue : GcObject {
-    std::vector<Value> fields;
+    Campos fields;   // Q11: pelo alocador de objetos pequenos
 
     StructValue() : GcObject(GcKind::Struct) {}
-    explicit StructValue(const CzStructDesc* d) : GcObject(GcKind::Struct) { desc = d; }
+    explicit StructValue(const CzStructDesc* d) : GcObject(GcKind::Struct, !d || d->rastreia) { desc = d; }
 
     const CzStructDesc* tipo() const { return static_cast<const CzStructDesc*>(desc); }
 
@@ -412,10 +418,16 @@ inline ClassInstance* Value::asInstance() const { confere(Kind::INSTANCE); retur
 inline StructValue* Value::asStruct() const { confere(Kind::STRUCT); return static_cast<StructValue*>(v.u.obj); }
 inline ErrorValue* Value::asError() const { confere(Kind::ERROR); return static_cast<ErrorValue*>(v.u.obj); }
 
+// Q11: o clone de um struct, fora de linha — o construtor de cópia do Value está em todo lugar
+// (no laço de despacho da CVM também), e o caminho comum dele é só o retain
+[[gnu::noinline]] inline CzObjeto* clonaStruct(const StructValue& s) {
+    return static_cast<CzObjeto*>(novo<StructValue>(s).solta());
+}
+
 inline Value::Value(const Value& other) : v(other.v) {
     if (other.kind() == Kind::STRUCT) {
         // clona; campos copiados um a um
-        v.u.obj = static_cast<CzObjeto*>(novo<StructValue>(*other.asStruct()).solta());
+        v.u.obj = clonaStruct(*other.asStruct());
     } else if (guardaObjeto(kind())) {
         czRetain(v.u.obj);
     }
@@ -681,11 +693,12 @@ inline std::string Value::toString() const {
 // Funções globais para criar valores de coleção de forma expressiva.
 // ============================================================================
 
-inline Value makeList(std::vector<Value> elems = {}) {
+// Q11: as fábricas fora de linha (a alocação e o registro da coleta não entram em quem chama)
+[[gnu::noinline]] inline Value makeList(std::vector<Value> elems = {}) {
     return Value(novo<CinzaList>(std::move(elems)));
 }
 
-inline Value makeDict() {
+[[gnu::noinline]] inline Value makeDict() {
     return Value(novo<CinzaDict>());
 }
 
@@ -693,7 +706,7 @@ inline Value makePair(Value first, Value second) {
     return Value(novo<CinzaPair>(std::move(first), std::move(second)));
 }
 
-inline Value makeInstance(const CzClasseDesc* desc) {
+[[gnu::noinline]] inline Value makeInstance(const CzClasseDesc* desc) {
     return Value(novo<ClassInstance>(desc));
 }
 
@@ -717,20 +730,6 @@ inline void czApaga(CzObjeto* o) noexcept {
         case GcKind::Error:    delete static_cast<ErrorValue*>(o);    break;
         case GcKind::String:   delete static_cast<CzString*>(o);      break;
     }
-}
-
-inline void czDestroi(CzObjeto* o) noexcept {
-    if (o->marcas & marca::LIGADO) static_cast<GcObject*>(o)->desliga();
-    o->prox = gc_registro.fila;
-    gc_registro.fila = o;
-    if (gc_registro.esvaziando) return;
-    gc_registro.esvaziando = true;
-    while (CzObjeto* x = gc_registro.fila) {
-        gc_registro.fila = x->prox;
-        x->prox = nullptr;
-        czApaga(x);
-    }
-    gc_registro.esvaziando = false;
 }
 
 } // namespace cinza

@@ -1,0 +1,42 @@
+// Benchmark Q11: simulação de corpos (campos f64 de objetos numa lista, Math.sqrt).
+import Math;
+class Corpo {
+  f64 x = 0.0ff;
+  f64 y = 0.0ff;
+  f64 vx = 0.0ff;
+  f64 vy = 0.0ff;
+  f64 m = 1.0ff;
+  pub {
+    Corpo(f64 px, f64 py, f64 massa) { x = px; y = py; m = massa; }
+    fn interage(Corpo b, f64 dt) {
+      f64 dx = x - b.x;
+      f64 dy = y - b.y;
+      f64 d2 = dx * dx + dy * dy + 0.01ff;
+      f64 f = dt / (d2 * Math.sqrt(d2));
+      vx -= dx * b.m * f;
+      vy -= dy * b.m * f;
+      b.vx += dx * m * f;
+      b.vy += dy * m * f;
+    }
+    fn anda(f64 dt) { x += dt * vx; y += dt * vy; }
+    fn energia() -> f64 { return m * (vx * vx + vy * vy); }
+  }
+}
+fn passo(list<Corpo> cs, f64 dt) {
+  i32 n = cs.size();
+  for (i32 i in range(0, n)) {
+    Corpo a = cs[i];
+    for (i32 j in range(i + 1, n)) { a.interage(cs[j], dt); }
+  }
+  for (Corpo c in cs) { c.anda(dt); }
+}
+fn main() {
+  list<Corpo> cs;
+  for (i32 i in range(0, 8)) {
+    cs.add(new Corpo(cast<f64>(i), cast<f64>(i % 3), 1.0ff + cast<f64>(i) * 0.1ff));
+  }
+  for (i32 k in range(0, 100000)) { passo(cs, 0.001ff); }
+  f64 e = 0.0ff;
+  for (Corpo c in cs) { e += c.energia(); }
+  printf("{e:.6f}");
+}

@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <new>
 #include <utility>
 
 namespace cinza {
@@ -28,6 +29,72 @@ namespace cinza {
 //     duplamente ligado (`ant`/`prox`), que a coleta de ciclos (gc.h) percorre.
 // ============================================================================
 
+// ============================================================================
+// ALOCADOR DE OBJETOS PEQUENOS (Q11)
+//
+// Os objetos do runtime (o cabeçalho e o resto), os vetores de campos e os nós dos dicts são
+// pequenos e nascem e morrem aos milhões; pelo heap do sistema (o HeapAlloc no Windows), eram
+// 30 a 45% do tempo dos programas com dados. Aqui: classes de 16 em 16 bytes até 256, cada uma
+// com a sua lista de blocos livres, tirados de pedaços de 64 KB. Um bloco solto volta para a
+// lista da classe dele (a memória fica com o programa, para ser reusada, como no pymalloc).
+// Sem trava: o runtime roda numa thread só (a Cinza não tem threads). No build de depuração
+// (CINZA_CONFERE_REFS, ASan) vai direto ao heap, para o ASan ver uso depois de liberar.
+// ============================================================================
+namespace aloca {
+inline constexpr std::size_t PASSO = 16, MAXIMO = 256, CLASSES = MAXIMO / PASSO, PEDACO = 64 * 1024;
+struct Livre { Livre* prox; };
+struct Estado {   // sem construtor: inicialização constante (válido antes e depois do main)
+    Livre*      livres[CLASSES + 1] = {};
+    char*       pedaco = nullptr;
+    std::size_t resto  = 0;
+};
+inline Estado estado{};
+
+#if defined(CINZA_CONFERE_REFS) || defined(__SANITIZE_ADDRESS__)
+inline void* pega(std::size_t n) { return ::operator new(n); }
+inline void  solta(void* p, std::size_t) noexcept { ::operator delete(p); }
+#else
+[[gnu::noinline]] inline void* novoPedaco(std::size_t t) {
+    void* p = std::malloc(PEDACO);
+    if (!p) throw std::bad_alloc();
+    estado.pedaco = static_cast<char*>(p) + t;
+    estado.resto  = PEDACO - t;
+    return p;
+}
+inline void* pega(std::size_t n) {
+    if (n > MAXIMO || n == 0) return ::operator new(n);
+    const std::size_t c = (n + PASSO - 1) / PASSO;
+    if (Livre* l = estado.livres[c]) { estado.livres[c] = l->prox; return l; }
+    const std::size_t t = c * PASSO;
+    if (estado.resto < t) return novoPedaco(t);
+    void* p = estado.pedaco;
+    estado.pedaco += t;
+    estado.resto -= t;
+    return p;
+}
+inline void solta(void* p, std::size_t n) noexcept {
+    if (!p) return;
+    if (n > MAXIMO || n == 0) { ::operator delete(p); return; }
+    const std::size_t c = (n + PASSO - 1) / PASSO;
+    Livre* l = static_cast<Livre*>(p);
+    l->prox = estado.livres[c];
+    estado.livres[c] = l;
+}
+#endif
+
+// Para os contêineres da biblioteca padrão (campos, nós do dict): sem estado, então o layout do
+// std::vector continua o mesmo (o código nativo lê o início do vetor de campos)
+template <typename T>
+struct Pequeno {
+    using value_type = T;
+    Pequeno() noexcept = default;
+    template <typename U> Pequeno(const Pequeno<U>&) noexcept {}
+    T* allocate(std::size_t n) { return static_cast<T*>(pega(n * sizeof(T))); }
+    void deallocate(T* p, std::size_t n) noexcept { solta(p, n * sizeof(T)); }
+    template <typename U> bool operator==(const Pequeno<U>&) const noexcept { return true; }
+};
+} // namespace aloca
+
 // O tipo do objeto (o enum continua com o nome da coleta de ciclos)
 enum class GcKind : std::uint8_t { List, Dict, Pair, Instance, Struct, Error, String };
 
@@ -35,6 +102,7 @@ enum class GcKind : std::uint8_t { List, Dict, Pair, Instance, Struct, Error, St
 namespace marca {
 inline constexpr std::uint8_t IMORTAL = 1;   // não conta referências (literais, no futuro)
 inline constexpr std::uint8_t LIGADO  = 2;   // está no registro da coleta de ciclos
+inline constexpr std::uint8_t VELHO   = 4;   // Q11: sobreviveu a uma coleta (na lista dos velhos)
 }
 
 struct CzObjeto {
@@ -52,6 +120,11 @@ struct CzObjeto {
     CzObjeto(const CzObjeto& o) noexcept : CzObjeto(o.gc_kind) { desc = o.desc; }
     CzObjeto& operator=(const CzObjeto&) noexcept { return *this; }   // o cabeçalho não muda
     ~CzObjeto();
+
+    // Q11: todo objeto do runtime vem do alocador de objetos pequenos (o delete de czApaga é
+    // pelo tipo exato, então o tamanho que chega aqui é o do objeto)
+    static void* operator new(std::size_t n) { return aloca::pega(n); }
+    static void  operator delete(void* p, std::size_t n) noexcept { aloca::solta(p, n); }
 };
 
 static_assert(sizeof(CzObjeto) == 32 && offsetof(CzObjeto, refs) == 0,
@@ -60,9 +133,14 @@ static_assert(sizeof(CzObjeto) == 32 && offsetof(CzObjeto, refs) == 0,
 // Estado global (sem construtor nem destrutor: inicialização constante, válido
 // mesmo para objetos destruídos no fim do programa)
 struct GcRegistry {
-    CzObjeto*   head       = nullptr;   // contêineres rastreados
-    std::size_t vivos      = 0;         // contêineres existentes agora
+    // Q11: duas gerações (gc.h): os contêineres nascem jovens; quem sobrevive a uma coleta passa
+    // para os velhos, que só a coleta completa percorre
+    CzObjeto*   head       = nullptr;   // contêineres rastreados jovens
+    CzObjeto*   velhos     = nullptr;   // contêineres rastreados velhos
+    std::size_t vivos      = 0;         // contêineres existentes agora (das duas gerações)
+    std::size_t jovens     = 0;         // idem, só os jovens
     std::size_t novos      = 0;         // contêineres criados desde a última coleta
+    std::size_t velhos_base = 0;        // velhos logo depois da última coleta completa
     std::size_t objetos    = 0;         // todos os objetos existentes (o modo sem vazamento)
     std::size_t por_tipo[7] = {};       // idem, por GcKind
     CzObjeto*   fila       = nullptr;   // fila de destruição
@@ -93,19 +171,23 @@ struct GcObject : CzObjeto {
     std::int64_t gc_refs = 0;
     bool gc_marca = false;   // idem: alcançável a partir de fora
 
-    explicit GcObject(GcKind k) noexcept : CzObjeto(k) { liga(); }
-    GcObject(const GcObject& o) noexcept : CzObjeto(o) { liga(); }
+    // Q11: `rastreia` falso para os objetos de tipo acíclico (o descritor diz): eles nunca estão
+    // num ciclo, e a coleta não precisa percorrê-los; o clone segue o original
+    explicit GcObject(GcKind k, bool rastreia = true) noexcept : CzObjeto(k) { if (rastreia) liga(); }
+    GcObject(const GcObject& o) noexcept : CzObjeto(o) { if (o.marcas & marca::LIGADO) liga(); }
     GcObject& operator=(const GcObject&) noexcept { return *this; }
     ~GcObject() { desliga(); }
 
     void desliga() noexcept {
         if (!(marcas & marca::LIGADO)) return;
+        const bool velho = marcas & marca::VELHO;
         if (ant) ant->prox = prox;
-        else     gc_registro.head = prox;
+        else     (velho ? gc_registro.velhos : gc_registro.head) = prox;
         if (prox) prox->ant = ant;
         ant = prox = nullptr;
-        marcas &= static_cast<std::uint8_t>(~marca::LIGADO);
+        marcas &= static_cast<std::uint8_t>(~(marca::LIGADO | marca::VELHO));
         --gc_registro.vivos;
+        if (!velho) --gc_registro.jovens;
     }
 
 private:
@@ -115,13 +197,32 @@ private:
         gc_registro.head = this;
         marcas |= marca::LIGADO;
         ++gc_registro.vivos;
+        ++gc_registro.jovens;
         ++gc_registro.novos;
     }
 };
 
-// Destrói um objeto que chegou a zero (definida em value.h, onde os tipos
-// concretos estão completos)
-inline void czDestroi(CzObjeto* o) noexcept;
+// Apaga um objeto pelo tipo exato (definida em value.h, onde os tipos concretos estão completos)
+inline void czApaga(CzObjeto* o) noexcept;
+
+// Destrói um objeto que chegou a zero: sai do registro e entra na fila de destruição (value.h,
+// DESTRUIÇÃO ITERATIVA). Q11: fora de linha — o release está em todo destrutor de Value, e com a
+// destruição inlinada o destrutor fica grande demais para ser inlinado nos chamadores (o
+// stable_sort de uma lista destrói milhões de valores movidos: cada um virava uma chamada)
+[[gnu::noinline, gnu::cold]] inline void czDestroi(CzObjeto* o) noexcept {
+    if (o->marcas & marca::LIGADO) static_cast<GcObject*>(o)->desliga();
+    o->prox = gc_registro.fila;
+    gc_registro.fila = o;
+    if (gc_registro.esvaziando) return;
+    gc_registro.esvaziando = true;
+    while (CzObjeto* x = gc_registro.fila) {
+        gc_registro.fila = x->prox;
+        x->prox = nullptr;
+        czApaga(x);
+    }
+    gc_registro.esvaziando = false;
+}
+
 
 // Conferência da contagem: só no build de depuração (make debug)
 [[noreturn]] inline void czFalhaContagem(const char* o_que) noexcept {

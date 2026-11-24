@@ -10,6 +10,15 @@
 
 namespace cinza::cvm {
 
+namespace {
+// Q11: o NEWSTRUCT fora do laço de despacho (a alocação e o registro da coleta não entram nele)
+[[gnu::noinline]] Value novoStruct(const CzStructDesc* d, const Value* campos, std::size_t n) {
+    auto sv = novo<StructValue>(d);
+    sv->fields.assign(campos, campos + n);
+    return Value(std::move(sv));
+}
+}  // namespace
+
 // ============================================================================
 // ERROS E STACK TRACE — formato da spec 7 ("em f (arquivo:linha)")
 // ============================================================================
@@ -389,9 +398,7 @@ Value VM::dispatch(std::size_t entrada) {
                 }
                 case Op::NEWSTRUCT: {
                     gcMaybeCollect();
-                    auto sv  = novo<StructValue>(img.desc_structs[in.b].get());
-                    sv->fields.assign(R + in.a, R + in.a + in.c);
-                    R[in.a] = Value(std::move(sv));
+                    R[in.a] = novoStruct(img.desc_structs[in.b].get(), R + in.a, in.c);
                     break;
                 }
                 case Op::GETFIELD: {

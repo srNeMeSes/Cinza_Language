@@ -2178,6 +2178,55 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
   > pedida, majors diferentes, sem `get`, sem cache, o cache alterado, a tag movida, o lock
   > desatualizado, remove, dependência local num pacote git, tag que não existe, o `//` da URL).
   > Spec: 4.11 (o `czm.mod` e os pacotes).
+- [ ] Q11. Desempenho (antes da 1.0, decisão do autor de 2026-11-22), sem mudar a semântica. Medir
+  com programas de verdade e atacar o que o perfil mostra, nas duas implementações.
+  1. **Medição**: `bench/` ganha seis programas com dados (`listas`, `dicts`, `arvores`, `corpos`,
+     `texto`, `structs_lista`) e as versões em Python (`bench/python/referencias.py`), para a
+     ordem de grandeza. Os sete de antes rodavam em 15–800 ms e quase não tinham dados.
+  2. **Runtime** (comum aos dois): o alocador, a coleta de ciclos, os caminhos quentes.
+  3. **Código nativo**: campos de referência e índice de lista em linha, chamada direta das
+     funções numéricas da biblioteca (`Math`), emprestar em vez de clonar o struct lido só para
+     um campo (`ps[i].x`).
+  4. **Representação nativa** (campos tipados, `list<i32>` como vetor de `int32_t`): só se a
+     medição depois das fatias 2 e 3 pedir.
+  > Andamento (2026-11-24), fatia 1 (medição e runtime). O perfil (um amostrador que lê o RIP e a
+  > cadeia de frames a cada 1 ms, fora do repositório) mostrou, nos programas novos: o heap do
+  > Windows (`HeapAlloc`) com 30 a 45% do tempo; a coleta de ciclos varrendo todos os vivos (50%
+  > do `structs_lista`); `TypeContext::intern` (uma busca no mapa com chave composta) a cada
+  > conversão e a cada função da biblioteca; o `cz_nativa` alocando um vetor por chamada. Feito:
+  > (a) **alocador de objetos pequenos** (`gc_object.h`, `aloca::`): classes de 16 em 16 bytes até
+  > 256, listas livres, pedaços de 64 KB, sem trava (uma thread), para os objetos do runtime, os
+  > vetores de campos (`Campos`) e os nós dos dicts (`Entradas`); no build de depuração vai direto
+  > ao heap, para o ASan; (b) **coleta por gerações** (`gc.h`): os contêineres nascem jovens, a
+  > coleta comum percorre só os jovens (a referência de um velho conta como de fora) e promove os
+  > que sobram; a completa roda quando os velhos crescem metade desde a última; (c) **tipos
+  > acíclicos fora da coleta**: o semântico marca as classes e os structs cujo tipo não alcança a
+  > si mesmo pelos campos e parâmetros (interface e tipo não resolvido contam como alcançar tudo;
+  > `marcaAciclicos`), e o descritor leva a marca aos dois backends (`rastreia`); (d) os tipos
+  > primitivos guardados no `TypeContext`; (e) os argumentos do `cz_nativa` e do `cz_metodo` na
+  > pilha, construindo só os usados; (f) a criação e o clone dos objetos fora de linha: no laço de
+  > despacho da CVM, o corpo inlinado mudava a alocação de registradores do laço inteiro (o `fib`,
+  > que nem cria objetos, ficava 35% mais lento); (g) o `czDestroi` (o objeto chegou a zero) fora de
+  > linha e frio (`gnu::noinline, gnu::cold`): inlinado, o destrutor do `Value` ficava grande demais
+  > para o clang inliná-lo, e o `stable_sort` de uma lista destruía milhões de valores movidos com
+  > uma chamada cada; sem o `cold`, a chamada no laço de despacho do g++ deixava a CVM mais lenta;
+  > (h) no código gerado, o `CzValor` é `{ i64 cabeça, i64 u }` (a cabeça é `tipo | extra << 32`),
+  > gravado em duas palavras em vez de um byte, um `memset` de 7 e o `u` (`--confere-layout`
+  > confere). **Medição** (A/B intercalado contra o `main`, mediana de 5, ms, mesma máquina;
+  > CVM main → ramo, nativo main → ramo): `structs_lista` 3726 → 629, 3534 → 530 (5,9× e 6,7×);
+  > `structs` 859 → 270, 140 → 39; `arvores` 897 → 611, 730 → 361; `ciclos` 337 → 192, 313 → 151;
+  > `texto` 198 → 123, 201 → 101; `strings` 712 → 550, 361 → 217; `corpos` 1258 → 1208, 589 → 267;
+  > `listas` 738 → 643, 425 → 358; `dicts` 452 → 396, 487 → 382; `fib`, `laco`, `metodos` e
+  > `objetos` sem mudança (0,95–1,00). Contra o Python 3.13 (mesmos programas): o nativo ganha em
+  > `listas` (358 × 883), `arvores` (361 × 585) e `corpos` (267 × 1235) e perde em `structs_lista`
+  > (530 × 329), `dicts` (382 × 246) e `texto` (101 × 82) — o que sobra é a representação: cada
+  > elemento de lista e cada campo de referência passam pelo runtime, e o struct numa lista é
+  > clonado na entrada e na saída. **Testes**: `gc/q11_geracoes` (um velho
+  > segurando jovens, ciclos que envelhecem antes de virar lixo, um jovem preso a um ciclo velho),
+  > `gc/q11_aciclicos` (ciclos por campo opcional, dict, pair, interface, classe genérica e struct
+  > copiado para a própria lista, todos liberados no modo sem vazamento, entre objetos de tipos
+  > acíclicos) e `unit_gc` (o struct sem rastreio e o clone dele; a coleta dos jovens com um velho
+  > segurando um jovem; o ciclo velho só na completa).
 - [ ] Q2. Robustez.
   - Fuzzing do front-end: nenhuma entrada derruba o `cinza` nem o `cinzac` (um erro interno ou uma
     queda é defeito), começando por mutações dos programas da suíte.

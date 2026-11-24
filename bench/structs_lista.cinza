@@ -1,0 +1,16 @@
+// Benchmark Q11: structs dentro de uma lista (o caminho embrulhado: cópia na entrada e na saída).
+struct P {
+  f64 x = 0.0ff;
+  f64 y = 0.0ff;
+}
+fn main() {
+  list<P> ps;
+  for (i32 i in range(0, 500000)) { ps.add(new P(cast<f64>(i), cast<f64>(i % 100))); }
+  f64 sx = 0.0ff;
+  f64 sy = 0.0ff;
+  for (i32 r in range(0, 4)) {
+    for (P p in ps) { sx += p.x; sy += p.y; }
+    for (i32 i in range(0, ps.size())) { ps[i] = new P(ps[i].x + 1.0ff, ps[i].y); }
+  }
+  print(sx, sy);
+}

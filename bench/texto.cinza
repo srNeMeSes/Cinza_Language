@@ -1,0 +1,15 @@
+// Benchmark Q11: texto — montar, juntar, separar, procurar.
+import Strings;
+fn main() {
+  list<string> partes;
+  for (i32 i in range(0, 300000)) { partes.add("item" + cast<string>(i)); }
+  string tudo = Strings.join(partes, ",");
+  list<string> de_volta = Strings.split(tudo, ",");
+  i64 tam = 0;
+  i32 com_7 = 0;
+  for (string s in de_volta) {
+    tam += cast<i64>(s.size());
+    if (Strings.contains(s, "7")) { com_7 += 1; }
+  }
+  print(tudo.size(), de_volta.size(), tam, com_7);
+}

@@ -231,10 +231,12 @@ struct Nativa {
 struct DescStruct {
     std::string              nome;
     std::vector<std::string> campos;
+    bool                     rastreia = true;   // Q11: falso se o tipo é acíclico
 };
 struct DescClasse {
     std::string   nome;
     std::uint32_t campos = 0;
+    bool          rastreia = true;   // Q11
 };
 struct DescEnum {
     std::string              nome;

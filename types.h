@@ -73,20 +73,22 @@ public:
         return ctx;
     }
 
-    TypeRef i64Type()     { return intern(Kind::I64,     {}, ""); }
-    TypeRef f64Type()     { return intern(Kind::F64,     {}, ""); }
-    TypeRef i32Type()     { return intern(Kind::I32,     {}, ""); }
-    TypeRef f32Type()     { return intern(Kind::F32,     {}, ""); }
-    TypeRef stringType()  { return intern(Kind::String,  {}, ""); }
-    TypeRef boolType()    { return intern(Kind::Bool,    {}, ""); }
-    TypeRef voidType()    { return intern(Kind::Void,    {}, ""); }
-    TypeRef varType()     { return intern(Kind::Var,     {}, ""); }
+    // Q11: os primitivos são guardados na primeira vez — o runtime os pede no caminho quente
+    // (conversões, funções da biblioteca), e cada intern é uma busca no mapa com chave composta
+    TypeRef i64Type()     { return primitivo(p_i64, Kind::I64); }
+    TypeRef f64Type()     { return primitivo(p_f64, Kind::F64); }
+    TypeRef i32Type()     { return primitivo(p_i32, Kind::I32); }
+    TypeRef f32Type()     { return primitivo(p_f32, Kind::F32); }
+    TypeRef stringType()  { return primitivo(p_string, Kind::String); }
+    TypeRef boolType()    { return primitivo(p_bool, Kind::Bool); }
+    TypeRef voidType()    { return primitivo(p_void, Kind::Void); }
+    TypeRef varType()     { return primitivo(p_var, Kind::Var); }
 
     TypeRef list(TypeRef elem)              { return intern(Kind::List, {elem}, ""); }
     TypeRef dict(TypeRef key, TypeRef val)  { return intern(Kind::Dict, {key, val}, ""); }
     TypeRef pair(TypeRef a, TypeRef b)      { return intern(Kind::Pair, {a, b}, ""); }
     TypeRef optional(TypeRef t)             { return intern(Kind::Optional, {t}, ""); }
-    TypeRef nullType()                      { return intern(Kind::Null, {}, ""); }
+    TypeRef nullType()                      { return primitivo(p_null, Kind::Null); }
     TypeRef classType(const std::string& n) { return intern(Kind::Class, {}, n); }
     TypeRef structType(const std::string& n){ return intern(Kind::Struct, {}, n); }
     // C4: tipo de erro ("Error" é a raiz; ValueError, SaldoInsuficiente...)
@@ -94,7 +96,7 @@ public:
     // C6: variável de tipo de assinatura nativa ("T"); "any" aceita qualquer tipo
     TypeRef typeVar(const std::string& n)   { return intern(Kind::TypeVar, {}, n); }
     // tipo dos valores de type() e dos literais de tipo
-    TypeRef typeType() { return intern(Kind::Type, {}, ""); }
+    TypeRef typeType() { return primitivo(p_type, Kind::Type); }
     TypeRef enumType(const std::string& n) { return intern(Kind::Enum, {}, n); }
     TypeRef interfaceType(const std::string& n) { return intern(Kind::Interface, {}, n); }
     void    declareInterface(const std::string& n) { interface_names.insert(n); }
@@ -128,6 +130,10 @@ private:
     std::set<std::string>                    enum_names;
     std::set<std::string>                    interface_names;
     std::set<std::pair<std::string, std::string>> implementa;   // (classe, interface)
+
+    TypeRef p_i64 = nullptr, p_f64 = nullptr, p_i32 = nullptr, p_f32 = nullptr, p_string = nullptr,
+            p_bool = nullptr, p_void = nullptr, p_var = nullptr, p_null = nullptr, p_type = nullptr;
+    TypeRef primitivo(TypeRef& guardado, Kind k) { return guardado ? guardado : (guardado = intern(k, {}, "")); }
 
     TypeContext() = default;
     TypeContext(const TypeContext&)            = delete;
