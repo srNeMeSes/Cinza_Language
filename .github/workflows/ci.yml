@@ -79,7 +79,8 @@ jobs:
       - uses: actions/checkout@v5
       - name: clang, lld e LLVM 20 estáticos
         run: |
-          apk add --no-cache build-base python3 linux-headers clang20 llvm20-dev llvm20-static lld20-dev \
+          # o git: os testes dos pacotes git (Q10) usam repositórios temporários
+          apk add --no-cache build-base python3 git linux-headers clang20 llvm20-dev llvm20-static lld20-dev \
             zlib-static zstd-static libxml2-static libffi-dev file \
             libc++-dev libc++-static llvm-libunwind-dev llvm-libunwind-static compiler-rt
           ls /usr/lib/llvm20/bin | head -50
@@ -199,6 +200,9 @@ jobs:
       - name: CVM
         run: |
           make -j"$(nproc)"
+          # o git do runner (Git for Windows), para os testes dos pacotes git (Q10)
+          export PATH="$PATH:/c/Program Files/Git/cmd"
+          git --version
           make test
       - name: cinzac -O0
         if: always()
