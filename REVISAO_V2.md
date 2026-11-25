@@ -2279,6 +2279,21 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
   > a linha: os mesmos pares). **Spec**: 3 (a ordem e o `==`), 5 (o print, o for, `keys`/`values`)
   > e 6 (`Dicts`). **Medição** (`bench/dicts`, mediana de 7, ms): nativo 390 (árvore) → 152 (hash)
   > → 133 (funções próprias); CVM 182; Python 3.13, 302 (com a partida do processo).
+  > Andamento (2026-11-24), fatia 4 (strings e a CVM). (a) **O tamanho da string guardado nela**
+  > (`CzString::caracteres()`, calculado na primeira vez, como o hash): `s.size()`, o índice e a
+  > fatia de string não contam mais os caracteres a cada vez; numa string ASCII (caracteres =
+  > bytes), `s[i]` vai direto ao byte. No cinzac, `s.size()` por `cz_str_tam` e `a + b` de duas
+  > strings por `cz_str_concat`, sem embrulhar nem o despacho geral. (b) **Na CVM, os atalhos de
+  > struct do nativo**: `GETELEMFIELD` (lista[i].campo lê o campo do elemento sem clonar o struct;
+  > o índice vai no registrador de destino, e quando ele é o da própria lista fica o caminho de
+  > sempre) e o `FORNEXT` que toma o struct da cópia do for. (c) O limiar da coleta dos jovens em
+  > 50 mil (contra 10 mil) não mudou nada: fica 10 mil. (d) `run_tests.py`: `CINZA_TEMPO_TESTE`
+  > troca o limite de 30 s, e o `--asan` o triplica (o `gc/rev_aninhamento_profundo` chegava a
+  > 29,7 s na CVM com -O0 + ASan; no build normal, 477 ms, sem mudança). **Testes**:
+  > `nativo/q11_structs_em_lista` ganhou o caso do destino igual à lista (`qs = qs[0].f`); os de
+  > string já cobriam `size`, índice, fatia e concatenação (agora pelos caminhos novos nos dois
+  > backends). **Medição** (A/B intercalado): `strings` nativo 216 → 123 → ~110 ms (o tamanho
+  > guardado, depois a concatenação direta); `structs_lista` na CVM −23%; os demais dentro do ruído.
 - [ ] Q2. Robustez.
   - Fuzzing do front-end: nenhuma entrada derruba o `cinza` nem o `cinzac` (um erro interno ou uma
     queda é defeito), começando por mutações dos programas da suíte.

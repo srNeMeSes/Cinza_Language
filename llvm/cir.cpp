@@ -63,6 +63,8 @@ const InfoRt& infoRt(Rt r) {
         {"cz_dict_le",           T::Valor, {T::Dict, T::Valor, T::I32}, true},
         {"cz_dict_grava",        T::Void,  {T::Dict, T::Valor, T::Valor}, true},
         {"cz_dict_add",          T::Void,  {T::Dict, T::Valor, T::Valor}, false},
+        {"cz_str_tam",           T::I64,   {T::Str}, false},
+        {"cz_str_concat",        T::Str,   {T::Str, T::Str}, false},
     };
     return tabela[static_cast<std::size_t>(r)];
 }

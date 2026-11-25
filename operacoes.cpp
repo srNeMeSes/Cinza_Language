@@ -317,12 +317,14 @@ Value indexGet(const Value& obj, const Value& idx) {
     }
     if (obj.kind() == Value::Kind::STRING) {
         const std::string& s = obj.asString();
-        const std::int64_t n = tamanho(s);
+        const auto* cs = static_cast<const CzString*>(obj.objeto());
+        const std::int64_t n = cs->caracteres();   // Q11: guardado na string
         const std::int64_t i0 = idx.asInt();
         const std::int64_t i = i0 < 0 ? i0 + n : i0;
         if (i < 0 || i >= n)
             throw RuntimeError("IndexError: índice " + std::to_string(i0) +
                                " fora dos limites de uma string de tamanho " + std::to_string(n));
+        if (cs->ascii()) return Value(std::string(1, s[static_cast<std::size_t>(i)]));   // Q11: um byte por caractere
         const size_t b = byteDoCaractere(s, i);
         return Value(s.substr(b, byteDoCaractere(s, i + 1) - b));
     }
@@ -362,7 +364,7 @@ std::vector<Value> forElements(const Value& col) {
 // disso, IndexError.
 Value sliceGet(const Value& sv, const Value& iv, const Value& fv, const Value& pv) {
     const std::string& s = sv.asString();
-    const std::int64_t n = tamanho(s);
+    const std::int64_t n = static_cast<const CzString*>(sv.objeto())->caracteres();   // Q11: guardado
     const bool tem_i = iv.kind() != Value::Kind::VOID_VAL, tem_f = fv.kind() != Value::Kind::VOID_VAL;
     const std::int64_t passo = pv.kind() == Value::Kind::VOID_VAL ? 1 : pv.asInt();
     if (passo == 0) throw RuntimeError("ValueError: o passo da fatia não pode ser 0");
@@ -536,7 +538,7 @@ Value callBuiltin(Builtin b, Value& obj, std::span<const Value> args) {
             return makeList(std::move(vals));
         }
         case Builtin::StrSize:   // A10: conta caracteres (code points UTF-8), não bytes
-            return Value::i32(static_cast<std::int32_t>(tamanho(obj.asString())));
+            return Value::i32(static_cast<std::int32_t>(static_cast<const CzString*>(obj.objeto())->caracteres()));
         case Builtin::COUNT: break;
     }
     throw RuntimeError("Erro interno: método embutido desconhecido");

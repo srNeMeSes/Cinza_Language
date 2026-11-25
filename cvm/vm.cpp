@@ -346,6 +346,8 @@ Value VM::dispatch(std::size_t entrada) {
                         destino = Value(e.asInt());
                     else if (in.op == Op::FORNEXT_W && e.kind() == Value::Kind::F32)
                         destino = Value(e.asFloat());
+                    else if (e.kind() == Value::Kind::STRUCT)   // Q11: sai da cópia, sem um segundo clone
+                        destino = std::move(elems[static_cast<std::size_t>(i)]);
                     else
                         destino = e;
                     R[in.a + 1] = Value(i + 1);
@@ -406,6 +408,22 @@ Value VM::dispatch(std::size_t entrada) {
                     Value v = o.kind() == Value::Kind::STRUCT ? o.asStruct()->fields[in.c]
                                                               : o.asInstance()->fields[in.c];
                     R[in.a] = std::move(v);
+                    break;
+                }
+                case Op::GETELEMFIELD: {   // Q11: lista[i].campo lê o campo direto do elemento
+                    const Value& l = R[in.b];
+                    const Value& k = R[in.a];
+                    if (l.kind() == Value::Kind::LIST && k.isInteger()) {
+                        const auto& elems = l.asList()->elements;
+                        const std::int64_t i = k.asInt();
+                        if (i >= 0 && i < static_cast<std::int64_t>(elems.size())) {
+                            Value v = elems[static_cast<std::size_t>(i)].asStruct()->fields[in.c];
+                            R[in.a] = std::move(v);
+                            break;
+                        }
+                    }
+                    Value s = indexGet(l, k);   // fora dos limites: o erro de sempre (lança)
+                    R[in.a] = Value(s.asStruct()->fields[in.c]);
                     break;
                 }
                 case Op::SETFIELD: {

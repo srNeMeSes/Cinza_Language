@@ -3,6 +3,7 @@
 // a variável do for é uma cópia (mudá-la não muda a lista), guardá-la guarda uma cópia, e mudar
 // a lista dentro do laço não muda o laço.
 struct Dentro { f64 y = 0.0ff; }
+struct Q { list<Q> f; i32 v = 0; }
 struct P { i32 x = 0; string nome = ""; list<i32> xs; Dentro d = new Dentro(); }
 fn le(list<P> ps, i32 i) {
   try { print(ps[i].x); } except (Error e) { print(e.kind, e.message); }
@@ -36,6 +37,11 @@ fn main() {
   // ps[i].campo numa expressão maior e numa atribuição
   ps[1] = new P(x: ps[1].x + ps[2].x, nome: ps[1].nome + ps[2].nome);
   print(ps[1].x, ps[1].nome);
+  // o destino é a própria lista (a CVM usa o caminho de sempre: o índice não pode ir nela)
+  list<Q> qs = [new Q(v: 1)];
+  qs[0].f.add(new Q(v: 2));
+  qs = qs[0].f;
+  print(qs.size(), qs[0].v);
 }
 // expect: 0 p2 [30] 0.5 Dentro{y: 1}
 // expect: IndexError índice 4 fora dos limites (tamanho: 4)
@@ -43,3 +49,4 @@ fn main() {
 // expect: 6 8 0 p0 100 mudou
 // expect: [0, 1]
 // expect: 3 p1p2
+// expect: 1 2

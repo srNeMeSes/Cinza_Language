@@ -112,6 +112,8 @@ void cz_dict_le(cinza::CzObjeto* d, const cinza::CzValor* k, std::int32_t lugar,
 void cz_dict_grava(cinza::CzObjeto* d, const cinza::CzValor* k, const cinza::CzValor* v,
                    const cinza::CzPos* p) noexcept;
 void cz_dict_add(cinza::CzObjeto* d, const cinza::CzValor* k, const cinza::CzValor* v) noexcept;
+std::int64_t cz_str_tam(cinza::CzObjeto* s) noexcept;   // Q11: os caracteres, guardados na string
+cinza::CzObjeto* cz_str_concat(cinza::CzObjeto* a, cinza::CzObjeto* b) noexcept;   // Q11: a + b, duas strings
 
 // Os nomes dos arquivos do programa, na ordem dos file_id (0 = o principal)
 void cz_arquivos(const char* const* nomes, std::uint64_t n) noexcept;

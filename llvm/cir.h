@@ -203,6 +203,8 @@ enum class Rt : std::uint8_t {
                      // de uma atribuição composta, d[k] += x)
     DictGrava,       // void (dict, valor k, valor v): d[k] = v, só numa chave que existe — falha
     DictAdd,         // void (dict, valor k, valor v): d.add({k, v}), sem criar o par
+    StrTam,          // i64 (str): s.size(), os caracteres (guardado na string) (Q11)
+    StrConcat,       // str (str, str): a + b com as duas strings (o Concat sem embrulhar) (Q11)
 };
 struct InfoRt {
     const char*       nome;     // o símbolo em C

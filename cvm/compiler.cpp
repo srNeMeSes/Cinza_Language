@@ -380,6 +380,20 @@ void Compiler::expr(const Expr* e, std::uint16_t dst) {
                 emit(Op::ERRFIELD, dst, o, c, e->token);
                 break;
             }
+            if (t->is(TK::Struct) && m->object->node_kind == NodeKind::IndexAccess) {
+                // Q11: lista[i].campo sem clonar o struct: o índice vai em dst, e o
+                // GETELEMFIELD o troca pelo campo (dst não pode ser o registrador da lista)
+                auto* ix = static_cast<const IndexAccessExpr*>(m->object.get());
+                if (!ix->eh_tipo && ix->object->resolved_type && ix->object->resolved_type->is(TK::List)) {
+                    const std::uint16_t l = exprReg(ix->object.get());
+                    if (l != dst) {
+                        expr(ix->index.get(), dst);
+                        emit(Op::GETELEMFIELD, dst, l, u16(static_cast<std::size_t>(m->field_index), e->token, "campos"),
+                             e->token);
+                        break;
+                    }
+                }
+            }
             const std::uint16_t o = exprReg(m->object.get());
             if (t->is(TK::Pair))
                 emit(m->member_name == "first" ? Op::GETFIRST : Op::GETSECOND, dst, o, 0, e->token);

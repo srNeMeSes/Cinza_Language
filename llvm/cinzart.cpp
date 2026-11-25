@@ -312,6 +312,21 @@ extern "C" void cz_dict_grava(CzObjeto* d, const CzValor* k, const CzValor* v, c
     }, p);
 }
 
+extern "C" std::int64_t cz_str_tam(CzObjeto* s) noexcept { return static_cast<CzString*>(s)->caracteres(); }
+
+extern "C" CzObjeto* cz_str_concat(CzObjeto* a, CzObjeto* b) noexcept {
+    CzObjeto* r = nullptr;
+    fronteira([&] {
+        const std::string& x = static_cast<CzString*>(a)->texto;
+        const std::string& y = static_cast<CzString*>(b)->texto;
+        std::string s;
+        s.reserve(x.size() + y.size());
+        s.append(x).append(y);
+        r = novo<CzString>(std::move(s)).solta();
+    });
+    return r;
+}
+
 extern "C" void cz_dict_add(CzObjeto* d, const CzValor* k, const CzValor* v) noexcept {
     fronteira([&] { static_cast<CinzaDict*>(d)->entries.poe(Value::empresta(*k), Value::empresta(*v)); });
 }

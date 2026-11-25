@@ -50,8 +50,10 @@ DIR_EXEMPLOS = DIR_TESTES / "spec_exemplos"   # gerado a cada execução (fora d
 RE_BLOCO = re.compile(r"^```cinza[ \t]*\r?\n(.*?)^```", re.M | re.S)
 RE_PENDENTES = re.compile(r"<!--\s*exemplos-pendentes:\s*(.*?)\s*-->")
 # Folgado para o build com sanitizers (-O0 + ASan é dezenas de vezes mais lento:
-# o exemplo da rede neural passava dos 10 s); um laço infinito continua sendo pego
-TIMEOUT_S = 30
+# o exemplo da rede neural passava dos 10 s); um laço infinito continua sendo pego.
+# Q11: CINZA_TEMPO_TESTE troca o limite (o build de depuração da CVM: make test com 90), e o
+# --asan do cinzac o triplica — o gc/rev_aninhamento_profundo chegava a 30 s com o ASan
+TIMEOUT_S = int(os.environ.get("CINZA_TEMPO_TESTE", "30"))
 
 RE_EXPECT = re.compile(r"//\s*expect:\s?(.*)$")
 RE_EXPECT_ERROR = re.compile(r"//\s*expect-error:\s?(.*)$")
@@ -784,7 +786,7 @@ def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
 
-    global VAZAMENTOS, CINZAC, CINZAC_O2, CINZAC_ASAN, PASTA_NATIVA
+    global VAZAMENTOS, CINZAC, CINZAC_O2, CINZAC_ASAN, PASTA_NATIVA, TIMEOUT_S
     if "--sem-vazamentos" in sys.argv:
         VAZAMENTOS = False
         sys.argv.remove("--sem-vazamentos")
@@ -797,6 +799,7 @@ def main():
     if "--asan" in sys.argv:
         CINZAC_ASAN = True
         sys.argv.remove("--asan")
+        TIMEOUT_S *= 3
 
     if len(sys.argv) > 1:
         binario = Path(sys.argv[1])

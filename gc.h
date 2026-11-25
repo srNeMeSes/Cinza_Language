@@ -182,6 +182,7 @@ inline std::size_t gcCollect() {
 
 // A cada 10 mil contêineres novos, a coleta dos jovens; a completa quando os velhos cresceram
 // metade desde a última (ou passaram de 10 mil, na primeira)
+// (Q11: 50 mil não mudou nada no arvores, no ciclos nem no structs_lista; o custo é por objeto)
 inline constexpr std::size_t GC_LIMIAR = 10000;
 
 // Fora de linha: o gcMaybeCollect fica dentro do laço de despacho da CVM, e um corpo grande ali

@@ -817,6 +817,8 @@ private:
 
     // a + b com string de um dos lados: o outro em texto (o CONCAT da CVM)
     Val concatena(const Operando& a, const Operando& b, const Token& tok) {
+        if (tipoOperando(a) == Tipo::Str && tipoOperando(b) == Tipo::Str)   // Q11: as duas strings, sem embrulhar
+            return {chamaRt(Rt::StrConcat, {a, b}, tok), true};
         return {chamaRt(Rt::Concat, {embrulha(a, tok), embrulha(b, tok)}, tok), true};
     }
 
@@ -1234,6 +1236,11 @@ private:
             const Operando l = expr(*mc.object);
             const Operando n = Operando::temp(temp(Op::TamLista, Tipo::I64, {l}, mc.token));
             return {Operando::temp(temp(Op::Converte, Tipo::I32, {n}, mc.token))};   // seção K: i32
+        }
+        if (b == Builtin::StrSize) {   // Q11: os caracteres, guardados na string
+            const Operando s = expr(*mc.object);
+            const Operando n = chamaRt(Rt::StrTam, {s}, mc.token);
+            return {Operando::temp(temp(Op::Converte, Tipo::I32, {n}, mc.token))};
         }
         if (b == Builtin::DictHas) {   // Q11: sem o despacho geral
             const Operando d = expr(*mc.object);

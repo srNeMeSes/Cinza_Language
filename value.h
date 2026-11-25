@@ -70,10 +70,21 @@ struct ErrorValue;
 struct CzString : CzObjeto {
     const std::string texto;
     mutable std::uint64_t hash = 0;   // Q11: o hash do texto (chave de dict), calculado na primeira vez
+    mutable std::int64_t  n_caracteres = -1;   // Q11: o tamanho em caracteres (code points), idem
 
     explicit CzString(const std::string& t) : CzObjeto(GcKind::String), texto(t) {}
     explicit CzString(std::string&& t) noexcept : CzObjeto(GcKind::String), texto(std::move(t)) {}
     std::uint64_t hashTexto() const noexcept;   // depois da Tabela (tabela::hashTexto)
+    // O número de caracteres (o utf8::tamanho: os bytes que não são de continuação), guardado
+    std::int64_t caracteres() const noexcept {
+        if (n_caracteres < 0) {
+            std::int64_t n = 0;
+            for (char c : texto) n += (static_cast<unsigned char>(c) & 0xC0) != 0x80;
+            n_caracteres = n;
+        }
+        return n_caracteres;
+    }
+    bool ascii() const noexcept { return caracteres() == static_cast<std::int64_t>(texto.size()); }
 };
 
 // ============================================================================

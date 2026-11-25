@@ -122,7 +122,7 @@ std::string disassemble(const Image& img) {
                 case Op::NEWSTRUCT:
                     ops = ra + ", " + displayName(img.structs[in.b]->name) + ", " + std::to_string(in.c);
                     break;
-                case Op::GETFIELD:
+                case Op::GETFIELD: case Op::GETELEMFIELD:
                     ops = ra + ", " + rb + ", #" + std::to_string(in.c);
                     break;
                 case Op::SETFIELD:
