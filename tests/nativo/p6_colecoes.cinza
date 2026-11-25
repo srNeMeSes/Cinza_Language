@@ -69,10 +69,10 @@ fn main() {
 }
 // expect: [7, 6, 2, 10] 4 6 10 25 true false true true
 // expect: [6, 2, 10]
-// expect: a 101
 // expect: b 2
+// expect: a 101
 // expect: c 3
-// expect: {"a": 101, "b": 2, "c": 3} 3 false 2 ["a", "b", "c"] [101, 2, 3]
+// expect: {"b": 2, "a": 101, "c": 3} 3 false 2 ["b", "a", "c"] [2, 101, 3]
 // expect: {"a": 101, "c": 3}
 // expect: [[-1, 0, 0], [0, 1, 2, -5], [0, 99, 4]]
 // expect: {1: ["x!", "y"]} 2

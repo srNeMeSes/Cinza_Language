@@ -2261,6 +2261,24 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
   > nativo ganha em todos menos o `dicts` (480 × 388): o dict é ordenado pela chave (spec 6,
   > `Dicts`), uma árvore, e cada busca percorre nós espalhados; o Python usa hash. Mudar isso é
   > decisão de linguagem (a ordem das chaves), não desta fatia.
+  > Andamento (2026-11-24), fatia 3 (o dict). **Decisão do autor**: o dict deixa de ser ordenado pela
+  > chave — passa à **ordem de inserção** (trocar o valor não move a chave; remover e inserir de novo
+  > a põe no fim), e o **`==` ignora a ordem**. A estrutura (`Tabela`, em `value.h`) é a do dict do
+  > Python moderno: as entradas num vetor denso, na ordem de inserção, e um índice de hash
+  > (endereçamento aberto, sondagem linear, potência de 2, ocupação até 2/3, folga de 3× as vivas na
+  > reorganização); remover deixa um buraco e uma lápide, que a reorganização compacta. O hash de
+  > um inteiro é pelo valor (`i32` e `i64` iguais coincidem; o finalizador do splitmix64); o de uma
+  > string é calculado uma vez e guardado nela (`CzString::hash`). No cinzac, o dict ganhou funções
+  > próprias, sem o despacho geral: `cz_dict_tem` (has), `cz_dict_le` (`d[k]`, e a leitura de
+  > `d[k] += x`), `cz_dict_grava` (`d[k] = v`) e `cz_dict_add` (`d.add({k, v})` com o par escrito, sem
+  > criar o par); a chave ausente passa pelo `indexGet`/`indexPlace` de sempre (as mesmas
+  > mensagens). **Testes**: `biblioteca/q11_dict_ordem` (a ordem, o `==`, as chaves de cada tipo, as
+  > funções do `Dicts`, 20 mil chaves com dois terços removidas e reinseridas, conferidas contra uma
+  > conta independente), `nativo/q11_dict_direto` (has, `d[k]`, as gravações, os dois `KeyError`, a
+  > posse, a cópia do struct); 9 testes e dois exemplos da spec mudaram só na ordem (conferido linha
+  > a linha: os mesmos pares). **Spec**: 3 (a ordem e o `==`), 5 (o print, o for, `keys`/`values`)
+  > e 6 (`Dicts`). **Medição** (`bench/dicts`, mediana de 7, ms): nativo 390 (árvore) → 152 (hash)
+  > → 133 (funções próprias); CVM 182; Python 3.13, 302 (com a partida do processo).
 - [ ] Q2. Robustez.
   - Fuzzing do front-end: nenhuma entrada derruba o `cinza` nem o `cinzac` (um erro interno ou uma
     queda é defeito), começando por mutações dos programas da suíte.
@@ -2559,6 +2577,7 @@ ao passar o mouse, ir para a definição e completar nomes no servidor de lingua
 | 2026-10-04 | J2 | `Files.read_bytes(caminho) -> list<int>` e `Files.write_bytes(caminho, list<int>)`, bytes de 0 a 255 (fora disso, `ValueError`). | Decisão do autor da linguagem; formatos binários sem passar por texto UTF-8. |
 | 2026-10-03 | I4 | `menor_int % -1` dá `0` (revê A5); `-0.0` continua `-0` no `print`; decimais extremos continuam em notação científica. | Decisão do autor da linguagem; `x % -1` cabe sempre em `int`. |
 | 2026-10-03 | H3 | `exit([código])`: padrão 0, de 0 a 255; roda os `finally` pendentes e nenhum `except` o captura; encerra o caminho na análise de fluxo. | Decisão do autor da linguagem; 0–255 dá o mesmo resultado em todo sistema. |
+| 2026-11-24 | Q11 | O `dict` deixa de ser ordenado pela chave: ordem de inserção (trocar o valor não move a chave; remover e inserir de novo a põe no fim); o `==` entre dicts ignora a ordem. | Decisão do autor: o dict precisa superar o do Python; a ordem pela chave obrigava a uma árvore (cada busca, nós espalhados), e a ordem de inserção é previsível e permite a tabela de hash. |
 | 2026-11-24 | Q10 | Pacotes: repositórios git (URL + tag) e dependências locais; `czm.mod` próprio (`projeto`, `cinza`, `requer`); `czm.lock` com commit e hash; seleção mínima (major diferente é erro); cache do usuário; o `git` instalado, só por `cinza add/remove/get` (compilar nunca usa a rede); `import pacote.caminho`; dentro do pacote, o caminho a partir da raiz dele; o `CINZA_PATH` sai. | Decisão do autor: sem servidor para manter, builds reprodutíveis e uma fonte só para os módulos. |
 | 2026-11-24 | Q1f | Módulos: `module a.b;` no início de todo arquivo importável (conferido contra o caminho); a raiz é sempre a pasta do `czm.mod` (sem ele, um arquivo só; `cinza init` o cria); os `const` são calculados na compilação, sem ordem de inicialização. | Decisão do autor: o nome do módulo e a raiz do projeto precisam estar escritos, e a ordem dos `const` não pode depender de quem lê seguir os imports. |
 | 2026-11-23 | Q1a | As oito questões das classes genéricas: usado = chamado, exigido por interface ou chamado por um usado; assinaturas já, corpos se usados; `new` de genéricos e de `T`, erros nunca genéricos; sem `self` nos valores iniciais com campo obrigatório; o construtor atribui no nível de cima antes de usar; campo `T` de struct segue obrigatório; uma cópia de cada interface genérica; campo obrigatório do próprio tipo é erro. | Decisão do autor, com o opcional já na linguagem (o "pode faltar" é `T?`). |

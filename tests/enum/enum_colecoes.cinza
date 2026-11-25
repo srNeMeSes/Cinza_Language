@@ -13,6 +13,6 @@ fn main() {
   print(v, type(v));
 }
 // expect: [Cor.Azul, Cor.Vermelho] 2 3
-// expect: {Cor.Vermelho: 1, Cor.Verde: 2, Cor.Azul: 3}
+// expect: {Cor.Verde: 2, Cor.Vermelho: 1, Cor.Azul: 3}
 // expect: Pixel{cor: Cor.Azul, brilho: 0} Cor.Verde
 // expect: Cor.Azul Cor

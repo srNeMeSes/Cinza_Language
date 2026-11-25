@@ -670,6 +670,9 @@ private:
                 const Tipo te = tipoDe(e.resolved_type, e.token);
                 if (tipoOperando(o) == Tipo::Lista && ehInteiro(tipoOperando(k)) && elemEmLinha(te))
                     return indiceLista(o, k, te, e.token);   // Q11
+                if (tipoOperando(o) == Tipo::Dict)   // Q11: sem o despacho geral
+                    return desembrulha(chamaRt(Rt::DictLe, {o, embrulha(k, e.token), Operando::i32(0)}, e.token),
+                                       te, e.token);
                 const Operando r = chamaRt(Rt::Indice, {embrulha(o, e.token), embrulha(k, e.token)}, e.token);
                 return desembrulha(r, te, e.token);
             }
@@ -1232,6 +1235,18 @@ private:
             const Operando n = Operando::temp(temp(Op::TamLista, Tipo::I64, {l}, mc.token));
             return {Operando::temp(temp(Op::Converte, Tipo::I32, {n}, mc.token))};   // seção K: i32
         }
+        if (b == Builtin::DictHas) {   // Q11: sem o despacho geral
+            const Operando d = expr(*mc.object);
+            return {chamaRt(Rt::DictTem, {d, embrulha(expr(*mc.arguments[0]), mc.token)}, mc.token)};
+        }
+        if (b == Builtin::DictAdd && mc.arguments[0]->node_kind == NodeKind::PairLiteral) {   // Q11: sem o par
+            const auto& pr = static_cast<const PairLiteralExpr&>(*mc.arguments[0]);
+            const Operando d = expr(*mc.object);
+            const Operando k = embrulha(expr(*pr.first), mc.token);
+            const Operando v = embrulha(expr(*pr.second), mc.token);
+            chamaRt(Rt::DictAdd, {d, k, v}, mc.token);
+            return {Operando::boolean(false)};
+        }
         if (b == Builtin::ListAdd) {
             const Operando l = expr(*mc.object);
             chamaRt(Rt::ListaAdd, {l, embrulha(expr(*mc.arguments[0]), mc.token)}, mc.token);
@@ -1739,6 +1754,9 @@ private:
             if (p->node_kind == NodeKind::IndexAccess && tipoOperando(de) == Tipo::Lista &&
                 ehInteiro(tipoOperando(chaves_cruas[i])) && elemDireto(tp))
                 return indiceLista(de, chaves_cruas[i], tp, p->token).o;
+            if (p->node_kind == NodeKind::IndexAccess && tipoOperando(de) == Tipo::Dict)   // Q11
+                return emprestado(desembrulha(chamaRt(Rt::DictLe, {de, chaves[i], Operando::i32(1)}, p->token),
+                                              tp, tok), tok);
             if (p->node_kind == NodeKind::IndexAccess) {
                 const Operando r = chamaRt(Rt::IndiceLugar, {embrulha(de, tok), chaves[i]}, p->token);
                 return emprestado(desembrulha(r, tp, tok), tok);
@@ -1751,6 +1769,8 @@ private:
                 ehInteiro(tipoOperando(chaves_cruas[i])) && elemDireto(tipoOperando(valor_)) &&
                 elemDireto(tipoDe(p->resolved_type, tok)))
                 gravaIndiceLista(em, chaves_cruas[i], valor_, p->token);   // Q11
+            else if (p->node_kind == NodeKind::IndexAccess && tipoOperando(em) == Tipo::Dict)   // Q11
+                chamaRt(Rt::DictGrava, {em, chaves[i], embrulha(valor_, tok)}, p->token);
             else if (p->node_kind == NodeKind::IndexAccess)
                 chamaRt(Rt::GravaIndice, {embrulha(em, tok), chaves[i], embrulha(valor_, tok)}, p->token);
             else

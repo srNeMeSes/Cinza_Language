@@ -59,6 +59,10 @@ const InfoRt& infoRt(Rt r) {
         {"cz_relanca",           T::Void,  {T::Erro}, true},
         {"cz_valor_copia",       T::Valor, {T::Valor}, false},
         {"cz_lista_add",         T::Void,  {T::Lista, T::Valor}, false},
+        {"cz_dict_tem",          T::Bool,  {T::Dict, T::Valor}, false},
+        {"cz_dict_le",           T::Valor, {T::Dict, T::Valor, T::I32}, true},
+        {"cz_dict_grava",        T::Void,  {T::Dict, T::Valor, T::Valor}, true},
+        {"cz_dict_add",          T::Void,  {T::Dict, T::Valor, T::Valor}, false},
     };
     return tabela[static_cast<std::size_t>(r)];
 }

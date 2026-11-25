@@ -31,7 +31,7 @@ extern "C" __attribute__((noinline)) void runtime_print(int k) {
         elems.emplace_back(Value::i32(i));
     }
     Value d = makeDict();
-    d.asDict()->entries[Value("chave")] = makeList(elems);
+    d.asDict()->entries.poe(Value("chave"), makeList(elems));
     Value l = makeList(std::move(elems));
     std::ostringstream oss;
     oss << l.toString() << " " << d.toString() << "\n";

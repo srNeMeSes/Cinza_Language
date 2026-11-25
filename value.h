@@ -5,6 +5,7 @@
 #include "source_files.h" // C5: displayName
 #include "gc_object.h"   // coleta de ciclos: contêineres rastreados
 #include <cstdint>
+#include <cstring>
 #include <type_traits>
 #include <string>
 #include <vector>
@@ -68,9 +69,11 @@ struct ErrorValue;
 // funções do runtime, então o layout pode mudar sem afetar ninguém).
 struct CzString : CzObjeto {
     const std::string texto;
+    mutable std::uint64_t hash = 0;   // Q11: o hash do texto (chave de dict), calculado na primeira vez
 
     explicit CzString(const std::string& t) : CzObjeto(GcKind::String), texto(t) {}
     explicit CzString(std::string&& t) noexcept : CzObjeto(GcKind::String), texto(std::move(t)) {}
+    std::uint64_t hashTexto() const noexcept;   // depois da Tabela (tabela::hashTexto)
 };
 
 // ============================================================================
@@ -306,9 +309,200 @@ static_assert(sizeof(Value) == 16, "o Value é o CzValor com posse");
 // Definidos APÓS Value para que Value seja completo quando são usados.
 // ============================================================================
 
-// Q11: os campos (struct, objeto) e os nós do dict vêm do alocador de objetos pequenos
-using Campos   = std::vector<Value, aloca::Pequeno<Value>>;
-using Entradas = std::map<Value, Value, std::less<Value>, aloca::Pequeno<std::pair<const Value, Value>>>;
+// Q11: os campos (struct, objeto) vêm do alocador de objetos pequenos
+using Campos = std::vector<Value, aloca::Pequeno<Value>>;
+
+// ============================================================================
+// TABELA DO DICT (Q11, decisão do autor de 2026-11-24: o dict deixa de ser ordenado pela chave)
+//
+// Como o dict do Python moderno: as entradas num vetor denso, NA ORDEM DE INSERÇÃO (é a ordem do
+// print, do for, de keys() e das funções do Dicts), e um índice de hash (endereçamento aberto,
+// sondagem linear, tamanho potência de 2, ocupação até 2/3) com a posição de cada uma. Trocar o
+// valor de uma chave não a move; remover deixa um buraco (a chave vira void) e uma lápide no
+// índice; a próxima reorganização compacta. A chave só pode ser i32, i64, string, bool ou enum
+// (spec 3): o hash de um inteiro é pelo valor (i32 e i64 iguais têm o mesmo), o de uma string
+// fica guardado nela (CzString::hash).
+// ============================================================================
+namespace tabela {
+inline std::uint64_t mistura(std::uint64_t x) noexcept {   // o finalizador do splitmix64
+    x ^= x >> 30; x *= 0xbf58476d1ce4e5b9ULL;
+    x ^= x >> 27; x *= 0x94d049bb133111ebULL;
+    return x ^ (x >> 31);
+}
+inline std::uint64_t hashTexto(const std::string& s) noexcept {
+    std::uint64_t h = 0x9E3779B97F4A7C15ULL ^ s.size();
+    std::size_t i = 0;
+    for (; i + 8 <= s.size(); i += 8) {
+        std::uint64_t w;
+        std::memcpy(&w, s.data() + i, 8);
+        h = mistura(h ^ w);
+    }
+    std::uint64_t resto = 0;
+    std::memcpy(&resto, s.data() + i, s.size() - i);
+    return mistura(h ^ resto ^ 0xA5);
+}
+}  // namespace tabela
+
+class Tabela {
+public:
+    struct Entrada { Value first; Value second; };   // first void: um buraco (removida)
+
+private:
+    std::vector<Entrada>       entradas_;   // na ordem de inserção, com buracos
+    std::vector<std::uint64_t> hashes_;     // o hash de cada entrada
+    std::vector<std::int32_t>  indice_;     // VAZIO, LAPIDE ou a posição em entradas_
+    std::size_t                vivas_ = 0;
+    static constexpr std::int32_t VAZIO = -1, LAPIDE = -2;
+
+    static bool buraco(const Entrada& e) noexcept { return e.first.kind() == Value::Kind::VOID_VAL; }
+
+public:
+    static std::uint64_t hashDe(const Value& k) {
+        using K = Value::Kind;
+        switch (k.kind()) {
+            case K::I32: case K::I64: return tabela::mistura(static_cast<std::uint64_t>(k.asInt()));
+            case K::BOOL:   return tabela::mistura(k.asBool() ? 0x51ED : 0x51EC);
+            case K::STRING: return static_cast<const CzString*>(k.objeto())->hashTexto();
+            case K::ENUM:   return tabela::mistura(reinterpret_cast<std::uintptr_t>(k.asEnum().desc) ^
+                                                   (static_cast<std::uint64_t>(k.asEnum().index) << 48));
+            default:        return static_cast<std::uint64_t>(k.kind());   // não é chave (só por segurança)
+        }
+    }
+    static bool chaveIgual(const Value& a, const Value& b) {
+        using K = Value::Kind;
+        if (a.kind() == b.kind()) {
+            switch (a.kind()) {
+                case K::I32: case K::I64: return a.asInt() == b.asInt();
+                case K::BOOL: return a.asBool() == b.asBool();
+                case K::STRING: return a.objeto() == b.objeto() || a.asString() == b.asString();
+                default: return a == b;
+            }
+        }
+        return a.isInteger() && b.isInteger() && a.asInt() == b.asInt();
+    }
+
+    // ── iteração: as entradas vivas, na ordem de inserção (for (auto& [k, v] : t)) ──
+    template <typename E, typename V>
+    struct Iter {
+        V* v; std::size_t i;
+        void pula() { while (i < v->size() && buraco((*v)[i])) ++i; }
+        E& operator*() const { return (*v)[i]; }
+        E* operator->() const { return &(*v)[i]; }
+        Iter& operator++() { ++i; pula(); return *this; }
+        bool operator!=(const Iter& o) const { return i != o.i; }
+        bool operator==(const Iter& o) const { return i == o.i; }
+    };
+    using iterator       = Iter<Entrada, std::vector<Entrada>>;
+    using const_iterator = Iter<const Entrada, const std::vector<Entrada>>;
+    iterator begin() { iterator it{&entradas_, 0}; it.pula(); return it; }
+    iterator end() { return {&entradas_, entradas_.size()}; }
+    const_iterator begin() const { const_iterator it{&entradas_, 0}; it.pula(); return it; }
+    const_iterator end() const { return {&entradas_, entradas_.size()}; }
+
+    std::size_t size() const noexcept { return vivas_; }
+    bool empty() const noexcept { return vivas_ == 0; }
+    void clear() {
+        // as entradas saem antes de soltá-las: um destrutor que volte a este dict o vê vazio
+        std::vector<Entrada> velhas;
+        velhas.swap(entradas_);
+        hashes_.clear();
+        indice_.clear();
+        vivas_ = 0;
+    }
+
+    // A entrada da chave, ou nulo
+    Entrada* find(const Value& k) { return achar(k, hashDe(k)); }
+    const Entrada* find(const Value& k) const { return const_cast<Tabela*>(this)->achar(k, hashDe(k)); }
+    bool contem(const Value& k) const { return find(k) != nullptr; }
+
+    // Grava (troca o valor de uma chave que existe, no mesmo lugar; senão, insere no fim)
+    void poe(const Value& k, const Value& v) {
+        const std::uint64_t h = hashDe(k);
+        if (Entrada* e = achar(k, h)) { e->second = v; return; }
+        insere(k, v, h);
+    }
+    // Insere só se a chave não existe; devolve false se já existia (e não muda nada)
+    bool insereSeNova(const Value& k, const Value& v) {
+        const std::uint64_t h = hashDe(k);
+        if (achar(k, h)) return false;
+        insere(k, v, h);
+        return true;
+    }
+    // Remove a chave; devolve o valor (void se não existia: veja `tinha`)
+    bool remove(const Value& k, Value* valor = nullptr) {
+        if (indice_.empty()) return false;
+        const std::uint64_t h = hashDe(k);
+        const std::size_t mascara = indice_.size() - 1;
+        for (std::size_t s = h & mascara;; s = (s + 1) & mascara) {
+            const std::int32_t p = indice_[s];
+            if (p == VAZIO) return false;
+            if (p == LAPIDE) continue;
+            Entrada& e = entradas_[static_cast<std::size_t>(p)];
+            if (hashes_[static_cast<std::size_t>(p)] == h && chaveIgual(e.first, k)) {
+                indice_[s] = LAPIDE;
+                Entrada morta = std::move(e);   // solta depois de a tabela estar coerente
+                e.first = Value();
+                e.second = Value();
+                --vivas_;
+                if (valor) *valor = std::move(morta.second);
+                return true;
+            }
+        }
+    }
+
+private:
+    Entrada* achar(const Value& k, std::uint64_t h) {
+        if (indice_.empty()) return nullptr;
+        const std::size_t mascara = indice_.size() - 1;
+        for (std::size_t s = h & mascara;; s = (s + 1) & mascara) {
+            const std::int32_t p = indice_[s];
+            if (p == VAZIO) return nullptr;
+            if (p == LAPIDE) continue;
+            if (hashes_[static_cast<std::size_t>(p)] == h && chaveIgual(entradas_[static_cast<std::size_t>(p)].first, k))
+                return &entradas_[static_cast<std::size_t>(p)];
+        }
+    }
+    void insere(const Value& k, const Value& v, std::uint64_t h) {
+        // a ocupação conta as entradas com buracos (as lápides seguem no índice até reorganizar)
+        if ((entradas_.size() + 1) * 3 > indice_.size() * 2) reorganiza();
+        entradas_.push_back({k, v});
+        hashes_.push_back(h);
+        const std::size_t mascara = indice_.size() - 1;
+        std::size_t s = h & mascara;
+        while (indice_[s] >= 0) s = (s + 1) & mascara;   // a primeira posição vazia ou lápide
+        indice_[s] = static_cast<std::int32_t>(entradas_.size() - 1);
+        ++vivas_;
+    }
+    // Compacta os buracos e refaz o índice no tamanho para as vivas (o dobro, com folga)
+    void reorganiza() {
+        if (vivas_ != entradas_.size()) {
+            std::size_t j = 0;
+            for (std::size_t i = 0; i < entradas_.size(); ++i) {
+                if (buraco(entradas_[i])) continue;
+                if (i != j) { entradas_[j] = std::move(entradas_[i]); hashes_[j] = hashes_[i]; }
+                ++j;
+            }
+            entradas_.resize(j);
+            hashes_.resize(j);
+        }
+        // como no Python: o índice com três vezes as vivas (folga até a próxima, a 2/3)
+        std::size_t cap = 8;
+        while (cap < vivas_ * 3) cap *= 2;
+        indice_.assign(cap, VAZIO);
+        const std::size_t mascara = cap - 1;
+        for (std::size_t i = 0; i < entradas_.size(); ++i) {
+            std::size_t s = hashes_[i] & mascara;
+            while (indice_[s] != VAZIO) s = (s + 1) & mascara;
+            indice_[s] = static_cast<std::int32_t>(i);
+        }
+    }
+};
+using Entradas = Tabela;
+
+inline std::uint64_t CzString::hashTexto() const noexcept {
+    if (hash == 0) hash = tabela::hashTexto(texto) | 1;   // nunca 0 (0 é "ainda não calculado")
+    return hash;
+}
 
 // Lista homogênea: list<T>
 struct CinzaList : GcObject {
@@ -319,10 +513,9 @@ struct CinzaList : GcObject {
         : GcObject(GcKind::List), elements(std::move(elems)) {}
 };
 
-// Dicionário: dict<K, V>
-// Usa std::map para aproveitar a ordem total definida em Value.
+// Dicionário: dict<K, V> — Q11: a Tabela (ordem de inserção, índice de hash)
 struct CinzaDict : GcObject {
-    Entradas entries;   // Q11: os nós pelo alocador de objetos pequenos
+    Entradas entries;
 
     CinzaDict() : GcObject(GcKind::Dict) {}
 };
@@ -493,13 +686,14 @@ inline bool igualRaso(const Value& a, const Value& b,
             for (std::size_t i = 0; i < x.size(); ++i) pendentes.emplace_back(&x[i], &y[i]);
             return true;
         }
-        case Kind::DICT: {   // as chaves estão em ordem (std::map): compara entrada a entrada
+        case Kind::DICT: {   // Q11: as mesmas chaves com os mesmos valores, em qualquer ordem
             const auto& x = a.asDict()->entries;
             const auto& y = b.asDict()->entries;
             if (x.size() != y.size()) return false;
-            for (auto i = x.begin(), j = y.begin(); i != x.end(); ++i, ++j) {
-                pendentes.emplace_back(&i->first, &j->first);
-                pendentes.emplace_back(&i->second, &j->second);
+            for (const auto& e : x) {
+                const auto* f = y.find(e.first);
+                if (!f) return false;
+                pendentes.emplace_back(&e.second, &f->second);
             }
             return true;
         }
@@ -660,7 +854,7 @@ inline std::string Value::toString() const {
             }
             case Kind::DICT: {
                 const auto& entradas = v.asDict()->entries;
-                std::vector<const std::pair<const Value, Value>*> em_ordem;
+                std::vector<const Tabela::Entrada*> em_ordem;
                 em_ordem.reserve(entradas.size());
                 for (const auto& kv : entradas) em_ordem.push_back(&kv);
                 out += '{';

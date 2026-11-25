@@ -56,7 +56,7 @@ int main() {
     // Ciclo que passa por pair e dict (valor do dict aponta para o dict)
     {
         Value d = makeDict();
-        d.asDict()->entries[Value(1)] = makePair(Value(2), d);
+        d.asDict()->entries.poe(Value(1), makePair(Value(2), d));
     }
     CHECK(gcCollect() == 2);   // o dict e o pair
     CHECK(gc_registro.vivos == 0);

@@ -360,7 +360,7 @@ Value VM::dispatch(std::size_t entrada) {
                     Value d = makeDict();
                     auto& entries = d.asDict()->entries;
                     for (std::uint16_t i = 0; i < in.c; ++i)
-                        entries[R[in.b + 2 * i]] = R[in.b + 2 * i + 1];
+                        entries.poe(R[in.b + 2 * i], R[in.b + 2 * i + 1]);
                     R[in.a] = std::move(d);
                     break;
                 }
@@ -372,7 +372,7 @@ Value VM::dispatch(std::size_t entrada) {
                 case Op::DICTADD: {
                     auto& entries = R[in.a].asDict()->entries;
                     for (std::uint16_t i = 0; i < in.c; ++i)
-                        entries[R[in.b + 2 * i]] = R[in.b + 2 * i + 1];
+                        entries.poe(R[in.b + 2 * i], R[in.b + 2 * i + 1]);
                     break;
                 }
                 case Op::NEWPAIR:   R[in.a] = makePair(R[in.b], R[in.c]); break;

@@ -120,11 +120,17 @@ parâmetros, retornos, campos nem dentro de `list<>`, `dict<>` ou `pair<>`.
 | Tipo           | Descrição                                                              |
 |----------------|------------------------------------------------------------------------|
 | `list<T>`      | sequência indexada de elementos do tipo `T`, a partir do índice 0      |
-| `dict<K, V>`   | associação de chaves `K` a valores `V`, ordenada pela chave            |
+| `dict<K, V>`   | associação de chaves `K` a valores `V`, na ordem de inserção           |
 | `pair<A, B>`   | par imutável com os campos `first` (tipo `A`) e `second` (tipo `B`)    |
 
 A chave de um `dict` só pode ser `i32`, `i64`, `string`, `bool` ou um `enum`. `f32` e `f64` são
 proibidos (comparação exata de ponto flutuante não é confiável), assim como coleções e objetos.
+
+As entradas de um `dict` ficam **na ordem em que entraram**: é a ordem do `print`, do `for`, de
+`keys()` e `values()` e das funções do `Dicts`. Trocar o valor de uma chave que já existe não a
+move; remover uma chave e inseri-la de novo a põe no fim. Dois dicts são iguais (`==`) quando têm
+as mesmas chaves com os mesmos valores, em qualquer ordem. Para percorrer pela ordem das chaves,
+ordene-as: `Lists.sorted(d.keys())`.
 
 Uma variável ou campo `list` ou `dict` declarado sem valor inicial nasce vazio.
 

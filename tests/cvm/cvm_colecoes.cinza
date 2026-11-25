@@ -24,7 +24,7 @@ fn main() {
   print(l[2] + l[0]);
 }
 // expect: [[1, 20], [13, 4]] 4 2
-// expect: {"a": 7, "b": 2} ["a", "b"] [7, 2] true false
+// expect: {"b": 2, "a": 7} ["b", "a"] [2, 7] true false
 // expect: {"a": 7} {"x", 9} x 9 4
 // expect: [1, 2, 10, 20] true false
 // expect: [2, 10, 20]

@@ -145,7 +145,7 @@ pela regra comum (`applyBinaryOp`, `operacoes.cpp`), que lança o erro com a men
 
 | Instrução               | Efeito |
 |-------------------------|--------|
-| `FORPREP a b c`         | `R[a] =` cópia dos elementos de `R[b]` (lista: os elementos; dict: os pares em ordem de chave) — numa string, a própria string, percorrida um caractere por vez (é imutável, a cópia não é observável) —, `R[a+1] = 0`, `R[a+2] = c` (o slot do iterador) |
+| `FORPREP a b c`         | `R[a] =` cópia dos elementos de `R[b]` (lista: os elementos; dict: os pares na ordem de inserção) — numa string, a própria string, percorrida um caractere por vez (é imutável, a cópia não é observável) —, `R[a+1] = 0`, `R[a+2] = c` (o slot do iterador) |
 | `FORNEXT a bc`          | se há próximo: `R[slot] =` o elemento (`slot = R[a+2]`) e avança `R[a+1]`; senão `pc += bc` (sai do laço) |
 | `FORNEXT_W a bc`        | idem, alargando o elemento (`for (i64 x in list<i32>)`, `f32` → `f64`) |
 | `RANGEPREP a b`         | `for` sobre `range(...)` embutido, sem criar a lista: `R[a]` atual, `R[a+1]` fim, `R[a+2]` passo (`ValueError` se 0), `R[a+3] = b` (slot) |

@@ -1754,9 +1754,8 @@ Entradas& entradas(const Value& d) { return d.asDict()->entries; }
 
 // Q1b: o valor da chave, ou null se ela não existir (Dicts.get(d, k) else padrão)
 Value dictGet(Args a) {
-    const auto& e = entradas(a[0]);
-    auto it = e.find(a[1]);
-    return it == e.end() ? Value::nulo() : it->second;
+    const auto* it = entradas(a[0]).find(a[1]);
+    return it ? it->second : Value::nulo();
 }
 
 Value dictContainsValue(Args a) {
@@ -1784,17 +1783,14 @@ Value dictItems(Args a) {
 // update(d, outra): as entradas de outra entram em d (as chaves repetidas ficam com o valor de outra)
 Value dictUpdate(Args a) {
     const Entradas outra = entradas(a[1]);   // cópia: outra pode ser d
-    for (const auto& [k, v] : outra) entradas(a[0])[k] = v;
+    for (const auto& [k, v] : outra) entradas(a[0]).poe(k, v);
     return Value();
 }
 
 // pop(d, k): remove a chave e devolve o valor
 Value dictPop(Args a) {
-    auto& e = entradas(a[0]);
-    auto it = e.find(a[1]);
-    if (it == e.end()) falha("KeyError: 'pop': a chave '" + a[1].toString() + "' não existe");
-    Value v = std::move(it->second);
-    e.erase(it);
+    Value v;
+    if (!entradas(a[0]).remove(a[1], &v)) falha("KeyError: 'pop': a chave '" + a[1].toString() + "' não existe");
     return v;
 }
 
@@ -1806,7 +1802,7 @@ Value dictClear(Args a) {
 Value dictMerge(Args a) {
     Value r = makeDict();
     entradas(r) = entradas(a[0]);
-    for (const auto& [k, v] : entradas(a[1])) entradas(r)[k] = v;
+    for (const auto& [k, v] : entradas(a[1])) entradas(r).poe(k, v);
     return r;
 }
 
@@ -1818,7 +1814,7 @@ Value dictCopy(Args a) {
 
 // insere sem substituir: chave repetida é ValueError (o dict perderia um valor calado)
 void insereNova(Entradas& e, const Value& k, const Value& v, const char* fn) {
-    if (!e.emplace(k, v).second)
+    if (!e.insereSeNova(k, v))
         falha(std::string("ValueError: '") + fn + "': a chave '" + k.toString() + "' aparece mais de uma vez");
 }
 
@@ -1844,7 +1840,7 @@ Value dictFromPairs(Args a) {
 Value dictInvert(Args a) {
     Value r = makeDict();
     for (const auto& [k, v] : entradas(a[0]))
-        if (!entradas(r).emplace(v, k).second)
+        if (!entradas(r).insereSeNova(v, k))
             falha("ValueError: 'invert': o valor '" + v.toString() + "' aparece em mais de uma chave");
     return r;
 }
@@ -1872,7 +1868,7 @@ Value envGet(Args a) {
 
 Value envAll(Args) {
     Value r = makeDict();
-    for (auto& [n, v] : ambienteTodo()) r.asDict()->entries[Value(n)] = Value(v);
+    for (auto& [n, v] : ambienteTodo()) r.asDict()->entries.poe(Value(n), Value(v));
     return r;
 }
 
@@ -2015,7 +2011,7 @@ Value rxNamed(Args a) {
     if (!re.procura(s, 0, caps)) return r;
     for (std::size_t g = 0; g < re.grupos(); ++g)
         if (!re.nomes()[g].empty())
-            r.asDict()->entries[Value(re.nomes()[g])] = grupo(s, caps[2 * (g + 1)], caps[2 * (g + 1) + 1]);
+            r.asDict()->entries.poe(Value(re.nomes()[g]), grupo(s, caps[2 * (g + 1)], caps[2 * (g + 1) + 1]));
     return r;
 }
 

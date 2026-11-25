@@ -8,7 +8,7 @@ fn main() {
   for (var p in d) { total += p.second; }
   print(total);
 }
-// expect: abacaxi 1
 // expect: banana 2
+// expect: abacaxi 1
 // expect: caju 3
 // expect: 6

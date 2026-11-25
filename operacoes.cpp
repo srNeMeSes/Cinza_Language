@@ -309,9 +309,8 @@ Value indexGet(const Value& obj, const Value& idx) {
         return elems[static_cast<size_t>(i)];
     }
     if (obj.kind() == Value::Kind::DICT) {
-        auto& entries = obj.asDict()->entries;
-        auto it = entries.find(idx);
-        if (it == entries.end())
+        const auto* it = obj.asDict()->entries.find(idx);
+        if (!it)
             throw RuntimeError("KeyError: chave '" + idx.toString() +
                                "' não encontrada no dicionário");
         return it->second;
@@ -441,9 +440,8 @@ Value* indexPlace(Value& obj, const Value& key) {
     }
     if (obj.kind() == Value::Kind::DICT) {
         // v2.00: `d[k] = v` só ATUALIZA chaves existentes; para inserir, use .add
-        auto& entries = obj.asDict()->entries;
-        auto it = entries.find(key);
-        if (it == entries.end()) {
+        auto* it = obj.asDict()->entries.find(key);
+        if (!it) {
             // a chave como se escreve no código: só texto vai entre aspas (5, true, Cor.Verde)
             const std::string escrita = key.kind() == Value::Kind::STRING
                                         ? "\"" + key.asString() + "\"" : key.toString();
@@ -512,18 +510,15 @@ Value callBuiltin(Builtin b, Value& obj, std::span<const Value> args) {
         }
         case Builtin::DictAdd: {
             const auto& p = *args[0].asPair();
-            obj.asDict()->entries[p.first] = p.second;
+            obj.asDict()->entries.poe(p.first, p.second);
             return Value();
         }
         case Builtin::DictHas:
-            return Value(obj.asDict()->entries.count(args[0]) > 0);
+            return Value(obj.asDict()->entries.contem(args[0]));
         case Builtin::DictRemove: {
-            auto& entries = obj.asDict()->entries;
-            auto it = entries.find(args[0]);
-            if (it == entries.end())
+            if (!obj.asDict()->entries.remove(args[0]))
                 throw RuntimeError("KeyError: chave '" + args[0].toString() +
                                    "' não encontrada ao chamar 'remove'");
-            entries.erase(it);
             return Value();
         }
         case Builtin::DictSize:

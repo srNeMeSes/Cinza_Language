@@ -1,0 +1,63 @@
+// Q11 (decisão do autor de 2026-11-24): o dict fica na ordem de inserção (uma tabela de hash
+// com as entradas num vetor), e o == ignora a ordem. Trocar o valor não move a chave; remover e
+// inserir de novo a põe no fim. Chaves de cada tipo; crescer, remover muito (lápides) e
+// reorganizar, conferido contra uma conta independente.
+import Dicts;
+import Lists;
+enum Cor { Verde, Azul, Roxo }
+fn main() {
+  dict<string, i32> d = {{"zeta", 1}, {"alfa", 2}, {"meio", 3}};
+  print(d, d.keys(), d.values());
+  d["alfa"] = 20;                 // troca o valor: a chave fica no lugar
+  d.add({"beta", 4});             // nova: no fim
+  print(d);
+  d.remove("zeta");
+  d.add({"zeta", 5});             // removida e inserida de novo: no fim
+  print(d);
+  for (pair<string, i32> p in d) { printf("{p.first}={p.second}"); }
+  // == ignora a ordem
+  dict<string, i32> e = {{"zeta", 5}, {"beta", 4}, {"meio", 3}, {"alfa", 20}};
+  dict<string, i32> f = {{"zeta", 5}, {"beta", 4}, {"meio", 3}, {"alfa", 21}};
+  print(d == e, d == f, d != f);
+  // chaves de cada tipo
+  dict<i32, string> di = {{30, "c"}, {-1, "a"}, {7, "b"}};
+  dict<i64, bool> dl = {{9223372036854775807, true}, {-9223372036854775807, false}};
+  dict<bool, i32> db = {{false, 0}, {true, 1}};
+  dict<Cor, i32> dc = {{Cor.Roxo, 3}, {Cor.Verde, 1}};
+  print(di, dl, db, dc, di[7], dl.has(9223372036854775807), db[true], dc[Cor.Verde], dc.has(Cor.Azul));
+  // as funções do Dicts seguem a ordem do dict
+  print(Dicts.items(di), Dicts.keys_of({{"x", 1}, {"y", 2}, {"w", 1}}, 1), Dicts.invert(di));
+  print(Dicts.merge({{"b", 1}, {"a", 2}}, {{"c", 3}, {"b", 9}}), Lists.sorted(d.keys()));
+  // crescer, remover a maioria, reinserir: conferido contra a soma das chaves que ficaram
+  dict<i32, i32> g;
+  for (i32 i in range(0, 20000)) { g.add({i * 7, i}); }
+  for (i32 i in range(0, 20000)) { if (i % 3 != 0) { g.remove(i * 7); } }
+  i64 soma = 0;
+  i32 vistos = 0;
+  i32 anterior = -1;
+  bool em_ordem = true;
+  for (pair<i32, i32> p in g) {
+    soma += cast<i64>(p.second);
+    vistos += 1;
+    if (p.second <= anterior) { em_ordem = false; }
+    anterior = p.second;
+  }
+  i64 esperado = 0;
+  for (i32 i in range(0, 20000)) { if (i % 3 == 0) { esperado += cast<i64>(i); } }
+  print(g.size(), vistos, soma == esperado, em_ordem, g.has(21), g.has(14), g[21]);
+  for (i32 i in range(0, 20000)) { if (i % 3 != 0) { g.add({i * 7, -i}); } }
+  print(g.size(), g[14], g[0], g.keys()[0], g.keys()[6667]);
+}
+// expect: {"zeta": 1, "alfa": 2, "meio": 3} ["zeta", "alfa", "meio"] [1, 2, 3]
+// expect: {"zeta": 1, "alfa": 20, "meio": 3, "beta": 4}
+// expect: {"alfa": 20, "meio": 3, "beta": 4, "zeta": 5}
+// expect: alfa=20
+// expect: meio=3
+// expect: beta=4
+// expect: zeta=5
+// expect: true false true
+// expect: {30: "c", -1: "a", 7: "b"} {9223372036854775807: true, -9223372036854775807: false} {false: 0, true: 1} {Cor.Roxo: 3, Cor.Verde: 1} b true 1 1 false
+// expect: [{30, "c"}, {-1, "a"}, {7, "b"}] ["x", "w"] {"c": 30, "a": -1, "b": 7}
+// expect: {"b": 9, "a": 2, "c": 3} ["alfa", "beta", "meio", "zeta"]
+// expect: 6667 6667 true true true false 3
+// expect: 20000 -2 0 0 7

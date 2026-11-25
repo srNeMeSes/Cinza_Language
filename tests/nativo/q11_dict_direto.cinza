@@ -1,0 +1,55 @@
+// Q11: o dict sem o despacho geral no cinzac (has, d[k], d[k] = v, d[k] += x, add com o par
+// escrito) dá o mesmo que a CVM: os valores, a posse, a cópia do struct e os dois KeyError
+// (o da leitura e o da gravação).
+struct P { i32 x = 0; }
+class No { i32 v = 0; pub { No(i32 x) { v = x; } fn valor() -> i32 { return v; } } }
+fn le(dict<string, i32> d, string k) {
+  try { print(d[k]); } except (Error e) { print(e.kind, e.message); }
+}
+fn grava(dict<string, i32> d, string k) {
+  try { d[k] = 1; print(d); } except (Error e) { print(e.kind, e.message); }
+}
+fn soma(dict<string, i32> d, string k) {
+  try { d[k] += 1; print(d); } except (Error e) { print(e.kind, e.message); }
+}
+fn main() {
+  dict<string, i32> d = {{"a", 1}};
+  d.add({"b", 2});
+  pair<string, i32> p = {"c", 3};
+  d.add(p);
+  print(d, d.has("a"), d.has("z"), d["b"]);
+  d["a"] = 10;
+  d["c"] += 5;
+  print(d);
+  le(d, "z");
+  grava(d, "z");
+  soma(d, "z");
+  soma(d, "a");
+  // valores com referência: o lido continua vivo depois que o dict o solta
+  dict<i32, No> nos = {{1, new No(7)}};
+  No n = nos[1];
+  nos[1] = new No(8);
+  print(n.valor(), nos[1].valor());
+  // valor struct: d[k] é uma cópia
+  dict<string, P> ps = {{"p", new P(1)}};
+  P q = ps["p"];
+  q.x = 50;
+  print(ps["p"].x, q.x);
+  ps["p"] = q;
+  print(ps["p"].x);
+  // chave enum e bool
+  dict<bool, string> db;
+  db.add({true, "sim"});
+  db.add({false, "não"});
+  print(db[false], db.has(true), db);
+}
+// expect: {"a": 1, "b": 2, "c": 3} true false 2
+// expect: {"a": 10, "b": 2, "c": 8}
+// expect: KeyError chave 'z' não encontrada no dicionário
+// expect: KeyError chave 'z' não existe no dicionário. Use .add({"z", valor}) para inserir novas entradas.
+// expect: KeyError chave 'z' não existe no dicionário. Use .add({"z", valor}) para inserir novas entradas.
+// expect: {"a": 11, "b": 2, "c": 8}
+// expect: 7 8
+// expect: 1 50
+// expect: 50
+// expect: não true {true: "sim", false: "não"}

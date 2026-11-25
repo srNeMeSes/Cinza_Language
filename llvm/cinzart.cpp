@@ -274,6 +274,48 @@ extern "C" void cz_lista_add(CzObjeto* l, const CzValor* v) noexcept {
     fronteira([&] { static_cast<CinzaList*>(l)->elements.push_back(Value::empresta(*v)); });
 }
 
+namespace {
+// o dict como Value (para o caminho do erro, pelo indexGet/indexPlace)
+Value dictComoValue(CzObjeto* d) {
+    CzValor c{};
+    c.tipo = static_cast<std::uint8_t>(Value::Kind::DICT);
+    c.u.obj = d;
+    return Value::empresta(c);
+}
+}  // namespace
+
+extern "C" std::int32_t cz_dict_tem(CzObjeto* d, const CzValor* k) noexcept {
+    return static_cast<CinzaDict*>(d)->entries.contem(Value::empresta(*k)) ? 1 : 0;
+}
+
+extern "C" void cz_dict_le(CzObjeto* d, const CzValor* k, std::int32_t lugar, CzValor* r, const CzPos* p) noexcept {
+    *r = Value().entrega();
+    fronteira([&] {
+        if (const auto* e = static_cast<CinzaDict*>(d)->entries.find(Value::empresta(*k))) {
+            *r = Value(e->second).entrega();
+            return;
+        }
+        Value obj = dictComoValue(d);   // ausente: o erro de sempre (lança)
+        if (lugar) indexPlace(obj, Value::empresta(*k));
+        else indexGet(obj, Value::empresta(*k));
+    }, p);
+}
+
+extern "C" void cz_dict_grava(CzObjeto* d, const CzValor* k, const CzValor* v, const CzPos* p) noexcept {
+    fronteira([&] {
+        if (auto* e = static_cast<CinzaDict*>(d)->entries.find(Value::empresta(*k))) {
+            e->second = Value::empresta(*v);
+            return;
+        }
+        Value obj = dictComoValue(d);
+        indexPlace(obj, Value::empresta(*k));   // ausente: o KeyError de sempre (lança)
+    }, p);
+}
+
+extern "C" void cz_dict_add(CzObjeto* d, const CzValor* k, const CzValor* v) noexcept {
+    fronteira([&] { static_cast<CinzaDict*>(d)->entries.poe(Value::empresta(*k), Value::empresta(*v)); });
+}
+
 extern "C" void cz_valor_copia(const CzValor* v, CzValor* r) noexcept {
     fronteira([&] { *r = Value(Value::empresta(*v)).entrega(); });
 }
@@ -537,7 +579,7 @@ extern "C" CzObjeto* cz_dict_novo(const CzValor* kv, std::uint64_t n) noexcept {
     fronteira([&] {   // como o NEWDICT: na ordem, a última chave repetida vence
         Value d = makeDict();
         auto& entries = d.asDict()->entries;
-        for (std::uint64_t i = 0; i + 1 < n; i += 2) entries[elemento(kv[i])] = elemento(kv[i + 1]);
+        for (std::uint64_t i = 0; i + 1 < n; i += 2) entries.poe(elemento(kv[i]), elemento(kv[i + 1]));
         r = d.entrega().u.obj;
     });
     return r;

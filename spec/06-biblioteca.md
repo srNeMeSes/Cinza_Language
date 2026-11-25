@@ -550,7 +550,7 @@ fn main() {
 ### `Dicts`
 
 Funções de `dict`, como `Lists` faz para `list` (os métodos continuam `size`, `add`, `remove`, `has`,
-`keys` e `values`). O dict é ordenado pela chave, e o que as funções devolvem segue essa ordem.
+`keys` e `values`). O que as funções devolvem segue a ordem do dict, a de inserção (seção 3).
 Nada falha em silêncio: chave ausente no `pop` lança `KeyError`; chave repetida ao montar um dict
 e valor repetido ao inverter lançam `ValueError` (em vez de ficar só com um deles).
 
@@ -560,8 +560,8 @@ e valor repetido ao inverter lançam `ValueError` (em vez de ficar só com um de
 |--------|-----------|
 | `get(dict<K, V> d, K chave) -> V?` | o valor da chave, ou `null` se ela não existir (`d[k]`, ao contrário, lança `KeyError`) |
 | `contains_value(dict<K, V> d, V v) -> bool` | `true` se alguma chave tem o valor `v` |
-| `keys_of(dict<K, V> d, V v) -> list<K>` | as chaves com o valor `v`, em ordem (nenhuma: `[]`) |
-| `items(dict<K, V> d) -> list<pair<K, V>>` | as entradas como pares, em ordem de chave |
+| `keys_of(dict<K, V> d, V v) -> list<K>` | as chaves com o valor `v`, na ordem do dict (nenhuma: `[]`) |
+| `items(dict<K, V> d) -> list<pair<K, V>>` | as entradas como pares, na ordem do dict |
 | `is_empty(dict<K, V> d) -> bool` | `true` se não tem entradas |
 
 **Alterar no lugar**
@@ -595,11 +595,11 @@ fn main() {
   for (pair<string, i32> p in Dicts.items(estoque)) { printf("{p.first}: {p.second}"); }
 }
 // expect: 0 ["pera", "uva"] true
-// expect: {"kiwi": 5, "pera": 3, "uva": 1} 0
+// expect: {"pera": 3, "uva": 1, "kiwi": 5} 0
 // expect: {1: "um", 2: "dois"} {"a": true, "b": false}
-// expect: kiwi: 5
 // expect: pera: 3
 // expect: uva: 1
+// expect: kiwi: 5
 ```
 
 ### `Env`

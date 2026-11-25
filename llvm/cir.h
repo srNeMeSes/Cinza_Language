@@ -197,6 +197,12 @@ enum class Rt : std::uint8_t {
     Relanca,         // void (erro com posse): devolve ao estado um erro tirado dele (o fim do finally) — falha
     ValorCopia,      // valor (valor): uma cópia com posse — retem, ou o clone de um struct (Q1b: guardar um T?)
     ListaAdd,        // void (lista, valor v): l.add(v) — guarda a cópia de v (retém, ou clona o struct) (Q11)
+    // Q11: o dict sem o despacho geral (a chave ausente: o erro de sempre, pelo indexGet/indexPlace)
+    DictTem,         // bool (dict, valor k): d.has(k)
+    DictLe,          // valor (dict, valor k, i32 lugar): uma cópia de d[k] — falha (KeyError; lugar: o
+                     // de uma atribuição composta, d[k] += x)
+    DictGrava,       // void (dict, valor k, valor v): d[k] = v, só numa chave que existe — falha
+    DictAdd,         // void (dict, valor k, valor v): d.add({k, v}), sem criar o par
 };
 struct InfoRt {
     const char*       nome;     // o símbolo em C

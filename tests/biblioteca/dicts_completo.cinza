@@ -48,15 +48,15 @@ fn main() {
   print(cs2[1].valor(), (Dicts.get(cs, 2) else new Caixa()).valor());
 }
 // expect: 1 null -1 true false
-// expect: ["b", "c"] [] [{"a", 1}, {"b", 2}, {"c", 2}] false
-// expect: a=1
+// expect: ["b", "c"] [] [{"b", 2}, {"a", 1}, {"c", 2}] false
 // expect: b=2
+// expect: a=1
 // expect: c=2
-// expect: {"a": 1, "b": 2, "c": 30, "d": 4} {"a": 1, "b": 2, "c": 2} {"c": 30, "d": 4}
-// expect: {"a": 1, "b": 2, "c": 30, "d": 4}
-// expect: 4 {"a": 1, "b": 2, "c": 30}
-// expect: {"a": 1, "b": 2, "c": 30}
-// expect: {1: "um", 2: "dois"} {1: "a", 2: "b", 3: "c"} {"j": false, "k": true}
+// expect: {"b": 2, "a": 1, "c": 30, "d": 4} {"b": 2, "a": 1, "c": 2} {"c": 30, "d": 4}
+// expect: {"b": 2, "a": 1, "c": 30, "d": 4}
+// expect: 4 {"b": 2, "a": 1, "c": 30}
+// expect: {"b": 2, "a": 1, "c": 30}
+// expect: {1: "um", 2: "dois"} {3: "c", 1: "a", 2: "b"} {"k": true, "j": false}
 // expect: {} true 1
 // expect: 9 1
 // expect: 1 0

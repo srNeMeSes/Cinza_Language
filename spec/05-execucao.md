@@ -163,7 +163,7 @@ Só sobre `bool`.
 | `string`       | o próprio texto (dentro de coleções, entre aspas)                     |
 | `bool`         | `true`, `false`                                                        |
 | `list`         | `[1, 2]`, `["a", "b"]`                                                 |
-| `dict`         | `{"a": 1, "b": 2}`, em ordem de chave                                  |
+| `dict`         | `{"b": 2, "a": 1}`, na ordem de inserção                               |
 | `pair`         | `{1, "x"}`                                                             |
 | `struct`       | `Ponto{x: 1, y: 2}`                                                    |
 | objeto         | `<Pessoa object>`                                                      |
@@ -176,7 +176,7 @@ struct Ponto { i64 x = 0; i64 y = 0; }
 fn main() {
   print(123456.789ff, 4.0ff, 1.0ff / 4.ff, [1, 2], ["a"], {{"b", 2}, {"a", 1}}, {1, "x"}, new Ponto(1, 2));
 }
-// expect: 123456.789 4 0.25 [1, 2] ["a"] {"a": 1, "b": 2} {1, "x"} Ponto{x: 1, y: 2}
+// expect: 123456.789 4 0.25 [1, 2] ["a"] {"b": 2, "a": 1} {1, "x"} Ponto{x: 1, y: 2}
 ```
 
 ## 5.5 Instruções
@@ -202,7 +202,7 @@ for (tipo nome in iteravel) { ... }
 | Iterável       | Cada volta recebe                                   |
 |----------------|-----------------------------------------------------|
 | `list<T>`      | um elemento, do primeiro ao último                  |
-| `dict<K, V>`   | um `pair<K, V>`, em ordem de chave                  |
+| `dict<K, V>`   | um `pair<K, V>`, na ordem de inserção               |
 | `string`       | um caractere (code point UTF-8), como `string`      |
 
 Os elementos são **copiados no início** do laço: alterar a coleção dentro do corpo não muda as
@@ -372,8 +372,8 @@ Termina o programa com código 1 e mostra o erro no formato do capítulo 7, segu
 | `d.add({k, v})`    | insere ou substitui                                         |
 | `d.remove(k)`      | remove a chave (`KeyError` se não existir)                  |
 | `d.has(k)`         | `true` se a chave existe                                    |
-| `d.keys()`         | `list<K>` das chaves, em ordem                              |
-| `d.values()`       | `list<V>` dos valores, na ordem das chaves                  |
+| `d.keys()`         | `list<K>` das chaves, na ordem de inserção                  |
+| `d.values()`       | `list<V>` dos valores, na mesma ordem                       |
 
 | `string`           | Efeito                                                      |
 |--------------------|-------------------------------------------------------------|

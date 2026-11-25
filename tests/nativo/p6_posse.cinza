@@ -72,7 +72,7 @@ fn main() {
 }
 // expect: ["x", "yy"] ["x", "yy"] true
 // expect: [4, 8] []
-// expect: {"gato": 1, "o": 3, "rato": 2}
+// expect: {"o": 3, "rato": 2, "gato": 1}
 // expect: [1, 2, 3, 10, 20, 30]
 // expect: 12512500
 // expect: [["a", "d"], ["e"]] 3 [1]

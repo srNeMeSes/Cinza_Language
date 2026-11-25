@@ -9,4 +9,4 @@ fn main() {
   dict<string, i32> d = {{"b", 2}, {"a", 1}};
   print(chaves(d), troca({1, "x"}));
 }
-// expect: ["a", "b"] {"x", 1}
+// expect: ["b", "a"] {"x", 1}

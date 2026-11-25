@@ -41,7 +41,7 @@ fn main() {
   print(type(cx) == Caixa[Carta], type(cx) == Caixa[i32], type(cx), type(l));
 }
 // expect: Naipe.Paus true true false true
-// expect: {Naipe.Copas: 6, Naipe.Ouros: 2}
+// expect: {Naipe.Ouros: 2, Naipe.Copas: 6}
 // expect: 2 [Naipe.Copas, Naipe.Espadas, Naipe.Ouros, Naipe.Paus]
 // expect: Carta{valor: 1, naipe: Naipe.Espadas} true
 // expect: true true true true

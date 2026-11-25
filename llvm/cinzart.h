@@ -105,6 +105,13 @@ void cz_solta_valor(cinza::CzValor* v) noexcept;
 void cz_valor_copia(const cinza::CzValor* v, cinza::CzValor* r) noexcept;
 // Q11: l.add(v) sem passar pelo callBuiltin (a cópia de v: retém, ou clona o struct)
 void cz_lista_add(cinza::CzObjeto* l, const cinza::CzValor* v) noexcept;
+// Q11: o dict sem o despacho geral; a chave ausente lança o erro de sempre
+std::int32_t cz_dict_tem(cinza::CzObjeto* d, const cinza::CzValor* k) noexcept;   // bool em i32, como as outras
+void cz_dict_le(cinza::CzObjeto* d, const cinza::CzValor* k, std::int32_t lugar, cinza::CzValor* r,
+                const cinza::CzPos* p) noexcept;
+void cz_dict_grava(cinza::CzObjeto* d, const cinza::CzValor* k, const cinza::CzValor* v,
+                   const cinza::CzPos* p) noexcept;
+void cz_dict_add(cinza::CzObjeto* d, const cinza::CzValor* k, const cinza::CzValor* v) noexcept;
 
 // Os nomes dos arquivos do programa, na ordem dos file_id (0 = o principal)
 void cz_arquivos(const char* const* nomes, std::uint64_t n) noexcept;
@@ -166,7 +173,7 @@ cinza::CzObjeto* cz_dict_novo(const cinza::CzValor* chaves_valores, std::uint64_
 cinza::CzObjeto* cz_par_novo(const cinza::CzValor* a, const cinza::CzValor* b) noexcept;
 void             cz_par_campo(const cinza::CzValor* p, std::int32_t qual, cinza::CzValor* r) noexcept;
 std::int32_t     cz_igual(const cinza::CzValor* a, const cinza::CzValor* b) noexcept;
-// A cópia dos elementos de um for (forElements: lista; dict em pares, na ordem das chaves)
+// A cópia dos elementos de um for (forElements: lista; dict em pares, na ordem de inserção)
 CZ_FALHA cinza::CzObjeto* cz_elementos(const cinza::CzValor* col, const cinza::CzPos* p) noexcept;
 std::int64_t     cz_lista_tam(cinza::CzObjeto* l) noexcept;
 void             cz_lista_elem(cinza::CzObjeto* l, std::int64_t i, cinza::CzValor* r) noexcept;
