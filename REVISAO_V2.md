@@ -2227,6 +2227,40 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
   > copiado para a própria lista, todos liberados no modo sem vazamento, entre objetos de tipos
   > acíclicos) e `unit_gc` (o struct sem rastreio e o clone dele; a coleta dos jovens com um velho
   > segurando um jovem; o ciclo velho só na completa).
+  > Andamento (2026-11-24), fatia 2 (código nativo). O padrão de todas: o caminho comum em linha,
+  > com guardas; uma guarda que falha leva à chamada de sempre pelo runtime, que lança o erro com
+  > a mensagem de sempre (as regras ficam num lugar só). (a) **Math em linha** (`Op::Matematica`,
+  > `Op::Finito`): `sqrt`, `abs`, `min`, `max`, `floor`, `ceil`, `round`, `trunc` pelas intrínsecas
+  > exatas, e `pow`, `exp`, `log`, `log10`, `log2`, `sin`, `cos`, `tan`, `atan`, `atan2`, `sinh`,
+  > `cosh`, `tanh`, `hypot` pela libm (a mesma do runtime); as guardas: o domínio (`sqrt` de
+  > negativo, `log` de não positivo, `pow(0, negativo)`), o resultado finito e a faixa do i64; só
+  > f64 (e os inteiros no `abs`, `min`, `max`); (b) **listas em linha** (`TamLista`, `ElemLista`,
+  > `GravaElemLista`): `l[i]` com guarda `0 <= i < tamanho` para elementos sem referência e
+  > ponteiros (retidos em linha); `l[i] = v` e `l[i] += x` para os sem referência; `l.size()`; o
+  > `for` lê a cópia em linha; `l.add(x)` por uma função própria (`cz_lista_add`), sem o despacho
+  > do `callBuiltin`; (c) **campos com referência em linha**: o `CzValor` do campo copiado com
+  > posse (`CopiaValor`: retém o objeto, ou clona um struct pelo runtime) e a gravação que retém o
+  > novo antes de soltar o antigo; o `Solta` de um valor em linha no -O2; (d) **structs numa
+  > lista**: `lista[i].campo` lê o campo direto do elemento (sem clonar o struct), e o `for` toma
+  > cada struct da cópia que percorre (`TomaElemLista`: a cópia é só do laço) em vez de clonar de
+  > novo; (e) no runtime (os dois backends): uma lista só de números do mesmo tipo é ordenada
+  > pelos números crus (`ordenaNumeros`: a mesma ordenação estável), e o `<` dos `Value` tem um
+  > caminho curto em linha para `i32`, `i64` e string do mesmo tipo (as chaves do dict). **Testes**
+  > (nos dois backends, em -O0 e -O2, no modo sem vazamento): `nativo/q11_math_em_linha` (cada
+  > função, os erros de cada guarda, o empate e a comparação em double do `min`/`max`, f32 pelo
+  > runtime), `nativo/q11_listas_em_linha` (cada tipo de elemento, fora dos limites, a gravação,
+  > a composta, o for sobre a cópia, a posse do elemento lido), `nativo/q11_campos_em_linha`
+  > (string, objeto, lista, interface, `T?` de objeto e de struct; `a = a`; o antigo vivo enquanto
+  > usado), `nativo/q11_structs_em_lista` (`ps[i].campo` com campos de cada tipo e fora dos
+  > limites; a variável do for como cópia; a lista mudando no laço) e
+  > `biblioteca/q11_sort_numeros`. **Medição** (nativo, A/B intercalado, mediana de 5, ms; `main`
+  > antes do Q11 → fatia 1 → fatia 2): `structs_lista` 4792 → 751 → 418; `corpos` 738 → 328 → 121;
+  > `listas` 674 → 527 → 195; `structs` 198 → 50 → 54; `arvores` 971 → 464 → 385; `ciclos` 472 →
+  > 241 → 206; `texto` 269 → 139 → 133; `strings` 508 → 271 → ~230; `dicts` 645 → 514 → ~480;
+  > `fib`, `laco`, `metodos`, `objetos` sem mudança. Contra o Python 3.13 na mesma rodada, o
+  > nativo ganha em todos menos o `dicts` (480 × 388): o dict é ordenado pela chave (spec 6,
+  > `Dicts`), uma árvore, e cada busca percorre nós espalhados; o Python usa hash. Mudar isso é
+  > decisão de linguagem (a ordem das chaves), não desta fatia.
 - [ ] Q2. Robustez.
   - Fuzzing do front-end: nenhuma entrada derruba o `cinza` nem o `cinzac` (um erro interno ou uma
     queda é defeito), começando por mutações dos programas da suíte.

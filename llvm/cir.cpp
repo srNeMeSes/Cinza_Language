@@ -58,6 +58,7 @@ const InfoRt& infoRt(Rt r) {
         {"cz_lanca",             T::Void,  {T::Erro}, true},
         {"cz_relanca",           T::Void,  {T::Erro}, true},
         {"cz_valor_copia",       T::Valor, {T::Valor}, false},
+        {"cz_lista_add",         T::Void,  {T::Lista, T::Valor}, false},
     };
     return tabela[static_cast<std::size_t>(r)];
 }
@@ -219,6 +220,13 @@ std::string texto(const Modulo& m) {
                     case Op::RetErro:  out << "ret.erro"; break;
                     case Op::Inalcancavel: out << "inalcançável"; break;
                     case Op::EhNulo:   dst(); out << "eh.null "; args(); break;
+                    case Op::Matematica: dst(); out << "mat " << in.aux << " "; args(); break;
+                    case Op::Finito:   dst(); out << "finito "; args(); break;
+                    case Op::TamLista: dst(); out << "tam.lista "; args(); break;
+                    case Op::ElemLista: dst(); out << "elem.lista "; args(); break;
+                    case Op::GravaElemLista: out << "grava.elem.lista "; args(); break;
+                    case Op::CopiaValor: dst(); out << "copia.valor "; args(); break;
+                    case Op::TomaElemLista: dst(); out << "toma.elem.lista "; args(); break;
                 }
                 if (podeFalhar(in)) out << "   ! " << f.blocos[in.erro].nome;
                 if (in.pos.line) out << "   ; " << in.pos.line << ":" << in.pos.column;

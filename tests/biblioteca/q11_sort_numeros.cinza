@@ -1,0 +1,31 @@
+// Q11: a ordenação de listas só de números (pelos números crus) dá o mesmo que a comparação
+// geral: crescente, decrescente, sorted, com repetidos, negativos, f32 e o zero com sinal
+import Lists as L;
+fn main() {
+  list<i32> a = [5, -3, 5, 0, 2147483647, -2147483648, 1];
+  L.sort(a);
+  print(a);
+  list<i64> b = [9223372036854775807, -1, 3, 3, -9223372036854775807];
+  L.sort_desc(b);
+  print(b);
+  list<f64> c = [2.5ff, -0.0ff, 0.0ff, -1.5ff, 2.5ff];
+  print(L.sorted(c), c);
+  L.sort_desc(c);
+  print(c);
+  list<f32> d = [1.5f, 0.25f, -2.0f];
+  L.sort(d);
+  print(d, type(d[0]));
+  list<string> s = ["b", "a", "c"];
+  L.sort(s);
+  print(s);
+  list<i32> vazia;
+  L.sort(vazia);
+  print(vazia);
+}
+// expect: [-2147483648, -3, 0, 1, 5, 5, 2147483647]
+// expect: [9223372036854775807, 3, 3, -1, -9223372036854775807]
+// expect: [-1.5, -0, 0, 2.5, 2.5] [2.5, -0, 0, -1.5, 2.5]
+// expect: [2.5, 2.5, -0, 0, -1.5]
+// expect: [-2, 0.25, 1.5] f32
+// expect: ["a", "b", "c"]
+// expect: []

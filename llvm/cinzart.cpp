@@ -270,6 +270,10 @@ extern "C" void cz_solta_valor(CzValor* v) noexcept {
     });
 }
 
+extern "C" void cz_lista_add(CzObjeto* l, const CzValor* v) noexcept {
+    fronteira([&] { static_cast<CinzaList*>(l)->elements.push_back(Value::empresta(*v)); });
+}
+
 extern "C" void cz_valor_copia(const CzValor* v, CzValor* r) noexcept {
     fronteira([&] { *r = Value(Value::empresta(*v)).entrega(); });
 }

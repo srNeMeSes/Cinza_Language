@@ -1,0 +1,70 @@
+// Q11: os campos com referência lidos e gravados em linha pelo cinzac (o CzValor copiado com
+// posse; a gravação retém o novo antes de soltar o antigo) dão o mesmo que a CVM, sem vazar
+// nada e sem soltar antes da hora: string, objeto, lista, interface, T? de objeto e de struct.
+interface Forma { fn area() -> f64; }
+class Q : Forma { f64 l = 1.0ff; pub { Q(f64 x) { l = x; } fn area() -> f64 { return l * l; } } }
+struct P { i32 x = 0; list<i32> xs; }
+class No {
+  i32 v = 0;
+  pub {
+    No(i32 x) { v = x; }
+    fn valor() -> i32 { return v; }
+  }
+}
+class Caixa {
+  string nome = "a";
+  No dono = new No(1);
+  list<string> tags;
+  Forma forma = new Q(2.0ff);
+  No? prox;
+  P? ponto;
+  pub {
+    fn troca() {
+      nome = nome + "b";
+      dono = dono;                // a = a: não pode soltar antes de reter
+      No velho = dono;
+      dono = new No(velho.valor() + 1);
+      print(velho.valor(), dono.valor());   // o antigo continua vivo enquanto é usado
+      tags.add(nome);
+      forma = new Q(3.0ff);
+      prox = new No(7);
+      if (No n = prox) { prox = n; print(n.valor()); }
+      ponto = new P(x: 5);
+      if (P p = ponto) { p.x = 99; }   // a cópia muda, o campo não
+      if (P p = ponto) { print(p.x); }
+      prox = null;
+      print(prox == null, nome, tags, forma.area());
+    }
+    fn copia() -> Caixa {
+      Caixa c = new Caixa();
+      c.nome = nome;
+      c.dono = dono;
+      c.prox = prox;
+      c.ponto = ponto;
+      return c;
+    }
+    fn mostra() { print(nome, dono.valor(), tags.size(), prox == null, ponto != null); }
+  }
+}
+fn main() {
+  Caixa c = new Caixa();
+  for (i32 i in range(0, 3)) { c.troca(); }
+  Caixa d = c.copia();
+  c = new Caixa();
+  d.mostra();
+  c.mostra();
+}
+// expect: 1 2
+// expect: 7
+// expect: 5
+// expect: true ab ["ab"] 9
+// expect: 2 3
+// expect: 7
+// expect: 5
+// expect: true abb ["ab", "abb"] 9
+// expect: 3 4
+// expect: 7
+// expect: 5
+// expect: true abbb ["ab", "abb", "abbb"] 9
+// expect: abbb 4 0 true true
+// expect: a 1 0 true false

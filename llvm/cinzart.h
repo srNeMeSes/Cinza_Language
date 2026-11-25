@@ -103,6 +103,8 @@ CZ_FALHA void cz_nativa(const void* fn, const cinza::CzValor* args, std::uint64_
 void cz_solta_valor(cinza::CzValor* v) noexcept;
 // Q1b: uma cópia com posse de v (retem o que ele segura, ou clona um struct): guardar um T?
 void cz_valor_copia(const cinza::CzValor* v, cinza::CzValor* r) noexcept;
+// Q11: l.add(v) sem passar pelo callBuiltin (a cópia de v: retém, ou clona o struct)
+void cz_lista_add(cinza::CzObjeto* l, const cinza::CzValor* v) noexcept;
 
 // Os nomes dos arquivos do programa, na ordem dos file_id (0 = o principal)
 void cz_arquivos(const char* const* nomes, std::uint64_t n) noexcept;

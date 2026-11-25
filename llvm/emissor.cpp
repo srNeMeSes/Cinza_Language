@@ -17,6 +17,7 @@
 #include <llvm-c/Transforms/PassBuilder.h>
 #include <cmath>
 #include <cstring>
+#include <limits>
 #include <map>
 #include <string>
 #include <tuple>
@@ -58,6 +59,7 @@ void inicializaAlvo() {
 #pragma GCC diagnostic ignored "-Winvalid-offsetof"
 const std::size_t DESLOC_CAMPOS_OBJ    = offsetof(ClassInstance, fields);
 const std::size_t DESLOC_CAMPOS_STRUCT = offsetof(StructValue, fields);
+const std::size_t DESLOC_ELEMENTOS     = offsetof(CinzaList, elements);   // Q11: o std::vector de Value
 #pragma GCC diagnostic pop
 
 // Q5: o deslocamento do vetor de campos fica fixo em 48, em todo sistema — o cinzac e o runtime
@@ -458,6 +460,51 @@ struct Emissor::Impl {
         LLVMBuildBr(b, fim);
         LLVMPositionBuilderAtEnd(b, fim);
     }
+    // Q11: o objeto que um CzValor segura: o tipo está na máscara do guardaObjeto e o ponteiro
+    // não é nulo; `com` recebe o ponteiro, no bloco em que ele existe
+    template <typename F>
+    void comObjetoDoValor(LLVMValueRef v, F&& com) {
+        unsigned mascara = 0;
+        for (unsigned k = 0; k < 32; ++k)
+            if (Value::guardaObjeto(static_cast<Value::Kind>(k))) mascara |= 1u << k;
+        LLVMValueRef cab = LLVMBuildExtractValue(b, v, 0, "");
+        LLVMValueRef k = LLVMBuildAnd(b, LLVMBuildTrunc(b, cab, tI32, ""), ci32(31), "kind");
+        LLVMValueRef bit = LLVMBuildAnd(b, LLVMBuildLShr(b, ci32(static_cast<std::int32_t>(mascara)), k, ""), ci32(1), "");
+        LLVMValueRef u = LLVMBuildExtractValue(b, v, 1, "");
+        LLVMValueRef tem = LLVMBuildAnd(b, LLVMBuildICmp(b, LLVMIntNE, bit, ci32(0), ""),
+                                        LLVMBuildICmp(b, LLVMIntNE, u, ci64(0), ""), "tem.obj");
+        LLVMBasicBlockRef sim = novoBloco("obj"), fim = novoBloco("obj.fim");
+        LLVMBuildCondBr(b, tem, sim, fim);
+        LLVMPositionBuilderAtEnd(b, sim);
+        com(LLVMBuildIntToPtr(b, u, tPtr, ""), k);
+        LLVMBuildBr(b, fim);
+        LLVMPositionBuilderAtEnd(b, fim);
+    }
+    // Uma cópia com posse de um CzValor: retém o objeto; um struct é clonado pelo runtime
+    LLVMValueRef copiaValor(LLVMValueRef v) {
+        if (!em_linha) {
+            LLVMValueRef de = reserva(tValor, "copia.de"), para = reserva(tValor, "copia");
+            LLVMBuildStore(b, v, de);
+            chamaRt(rt("cz_valor_copia", tVoid, {tPtr, tPtr}), {de, para});
+            return LLVMBuildLoad2(b, tValor, para, "");
+        }
+        LLVMValueRef res = reserva(tValor, "copia");
+        LLVMBuildStore(b, v, res);
+        comObjetoDoValor(v, [&](LLVMValueRef p, LLVMValueRef k) {
+            LLVMBasicBlockRef clona = novoBloco("clona"), retem = novoBloco("retem.valor"), fim = novoBloco("copiou");
+            LLVMBuildCondBr(b, LLVMBuildICmp(b, LLVMIntEQ, k, ci32(kind(Value::Kind::STRUCT)), ""), clona, retem);
+            LLVMPositionBuilderAtEnd(b, clona);
+            LLVMValueRef de = reserva(tValor, "copia.de");
+            LLVMBuildStore(b, v, de);
+            chamaRt(rt("cz_valor_copia", tVoid, {tPtr, tPtr}), {de, res});
+            LLVMBuildBr(b, fim);
+            LLVMPositionBuilderAtEnd(b, retem);
+            retemEmLinha(p);
+            LLVMBuildBr(b, fim);
+            LLVMPositionBuilderAtEnd(b, fim);
+        });
+        return LLVMBuildLoad2(b, tValor, res, "");
+    }
     void soltaEmLinha(LLVMValueRef p) {
         LLVMValueRef imortal = LLVMBuildICmp(b, LLVMIntNE, LLVMBuildAnd(b, marcasDe(p), LLVMConstInt(tI8, marca::IMORTAL, 0), ""),
                                              LLVMConstInt(tI8, 0, 0), "imortal");
@@ -546,6 +593,62 @@ struct Emissor::Impl {
         }
         seFalha(naoFinito(r, lt), falha);
         return r;
+    }
+
+    // Q11: o ponteiro `qual` (0: início, 1: fim) do std::vector de elementos de uma lista
+    LLVMValueRef elementos(LLVMValueRef lista, int qual) {
+        LLVMValueRef off[] = {ci64(static_cast<std::int64_t>(DESLOC_ELEMENTOS + qual * sizeof(void*)))};
+        return LLVMBuildLoad2(b, tPtr, LLVMBuildInBoundsGEP2(b, tI8, lista, off, 1, ""), qual ? "fim" : "inicio");
+    }
+
+    // Q11: Math em linha (as guardas já vieram do gerador). As exatas pelas intrínsecas; as
+    // transcendentes pela libm, a mesma que o runtime chama (std::sin...), para o mesmo resultado
+    LLVMValueRef matematica(const cir::Instr& in) {
+        using cir::Mat;
+        const auto qual = static_cast<Mat>(in.aux);
+        const cir::Tipo t = cf->temps[in.dst];
+        LLVMValueRef a = val(in.args[0]);
+        auto libm = [&](const char* nome, unsigned n) {
+            std::vector<LLVMTypeRef> ps(n, tF64);
+            std::vector<LLVMValueRef> args{a};
+            if (n == 2) args.push_back(val(in.args[1]));
+            return chamaRt(rt(nome, tF64, ps), args);
+        };
+        switch (qual) {
+            case Mat::Sqrt:  return intrinseca("llvm.sqrt", tF64, {a});
+            case Mat::Fabs:  return intrinseca("llvm.fabs", tF64, {a});
+            case Mat::Floor: return intrinseca("llvm.floor", tF64, {a});
+            case Mat::Ceil:  return intrinseca("llvm.ceil", tF64, {a});
+            case Mat::Round: return intrinseca("llvm.round", tF64, {a});   // metade longe do zero, como std::round
+            case Mat::Trunc: return intrinseca("llvm.trunc", tF64, {a});
+            case Mat::AbsInt: {
+                LLVMValueRef neg = LLVMBuildSub(b, LLVMConstInt(tipo(t), 0, 0), a, "");
+                LLVMValueRef menor = LLVMBuildICmp(b, LLVMIntSLT, a, LLVMConstInt(tipo(t), 0, 0), "");
+                return LLVMBuildSelect(b, menor, neg, a, "abs");
+            }
+            case Mat::Min: case Mat::Max: {   // numero(a1) < numero(a0) ? a1 : a0 (o runtime compara em double)
+                LLVMValueRef x = val(in.args[1]);
+                LLVMValueRef da = cir::ehFlutuante(t) ? a : LLVMBuildSIToFP(b, a, tF64, "");
+                LLVMValueRef dx = cir::ehFlutuante(t) ? x : LLVMBuildSIToFP(b, x, tF64, "");
+                LLVMValueRef troca = LLVMBuildFCmp(b, qual == Mat::Min ? LLVMRealOLT : LLVMRealOGT, dx, da, "");
+                return LLVMBuildSelect(b, troca, x, a, qual == Mat::Min ? "min" : "max");
+            }
+            case Mat::Pow:   return libm("pow", 2);
+            case Mat::Exp:   return libm("exp", 1);
+            case Mat::Log:   return libm("log", 1);
+            case Mat::Log10: return libm("log10", 1);
+            case Mat::Log2:  return libm("log2", 1);
+            case Mat::Sin:   return libm("sin", 1);
+            case Mat::Cos:   return libm("cos", 1);
+            case Mat::Tan:   return libm("tan", 1);
+            case Mat::Atan:  return libm("atan", 1);
+            case Mat::Atan2: return libm("atan2", 2);
+            case Mat::Sinh:  return libm("sinh", 1);
+            case Mat::Cosh:  return libm("cosh", 1);
+            case Mat::Tanh:  return libm("tanh", 1);
+            case Mat::Hypot: return libm("hypot", 2);
+        }
+        throw ErroEmissor{"função do Math desconhecida"};
     }
 
     LLVMValueRef compara(const cir::Instr& in) {
@@ -718,9 +821,22 @@ struct Emissor::Impl {
                     LLVMPositionBuilderAtEnd(b, segue);
                     break;
                 }
+                if (em_linha) {   // Q11: o objeto que o valor segura, em linha
+                    comObjetoDoValor(val(in.args[0]), [&](LLVMValueRef p, LLVMValueRef) { soltaEmLinha(p); });
+                    break;
+                }
                 LLVMValueRef v = reserva(tValor, "solta");
                 LLVMBuildStore(b, val(in.args[0]), v);
                 chamaRt(rt("cz_solta_valor", tVoid, {tPtr}), {v});
+                break;
+            }
+            case Op::CopiaValor: temps[in.dst] = copiaValor(val(in.args[0])); break;
+            case Op::TomaElemLista: {
+                LLVMValueRef idx[] = {val(in.args[1])};
+                LLVMValueRef lugar = LLVMBuildInBoundsGEP2(b, tValor, elementos(val(in.args[0]), 0), idx, 1, "elem");
+                LLVMValueRef pu = LLVMBuildStructGEP2(b, tValor, lugar, 1, "");
+                temps[in.dst] = deBits(LLVMBuildLoad2(b, tI64, pu, ""), cf->temps[in.dst]);
+                LLVMBuildStore(b, valorConst(kind(Value::Kind::VOID_VAL), 0), lugar);   // a lista não o segura mais
                 break;
             }
             case Op::ChamaRt: {
@@ -812,6 +928,38 @@ struct Emissor::Impl {
                 else LLVMBuildRet(b, val(in.args[0]));
                 break;
             case Op::Inalcancavel: LLVMBuildUnreachable(b); break;
+            case Op::Matematica: temps[in.dst] = matematica(in); break;
+            case Op::TamLista: {   // (fim - início) / 16: o std::vector começa por esses dois ponteiros
+                LLVMValueRef ini = elementos(val(in.args[0]), 0), fim = elementos(val(in.args[0]), 1);
+                LLVMValueRef bytes = LLVMBuildSub(b, LLVMBuildPtrToInt(b, fim, tI64, ""),
+                                                  LLVMBuildPtrToInt(b, ini, tI64, ""), "");
+                temps[in.dst] = LLVMBuildLShr(b, bytes, ci64(4), "tam");
+                break;
+            }
+            case Op::ElemLista: {
+                LLVMValueRef idx[] = {val(in.args[1])};
+                LLVMValueRef lugar = LLVMBuildInBoundsGEP2(b, tValor, elementos(val(in.args[0]), 0), idx, 1, "elem");
+                const cir::Tipo t = cf->temps[in.dst];
+                if (cir::ehValorDireto(t)) {
+                    temps[in.dst] = LLVMBuildLoad2(b, tValor, lugar, "");
+                } else {
+                    LLVMValueRef pu = LLVMBuildStructGEP2(b, tValor, lugar, 1, "");
+                    temps[in.dst] = deBits(LLVMBuildLoad2(b, tI64, pu, ""), t);
+                }
+                break;
+            }
+            case Op::GravaElemLista: {
+                LLVMValueRef idx[] = {val(in.args[1])};
+                LLVMValueRef lugar = LLVMBuildInBoundsGEP2(b, tValor, elementos(val(in.args[0]), 0), idx, 1, "elem");
+                const cir::Operando& v = in.args[2];
+                LLVMBuildStore(b, cir::ehValorDireto(tipoOp(v)) ? val(v) : embrulha(v), lugar);
+                break;
+            }
+            case Op::Finito: {   // |x| != infinito, ordenado: NaN também não é finito
+                LLVMValueRef a = intrinseca("llvm.fabs", tF64, {val(in.args[0])});
+                temps[in.dst] = LLVMBuildFCmp(b, LLVMRealONE, a, LLVMConstReal(tF64, std::numeric_limits<double>::infinity()), "finito");
+                break;
+            }
             case Op::EhNulo:   // Q1b: o tipo do CzValor é o do null
                 temps[in.dst] = LLVMBuildICmp(b, LLVMIntEQ,
                                               LLVMBuildTrunc(b, LLVMBuildExtractValue(b, val(in.args[0]), 0, ""), tI8, ""),

@@ -275,6 +275,7 @@ struct Value {
 
     bool operator==(const Value& other) const;
     bool operator< (const Value& other) const;
+    bool menorGeral(const Value& other) const;   // Q11: o caminho geral do <, fora de linha
     bool operator!=(const Value& other) const { return !(*this == other); }
     bool operator<=(const Value& other) const { return !(other < *this);  }
     bool operator> (const Value& other) const { return other < *this;     }
@@ -543,7 +544,22 @@ inline bool Value::operator==(const Value& other) const {
     return true;
 }
 
+// Q11: o < é a comparação das chaves do dict (o std::map) e das ordenações: o caminho curto, em
+// linha, para as chaves do mesmo tipo mais comuns; o resto, pelo caminho geral
 inline bool Value::operator<(const Value& other) const {
+    if (v.tipo == other.v.tipo) {
+        switch (kind()) {
+            case Kind::I32:    return v.u.i32 < other.v.u.i32;
+            case Kind::I64:    return v.u.i64 < other.v.u.i64;
+            case Kind::STRING: return static_cast<const CzString*>(v.u.obj)->texto <
+                                      static_cast<const CzString*>(other.v.u.obj)->texto;
+            default: break;
+        }
+    }
+    return menorGeral(other);
+}
+
+[[gnu::noinline]] inline bool Value::menorGeral(const Value& other) const {
     // Tipos diferentes: ordem por Kind (mesma família numérica: pelo valor)
     if (kind() != other.kind()) {
         if (isInteger() && other.isInteger()) return asInt() < other.asInt();

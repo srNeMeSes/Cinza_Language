@@ -759,6 +759,14 @@ pelo runtime. A representação nativa (campos tipados num struct LLVM, `list<i3
 de `int32_t`) fica de fora por enquanto — ela mexeria no runtime inteiro (print, `==`, a coleta,
 as nativas).
 
+**Q11 (2026-11-24): em linha, com guardas.** Sem mudar a representação: o código gerado faz o
+caminho comum e, se uma guarda falha, chama o runtime de sempre (que lança o erro). Os campos
+com referência: o `CzValor` copiado com posse (`CopiaValor`) e a gravação que retém o novo antes
+de soltar o antigo. As listas: `TamLista`, `ElemLista` (guarda `0 <= i < tamanho`; ponteiros
+retidos), `GravaElemLista` (só sem referência), `TomaElemLista` (o `for` tira o struct da cópia
+dele). `lista[i].campo` sem clonar o struct. As funções numéricas do `Math` com argumento f64
+(`Matematica`, `Finito`): intrínsecas exatas ou a libm, com as guardas de domínio e de resultado.
+
 ### 8.2 Números
 
 A tabela da seção 12 do `cvm/DESENHO.md`: intrínsecas `llvm.sadd/ssub/smul.with.overflow` (sem

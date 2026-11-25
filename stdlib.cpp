@@ -5,6 +5,7 @@
 #include "runtime_error.h"
 #include "utf8.h"
 #include <algorithm>
+#include <type_traits>
 #include <cctype>
 #include <charconv>
 #include <chrono>
@@ -1180,9 +1181,42 @@ bool menor(const Value& x, const Value& y) {
     return x.asInt() < y.asInt();
 }
 
+// Q11: uma lista só de números do mesmo tipo é ordenada pelos números crus (a mesma ordenação
+// estável e a mesma comparação do `menor`), sem comparar Value por um ponteiro de função
+template <typename Num>
+void ordenaCrus(std::vector<Value>& elems, bool desc) {
+    std::vector<Num> n;
+    n.reserve(elems.size());
+    for (const Value& v : elems) {
+        if constexpr (std::is_same_v<Num, double>) n.push_back(v.asFloat());
+        else n.push_back(v.asInt());
+    }
+    if (desc) std::stable_sort(n.begin(), n.end(), [](Num x, Num y) { return y < x; });
+    else std::stable_sort(n.begin(), n.end());
+    const Value::Kind k = elems[0].kind();
+    for (std::size_t i = 0; i < n.size(); ++i) {
+        switch (k) {
+            case Value::Kind::I32: elems[i] = Value::i32(static_cast<std::int32_t>(n[i])); break;
+            case Value::Kind::F32: elems[i] = Value::f32(static_cast<float>(n[i])); break;
+            default:               elems[i] = Value(n[i]); break;
+        }
+    }
+}
+// Ordena no lugar; devolve false se a lista não é só de números do mesmo tipo
+bool ordenaNumeros(std::vector<Value>& elems, bool desc) {
+    if (elems.empty()) return true;
+    const Value::Kind k = elems[0].kind();
+    for (const Value& v : elems) if (v.kind() != k) return false;
+    switch (k) {
+        case Value::Kind::I32: case Value::Kind::I64: ordenaCrus<std::int64_t>(elems, desc); return true;
+        case Value::Kind::F32: case Value::Kind::F64: ordenaCrus<double>(elems, desc); return true;
+        default: return false;
+    }
+}
+
 Value listSort(Args a) {
     auto& elems = a[0].asList()->elements;
-    std::stable_sort(elems.begin(), elems.end(), menor);
+    if (!ordenaNumeros(elems, false)) std::stable_sort(elems.begin(), elems.end(), menor);
     return Value();
 }
 
@@ -1255,7 +1289,8 @@ Value listSum(Args a) { return foldNumeros(a, true, "sum"); }
 
 Value listSortDesc(Args a) {
     auto& elems = a[0].asList()->elements;
-    std::stable_sort(elems.begin(), elems.end(), [](const Value& x, const Value& y) { return menor(y, x); });
+    if (!ordenaNumeros(elems, true))
+        std::stable_sort(elems.begin(), elems.end(), [](const Value& x, const Value& y) { return menor(y, x); });
     return Value();
 }
 
@@ -1283,7 +1318,7 @@ Value listSortBy(Args a) {
 
 Value listSorted(Args a) {
     std::vector<Value> out = a[0].asList()->elements;
-    std::stable_sort(out.begin(), out.end(), menor);
+    if (!ordenaNumeros(out, false)) std::stable_sort(out.begin(), out.end(), menor);
     return makeList(std::move(out));
 }
 

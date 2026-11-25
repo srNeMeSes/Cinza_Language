@@ -1,0 +1,95 @@
+// Q11: o índice, a gravação, o tamanho, o add e o for de listas em linha no cinzac (com guardas;
+// fora delas, o runtime de sempre) dão o mesmo que a CVM: os valores, os erros e a posse.
+enum Cor { Verde, Azul }
+interface Forma { fn area() -> f64; }
+class Quadrado : Forma {
+  f64 lado = 1.0ff;
+  pub {
+    Quadrado(f64 l) { lado = l; }
+    fn area() -> f64 { return lado * lado; }
+  }
+}
+class No {
+  i32 v = 0;
+  pub {
+    No(i32 x) { v = x; }
+    fn valor() -> i32 { return v; }
+  }
+}
+struct P { i32 x = 0; }
+fn le(list<i32> l, i64 i) {
+  try { print(l[i]); } except (Error e) { print(e.kind, e.message); }
+}
+fn grava(list<i32> l, i32 i) {
+  try { l[i] = 9; print(l); } except (Error e) { print(e.kind, e.message); }
+}
+fn main() {
+  list<i32> a = [10, 20, 30];
+  list<i64> b = [1, 2];
+  list<f64> c = [0.5ff, 1.5ff];
+  list<bool> d = [true, false];
+  list<Cor> cores = [Cor.Azul, Cor.Verde];
+  list<string> s = ["um", "dois"];
+  i32 i = 1;
+  i64 j = 2;
+  print(a[0], a[i], a[j], b[1], c[0], d[1], cores[0], s[1], a.size(), s.size());
+  a[0] = 11;
+  a[i] += 5;
+  b[0] *= 7;
+  c[1] -= 0.5ff;
+  d[0] = false;
+  cores[1] = Cor.Azul;
+  print(a, b, c, d, cores);
+  // fora dos limites: o erro do runtime
+  le(a, -1);
+  le(a, 3);
+  le(a, 2);
+  grava(a, 3);
+  grava(a, -2);
+  // add e size
+  list<i32> v;
+  for (i32 k in range(0, 5)) { v.add(k * k); }
+  print(v, v.size());
+  // o for percorre uma cópia (spec 5.5): mudar a lista dentro dele não muda o laço
+  i32 soma = 0;
+  for (i32 x in v) { soma += x; v.add(1); }
+  print(soma, v.size());
+  // a posse: o elemento lido continua vivo depois que a lista o solta
+  list<No> nos = [new No(1), new No(2)];
+  No primeiro = nos[0];
+  nos[0] = new No(3);
+  list<No> vazia;
+  nos = vazia;
+  print(primeiro.valor());
+  string t = s[0];
+  s = ["outra"];
+  print(t, s);
+  // interface e struct (o struct pelo runtime: clonado na saída)
+  list<Forma> fs = [new Quadrado(2.0ff), new Quadrado(3.0ff)];
+  f64 area = 0.0ff;
+  for (Forma f in fs) { area += f.area(); }
+  print(area, fs[1].area());
+  list<P> ps = [new P(1), new P(2)];
+  P p = ps[0];
+  p.x = 100;
+  print(ps[0].x, p.x, ps.size());
+  // objetos no for: a posse de cada um
+  list<No> mais = [new No(5), new No(6)];
+  i32 t2 = 0;
+  for (No n in mais) { t2 += n.valor(); }
+  print(t2);
+}
+// expect: 10 20 30 2 0.5 false Cor.Azul dois 3 2
+// expect: [11, 25, 30] [7, 2] [0.5, 1] [false, false] [Cor.Azul, Cor.Azul]
+// expect: IndexError índice -1 fora dos limites (tamanho: 3)
+// expect: IndexError índice 3 fora dos limites (tamanho: 3)
+// expect: 30
+// expect: IndexError índice 3 fora dos limites (tamanho: 3)
+// expect: IndexError índice negativo em lista não é permitido
+// expect: [0, 1, 4, 9, 16] 5
+// expect: 30 10
+// expect: 1
+// expect: um ["outra"]
+// expect: 13 9
+// expect: 1 100 2
+// expect: 11

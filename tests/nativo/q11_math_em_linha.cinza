@@ -1,0 +1,62 @@
+// Q11: as funções do Math calculadas em linha pelo cinzac (sqrt, abs, min, max, floor, ceil,
+// round, trunc e as da libm) dão os mesmos resultados e os mesmos erros da CVM. O caminho em
+// linha tem guardas; uma guarda que falha passa pela nativa de sempre, que lança o erro.
+import Math;
+fn tenta(string nome, f64 x) {
+  try {
+    if (nome == "sqrt") { print(Math.sqrt(x)); }
+    if (nome == "log") { print(Math.log(x)); }
+    if (nome == "log10") { print(Math.log10(x)); }
+    if (nome == "exp") { print(Math.exp(x)); }
+    if (nome == "floor") { print(Math.floor(x)); }
+    if (nome == "round") { print(Math.round(x)); }
+    if (nome == "cosh") { print(Math.cosh(x)); }
+  } except (Error e) { print(e.kind, e.message); }
+}
+fn main() {
+  // os caminhos comuns
+  print(Math.sqrt(2.0ff), Math.sqrt(0.0ff), Math.abs(-3.5ff), Math.abs(-7), Math.abs(cast<i32>(-7)));
+  print(Math.min(3, 2), Math.max(3, 2), Math.min(1.5ff, 1.5ff), Math.max(-0.5ff, 2.0ff));
+  print(Math.floor(2.7ff), Math.ceil(2.1ff), Math.round(2.5ff), Math.round(-2.5ff), Math.trunc(-2.7ff));
+  print(Math.pow(2.0ff, 10.0ff), Math.pow(0.0ff, 0.0ff), Math.exp(1.0ff), Math.log(Math.exp(2.0ff)));
+  print(Math.sin(0.5ff), Math.cos(0.5ff), Math.tan(0.5ff), Math.atan(1.0ff), Math.atan2(1.0ff, -1.0ff));
+  print(Math.sinh(1.0ff), Math.cosh(1.0ff), Math.tanh(1.0ff), Math.hypot(3.0ff, 4.0ff));
+  print(Math.log10(1000.0ff), Math.log2(1024.0ff));
+  // o empate e a comparação em double (como o runtime): 2^53 + 1 e 2^53 são o mesmo double
+  i64 grande = 9007199254740993;
+  print(Math.min(grande, 9007199254740992), Math.max(9007199254740992, grande));
+  // f32: pelo runtime (a largura do argumento)
+  print(Math.sqrt(2.0f), type(Math.sqrt(2.0f)));
+  // os erros: as guardas mandam para a nativa, que lança
+  tenta("sqrt", -1.0ff);
+  tenta("log", 0.0ff);
+  tenta("log10", -5.0ff);
+  tenta("exp", 1000.0ff);
+  tenta("floor", Math.pow(10.0ff, 300.0ff));
+  tenta("round", -Math.pow(10.0ff, 19.0ff));
+  tenta("cosh", 1000.0ff);
+  try { print(Math.pow(0.0ff, -1.0ff)); } except (Error e) { print(e.kind, e.message); }
+  try { print(Math.pow(-8.0ff, 0.5ff)); } except (Error e) { print(e.kind, e.message); }
+  try { print(Math.abs(-9223372036854775807 - 1)); } except (Error e) { print(e.kind, e.message); }
+  try { print(Math.abs(cast<i32>(-2147483647) - cast<i32>(1))); } except (Error e) { print(e.kind, e.message); }
+}
+// expect: 1.4142135623730951 0 3.5 7 7
+// expect: 2 3 1.5 2
+// expect: 2 3 3 -3 -2
+// expect: 1024 1 2.718281828459045 2
+// expect: 0.479425538604203 0.8775825618903728 0.5463024898437905 0.7853981633974483 2.356194490192345
+// expect: 1.1752011936438014 1.5430806348152437 0.7615941559557649 5
+// expect: 3 10
+// expect: 9007199254740993 9007199254740992
+// expect: 1.4142135 f32
+// expect: ValueError 'sqrt' de número negativo
+// expect: ValueError 'log' só é definido para números positivos
+// expect: ValueError 'log10' só é definido para números positivos
+// expect: OverflowError resultado de 'exp' grande demais
+// expect: OverflowError resultado de 'floor' fora do intervalo de i64
+// expect: OverflowError resultado de 'round' fora do intervalo de i64
+// expect: OverflowError resultado de 'cosh' grande demais
+// expect: ZeroDivisionError 'pow' de 0 com expoente negativo (divisão por zero)
+// expect: ValueError 'pow' sem resultado real
+// expect: OverflowError 'abs' do menor i64 não cabe em i64
+// expect: OverflowError 'abs' do menor i32 não cabe em i32

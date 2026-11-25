@@ -25,7 +25,9 @@
 #include "../natives.h"
 #include "../operacoes.h"
 #include "../semantic.h"
+#include <climits>
 #include <map>
+#include <optional>
 #include <set>
 #include <unordered_map>
 
@@ -665,8 +667,11 @@ private:
                 if (ix.eh_tipo) return valor(*ix.como_tipo);   // N5: Caixa[Ponto] escrito como valor
                 const Operando o = expr(*ix.object);
                 const Operando k = expr(*ix.index);
+                const Tipo te = tipoDe(e.resolved_type, e.token);
+                if (tipoOperando(o) == Tipo::Lista && ehInteiro(tipoOperando(k)) && elemEmLinha(te))
+                    return indiceLista(o, k, te, e.token);   // Q11
                 const Operando r = chamaRt(Rt::Indice, {embrulha(o, e.token), embrulha(k, e.token)}, e.token);
-                return desembrulha(r, tipoDe(e.resolved_type, e.token), e.token);
+                return desembrulha(r, te, e.token);
             }
             case NodeKind::ListLiteral: {   // os elementos na ordem do fonte
                 std::vector<Operando> args;
@@ -702,6 +707,33 @@ private:
                     const std::int32_t qual = n == "kind" ? 0 : n == "message" ? 1 : n == "line" ? 2 : 3;
                     return desembrulha(chamaRt(Rt::ErroCampo, {o, Operando::i32(qual)}, e.token),
                                        tipoDe(e.resolved_type, e.token), e.token);
+                }
+                if (ot && ot->is(TK::Struct) && ma.object->node_kind == NodeKind::IndexAccess &&
+                    !static_cast<const IndexAccessExpr&>(*ma.object).eh_tipo) {
+                    // Q11: lista[i].campo lê o campo direto do elemento, sem clonar o struct (nada
+                    // roda entre o índice e a leitura)
+                    const auto& ix = static_cast<const IndexAccessExpr&>(*ma.object);
+                    const Operando l = expr(*ix.object);
+                    const Operando k = expr(*ix.index);
+                    const Tipo tc = tipoDe(e.resolved_type, e.token);
+                    const auto fi = static_cast<std::uint32_t>(ma.field_index);
+                    if (tipoOperando(l) == Tipo::Lista && ehInteiro(tipoOperando(k))) {
+                        const std::uint32_t lento = f->novoBloco("idx.lento");
+                        const Operando i = comoI64(k, e.token);
+                        const std::uint32_t ok = guardaIndice(l, i, lento, e.token);
+                        const Operando el = Operando::temp(temp(Op::ElemLista, Tipo::Struct, {l, i}, e.token));
+                        const Val r = campo(el, fi, tc, e.token);
+                        const std::uint32_t segue = atual;
+                        (void)ok;
+                        entra(lento);   // fora dos limites: o runtime lança o IndexError
+                        chamaRt(Rt::Indice, {embrulha(l, e.token), embrulha(k, e.token)}, e.token);
+                        poe(Op::Inalcancavel, e.token);
+                        entra(segue);
+                        return r;
+                    }
+                    const Operando r = chamaRt(Rt::Indice, {embrulha(l, e.token), embrulha(k, e.token)}, e.token);
+                    const Operando s = emprestado(desembrulha(r, Tipo::Struct, e.token), e.token);
+                    return campo(s, fi, tc, e.token);
                 }
                 if (ot && (ot->is(TK::Struct) || ot->is(TK::Class))) {   // objeto ou struct: o índice do campo
                     const Operando o = expr(*ma.object);
@@ -941,11 +973,21 @@ private:
             return chamaFuncao(it->second, std::move(args), c.arguments, c.token);
         }
 
-        // nativa: cada argumento embrulhado (emprestado), o resultado com posse
+        // nativa: cada argumento emprestado; Q11: as do Math numéricas, em linha
+        const NativeFn* fn = c.native;
+        std::vector<Operando> vals;
+        for (const auto& a : c.arguments) vals.push_back(expr(*a));
+        const Tipo ret = c.resolved_type ? tipoDe(c.resolved_type, c.token) : Tipo::Void;
+        if (moduloDaNativa(fn, c.token) == "Math")
+            if (auto r = mathEmLinha(c, vals, ret)) return *r;
+        return chamaNativa(c, vals, ret);
+    }
+
+    // A chamada de uma nativa pelo runtime: cada argumento embrulhado, o resultado com posse
+    Val chamaNativa(const CallExpr& c, const std::vector<Operando>& vals, Tipo ret) {
         const NativeFn* fn = c.native;
         std::vector<Operando> args;
-        for (const auto& a : c.arguments) args.push_back(embrulha(expr(*a), a->token));
-        const Tipo ret = c.resolved_type ? tipoDe(c.resolved_type, c.token) : Tipo::Void;
+        for (std::size_t i = 0; i < vals.size(); ++i) args.push_back(embrulha(vals[i], c.arguments[i]->token));
         std::uint32_t r = temp(Op::ChamaNativa, Tipo::Valor, std::move(args), c.token,
                                m.nativa(moduloDaNativa(fn, c.token), fn->name));
         // nativa genérica (retorno "número"): o resultado na largura do tipo estático
@@ -957,6 +999,174 @@ private:
             r = cv.dst;
         }
         return desembrulha(Operando::temp(r), ret, c.token);
+    }
+
+    // Q11: um elemento de lista lido ou gravado em linha: sem referência (número, bool, enum) ou
+    // um ponteiro que não é struct (o struct numa lista é clonado na saída: fica com o runtime)
+    static bool elemDireto(Tipo t) { return ehNumero(t) || t == Tipo::Bool || t == Tipo::Enum; }
+    static bool elemEmLinha(Tipo t) { return elemDireto(t) || (ehRef(t) && t != Tipo::Struct); }
+
+    // As guardas do índice: 0 <= i < tamanho; fora, o runtime de sempre (o IndexError dele)
+    std::uint32_t guardaIndice(const Operando& l, const Operando& i64, std::uint32_t lento, const Token& tok) {
+        const Operando n = Operando::temp(temp(Op::TamLista, Tipo::I64, {l}, tok));
+        const std::uint32_t ok1 = f->novoBloco("idx.ok"), ok2 = f->novoBloco("idx.ok");
+        brc(Operando::temp(temp(Op::Compara, Tipo::Bool, {i64, Operando::i64(0)}, tok,
+                                static_cast<std::uint32_t>(TokenType::OP_GREATER_EQUAL))), ok1, lento, tok);
+        entra(ok1);
+        brc(Operando::temp(temp(Op::Compara, Tipo::Bool, {i64, n}, tok,
+                                static_cast<std::uint32_t>(TokenType::OP_LESS))), ok2, lento, tok);
+        entra(ok2);
+        return ok2;
+    }
+    Operando comoI64(const Operando& k, const Token& tok) {
+        return tipoOperando(k) == Tipo::I64 ? k : Operando::temp(temp(Op::Converte, Tipo::I64, {k}, tok));
+    }
+
+    // l[k] em linha. O resultado: um número (sem posse), ou um ponteiro com posse de um
+    // temporário da instrução (como o do else), emprestado a quem usa
+    Val indiceLista(const Operando& l, const Operando& k, Tipo te, const Token& tok) {
+        std::uint32_t s;
+        if (temPosse(te)) {
+            auto& livres = temps_livres[te];
+            if (!livres.empty()) { s = livres.back(); livres.pop_back(); }
+            else { s = f->novoSlot(te); slots_temp.insert(s); }
+            temps_uso.push_back(s);
+        } else {
+            s = f->novoSlot(te);
+        }
+        const std::uint32_t lento = f->novoBloco("idx.lento"), fim = f->novoBloco("idx.fim");
+        const Operando i = comoI64(k, tok);
+        guardaIndice(l, i, lento, tok);
+        const Operando el = Operando::temp(temp(Op::ElemLista, te, {l, i}, tok));
+        if (temPosse(te)) retem(el, tok);
+        grava(s, el, tok);
+        br(fim, tok);
+        entra(lento);
+        const Operando r = chamaRt(Rt::Indice, {embrulha(l, tok), embrulha(k, tok)}, tok);
+        grava(s, desembrulha(r, te, tok).o, tok);
+        br(fim, tok);
+        entra(fim);
+        return {carrega(s, tok), false};
+    }
+
+    // l[k] = v em linha (v e o elemento sem referência: nada a reter nem a soltar)
+    void gravaIndiceLista(const Operando& l, const Operando& k, const Operando& v, const Token& tok) {
+        const std::uint32_t lento = f->novoBloco("gidx.lento"), fim = f->novoBloco("gidx.fim");
+        const Operando i = comoI64(k, tok);
+        guardaIndice(l, i, lento, tok);
+        poe(Op::GravaElemLista, tok).args = {l, i, v};
+        br(fim, tok);
+        entra(lento);
+        chamaRt(Rt::GravaIndice, {embrulha(l, tok), embrulha(k, tok), embrulha(v, tok)}, tok);
+        br(fim, tok);
+        entra(fim);
+    }
+
+    // Q11: Math em linha. O caminho comum é a conta no próprio código (as intrínsecas exatas do
+    // LLVM, ou a libm, a mesma do runtime), com guardas: o argumento no domínio, o resultado
+    // finito, a faixa do i64. Uma guarda que falha leva à chamada de sempre pelo runtime, que lança
+    // o erro com a mensagem de sempre — as regras ficam num lugar só (stdlib.cpp). Só f64 (e os
+    // inteiros no abs, no min e no max): f32 segue pelo runtime.
+    std::optional<Val> mathEmLinha(const CallExpr& c, const std::vector<Operando>& vals, Tipo ret) {
+        const std::string& nome = c.native->name;
+        const Token& tok = c.token;
+        auto todos = [&](Tipo t) {
+            for (const Operando& v : vals) if (tipoOperando(v) != t) return false;
+            return !vals.empty();
+        };
+        const bool f64 = todos(Tipo::F64);
+        struct Uma { const char* nome; Mat mat; unsigned args; };
+        static const Uma libm[] = {
+            {"pow", Mat::Pow, 2}, {"exp", Mat::Exp, 1}, {"sin", Mat::Sin, 1}, {"cos", Mat::Cos, 1},
+            {"tan", Mat::Tan, 1}, {"atan", Mat::Atan, 1}, {"atan2", Mat::Atan2, 2}, {"sinh", Mat::Sinh, 1},
+            {"cosh", Mat::Cosh, 1}, {"tanh", Mat::Tanh, 1}, {"hypot", Mat::Hypot, 2},
+            {"log", Mat::Log, 1}, {"log10", Mat::Log10, 1}, {"log2", Mat::Log2, 1},
+        };
+        // a chamada se qualifica? (decidido antes de emitir qualquer coisa)
+        const bool inteiro_igual = (todos(Tipo::I64) || todos(Tipo::I32)) && ret == tipoOperando(vals[0]);
+        const Uma* u = nullptr;
+        for (const Uma& x : libm) if (nome == x.nome) u = &x;
+        enum class Caso { Nenhum, Sqrt, Abs, MinMax, Arredonda, Libm } caso = Caso::Nenhum;
+        if (nome == "sqrt" && f64 && vals.size() == 1 && ret == Tipo::F64) caso = Caso::Sqrt;
+        else if (nome == "abs" && vals.size() == 1 && ((f64 && ret == Tipo::F64) || inteiro_igual)) caso = Caso::Abs;
+        else if ((nome == "min" || nome == "max") && vals.size() == 2 && ((f64 && ret == Tipo::F64) || inteiro_igual))
+            caso = Caso::MinMax;
+        else if ((nome == "floor" || nome == "ceil" || nome == "round" || nome == "trunc") && f64 &&
+                 vals.size() == 1 && ret == Tipo::I64)
+            caso = Caso::Arredonda;
+        else if (u && f64 && vals.size() == u->args && ret == Tipo::F64) caso = Caso::Libm;
+        if (caso == Caso::Nenhum) return std::nullopt;
+
+        // o resultado num slot; `lento` (criado na primeira guarda) é a chamada pelo runtime
+        const std::uint32_t s = f->novoSlot(ret);
+        const std::uint32_t fim = f->novoBloco("math.fim");
+        std::uint32_t lento = UINT32_MAX;
+        auto exige = [&](const Operando& cond) {   // segue se cond; senão, o caminho lento
+            if (lento == UINT32_MAX) lento = f->novoBloco("math.lento");
+            const std::uint32_t ok = f->novoBloco("math.ok");
+            brc(cond, ok, lento, tok);
+            entra(ok);
+        };
+        auto compara = [&](const Operando& a, TokenType op, const Operando& b) {
+            return Operando::temp(temp(Op::Compara, Tipo::Bool, {a, b}, tok, static_cast<std::uint32_t>(op)));
+        };
+        auto mat = [&](Mat m_, Tipo t, std::vector<Operando> args) {
+            return Operando::temp(temp(Op::Matematica, t, std::move(args), tok, static_cast<std::uint32_t>(m_)));
+        };
+
+        Operando r;
+        switch (caso) {
+            case Caso::Sqrt:
+                exige(compara(vals[0], TokenType::OP_GREATER_EQUAL, Operando::f64(0.0)));
+                r = mat(Mat::Sqrt, Tipo::F64, {vals[0]});
+                break;
+            case Caso::Abs:
+                if (f64) { r = mat(Mat::Fabs, Tipo::F64, {vals[0]}); break; }
+                exige(compara(vals[0], TokenType::OP_NOT_EQUAL,
+                              ret == Tipo::I32 ? Operando::i32(INT32_MIN) : Operando::i64(INT64_MIN)));
+                r = mat(Mat::AbsInt, ret, {vals[0]});
+                break;
+            case Caso::MinMax:
+                r = mat(nome == "min" ? Mat::Min : Mat::Max, ret, {vals[0], vals[1]});
+                break;
+            case Caso::Arredonda: {
+                const Mat qual = nome == "floor" ? Mat::Floor : nome == "ceil" ? Mat::Ceil
+                               : nome == "round" ? Mat::Round : Mat::Trunc;
+                const Operando d = mat(qual, Tipo::F64, {vals[0]});
+                // 2^63 é o primeiro double fora da faixa do i64 (o flutuanteParaInt do runtime)
+                exige(compara(d, TokenType::OP_GREATER_EQUAL, Operando::f64(-9223372036854775808.0)));
+                exige(compara(d, TokenType::OP_LESS, Operando::f64(9223372036854775808.0)));
+                r = Operando::temp(temp(Op::Converte, Tipo::I64, {d}, tok));
+                break;
+            }
+            case Caso::Libm:
+                if (u->mat == Mat::Log || u->mat == Mat::Log10 || u->mat == Mat::Log2)   // positivo()
+                    exige(compara(vals[0], TokenType::OP_GREATER, Operando::f64(0.0)));
+                if (u->mat == Mat::Pow) {   // 0 com expoente negativo: ZeroDivisionError, pelo runtime
+                    const std::uint32_t base0 = f->novoBloco("math.base0"), segue = f->novoBloco("math.segue");
+                    brc(compara(vals[0], TokenType::OP_EQUAL, Operando::f64(0.0)), base0, segue, tok);
+                    entra(base0);
+                    exige(compara(vals[1], TokenType::OP_GREATER_EQUAL, Operando::f64(0.0)));
+                    br(segue, tok);
+                    entra(segue);
+                }
+                r = mat(u->mat, Tipo::F64, vals);
+                // NaN (sem resultado real) ou infinito (grande demais): o runtime lança
+                exige(Operando::temp(temp(Op::Finito, Tipo::Bool, {r}, tok)));
+                break;
+            case Caso::Nenhum:
+                break;
+        }
+        grava(s, r, tok);
+        br(fim, tok);
+        if (lento != UINT32_MAX) {
+            entra(lento);
+            const Val g = chamaNativa(c, vals, ret);
+            grava(s, g.o, tok);
+            br(fim, tok);
+        }
+        entra(fim);
+        return Val{carrega(s, tok), false};
     }
 
     // printf/format: o texto montado como na CVM — trecho fixo, ou {expr} formatado
@@ -1016,6 +1226,17 @@ private:
         const Value::Kind k = ot->is(TK::List) ? Value::Kind::LIST
                             : ot->is(TK::Dict) ? Value::Kind::DICT : Value::Kind::STRING;
         const Builtin b = builtinFor(k, mc.method_name);
+        // Q11: o tamanho da lista em linha; o add sem o despacho do callBuiltin
+        if (b == Builtin::ListSize) {
+            const Operando l = expr(*mc.object);
+            const Operando n = Operando::temp(temp(Op::TamLista, Tipo::I64, {l}, mc.token));
+            return {Operando::temp(temp(Op::Converte, Tipo::I32, {n}, mc.token))};   // seção K: i32
+        }
+        if (b == Builtin::ListAdd) {
+            const Operando l = expr(*mc.object);
+            chamaRt(Rt::ListaAdd, {l, embrulha(expr(*mc.arguments[0]), mc.token)}, mc.token);
+            return {Operando::boolean(false)};
+        }
         std::vector<Operando> args{Operando::i32(static_cast<std::int32_t>(b)),
                                    embrulha(expr(*mc.object), mc.token)};
         for (const auto& a : mc.arguments) args.push_back(embrulha(expr(*a), mc.token));
@@ -1047,8 +1268,15 @@ private:
     // obj.campo (objeto ou struct): uma cópia do campo, com posse. Um campo sem referência
     // (número, bool, enum, tipo) é lido e gravado em linha (P10); os outros, pelo runtime
     static bool campoSimples(Tipo t) { return ehNumero(t) || t == Tipo::Bool || t == Tipo::Enum || t == Tipo::TipoV; }
+    // Q11: o campo com referência em linha (menos o struct, que a leitura clona): o CzValor
+    // inteiro, copiado com posse; a gravação guarda a cópia do novo e solta o antigo
+    static bool campoRefEmLinha(Tipo t) { return (ehRef(t) && t != Tipo::Struct) || t == Tipo::Opc; }
     Val campo(const Operando& obj, std::uint32_t i, Tipo t, const Token& tok) {
         if (campoSimples(t)) return {Operando::temp(temp(Op::CampoDireto, t, {obj}, tok, i))};
+        if (campoRefEmLinha(t)) {
+            const Operando v = Operando::temp(temp(Op::CampoDireto, Tipo::Valor, {obj}, tok, i));
+            return desembrulha(Operando::temp(temp(Op::CopiaValor, Tipo::Valor, {v}, tok)), t, tok);
+        }
         const Operando r = chamaRt(Rt::Campo, {embrulha(obj, tok), Operando::i32(static_cast<std::int32_t>(i))}, tok);
         return desembrulha(r, t, tok);
     }
@@ -1057,6 +1285,15 @@ private:
             Instr& in = poe(Op::GravaCampoDireto, tok);
             in.aux = i;
             in.args = {obj, v};
+            return;
+        }
+        if (campoRefEmLinha(tipoOperando(v))) {   // Q11: retém o novo antes de soltar o antigo (a = a)
+            const Operando novo_ = Operando::temp(temp(Op::CopiaValor, Tipo::Valor, {embrulha(v, tok)}, tok));
+            const Operando velho = Operando::temp(temp(Op::CampoDireto, Tipo::Valor, {obj}, tok, i));
+            Instr& in = poe(Op::GravaCampoDireto, tok);
+            in.aux = i;
+            in.args = {obj, novo_};
+            solta(velho, tok);
             return;
         }
         chamaRt(Rt::GravaCampo, {embrulha(obj, tok), Operando::i32(static_cast<std::int32_t>(i)), embrulha(v, tok)}, tok);
@@ -1485,10 +1722,12 @@ private:
         const std::uint32_t campo_idx = campo_base ? static_cast<const IdentifierExpr*>(e)->res.slot : 0;
         const Tipo tb = tipoDe(e->resolved_type, tok);
         Operando base = campo_base ? Operando{} : expr(*e);
-        std::vector<Operando> chaves(passos.size());
+        std::vector<Operando> chaves(passos.size()), chaves_cruas(passos.size());
         for (std::size_t i = 0; i < passos.size(); ++i)
-            if (passos[i]->node_kind == NodeKind::IndexAccess)
-                chaves[i] = embrulha(expr(*static_cast<const IndexAccessExpr*>(passos[i])->index), passos[i]->token);
+            if (passos[i]->node_kind == NodeKind::IndexAccess) {
+                chaves_cruas[i] = expr(*static_cast<const IndexAccessExpr*>(passos[i])->index);
+                chaves[i] = embrulha(chaves_cruas[i], passos[i]->token);
+            }
         const Tipo tt = tipoDe(s.target->resolved_type, tok);
         Operando v = expr(*s.value);
         if (campo_base) base = emprestado(campo(self(tok), campo_idx, tb, tok), tok);
@@ -1496,6 +1735,10 @@ private:
         auto ler = [&](std::size_t i, const Operando& de) {
             const Expr* p = passos[i];
             const Tipo tp = tipoDe(p->resolved_type, tok);
+            // Q11: o valor atual de l[i] += x, em linha (número: sem posse, nada a emprestar)
+            if (p->node_kind == NodeKind::IndexAccess && tipoOperando(de) == Tipo::Lista &&
+                ehInteiro(tipoOperando(chaves_cruas[i])) && elemDireto(tp))
+                return indiceLista(de, chaves_cruas[i], tp, p->token).o;
             if (p->node_kind == NodeKind::IndexAccess) {
                 const Operando r = chamaRt(Rt::IndiceLugar, {embrulha(de, tok), chaves[i]}, p->token);
                 return emprestado(desembrulha(r, tp, tok), tok);
@@ -1504,7 +1747,11 @@ private:
         };
         auto gravar = [&](std::size_t i, const Operando& em, const Operando& valor_) {
             const Expr* p = passos[i];
-            if (p->node_kind == NodeKind::IndexAccess)
+            if (p->node_kind == NodeKind::IndexAccess && tipoOperando(em) == Tipo::Lista &&
+                ehInteiro(tipoOperando(chaves_cruas[i])) && elemDireto(tipoOperando(valor_)) &&
+                elemDireto(tipoDe(p->resolved_type, tok)))
+                gravaIndiceLista(em, chaves_cruas[i], valor_, p->token);   // Q11
+            else if (p->node_kind == NodeKind::IndexAccess)
                 chamaRt(Rt::GravaIndice, {embrulha(em, tok), chaves[i], embrulha(valor_, tok)}, p->token);
             else
                 gravaCampo(em, indiceDoCampo(p), valor_, p->token);
@@ -1548,12 +1795,22 @@ private:
         entra(cabeca);
         const Operando lista = carrega(col, s.token);
         const Operando i = carrega(idx, s.token);
-        const Operando n = chamaRt(Rt::ListaTam, {lista}, s.token);
+        const Operando n = Operando::temp(temp(Op::TamLista, Tipo::I64, {lista}, s.token));   // Q11
         const std::uint32_t acabou = temp(Op::Compara, Tipo::Bool, {i, n}, s.token,
                                           static_cast<std::uint32_t>(TokenType::OP_GREATER_EQUAL));
         brc(Operando::temp(acabou), fimb, corpo_, s.token);
         entra(corpo_);
-        Operando el = desembrulha(chamaRt(Rt::ListaElem, {lista, i}, s.token), te, s.token).o;   // com posse
+        Operando el;   // com posse
+        if (elemEmLinha(te)) {   // Q11: o elemento da cópia, em linha (o índice está dentro)
+            el = Operando::temp(temp(Op::ElemLista, te, {lista, i}, s.token));
+            if (temPosse(te)) retem(el, s.token);
+        } else if (te == Tipo::Struct) {
+            // Q11: o struct sai da cópia (que é só deste laço, e cada elemento é visitado uma
+            // vez): a variável fica com ele, sem um segundo clone
+            el = Operando::temp(temp(Op::TomaElemLista, Tipo::Struct, {lista, i}, s.token));
+        } else {
+            el = desembrulha(chamaRt(Rt::ListaElem, {lista, i}, s.token), te, s.token).o;
+        }
         if (ti != te) {
             if (!ehNumero(ti) || !ehNumero(te)) naoSuportado("for com conversão (erro interno)", s.token);
             el = Operando::temp(temp(Op::Converte, ti, {el}, s.token));

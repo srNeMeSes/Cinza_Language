@@ -116,8 +116,9 @@ enum class Op : std::uint8_t {
     ConverteValor, // dst: valor = a convertido no runtime para o kind de `tipo` (nativas genéricas)
     Chama,         // [dst =] call F(args...) — aux: F
     ChamaIface,    // [dst =] call.iface T(obj, args...) — aux: a tabela; o método pela classe do obj
-    CampoDireto,   // dst = campo aux de a (obj ou struct) — só campo sem referência (P10: em linha)
-    GravaCampoDireto, // campo aux de a = b — só valor sem referência (o antigo também não tem)
+    CampoDireto,   // dst = campo aux de a (obj ou struct), emprestado — o campo sem referência no tipo
+                   // dele; Q11: o campo com referência como o CzValor inteiro (dst: valor)
+    GravaCampoDireto, // campo aux de a = b — grava o CzValor, sem soltar o antigo (quem chama solta)
     Retem,         // retem a (str): uma referência a mais
     Solta,         // solta a — str: solta a referência (nulo: nada); valor: a que ele segura
     ChamaRt,       // [dst =] call.rt R(args...) — aux: o Rt (tabela abaixo)
@@ -130,6 +131,26 @@ enum class Op : std::uint8_t {
     RetErro,       // volta ao chamador com o erro pendente (o valor de retorno não importa)
     Inalcancavel,  // fim de um caminho que o semântico garante que não chega
     EhNulo,        // dst: bool = a (opc) é null (Q1b)
+    Matematica,    // dst = a função aux (Mat) de args, só a conta IEEE (Q11: Math em linha; as
+                   // guardas e o caminho de erro, pela nativa, vêm do gerador)
+    Finito,        // dst: bool = a (f64) é finito
+    // Q11: listas em linha (o gerador põe as guardas; fora delas, o runtime de sempre)
+    TamLista,      // dst: i64 = o tamanho da lista a
+    ElemLista,     // dst = a[b] (lista, i64), sem conferir: emprestado (o gerador retém, se for referência);
+                   // o tipo de dst: sem referência (número, bool, enum) ou ponteiro (não struct)
+    GravaElemLista,// a[b] = c (lista, i64, valor sem referência), sem conferir: o antigo também não tem
+    CopiaValor,    // dst: valor = uma cópia com posse de a (valor): retém o objeto que ele segura, ou
+                   // clona o struct (o ValorCopia do runtime, em linha no -O2) (Q11)
+    TomaElemLista, // dst = a[b] (lista, i64), com posse, e a[b] fica void: o elemento sai da lista
+                   // (só a cópia de um for, que é só do laço) (Q11)
+};
+
+// Q11: as funções do Math calculadas em linha (Op::Matematica)
+enum class Mat : std::uint8_t {
+    Sqrt, Fabs, Floor, Ceil, Round, Trunc,   // f64 → f64 (exatas: intrínsecas do LLVM)
+    AbsInt,                                  // i32/i64 → o mesmo (o menor valor já foi excluído)
+    Min, Max,                                // (T, T) → T: compara como double, empate fica o primeiro
+    Pow, Exp, Log, Log10, Log2, Sin, Cos, Tan, Atan, Atan2, Sinh, Cosh, Tanh, Hypot,   // pela libm
 };
 
 // As funções do runtime chamadas por ChamaRt (llvm/cinzart.h). Na chamada em C, um
@@ -175,6 +196,7 @@ enum class Rt : std::uint8_t {
     Lanca,           // void (erro): throw — o erro pendente passa a ser uma cópia dele — falha
     Relanca,         // void (erro com posse): devolve ao estado um erro tirado dele (o fim do finally) — falha
     ValorCopia,      // valor (valor): uma cópia com posse — retem, ou o clone de um struct (Q1b: guardar um T?)
+    ListaAdd,        // void (lista, valor v): l.add(v) — guarda a cópia de v (retém, ou clona o struct) (Q11)
 };
 struct InfoRt {
     const char*       nome;     // o símbolo em C
