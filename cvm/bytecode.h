@@ -84,6 +84,7 @@ namespace cinza::cvm {
     X(NEWSTRUCT)  /* R[a] = struct b com os campos R[a] ... R[a+c-1] */          \
     X(GETFIELD)   /* R[a] = R[b].campo[c]                            */          \
     X(GETELEMFIELD) /* R[a] = R[b][R[a]].campo[c], sem clonar o struct (Q11) */      \
+    X(SIZE)       /* R[a] = R[b].size() (lista, dict, string), sem copiar R[b] (Q11) */ \
     X(SETFIELD)   /* R[a].campo[b] = R[c]                            */          \
     /* interfaces e type() */                                                   \
     X(CALLIFACE)  /* método c da interface b pela classe de R[a]     */          \

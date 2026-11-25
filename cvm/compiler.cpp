@@ -590,7 +590,10 @@ void Compiler::call(const CallExpr* e, std::uint16_t dst) {
         emit(Op::NEWERROR, dst, constant16(Value(e->function_name), tok), msg, tok);
         return;
     }
-    // argumentos em registradores consecutivos a partir de `base` (convenção do Lua)
+    // argumentos em registradores consecutivos a partir de `base` (convenção do Lua). Q11: se
+    // dst é o último temporário alocado (nada vivo acima, e nenhum argumento o lê), a janela
+    // começa nele: o resultado já cai no lugar, sem o MOVE
+    if (isTemp(dst) && dst + 1 == top) top = dst;
     const std::uint16_t base = top;
     // m() dentro de um método: o self atual (r0) vai antes dos argumentos
     if (e->implicit_method) emit(Op::MOVE, alloc(tok), 0, 0, tok);
@@ -620,7 +623,13 @@ void Compiler::builtinCall(const MethodCallExpr* e, std::uint16_t dst) {
     const Value::Kind kind = t->is(TK::List) ? Value::Kind::LIST
                            : t->is(TK::Dict) ? Value::Kind::DICT : Value::Kind::STRING;
     const Builtin b = builtinFor(kind, e->method_name);
-    const std::uint16_t base = alloc(e->token);
+    if (b == Builtin::ListSize || b == Builtin::DictSize || b == Builtin::StrSize) {   // Q11: sem copiar o objeto
+        const std::uint16_t o = exprReg(e->object.get());
+        emit(Op::SIZE, dst, o, 0, e->token);
+        return;
+    }
+    // Q11: como no call, a janela no próprio dst se ele é o último temporário
+    const std::uint16_t base = isTemp(dst) && dst + 1 == top ? dst : alloc(e->token);
     expr(e->object.get(), base);
     for (const auto& arg : e->arguments) expr(arg.get(), alloc(e->token));
     emit(Op::CALLBUILTIN, base, static_cast<std::uint16_t>(b),

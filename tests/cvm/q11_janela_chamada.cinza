@@ -1,0 +1,35 @@
+// Q11: na CVM, a janela de uma chamada começa no registrador de destino quando ele é o último
+// temporário (o resultado cai no lugar, sem MOVE). Os casos em que isso poderia errar: a
+// variável como destino e como argumento, chamadas aninhadas, métodos nos argumentos, o
+// resultado de uma chamada como objeto de outra.
+fn f(i64 a, i64 b) -> i64 { return a * 10 + b; }
+fn g(i64 a) -> i64 { return a + 1; }
+fn junta(string a, string b) -> string { return a + b; }
+fn lista(i32 n) -> list<i32> {
+  list<i32> l;
+  for (i32 i in range(0, n)) { l.add(i); }
+  return l;
+}
+fn main() {
+  i64 x = 3;
+  x = f(1, x);                       // x é destino e argumento
+  print(x);
+  x = f(x, f(x, g(x)));              // aninhadas, x em todas
+  print(x);
+  i64 y = g(g(g(x))) + f(g(1), g(2)) * g(f(0, 1));
+  print(y);
+  string s = "ab";
+  s = junta(s, junta(s, "c"));
+  print(s, s.size(), junta(s, "!").size() + s.size());
+  list<i32> l = lista(4);
+  print(lista(3).size() + l.size(), lista(lista(2).size() + 1));
+  i32 n = l.size();
+  n = cast<i32>(f(cast<i64>(n), cast<i64>(l.size())));
+  print(n);
+}
+// expect: 13
+// expect: 274
+// expect: 323
+// expect: ababc 5 11
+// expect: 7 [0, 1, 2]
+// expect: 44

@@ -124,7 +124,90 @@ def structs_lista():
     print(sx, sy)
 
 
-TODOS = [listas, dicts, arvores, corpos, texto, structs_lista]
+# os sete de antes do Q11
+class NoCiclo:
+    __slots__ = ("vizinhos",)
+    def __init__(self): self.vizinhos = []
+
+def ciclos():
+    for _ in range(300000):
+        a, b = NoCiclo(), NoCiclo()
+        a.vizinhos.append(b)
+        b.vizinhos.append(a)
+    print("ok")
+
+
+def fib_(n):
+    return n if n < 2 else fib_(n - 1) + fib_(n - 2)
+
+def fib():
+    print(fib_(27))
+
+
+def laco():
+    soma = 0
+    i = 0
+    while i < 2000000:
+        soma += i * i % 7
+        i += 1
+    print(soma)
+
+
+class Ponto:
+    __slots__ = ("x", "y")
+    def __init__(self, a, b): self.x, self.y = a, b
+    def get_x(self): return self.x
+    def get_y(self): return self.y
+    def move(self, d): self.x = self.x + d
+
+def metodos():
+    p = Ponto(1, 2)
+    t = 0
+    for _ in range(3000000):
+        t += p.get_x() + p.get_y()
+        p.move(1)
+    print(t)
+
+
+class Contador:
+    __slots__ = ("total", "passos")
+    def __init__(self): self.total = self.passos = 0
+    def soma(self, v):
+        self.total += v
+        self.passos += 1
+    def valor(self): return self.total + self.passos
+
+def objetos():
+    c = Contador()
+    for i in range(500000):
+        c.soma(i % 10)
+    print(c.valor())
+
+
+def strings():
+    def junta(a, b): return a + b
+    def tam(s): return len(s)
+    t = 0
+    base = "abc"
+    for _ in range(3000000):
+        t += tam(base) + tam(junta(base, "x"))
+    print(t)
+
+
+def structs():
+    # o struct da Cinza é valor: aqui, tuplas (imutáveis, a cópia não é observável)
+    def soma(a, b): return (a[0] + b[0], a[1] + b[1])
+    def comprimento2(a): return a[0] * a[0] + a[1] * a[1]
+    acc = (0.0, 0.0)
+    passo = (1.0, 0.5)
+    t = 0.0
+    for _ in range(1000000):
+        acc = soma(acc, passo)
+        t += comprimento2(passo)
+    print(acc, t)
+
+
+TODOS = [listas, dicts, arvores, corpos, texto, structs_lista, ciclos, fib, laco, metodos, objetos, strings, structs]
 
 if __name__ == "__main__":
     sys.setrecursionlimit(10000)

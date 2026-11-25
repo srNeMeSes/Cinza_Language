@@ -2294,6 +2294,26 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
   > string já cobriam `size`, índice, fatia e concatenação (agora pelos caminhos novos nos dois
   > backends). **Medição** (A/B intercalado): `strings` nativo 216 → 123 → ~110 ms (o tamanho
   > guardado, depois a concatenação direta); `structs_lista` na CVM −23%; os demais dentro do ruído.
+  > Andamento (2026-11-24), fatia 5 (a CVM). A referência em Python ganhou os sete programas antigos
+  > (todos os 13 nas três colunas: CVM, nativo, Python). (a) **Os operadores do `Value` em linha**
+  > (`gnu::always_inline` no move, na cópia e no `solta`): o g++ os partia em duas (o teste em
+  > linha, o corpo numa chamada), e cada escrita num registrador da CVM pagava uma chamada; na
+  > CVM, de 0,67 a 0,86 do tempo (`laco` 128 → 86 ms, `corpos` 1533 → 1048); no nativo, neutro.
+  > (b) **A janela da chamada no destino**: quando o registrador de destino é o último
+  > temporário (nada vivo acima dele, e nenhum argumento o lê), a janela de `CALL`,
+  > `CALLNATIVE` e `CALLBUILTIN` começa nele, e o resultado cai no lugar sem o `MOVE` (o laço do
+  > `strings` foi de 13 para 10 instruções). (c) **`SIZE a b`**: o `size()` de lista, dict e
+  > string sem copiar o objeto para a janela nem passar pelo `callBuiltin`. (d) Experimentado e
+  > desfeito: a próxima instrução numa variável local do `dispatch` (com um `catch` que a devolve
+  > ao frame) — ganhava 5 a 7% em alguns e perdia 20% no `structs` (a pressão de registradores do
+  > `catch`). **Testes**: `cvm/q11_janela_chamada` (a variável como destino e argumento, chamadas
+  > aninhadas, métodos e o resultado de uma chamada como objeto de outra), nos dois backends.
+  > **Medição** (CVM / Python 3.13, mediana de 5, a mesma rodada): `fib` 0,31, `laco` 0,36,
+  > `listas` 0,43, `dicts` 0,54, `metodos` 0,55, `objetos` 0,56, `corpos` 0,63, `strings` 0,64,
+  > `ciclos` 0,90, `texto` 0,91, `structs` 0,93, `arvores` 1,06, `structs_lista` 1,09 (antes da
+  > fatia: seis acima de 1). O nativo fica entre 0,06 e 0,80 do Python em todos. O que sobra no
+  > `arvores` e no `structs_lista` é da representação (duas alocações por objeto — ele e o vetor
+  > de campos — e a cópia dos structs que a semântica exige no for): o passo 4 do plano.
 - [ ] Q2. Robustez.
   - Fuzzing do front-end: nenhuma entrada derruba o `cinza` nem o `cinzac` (um erro interno ou uma
     queda é defeito), começando por mutações dos programas da suíte.

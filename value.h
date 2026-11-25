@@ -198,11 +198,14 @@ struct Value {
     // porque copiar esses Values copia só o ponteiro. Assim toda atribuição,
     // argumento, return e .add() copia o struct sem código extra na CVM.
     // Mover não clona.
-    Value(const Value& other);
-    Value& operator=(const Value& other);
+    // Q11: em linha (o clone do struct, o caminho raro, é uma chamada: clonaStruct)
+    [[gnu::always_inline]] Value(const Value& other);
+    [[gnu::always_inline]] Value& operator=(const Value& other);
     Value(Value&& o) noexcept : v(o.v) { o.poe(Kind::VOID_VAL); o.v.u.i64 = 0; }
-    Value& operator=(Value&& o) noexcept {
-        if (this != &o) {
+    // Q11: inteiro em linha — no laço de despacho da CVM cada escrita num registrador passa por aqui,
+    // e o g++ o partia em dois (o teste inline, o corpo numa chamada)
+    [[gnu::always_inline]] Value& operator=(Value&& o) noexcept {
+        if (this != &o) [[likely]] {
             const CzValor velho = v;
             v = o.v;
             o.poe(Kind::VOID_VAL);
@@ -302,7 +305,7 @@ private:
         v.extra = 0;
     }
     void adota(Kind k, CzObjeto* o) noexcept { poe(k); v.u.obj = o; }
-    static void solta(const CzValor& x) noexcept {
+    [[gnu::always_inline]] static void solta(const CzValor& x) noexcept {
         if (guardaObjeto(static_cast<Kind>(x.tipo)) && x.u.obj) czRelease(x.u.obj);
     }
     void confere(Kind k) const {

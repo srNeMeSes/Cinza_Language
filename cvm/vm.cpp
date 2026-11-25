@@ -410,6 +410,17 @@ Value VM::dispatch(std::size_t entrada) {
                     R[in.a] = std::move(v);
                     break;
                 }
+                case Op::SIZE: {   // Q11: o size() sem copiar o objeto nem o despacho do callBuiltin
+                    const Value& o = R[in.b];
+                    std::size_t n;
+                    switch (o.kind()) {
+                        case Value::Kind::LIST: n = o.asList()->elements.size(); break;
+                        case Value::Kind::DICT: n = o.asDict()->entries.size(); break;
+                        default: n = static_cast<std::size_t>(static_cast<const CzString*>(o.objeto())->caracteres()); break;
+                    }
+                    R[in.a] = Value::i32(static_cast<std::int32_t>(n));   // seção K: i32
+                    break;
+                }
                 case Op::GETELEMFIELD: {   // Q11: lista[i].campo lê o campo direto do elemento
                     const Value& l = R[in.b];
                     const Value& k = R[in.a];
