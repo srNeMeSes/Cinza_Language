@@ -114,7 +114,7 @@ inline std::size_t gcVarre(CzObjeto* cabeca, Conta&& conta) {
     // 1. referências de cada contêiner
     for (CzObjeto* c = cabeca; c; c = c->prox) {
         GcObject* o = contem(c);
-        o->gc_refs  = static_cast<std::int64_t>(o->refs);
+        o->gc_refs  = static_cast<std::int32_t>(o->refs);
         o->gc_marca = false;
     }
     // 2. desconta as referências internas (só as de dentro da geração)

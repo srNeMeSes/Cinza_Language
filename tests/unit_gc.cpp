@@ -122,13 +122,13 @@ int main() {
     {
         CzStructDesc aciclico{"Ponto", {"x"}, false};
         CzStructDesc ciclico{"No", {"f"}, true};
-        auto a = novo<StructValue>(&aciclico);
-        a->fields.push_back(Value(1));
+        auto a = novoComCampos<StructValue>(1, &aciclico);
+        a->fields[0] = Value(1);
         Value va(std::move(a));
         CHECK(gc_registro.objetos == 1 && gc_registro.vivos == 0);
         Value copia = va;   // o Value clona o struct
         CHECK(gc_registro.objetos == 2 && gc_registro.vivos == 0);
-        Value vc(novo<StructValue>(&ciclico));
+        Value vc(novoComCampos<StructValue>(1, &ciclico));
         Value copia_c = vc;
         CHECK(gc_registro.vivos == 2);
     }

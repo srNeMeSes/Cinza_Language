@@ -2314,6 +2314,22 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
   > fatia: seis acima de 1). O nativo fica entre 0,06 e 0,80 do Python em todos. O que sobra no
   > `arvores` e no `structs_lista` é da representação (duas alocações por objeto — ele e o vetor
   > de campos — e a cópia dos structs que a semântica exige no for): o passo 4 do plano.
+  > Andamento (2026-11-25), fatia 6 (o passo 4: **os campos dentro do objeto**). `Campos` deixa de
+  > ser um `std::vector`: é um contador (8 bytes), o último membro de `ClassInstance` e de
+  > `StructValue`, e os N `Value` vêm logo depois dele, na mesma alocação (`novoComCampos`, pelo
+  > alocador de objetos pequenos; o `czApaga` chama o destrutor e devolve o tamanho certo). Um
+  > objeto custa uma alocação, não duas, e o campo i fica num deslocamento fixo: o código nativo o
+  > lê sem carregar o ponteiro do vetor. O clone de um struct (`StructValue::clona`) e o
+  > `NEWSTRUCT` constroem os campos já como cópia (sem construir vazios e atribuir: isso deixava o
+  > `structs` da CVM 12% mais lento). Junto, **o `GcObject` de 48 para 40 bytes** (`gc_refs` em 32
+  > bits — nunca passa do `refs`, que tem 32 — com a marca ao lado): com os campos dentro, um nó de
+  > dois campos tinha 88 bytes (96 no alocador), a coleta percorria os objetos em passos maiores e
+  > o `arvores` nativo ficava 13% mais lento; com 40, cabe em 80, e listas, dicts e pares também
+  > ficam 8 bytes menores. `--confere-layout` confere os campos no deslocamento (um objeto de
+  > verdade) e o início e o fim do `std::vector` das listas (o `TamLista` lê os dois).
+  > **Medição** (A/B intercalado contra o `main`, mediana de 7): na CVM, `arvores` 0,89, `metodos`
+  > 0,91, `structs_lista` 0,94; no nativo, `metodos` 0,88, `structs_lista` 0,89, `ciclos` 0,93,
+  > `corpos` 0,94; o resto entre 0,96 e 1,05 (ruído).
 - [ ] Q2. Robustez.
   - Fuzzing do front-end: nenhuma entrada derruba o `cinza` nem o `cinzac` (um erro interno ou uma
     queda é defeito), começando por mutações dos programas da suíte.

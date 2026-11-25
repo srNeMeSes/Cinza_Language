@@ -13,9 +13,7 @@ namespace cinza::cvm {
 namespace {
 // Q11: o NEWSTRUCT fora do laço de despacho (a alocação e o registro da coleta não entram nele)
 [[gnu::noinline]] Value novoStruct(const CzStructDesc* d, const Value* campos, std::size_t n) {
-    auto sv = novo<StructValue>(d);
-    sv->fields.assign(campos, campos + n);
-    return Value(std::move(sv));
+    return Value(novoComCampos<StructValue>(n, d, campos));
 }
 }  // namespace
 

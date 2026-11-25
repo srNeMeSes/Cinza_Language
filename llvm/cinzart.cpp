@@ -16,8 +16,9 @@
 // lados. (Com um long no GcObject eram 40 no Windows e 48 no Linux.)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Winvalid-offsetof"
-static_assert(offsetof(cinza::ClassInstance, fields) == 48 && offsetof(cinza::StructValue, fields) == 48,
-              "o vetor de campos mudou de lugar: atualize o caminho rápido dos campos (llvm/DESENHO.md 8.1)");
+static_assert(offsetof(cinza::ClassInstance, fields) == 40 && offsetof(cinza::StructValue, fields) == 40 &&
+              sizeof(cinza::ClassInstance) == 48 && sizeof(cinza::StructValue) == 48,
+              "os campos mudaram de lugar: atualize o caminho rápido dos campos (llvm/DESENHO.md 8.1)");
 #pragma GCC diagnostic pop
 #include <cstdio>
 #include <cstdlib>
@@ -739,9 +740,8 @@ extern "C" CzObjeto* cz_struct_novo(const void* desc, const CzValor* campos, std
     CzObjeto* r = nullptr;
     fronteira([&] {
         gcMaybeCollect();   // ponto seguro da coleta, como o NEWSTRUCT
-        auto sv = novo<StructValue>(static_cast<const CzStructDesc*>(desc));
-        sv->fields.reserve(static_cast<std::size_t>(n));
-        for (std::uint64_t i = 0; i < n; ++i) sv->fields.push_back(elemento(campos[i]));
+        auto sv = novoComCampos<StructValue>(static_cast<std::size_t>(n), static_cast<const CzStructDesc*>(desc));
+        for (std::uint64_t i = 0; i < n; ++i) sv->fields[static_cast<std::size_t>(i)] = elemento(campos[i]);
         r = sv.solta();
     });
     return r;
@@ -767,7 +767,7 @@ extern "C" void cz_grava_campo(const CzValor* o, std::int32_t i, const CzValor* 
 
 extern "C" CzObjeto* cz_struct_copia(CzObjeto* s) noexcept {
     CzObjeto* r = nullptr;
-    fronteira([&] { r = novo<StructValue>(*static_cast<StructValue*>(s)).solta(); });
+    fronteira([&] { r = StructValue::clona(*static_cast<StructValue*>(s)).solta(); });
     return r;
 }
 

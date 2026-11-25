@@ -57,8 +57,10 @@ void inicializaAlvo() {
 // linha). Os dois tipos não são standard-layout (o offsetof do GCC e do clang vale, com aviso)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Winvalid-offsetof"
-const std::size_t DESLOC_CAMPOS_OBJ    = offsetof(ClassInstance, fields);
-const std::size_t DESLOC_CAMPOS_STRUCT = offsetof(StructValue, fields);
+// Q11: os campos ficam dentro do objeto, logo depois do contador (Campos): o primeiro em
+// sizeof(ClassInstance), que é o deslocamento dele
+const std::size_t DESLOC_CAMPOS_OBJ    = offsetof(ClassInstance, fields) + sizeof(Campos);
+const std::size_t DESLOC_CAMPOS_STRUCT = offsetof(StructValue, fields) + sizeof(Campos);
 const std::size_t DESLOC_ELEMENTOS     = offsetof(CinzaList, elements);   // Q11: o std::vector de Value
 #pragma GCC diagnostic pop
 
@@ -68,8 +70,9 @@ const std::size_t DESLOC_ELEMENTOS     = offsetof(CinzaList, elements);   // Q11
 // lados. (Com um long no GcObject eram 40 no Windows e 48 no Linux.)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Winvalid-offsetof"
-static_assert(offsetof(cinza::ClassInstance, fields) == 48 && offsetof(cinza::StructValue, fields) == 48,
-              "o vetor de campos mudou de lugar: atualize o caminho rápido dos campos (llvm/DESENHO.md 8.1)");
+static_assert(offsetof(cinza::ClassInstance, fields) == 40 && offsetof(cinza::StructValue, fields) == 40 &&
+              sizeof(cinza::ClassInstance) == 48 && sizeof(cinza::StructValue) == 48,
+              "os campos mudaram de lugar: atualize o caminho rápido dos campos (llvm/DESENHO.md 8.1)");
 #pragma GCC diagnostic pop
 
 LLVMTargetMachineRef criaMaquina(bool otimiza, std::string& erro) {
@@ -845,12 +848,12 @@ struct Emissor::Impl {
                 break;
             }
             case Op::CampoDireto: case Op::GravaCampoDireto: {
-                // o CzValor do campo i, direto no vetor de campos do objeto (ClassInstance ou
-                // StructValue): o início do std::vector é o primeiro ponteiro dele
+                // o CzValor do campo i, dentro do objeto (ClassInstance ou StructValue): Q11, os
+                // campos começam num deslocamento fixo, sem ponteiro a carregar
                 const bool st = tipoOp(in.args[0]) == cir::Tipo::Struct;
                 LLVMValueRef o = val(in.args[0]);
                 LLVMValueRef off[] = {ci64(static_cast<std::int64_t>(st ? DESLOC_CAMPOS_STRUCT : DESLOC_CAMPOS_OBJ))};
-                LLVMValueRef inicio = LLVMBuildLoad2(b, tPtr, LLVMBuildInBoundsGEP2(b, tI8, o, off, 1, ""), "campos");
+                LLVMValueRef inicio = LLVMBuildInBoundsGEP2(b, tI8, o, off, 1, "campos");
                 LLVMValueRef idx[] = {ci64(static_cast<std::int64_t>(in.aux))};
                 LLVMValueRef lugar = LLVMBuildInBoundsGEP2(b, tValor, inicio, idx, 1, "campo");
                 if (in.op == Op::CampoDireto) {
@@ -1542,15 +1545,19 @@ bool Emissor::confereLayout(std::string& relato) {
     confere("CzExec", {ptr, i32, i32, LLVMArrayType2(quadro, CZ_PROFUNDIDADE)}, sizeof(CzExec),
             {offsetof(CzExec, erro), offsetof(CzExec, prof), offsetof(CzExec, _reservado),
              offsetof(CzExec, quadros)});
-    // o acesso em linha aos campos (P10): um Value é o CzValor, e o primeiro ponteiro de um
-    // std::vector<Value> é o início dos elementos
+    // o acesso em linha aos campos (P10; Q11: dentro do objeto) e às listas (Q11): um Value é o
+    // CzValor; o campo 0 fica no deslocamento fixo; um std::vector<Value> começa pelos ponteiros
+    // do início e do fim dos elementos
     {
         std::vector<Value> v(3);
-        Value* const* primeiro = reinterpret_cast<Value* const*>(&v);
-        const bool certo = sizeof(Value) == sizeof(CzValor) && *primeiro == v.data();
-        relato += std::string(certo ? "ok    " : "ERRADO ") + "campos: std::vector<Value> começa pelo ponteiro dos elementos; "
-                  "vetor no deslocamento " + std::to_string(DESLOC_CAMPOS_OBJ) + " (objeto) e " +
-                  std::to_string(DESLOC_CAMPOS_STRUCT) + " (struct)\n";
+        Value* const* ptrs = reinterpret_cast<Value* const*>(&v);
+        auto obj = novoComCampos<ClassInstance>(1, static_cast<const CzClasseDesc*>(nullptr));
+        const bool certo = sizeof(Value) == sizeof(CzValor) && ptrs[0] == v.data() && ptrs[1] == v.data() + 3 &&
+                           reinterpret_cast<const char*>(&obj->fields[0]) ==
+                               reinterpret_cast<const char*>(obj.get()) + DESLOC_CAMPOS_OBJ;
+        relato += std::string(certo ? "ok    " : "ERRADO ") + "campos dentro do objeto, a partir do byte " +
+                  std::to_string(DESLOC_CAMPOS_OBJ) + " (objeto) e " + std::to_string(DESLOC_CAMPOS_STRUCT) +
+                  " (struct); std::vector<Value> pelos ponteiros do início e do fim\n";
         ok = ok && certo;
     }
     LLVMContextDispose(ctx);

@@ -323,8 +323,68 @@ static_assert(sizeof(Value) == 16, "o Value é o CzValor com posse");
 // Definidos APÓS Value para que Value seja completo quando são usados.
 // ============================================================================
 
-// Q11: os campos (struct, objeto) vêm do alocador de objetos pequenos
-using Campos = std::vector<Value, aloca::Pequeno<Value>>;
+// Q11: os campos de um objeto ou struct DENTRO dele — o número e, logo depois, os N Value, na
+// mesma alocação (novoComCampos): um objeto custa uma alocação, não duas (ele e o vetor), e o
+// campo i fica num deslocamento fixo (o código nativo o lê sem carregar ponteiro). `Campos` é
+// sempre o último membro do objeto; a interface é a de um vetor de tamanho fixo.
+class Campos {
+    std::uint64_t n_ = 0;
+    // o endereço logo depois do contador, por um inteiro: o g++ acompanha `this + 1` como o fim
+    // do objeto e acusaria (-Wstringop-overflow) a escrita na área que veio junto na alocação
+    Value* base() const noexcept {
+        return reinterpret_cast<Value*>(reinterpret_cast<std::uintptr_t>(this) + sizeof(Campos));
+    }
+
+public:
+    explicit Campos(std::size_t n) noexcept : n_(n) {
+        for (std::size_t i = 0; i < n; ++i) ::new (static_cast<void*>(base() + i)) Value();
+    }
+    // os campos já como cópia de origem[0..n) (o clone de um struct, o NEWSTRUCT): uma passada só
+    Campos(std::size_t n, const Value* origem) : n_(0) {
+        try {
+            for (std::size_t i = 0; i < n; ++i, ++n_) ::new (static_cast<void*>(base() + i)) Value(origem[i]);
+        } catch (...) {   // o destrutor não roda num objeto incompleto: solta os já copiados
+            for (std::size_t i = 0; i < n_; ++i) base()[i].~Value();
+            throw;
+        }
+    }
+    ~Campos() { for (std::size_t i = 0; i < n_; ++i) base()[i].~Value(); }
+    Campos(const Campos&) = delete;
+    Campos& operator=(const Campos&) = delete;
+
+    std::size_t  size() const noexcept { return static_cast<std::size_t>(n_); }
+    bool         empty() const noexcept { return n_ == 0; }
+    Value&       operator[](std::size_t i) noexcept { return base()[i]; }
+    const Value& operator[](std::size_t i) const noexcept { return base()[i]; }
+    Value*       begin() noexcept { return base(); }
+    Value*       end() noexcept { return base() + n_; }
+    const Value* begin() const noexcept { return base(); }
+    const Value* end() const noexcept { return base() + n_; }
+    // grava os primeiros campos a partir de [a, b) (b - a <= size())
+    template <typename It>
+    void assign(It a, It b) {
+        for (std::size_t i = 0; a != b && i < n_; ++a, ++i) base()[i] = *a;
+    }
+};
+static_assert(sizeof(Campos) == 8 && alignof(Campos) == 8, "os Value começam logo depois do contador");
+
+// Cria um objeto ou struct com n campos (vazios) na mesma alocação (os construtores não lançam)
+template <typename T, typename D>
+Ref<T> novoComCampos(std::size_t n, D desc) {
+    void* mem = aloca::pega(sizeof(T) + n * sizeof(Value));
+    return Ref<T>::adota(::new (mem) T(n, desc));
+}
+// Idem, com os campos copiados de origem[0..n)
+template <typename T, typename D>
+Ref<T> novoComCampos(std::size_t n, D desc, const Value* origem) {
+    void* mem = aloca::pega(sizeof(T) + n * sizeof(Value));
+    try {
+        return Ref<T>::adota(::new (mem) T(n, desc, origem));
+    } catch (...) {   // a cópia de um struct dentro pode faltar memória
+        aloca::solta(mem, sizeof(T) + n * sizeof(Value));
+        throw;
+    }
+}
 
 // ============================================================================
 // TABELA DO DICT (Q11, decisão do autor de 2026-11-24: o dict deixa de ser ordenado pela chave)
@@ -555,11 +615,13 @@ struct CinzaPair : GcObject {
 // ============================================================================
 
 struct ClassInstance : GcObject {
-    Campos fields;   // Q11: pelo alocador de objetos pequenos
+    Campos fields;   // Q11: o último membro — os campos vêm logo depois, na mesma alocação
 
-    ClassInstance() : GcObject(GcKind::Instance) {}
-    explicit ClassInstance(const CzClasseDesc* d)
-        : GcObject(GcKind::Instance, !d || d->rastreia), fields(d ? d->campos : 0) { desc = d; }
+    // só por novoComCampos (a área dos campos vem junto)
+    ClassInstance(std::size_t n, const CzClasseDesc* d) noexcept
+        : GcObject(GcKind::Instance, !d || d->rastreia), fields(n) { desc = d; }
+    static void* operator new(std::size_t) = delete;
+    std::size_t tamanhoAlocado() const noexcept { return sizeof(ClassInstance) + fields.size() * sizeof(Value); }
 
     const CzClasseDesc* classe() const { return static_cast<const CzClasseDesc*>(desc); }
 };
@@ -573,10 +635,21 @@ struct ClassInstance : GcObject {
 // ============================================================================
 
 struct StructValue : GcObject {
-    Campos fields;   // Q11: pelo alocador de objetos pequenos
+    Campos fields;   // Q11: o último membro — os campos vêm logo depois, na mesma alocação
 
-    StructValue() : GcObject(GcKind::Struct) {}
-    explicit StructValue(const CzStructDesc* d) : GcObject(GcKind::Struct, !d || d->rastreia) { desc = d; }
+    // só por novoComCampos (a área dos campos vem junto); a cópia é o clona
+    StructValue(std::size_t n, const CzStructDesc* d) noexcept
+        : GcObject(GcKind::Struct, !d || d->rastreia), fields(n) { desc = d; }
+    StructValue(std::size_t n, const CzStructDesc* d, const Value* origem)
+        : GcObject(GcKind::Struct, !d || d->rastreia), fields(n, origem) { desc = d; }
+    static void* operator new(std::size_t) = delete;
+    StructValue(const StructValue&) = delete;
+    std::size_t tamanhoAlocado() const noexcept { return sizeof(StructValue) + fields.size() * sizeof(Value); }
+    // A cópia de um struct (spec 5.1): os campos copiados um a um (cópia rasa; um struct dentro
+    // é clonado também, pela cópia do Value)
+    static Ref<StructValue> clona(const StructValue& s) {
+        return novoComCampos<StructValue>(s.fields.size(), s.tipo(), s.fields.begin());
+    }
 
     const CzStructDesc* tipo() const { return static_cast<const CzStructDesc*>(desc); }
 
@@ -629,7 +702,7 @@ inline ErrorValue* Value::asError() const { confere(Kind::ERROR); return static_
 // Q11: o clone de um struct, fora de linha — o construtor de cópia do Value está em todo lugar
 // (no laço de despacho da CVM também), e o caminho comum dele é só o retain
 [[gnu::noinline]] inline CzObjeto* clonaStruct(const StructValue& s) {
-    return static_cast<CzObjeto*>(novo<StructValue>(s).solta());
+    return static_cast<CzObjeto*>(StructValue::clona(s).solta());
 }
 
 inline Value::Value(const Value& other) : v(other.v) {
@@ -931,7 +1004,7 @@ inline Value makePair(Value first, Value second) {
 }
 
 [[gnu::noinline]] inline Value makeInstance(const CzClasseDesc* desc) {
-    return Value(novo<ClassInstance>(desc));
+    return Value(novoComCampos<ClassInstance>(desc ? desc->campos : 0, desc));
 }
 
 // ============================================================================
@@ -949,8 +1022,20 @@ inline void czApaga(CzObjeto* o) noexcept {
         case GcKind::List:     delete static_cast<CinzaList*>(o);     break;
         case GcKind::Dict:     delete static_cast<CinzaDict*>(o);     break;
         case GcKind::Pair:     delete static_cast<CinzaPair*>(o);     break;
-        case GcKind::Instance: delete static_cast<ClassInstance*>(o); break;
-        case GcKind::Struct:   delete static_cast<StructValue*>(o);   break;
+        case GcKind::Instance: {   // Q11: com os campos na mesma alocação (novoComCampos)
+            auto* x = static_cast<ClassInstance*>(o);
+            const std::size_t t = x->tamanhoAlocado();
+            x->~ClassInstance();
+            aloca::solta(x, t);
+            break;
+        }
+        case GcKind::Struct: {
+            auto* x = static_cast<StructValue*>(o);
+            const std::size_t t = x->tamanhoAlocado();
+            x->~StructValue();
+            aloca::solta(x, t);
+            break;
+        }
         case GcKind::Error:    delete static_cast<ErrorValue*>(o);    break;
         case GcKind::String:   delete static_cast<CzString*>(o);      break;
     }

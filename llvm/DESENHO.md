@@ -752,6 +752,10 @@ runtime, para os dois backends.
 | interface | par `{objeto, tabela de métodos}`, como o `dyn Trait` do Rust; ao sair de um `CzValor` (elemento de lista), a tabela é procurada no descritor da classe |
 | `type()` | ponteiro para `TypeInfo` (seção 2.4) |
 
+**Q11 (2026-11-25)**: os campos ficam **dentro do objeto**, logo depois do cabeçalho (o
+`GcObject`, 40 bytes) e de um contador, na mesma alocação: o campo i está em
+`objeto + 48 + 16·i`, sem ponteiro a carregar (`--confere-layout` confere).
+
 **Decidido no P10 (2026-11-19)**: os campos continuam no layout da CVM (um `CzValor` por campo,
 no vetor do objeto), com um **caminho rápido**: o código gerado lê e grava em linha os campos
 sem referência (número, `bool`, enum, tipo), direto no vetor; os campos com referência seguem

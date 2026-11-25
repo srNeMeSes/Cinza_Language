@@ -62,8 +62,9 @@ int main() {
     CHECK(v.kind() == K::BOOL);
 
     // C3: copiar um struct clona os campos (cópia rasa: list interna compartilhada)
-    auto sv = novo<StructValue>();
-    sv->fields = {Value(1), makeList()};
+    auto sv = novoComCampos<StructValue>(2, static_cast<const CzStructDesc*>(nullptr));
+    sv->fields[0] = Value(1);
+    sv->fields[1] = makeList();
     Value original(sv);
     Value copia = original;
     CHECK(copia.kind() == K::STRUCT);
