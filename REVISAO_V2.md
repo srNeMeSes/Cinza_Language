@@ -2178,7 +2178,7 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
   > pedida, majors diferentes, sem `get`, sem cache, o cache alterado, a tag movida, o lock
   > desatualizado, remove, dependência local num pacote git, tag que não existe, o `//` da URL).
   > Spec: 4.11 (o `czm.mod` e os pacotes).
-- [ ] Q11. Desempenho (antes da 1.0, decisão do autor de 2026-11-22), sem mudar a semântica. Medir
+- [x] Q11. Desempenho (antes da 1.0, decisão do autor de 2026-11-22), sem mudar a semântica. Medir
   com programas de verdade e atacar o que o perfil mostra, nas duas implementações.
   1. **Medição**: `bench/` ganha seis programas com dados (`listas`, `dicts`, `arvores`, `corpos`,
      `texto`, `structs_lista`) e as versões em Python (`bench/python/referencias.py`), para a
@@ -2330,6 +2330,23 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
   > **Medição** (A/B intercalado contra o `main`, mediana de 7): na CVM, `arvores` 0,89, `metodos`
   > 0,91, `structs_lista` 0,94; no nativo, `metodos` 0,88, `structs_lista` 0,89, `ciclos` 0,93,
   > `corpos` 0,94; o resto entre 0,96 e 1,05 (ruído).
+  > **Fechado em 2026-11-25** (decisão do autor: a meta foi cumprida). Seis fatias: o runtime
+  > (alocador, coleta por gerações, tipos acíclicos fora dela), o código nativo em linha (Math,
+  > listas, campos, structs numa lista), o dict na ordem de inserção com tabela de hash (a única
+  > mudança de semântica, decidida pelo autor), o tamanho da string guardado e os atalhos de
+  > struct na CVM, a CVM (o `Value` em linha, a janela da chamada no destino, `SIZE`) e os campos
+  > dentro do objeto. **Medição final** (tempo ÷ Python 3.13, a mesma rodada, mediana de 5; CVM e
+  > nativo): `laco` 0,25 e 0,05; `listas` 0,41 e 0,14; `fib` 0,47 e 0,26; `metodos` 0,55 e 0,05;
+  > `objetos` 0,55 e 0,19; `dicts` 0,56 e 0,42; `corpos` 0,59 e 0,06; `strings` 0,62 e 0,19;
+  > `ciclos` 0,68 e 0,48; `arvores` 0,71 e 0,38; `structs` 0,84 e 0,16; `texto` 0,87 e 0,73;
+  > `structs_lista` 1,09 e 0,70. **Fica para depois** (anotado, sem data): (1) structs com cópia
+  > preguiçosa (copiar é um retain, o clone na primeira escrita se o struct é compartilhado,
+  > como no Swift) — o que sobra no `structs_lista`, onde o for copia todos os elementos no
+  > início (spec 5.5) e clona cada struct; (2) listas tipadas no nativo (`list<i32>` como vetor
+  > de `int32_t`); (3) no laço de despacho da CVM, o despacho por tabela de rótulos (computed
+  > goto) e a próxima instrução numa variável local (experimentada na fatia 5: perdeu no
+  > `structs`). Para medir: `bench/medir.ps1`, `bench/python/referencias.py`, e A/B intercalado
+  > (a variação desta máquina entre rodadas chega a 30%).
 - [ ] Q2. Robustez.
   - Fuzzing do front-end: nenhuma entrada derruba o `cinza` nem o `cinzac` (um erro interno ou uma
     queda é defeito), começando por mutações dos programas da suíte.
@@ -2586,6 +2603,8 @@ ao passar o mouse, ir para a definição e completar nomes no servidor de lingua
    junto com os módulos novos; o `czm.mod` passa a declarar o projeto e as dependências.
 6. **Q11 — desempenho**, com o núcleo fechado (para não otimizar o que ainda vai mudar): a
    representação nativa dos campos e das listas, menos contagem de referências, o runtime.
+   Feito em 2026-11-25: o nativo passa o Python em todos os programas do `bench/`, a CVM em 12
+   de 13 (a lista acima está cumprida; o que sobrou está anotado no Q11).
 
 ---
 
