@@ -2347,7 +2347,7 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
   > goto) e a próxima instrução numa variável local (experimentada na fatia 5: perdeu no
   > `structs`). Para medir: `bench/medir.ps1`, `bench/python/referencias.py`, e A/B intercalado
   > (a variação desta máquina entre rodadas chega a 30%).
-- [ ] Q2. Robustez.
+- [x] Q2. Robustez. — fechado em 2026-11-25
   - Fuzzing do front-end: nenhuma entrada derruba o `cinza` nem o `cinzac` (um erro interno ou uma
     queda é defeito), começando por mutações dos programas da suíte.
   - Teste diferencial com programas gerados: as duas implementações são o oráculo uma da outra
@@ -2442,6 +2442,10 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
   > **Regex** (`regex_dif.py`, contra o `re` do Python): a ferramenta ainda esperava o `find` com
   > -1 e o grupo que não participou com "" — desde o Q1b são `null` (`i32?`, `list<string?>`);
   > acertada, 3000 casos, nenhuma diferença.
+  > **Fechado em 2026-11-25** (decisão do autor): os quatro pontos cumpridos — o fuzzing do
+  > front-end, o diferencial entre os backends, o ASan/UBSan no `cinzac` e na `libcinzart`, e os
+  > programas grandes. As ferramentas (`tests/fuzz/`: `gera.py`, `fuzz.py`, `grandes.py`,
+  > `regex_dif.py`) ficam para rodar de novo a cada mudança grande da linguagem ou do runtime.
 - [x] Q3. Biblioteca padrão da 1.0. Hoje: `Strings`, `Files`, `Math`,
   `Random`, `Convert`, `Lists`, `Time`. Candidatos: JSON (texto ↔ `dict`/`list`), ambiente e
   processo (variáveis de ambiente, rodar um comando), pastas (listar, criar, apagar), o que faltar
