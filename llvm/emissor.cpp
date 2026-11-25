@@ -15,6 +15,7 @@
 #include <llvm-c/Target.h>
 #include <llvm-c/TargetMachine.h>
 #include <llvm-c/Transforms/PassBuilder.h>
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <limits>
@@ -153,6 +154,10 @@ std::vector<bool> podemFalhar(const cir::Modulo& m) {
 constexpr std::size_t LIMITE_OTIMIZA = 3000;
 // Soltas acima das quais o refcount da função vai pelo runtime, não em linha
 constexpr std::size_t LIMITE_SOLTAS_EM_LINHA = 256;
+// Q2: depois dos passes, os blocos de uma função, ou as instruções de um bloco, acima dos quais
+// a geração de código dela é a do -O0 (Emissor::emiteObjeto)
+constexpr std::size_t LIMITE_BLOCOS_CODEGEN = 500;
+constexpr std::size_t LIMITE_BLOCO_CODEGEN  = 1500;
 
 struct Emissor::Impl {
     bool                 otimiza = false;
@@ -1431,6 +1436,29 @@ bool local(LLVMValueRef g) {
 bool Emissor::emiteObjeto(const std::string& caminho, std::vector<std::string>& objetos, std::string& erro) {
     Impl& e = *impl;
     if (!otimiza(erro)) return false;
+    // Q2 (2026-11-25): uma função que só ficou enorme DEPOIS dos passes (o inliner juntou nela
+    // muitos métodos: cem cópias de uma classe genérica usadas no main), ou que tem um bloco com
+    // milhares de instruções (o inicializador de uma classe de mil campos: milhares de gravações
+    // independentes), deixa a geração de código do -O2 superlinear — o coalescer de registradores
+    // e o otimizador de fluxo de controle, num caso, e o DAG da seleção de instruções, no outro
+    // (5 s em vez de 0,3). Ela vai também para o segundo objeto, em -O0 (o IR continua otimizado;
+    // só a etapa de máquina é a simples). Os maiores programas da suíte ficam bem abaixo (o main
+    // do exemplo da rede neural: 299 blocos)
+    if (e.otimiza && !e.asan)
+        for (LLVMValueRef f = LLVMGetFirstFunction(e.mod); f; f = LLVMGetNextFunction(f)) {
+            if (LLVMIsDeclaration(f) || temAtributo(f, "optnone")) continue;
+            std::size_t blocos = 0, maior_bloco = 0;
+            for (LLVMBasicBlockRef bb = LLVMGetFirstBasicBlock(f); bb; bb = LLVMGetNextBasicBlock(bb)) {
+                ++blocos;
+                std::size_t n = 0;
+                for (LLVMValueRef i = LLVMGetFirstInstruction(bb); i; i = LLVMGetNextInstruction(i)) ++n;
+                maior_bloco = std::max(maior_bloco, n);
+            }
+            if (blocos > LIMITE_BLOCOS_CODEGEN || maior_bloco > LIMITE_BLOCO_CODEGEN) {
+                e.atributo(f, "noinline");   // o optnone exige o noinline (os passes já rodaram)
+                e.atributo(f, "optnone");
+            }
+        }
     std::vector<std::string> enormes;
     if (e.otimiza && !e.asan)   // no ASan (depuração) o módulo fica inteiro: ele cria construtores
         for (LLVMValueRef f = LLVMGetFirstFunction(e.mod); f; f = LLVMGetNextFunction(f))

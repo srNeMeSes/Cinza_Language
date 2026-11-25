@@ -133,6 +133,42 @@ def parametros(n):
            f"{(n - 1) % 10}"
 
 
+# ── Q2 (2026-11-25): as construções e as estruturas novas ───────────────────
+def genericas(n):   # n cópias de uma classe genérica (uma por struct)
+    ss = "".join(f"struct S{i} {{ i32 v = {i}; }}\n" for i in range(n))
+    cl = ("class Caixa[T] {\n  list<T> itens;\n  pub {\n    fn poe(T x) { itens.add(x); }\n"
+          "    fn tamanho() -> i32 { return itens.size(); }\n  }\n}\n")
+    corpo = "".join(f"  Caixa[S{i}] c{i} = new Caixa[S{i}]();\n  c{i}.poe(new S{i}());\n  t += c{i}.tamanho();\n"
+                    for i in range(n))
+    return ss + cl + f"fn main() {{\n  i32 t = 0;\n{corpo}  print(t);\n}}\n", f"{n}"
+
+
+def dict_operacoes(n):   # o dict em ordem de inserção: inserir, remover tudo e reinserir (as lápides)
+    return (f"fn main() {{\n  dict<i32, i32> d;\n  for (i32 i in range(0, {n})) {{ d.add({{i, i}}); }}\n"
+            f"  for (i32 i in range(0, {n})) {{ d.remove(i); d.add({{i + {n}, i}}); }}\n"
+            f"  i64 s = 0;\n  for (pair<i32, i32> p in d) {{ s += cast<i64>(p.second); }}\n"
+            f"  print(d.size(), d.keys()[0], s);\n}}\n", f"{n} {n} {n * (n - 1) // 2}")
+
+
+def opcionais_aninhados(n):   # if com declaração dentro de if com declaração (o limite de 2000)
+    corpo = "".join(f"if (i32 v{i} = o) {{\n" for i in range(n)) + "  print(v0);\n" + "}\n" * n
+    return f"fn main() {{\n  i32? o = 5;\n{corpo}}}\n", "5"
+
+
+def classe_larga(n):   # uma classe de n campos (os campos dentro do objeto)
+    campos = "".join(f"  i32 c{i} = {i};\n" for i in range(n))
+    return (f"class Larga {{\n{campos}  pub {{\n    fn ultimo() -> i32 {{ return c{n - 1}; }}\n"
+            f"    fn soma() {{ c{n - 1} += c0 + 1; }}\n  }}\n}}\n"
+            f"fn main() {{\n  Larga l = new Larga();\n  l.soma();\n  print(l.ultimo());\n}}\n", f"{n}")
+
+
+def lista_de_structs(n):   # n structs numa lista: o for toma cada um da cópia; o campo pelo índice
+    return (f"struct P {{ i32 x = 0; string s = \"a\"; }}\nfn main() {{\n  list<P> ps;\n"
+            f"  for (i32 i in range(0, {n})) {{ ps.add(new P(i, \"p\")); }}\n  i64 t = 0;\n"
+            f"  for (P p in ps) {{ t += cast<i64>(p.x); }}\n  for (i32 i in range(0, ps.size())) {{ t += cast<i64>(ps[i].x); }}\n"
+            f"  print(t);\n}}\n", f"{n * (n - 1)}")
+
+
 FAMILIAS = [
     ("funcoes", [1000, 5000, 20000], funcoes),
     ("cadeia_de_chamadas", [100, 1000, 1990], cadeia_de_chamadas),
@@ -154,6 +190,11 @@ FAMILIAS = [
     ("literais_distintos", [1000, 10000, 50000], literais_distintos),
     ("identificador_longo", [100, 10000, 1000000], identificador_longo),
     ("parametros", [10, 100, 1000, 10000], parametros),
+    ("genericas", [10, 100, 1000], genericas),
+    ("dict_operacoes", [10000, 100000, 1000000], dict_operacoes),
+    ("opcionais_aninhados", [100, 1000, 1990, 2001], opcionais_aninhados),
+    ("classe_larga", [100, 1000, 10000], classe_larga),
+    ("lista_de_structs", [10000, 100000, 1000000], lista_de_structs),
 ]
 
 

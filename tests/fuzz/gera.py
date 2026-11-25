@@ -6,7 +6,11 @@ garantido — laços com limite fixo, recursão com profundidade limitada, chama
 definidas antes. Usa números das quatro larguras perto das bordas, strings, listas, dicts,
 structs (com a cópia por valor), classes, uma interface, um enum, funções genéricas e
 try/except/finally; contas que estouram, divisões por zero e índices fora da faixa acontecem de
-propósito, quase sempre dentro de um try.
+propósito, quase sempre dentro de um try. Q2 (2026-11-25): também o opcional T? (null, else,
+if com declaração, o T? devolvido por método), uma classe genérica, listas de structs (o campo
+lido e gravado pelo índice, o for), as funções do Math que o cinzac faz em linha (com argumentos
+fora do domínio: a guarda e a mensagem de erro), o dict com remoções (a ordem de inserção) e uma
+classe com um campo opcional do próprio tipo (um ciclo para a coleta).
 
 Cada programa roda na CVM (cinza) e é compilado pelo cinzac em -O0 e em -O2; a saída, os erros e
 o código de saída têm de ser os mesmos nos três (e nada pode vazar: CINZA_VAZAMENTOS=1). Um
@@ -64,6 +68,7 @@ class Programa:
         self.consts = {}       # nome → tipo
         self.profundidade_laco = 0
         self.grandes = {}      # valor i64 grande → a const G que o guarda
+        self.genericas = {}    # Q2: "Caixa[i32]" → o T ("i32")
 
     PREFIXOS = {"v": "v", "i": "it", "f": "fun", "c": "cont", "x": "el", "p": "par", "q": "arg",
                 "e": "err", "cp": "copia"}   # nunca um nome de tipo (i32, f64...)
@@ -82,6 +87,7 @@ class Programa:
     def tipo_qualquer(self):
         t = [self.tipo_simples()] * 6 + ["list<i32>", "list<string>", "dict<string, i32>"]
         t += list(self.structs) + list(self.classes) + ([self.enum[0]] if self.enum else [])
+        t += ["i32?", "string?"] + [f"list<{s}>" for s in self.structs] + list(self.genericas)
         return self.r.choice(t)
 
     # ── literais ─────────────────────────────────────────────────────────
@@ -125,9 +131,19 @@ class Programa:
                 return f"cast<{t}>({self.expr(o, esc, d + 1)})"
             if op == 7:   # tamanho, campo, chamada
                 return self.expr_derivada(t, esc, d)
+            if t == "f64" and self.chance(0.6):   # Q2: o Math em linha do cinzac (com a guarda)
+                f = r.choice(["sqrt", "log", "log10", "exp", "sin", "cos", "atan", "tanh", "cosh"])
+                if self.chance(0.3):
+                    f2 = r.choice(["pow", "atan2", "hypot"])
+                    return f"Math.{f2}({self.expr('f64', esc, d + 1)}, {self.expr('f64', esc, d + 1)})"
+                return f"Math.{f}({self.expr('f64', esc, d + 1)})"
+            if t == "i64" and self.chance(0.4):
+                f = r.choice(["floor", "ceil", "round", "trunc"])
+                return f"Math.{f}({self.expr('f64', esc, d + 1)})"
             if t in ("i32", "i64") and self.chance(0.5):
                 return f"Math.abs({self.expr(t, esc, d + 1)})"
-            return f"Math.max({self.expr(t, esc, d + 1)}, {self.expr(t, esc, d + 1)})"
+            fm = r.choice(["max", "min"])
+            return f"Math.{fm}({self.expr(t, esc, d + 1)}, {self.expr(t, esc, d + 1)})"
         if t == "bool":
             op = r.randrange(7 if not fundo else 2)
             if op == 0 or (op == 1 and not vs):
@@ -166,6 +182,22 @@ class Programa:
             if op == 6:
                 return f'format("<{{{self.expr_simples(esc)}}}>")'
             return self.expr_derivada(t, esc, d)
+        if t.endswith("?"):   # Q2: o opcional — null, um valor, ou outro opcional
+            base = t[:-1]
+            vs2 = self.vars_de(esc, t)
+            op = r.randrange(4)
+            if op == 0:
+                return "null"
+            if op == 1 and vs2:
+                return r.choice(vs2)
+            if op == 2 and base == "i32" and self.vars_de(esc, "dict<string, i32>"):
+                return f'Dicts.get({r.choice(self.vars_de(esc, "dict<string, i32>"))}, "{r.choice(["a", "b", "z"])}")'
+            return self.expr(base, esc, d + 1)
+        if t in self.genericas:
+            vs2 = self.vars_de(esc, t)
+            if vs2 and self.chance(0.7):
+                return r.choice(vs2)
+            return f"new {t}()"
         if t.startswith("list<"):
             el = t[5:-1]
             vs2 = self.vars_de(esc, t)
@@ -237,6 +269,20 @@ class Programa:
                 opcoes.append(f"{nome}(" + ", ".join(self.expr(p, esc, d + 2) for p in ps) + ")")
         if t in ("i32", "f64", "string") and d < 2 and self.chance(0.3):
             opcoes.append(f"maior[{t}]({self.expr(t, esc, d + 2)}, {self.expr(t, esc, d + 2)})")
+        for n, tt in todos.items():   # Q2
+            if tt == t + "?":
+                opcoes.append(f"({n} else {self.expr(t, esc, 3)})")
+            if tt.startswith("list<") and tt[5:-1] in self.structs:
+                for c, ct in self.structs[tt[5:-1]]:
+                    if ct == t:
+                        opcoes.append(f"{n}[{r.randint(0, 3)}].{c}")
+            if tt in self.genericas:
+                if t == "i32":
+                    opcoes.append(f"{n}.tamanho()")
+                if t == self.genericas[tt]:
+                    opcoes.append(f"({n}.ultimo() else {self.expr(t, esc, 3)})")
+        if t == "i32" and self.chance(0.2):
+            opcoes.append(f"cria_lista({self.r.randint(0, 5)}).conta()")
         return r.choice(opcoes) if opcoes else self.lit(t)
 
     # ── instruções ───────────────────────────────────────────────────────
@@ -250,8 +296,10 @@ class Programa:
     def instr(self, esc, ind, ret, laco):
         r = self.r
         p = "  " * ind
-        k = r.randrange(16)
+        k = r.randrange(19)
         todos = esc.todos()
+        if k >= 16:   # Q2: as construções novas (uma em cada ~6 instruções)
+            return self.instr_nova(esc, ind, ret, laco)
         if k <= 2:   # declaração
             t = self.tipo_qualquer()
             nome = self.novo()
@@ -382,10 +430,49 @@ class Programa:
                     if rt != "void" else f"{p}{nome}(" + ", ".join(self.expr(pt, esc, 2) for pt in ps) + ");"]
         return [f'{p}printf("{{{self.expr_simples(esc)}}} {{{self.expr_simples(esc)}:6}}");']
 
+    def instr_nova(self, esc, ind, ret, laco):
+        """Q2: o opcional, a classe genérica, listas de structs, o dict com remoções"""
+        r = self.r
+        p = "  " * ind
+        todos = esc.todos()
+        opc = []
+        for n, t in todos.items():
+            if t.endswith("?") and ind < 5:
+                base = t[:-1]
+                x = self.novo("x")
+                interno = Escopo(esc)
+                interno.vars[x] = base
+                interno.protegidos.add(x)
+                corpo = self.bloco(interno, ind + 1, r.randint(1, 2), ret, laco)
+                opc.append([f"{p}if ({base} {x} = {n}) {{", f"{p}  print(\"tem\", {x});"] + corpo +
+                           [f"{p}}} else {{", f"{p}  print(\"null\", {n} == null);", f"{p}}}"])
+                if n not in esc.protegidos:
+                    opc.append([f"{p}{n} = {self.expr(t, esc)};"])
+            if t in self.genericas:
+                el = self.genericas[t]
+                opc.append([f"{p}{n}.poe({self.expr(el, esc)});", f"{p}print({n}.tamanho(), {n}.ultimo());"])
+            if t.startswith("list<") and t[5:-1] in self.structs:
+                s = t[5:-1]
+                c, ct = r.choice(self.structs[s])
+                opc.append([f"{p}{n}.add({self.expr(s, esc)});"])
+                grava = [f"{p}{n}[{r.randint(0, 3)}].{c} = {self.expr(ct, esc)};", f"{p}print({n});"]
+                opc += [grava, grava]   # o caminho do lugar (lista, depois campo): peso dobrado
+                if ind < 5 and self.profundidade_laco < 2:
+                    x = self.novo("x")
+                    opc.append([f"{p}for ({s} {x} in {n}) {{", f"{p}  {x}.{c} = {self.expr(ct, esc)};",
+                                f"{p}  print({x}.{c});", f"{p}}}", f"{p}print({n});"])
+            if t == "dict<string, i32>":
+                k1 = r.choice(["a", "b", "c", "z"])
+                opc.append([f'{p}if ({n}.has("{k1}")) {{', f'{p}  {n}.remove("{k1}");', f"{p}}}",
+                            f'{p}{n}.add({{"{k1}", {self.expr("i32", esc)}}});', f"{p}print({n}, {n}.keys());"])
+        if not opc:
+            return [f"{p}print({self.expr(self.tipo_qualquer(), esc)});"]
+        return r.choice(opc)
+
     # ── declarações ──────────────────────────────────────────────────────
     def gera(self):
         r = self.r
-        out = ["import Math;", "import Strings;", "", "error Falha;", ""]
+        out = ["import Math;", "import Strings;", "import Dicts;", "", "error Falha;", ""]
         self.enum = ("Cor", ["Vermelho", "Verde", "Azul"])
         out += ["enum Cor { Vermelho, Verde, Azul }", ""]
         for v in INT_BORDAS["i64"]:   # os i64 que não cabem num literal solto (i32)
@@ -408,6 +495,23 @@ class Programa:
         for k in range(r.randint(1, 2)):   # classes
             out += self.classe(f"C{k + 1}")
         out += ["fn maior[T](T a, T b) -> T {", "  if (a > b) {", "    return a;", "  }", "  return b;", "}", ""]
+        # Q2: uma classe genérica (o T? devolvido) e uma classe com um campo opcional do próprio
+        # tipo (os nós em ciclo: a coleta de ciclos precisa liberá-los)
+        out += ["class Caixa[T] {", "  list<T> itens;", "  pub {", "    fn poe(T x) { itens.add(x); }",
+                "    fn tamanho() -> i32 { return itens.size(); }",
+                "    fn ultimo() -> T? {", "      if (itens.size() == 0) { return null; }",
+                "      return itens[itens.size() - 1];", "    }", "  }", "}", "",
+                "class No {", "  i32 v = 0;", "  No? prox;", "  pub {", "    No(i32 x) { v = x; }",
+                "    fn liga(No n) { prox = n; }",
+                "    fn conta() -> i32 {", "      i32 n = 1;", "      No? a = prox;",
+                "      while (No b = a) {", "        if (b.v == v) { return n; }", "        n += 1;",
+                "        a = b.prox;", "        if (n > 50) { return n; }", "      }", "      return n;", "    }",
+                "  }", "}", "",
+                "fn cria_lista(i32 n) -> No {", "  No primeiro = new No(0);", "  No atual = primeiro;",
+                "  for (i32 i in range(1, n + 1)) {", "    No novo = new No(i);", "    atual.liga(novo);",
+                "    atual = novo;", "  }", "  atual.liga(primeiro);", "  return primeiro;", "}", ""]
+        for g in ("i32", "string"):
+            self.genericas[f"Caixa[{g}]"] = g
         # recursão com profundidade limitada
         out += ["fn rec(i32 n, i64 acc) -> i64 {", "  if (n <= 0) {", "    return acc;", "  }",
                 f"  return rec(n - 1, acc * {r.randint(1, 9)} + cast<i64>(n));", "}", ""]

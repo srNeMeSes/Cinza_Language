@@ -2417,6 +2417,31 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
   > lineares: o -O2 leva ~1,7 ms por função pequena e ~13 ms por função numa cadeia de chamadas (o
   > inliner); o `cinzac` usa ~23 KB de memória por linha de um `main` enorme (2,3 GB para 100 mil
   > linhas em -O0) — o IR de cada linha, com a conferência de erro e a posição de cada operação.
+  > Andamento (2026-11-25): as três ferramentas de novo, depois do T?, das classes genéricas, dos
+  > módulos, dos pacotes e do Q11 inteiro (alocador, coleta por gerações, campos dentro do objeto,
+  > o dict novo, o código nativo em linha). **Gerador** (`gera.py`), estendido: o opcional (`null`,
+  > `else`, `if` com declaração, `Dicts.get`), uma classe genérica (`Caixa[i32]`, `Caixa[string]`,
+  > com o `T?` devolvido), as funções do `Math` que o cinzac faz em linha (com argumentos fora do
+  > domínio: a guarda e a mensagem), listas de structs (o campo lido e gravado pelo índice, o for
+  > que muda a variável), o dict com remoções e reinserções e uma classe com um campo `No?` do
+  > próprio tipo (listas circulares para a coleta). Duas sessões de 10 min: 2409 programas com o
+  > gerador antigo e 2418 com o novo, comparados na CVM, no cinzac -O0 e -O2, sem vazamento:
+  > nenhum defeito. **Mutações** (`fuzz.py`, 10 min): 10.809 mutantes, 70 no diferencial, nenhum
+  > defeito. **Programas grandes** (`grandes.py`): as 20 famílias, nenhum defeito; e cinco novas —
+  > `genericas` (até mil cópias), `dict_operacoes` (1 milhão de inserções, remoções e
+  > reinserções), `opcionais_aninhados` (até o limite), `classe_larga` (10 mil campos, dentro do
+  > objeto) e `lista_de_structs` (1 milhão). **Achado e corrigido**: o cinzac -O2 ficava
+  > quadrático em duas formas de função que só aparecem depois dos passes — o `main` com cem cópias
+  > de uma classe genérica (o inliner juntou os métodos: 713 blocos; o coalescer de registradores e
+  > o otimizador de fluxo de controle) e o inicializador de uma classe de mil campos (um bloco de
+  > milhares de gravações independentes; o DAG da seleção de instruções): 5,5 s e 4,9 s. Agora, depois
+  > dos passes, uma função com mais de 500 blocos ou com um bloco de mais de 1500 instruções vai
+  > também para o objeto gerado em -O0 (`emiteObjeto`; o IR continua otimizado): 1,3 s e 0,76 s. O
+  > maior `main` dos programas reais da suíte (o exemplo da rede neural) tem 299 blocos. Teste novo:
+  > `nativo/q2_bloco_enorme` (a classe de 800 campos: passa pelo segundo objeto e dá a conta certa).
+  > **Regex** (`regex_dif.py`, contra o `re` do Python): a ferramenta ainda esperava o `find` com
+  > -1 e o grupo que não participou com "" — desde o Q1b são `null` (`i32?`, `list<string?>`);
+  > acertada, 3000 casos, nenhuma diferença.
 - [x] Q3. Biblioteca padrão da 1.0. Hoje: `Strings`, `Files`, `Math`,
   `Random`, `Convert`, `Lists`, `Time`. Candidatos: JSON (texto ↔ `dict`/`list`), ambiente e
   processo (variáveis de ambiente, rodar um comando), pastas (listar, criar, apagar), o que faltar

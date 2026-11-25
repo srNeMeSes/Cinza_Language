@@ -79,10 +79,12 @@ def literal_cinza(s):
 
 
 def resposta_python(p, t):
+    # Q1b: find devolve i32? (null sem ocorrência) e groups list<string?> (null no grupo que não
+    # participou; "" no que casou o vazio)
     m = re.search(p, t)
-    grupos = [] if not m else [m.group(0)] + [g if g is not None else "" for g in m.groups()]
-    return (str(re.fullmatch(p, t) is not None).lower(), str(m.start() if m else -1),
-            "[" + ", ".join('"' + g + '"' for g in grupos) + "]")
+    grupos = [] if not m else [m.group(0)] + list(m.groups())
+    return (str(re.fullmatch(p, t) is not None).lower(), str(m.start()) if m else "null",
+            "[" + ", ".join('"' + g + '"' if g is not None else "null" for g in grupos) + "]")
 
 
 def main():
