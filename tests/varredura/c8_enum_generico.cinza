@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 8): enum não aceita parâmetros de tipo
+enum E[T] { A }
+fn main() {}
+// expect-error: enum não aceita parâmetros de tipo

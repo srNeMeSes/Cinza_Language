@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 4): dois itens do nível superior com o mesmo nome (função e classe) são erro
+fn A() {}
+class A {}
+fn main() {}
+// expect-error: não há sobrecarga

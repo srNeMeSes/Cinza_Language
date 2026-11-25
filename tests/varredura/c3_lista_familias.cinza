@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 3): elementos de famílias diferentes são erro
+fn main() {
+  print([1, 2.5ff]);
+}
+// expect-error: elemento 2 tem tipo 'f64', incompatível com 'i32'

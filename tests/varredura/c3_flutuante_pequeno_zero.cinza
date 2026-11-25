@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): o pequeno demais vira 0, e -0 existe
+fn main() {
+  f64 p = cast<f64>("1e-300");
+  print(p * p, -0.ff, -0.f, p * p == 0.ff);
+}
+// expect: 0 -0 -0 true

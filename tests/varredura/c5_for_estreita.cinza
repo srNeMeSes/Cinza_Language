@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 5): o iterador não estreita
+fn main() {
+  list<i64> l = [1];
+  for (i32 x in l) {}
+}
+// expect-error: Tipo do iterador 'i32' é incompatível com o elemento da lista 'i64'

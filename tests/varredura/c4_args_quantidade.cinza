@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): o número de argumentos precisa casar
+fn f(i32 a) {}
+fn main() { f(1, 2); }
+// expect-error: Aridade incorreta em 'f'

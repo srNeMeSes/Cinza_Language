@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 3): não há cast para bool
+fn main() {
+  print(cast<bool>(1));
+}
+// expect-error: cast<bool> não existe

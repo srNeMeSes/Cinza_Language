@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): um const global não pode ser reatribuído
+const i32 X = 1;
+fn main() { X = 2; }
+// expect-error: Constante 'X' não pode ser reatribuída

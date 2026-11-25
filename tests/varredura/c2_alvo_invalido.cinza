@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 2): o alvo de uma atribuição é variável, campo ou índice
+fn f() -> i32 { return 1; }
+fn main() {
+  f() = 2;
+}
+// expect-error: não é atribuível

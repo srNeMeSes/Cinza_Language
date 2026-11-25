@@ -1,0 +1,9 @@
+// Q1e (varredura da spec, capítulo 4): um método dentro e outro fora do pub com o mesmo nome é erro
+class C {
+  fn m() {}
+  pub {
+    fn m() {}
+  }
+}
+fn main() {}
+// expect-error: Método 'm' declarado mais de uma vez

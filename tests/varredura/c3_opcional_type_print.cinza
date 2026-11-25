@@ -1,0 +1,9 @@
+// Q1e (varredura da spec, capítulo 3): type(x) de um T? é T?, com valor ou sem; print e interpolação mostram null
+fn main() {
+  i32? a;
+  i32? b = 3;
+  print(type(a), type(b), a);
+  printf("[{a}] [{b}]");
+}
+// expect: i32? i32? null
+// expect: [null] [3]

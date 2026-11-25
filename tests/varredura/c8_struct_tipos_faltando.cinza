@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 8): os tipos vão todos, na ordem dos parâmetros
+struct Par[A, B] { A a; B b; }
+fn main() {
+  Par[i32] p = new Par[i32](1, 2);
+}
+// expect-error: 'Par' tem 2 parâmetro(s) de tipo (A, B), mas recebeu 1

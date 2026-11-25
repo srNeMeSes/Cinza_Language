@@ -1,0 +1,8 @@
+// Q1e (varredura da spec, capítulo 6): uma função do programa chamada exit é uma chamada comum
+fn exit(i32 c) { print("meu exit", c); }
+fn main() {
+  exit(5);
+  print("continua");
+}
+// expect: meu exit 5
+// expect: continua

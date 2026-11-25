@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 3): var não infere de null
+fn main() {
+  var x = null;
+}
+// expect-error: 'var' não infere o tipo de null

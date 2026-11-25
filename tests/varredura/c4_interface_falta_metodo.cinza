@@ -1,0 +1,9 @@
+// Q1e (varredura da spec, capítulo 4): a classe precisa ter cada método da interface
+interface I { fn f(); fn g(); }
+class C : I {
+  pub {
+    fn f() {}
+  }
+}
+fn main() {}
+// expect-error: não tem o método g()

@@ -26,22 +26,23 @@ paramsTipo    = "[" nome { "," nome } "]" ;
 parametros    = parametro { "," parametro } ;
 parametro     = [ "const" ] tipo nome ;
 
-classe        = "class" nome [ ":" nomeTipo { "," nomeTipo } ] "{" { membroClasse } "}" ;
-                (* depois de ":" só interfaces *)
+classe        = "class" nome [ paramsTipo ] [ ":" nomeTipo { "," nomeTipo } ] "{" { membroClasse } "}" ;
+                (* depois de ":" só interfaces; paramsTipo: capítulo 8 *)
 membroClasse  = campo
               | funcao                                   (* método privado *)
               | "pub" "{" { funcao | construtor } "}" ;  (* métodos públicos e construtor *)
 construtor    = nome "(" [ parametros ] ")" bloco ;
                 (* nome igual ao da classe; no máximo um construtor *)
 campo         = tipo nome [ "=" expressao ] ";" ;
-                (* na classe, sem "=" só para list<T> e dict<K, V>, que nascem vazios; no
-                   struct, qualquer campo: sem "=" ele é informado na criação (seção 4.7) *)
+                (* sem "=": list<T> e dict<K, V> nascem vazios e T? nasce null; qualquer outro
+                   campo é obrigatório — na classe o construtor o atribui (seção 4.6), no
+                   struct ele é informado na criação (seção 4.7) *)
 
 struct        = "struct" nome [ paramsTipo ] "{" { campo } "}" ;   (* só campos; capítulo 8 *)
 
 enum          = "enum" nome "{" nome { "," nome } "}" ;
 
-interface     = "interface" nome "{" assinatura { assinatura } "}" ;
+interface     = "interface" nome [ paramsTipo ] "{" assinatura { assinatura } "}" ;
 assinatura    = "fn" nome "(" [ parametros ] ")" [ "->" tipo ] ";" ;
 
 erro          = "error" nome ";" ;
@@ -61,7 +62,7 @@ tipoSimples   = "i32" | "i64" | "f32" | "f64" | "string" | "str" | "bool"
 
 nomeTipo      = nome                    (* class, struct, enum, interface, erro, parâmetro de tipo *)
               | nome "." nome                            (* apelido de módulo . nome *)
-              | ( nome | nome "." nome ) argsTipo ;      (* struct genérico: Par[i32, string] *)
+              | ( nome | nome "." nome ) argsTipo ;      (* genérico: Par[i32, string], Pilha[T] *)
 ```
 
 ## 2.3 Instruções

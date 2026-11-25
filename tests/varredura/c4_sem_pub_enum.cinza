@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): usar um enum sem pub de outro módulo é erro
+import modulos.cores;
+fn main() { print(cores.Segredo.A); }
+// expect-error: 'Segredo' é privado no módulo 'cores'

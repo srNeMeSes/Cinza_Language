@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 3): const num tipo interface é erro
+interface I { fn f(); }
+fn g(const I i) {}
+fn main() {
+
+}
+// expect-error: 'const' não pode ser usado em objeto de classe ('I')

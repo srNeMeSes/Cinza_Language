@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 6): de 0 a 100 casas
+fn main() {
+  f64 x = 1.ff;
+  printf("{x:.101f}");
+}
+// expect-error: as casas decimais vão de 0 a 100

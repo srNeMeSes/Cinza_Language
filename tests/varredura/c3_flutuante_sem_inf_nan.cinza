@@ -1,0 +1,14 @@
+// Q1e (varredura da spec, capítulo 3): infinito e NaN não existem: 0/0 e x/0 lançam ZeroDivisionError, o estouro OverflowError
+fn main() {
+  f64 zero = 0.ff;
+  f32 grande = 300000000000000000000000000000000000000.f;
+  try { print(zero / zero); } except (ZeroDivisionError e) { print("0/0"); }
+  try { print(1.f / 0.f); } except (ZeroDivisionError e) { print("f32/0"); }
+  try { print(grande * 10.f); } except (OverflowError e) { print("f32 estoura"); }
+  f64 g = cast<f64>("1e300");
+  try { print(g * g); } except (OverflowError e) { print("f64 estoura"); }
+}
+// expect: 0/0
+// expect: f32/0
+// expect: f32 estoura
+// expect: f64 estoura

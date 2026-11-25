@@ -1,0 +1,17 @@
+// Q1e (varredura da spec, capítulo 6): Env: só leitura; null se não existe; nome vazio ou com = lança ValueError
+import Env;
+fn main() {
+  try { print(Env.get("CINZA_SONDA_Q1E")); } except (Error e) { print(e.kind); }
+  try { print(Env.get("CINZA_SONDA_INEXISTENTE_Q1E")); } except (Error e) { print(e.kind); }
+  try { print(Env.get("")); } except (Error e) { print(e.kind); }
+  try { print(Env.get("A=B")); } except (Error e) { print(e.kind); }
+  try { print(Env.all()["CINZA_SONDA_Q1E"]); } except (Error e) { print(e.kind); }
+  try { print(type(Env.all())); } except (Error e) { print(e.kind); }
+}
+// env: CINZA_SONDA_Q1E=valor com espaço
+// expect: valor com espaço
+// expect: null
+// expect: ValueError
+// expect: ValueError
+// expect: valor com espaço
+// expect: dict<string, string>

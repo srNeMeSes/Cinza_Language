@@ -1,0 +1,8 @@
+// Q1e (varredura da spec, capítulo 8): construtor não aceita parâmetros de tipo
+class C {
+  pub {
+    C[T](T x) {}
+  }
+}
+fn main() {}
+// expect-error: Construtores não podem ser genéricos

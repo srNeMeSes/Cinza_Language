@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 5): código depois de exit é inalcançável
+fn main() {
+  exit(0);
+  print(1);
+}
+// expect-error: Código inalcançável

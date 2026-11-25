@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): um dict const não muda (atribuição por índice)
+fn main() {
+  const dict<string, i32> d = {{"a", 1}};
+  d["a"] = 2;
+}
+// expect-error: Constante 'd' não pode ser modificada

@@ -1,0 +1,12 @@
+// Q1e (varredura da spec, capítulo 5): os campos de um erro: kind, message, line e column; o print do erro
+fn main() {
+  try {
+    i32 z = 0;
+    print(1 / z);
+  } except (ZeroDivisionError e) {
+    print(e.kind, e.message, e.line, e.column, type(e.line));
+    print(e);
+  }
+}
+// expect: ZeroDivisionError divisão por zero 5 13 i32
+// expect: ZeroDivisionError: divisão por zero

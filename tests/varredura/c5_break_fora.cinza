@@ -1,0 +1,3 @@
+// Q1e (varredura da spec, capítulo 5): break só dentro de um laço
+fn main() { break; }
+// expect-error: 'break' só pode ser usado dentro de um laço

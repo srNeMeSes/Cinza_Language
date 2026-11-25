@@ -1,0 +1,3 @@
+// Q1e (varredura da spec, capítulo 4): self só existe em métodos, construtor e valores iniciais
+fn main() { print(self); }
+// expect-error: 'self' só pode ser usado dentro de uma classe

@@ -1,0 +1,23 @@
+// Q1e (varredura da spec, capítulo 6): print, range, type e exit nos limites da tabela
+fn main() {
+  try { print(range(0, 5, 2)); } except (Error e) { print(e.kind); }
+  try { print(range(5, 0, -2)); } except (Error e) { print(e.kind); }
+  try { print(range(0, 1, 0)); } except (Error e) { print(e.kind); }
+  try { print(type(range(0, 2))); } except (Error e) { print(e.kind); }
+  try { print(type(range(0, cast<i64>(2)))); } except (Error e) { print(e.kind); }
+  try { print(range(0, 200000000).size()); } except (Error e) { print(e.kind); }
+  try { print(range(-2, 2)); } except (Error e) { print(e.kind); }
+  try { print(range(3000000000, 3000000002)); } except (Error e) { print(e.kind); }
+  try { exit(256); } except (Error e) { print(e.kind); }
+  try { exit(-1); } except (Error e) { print(e.kind); }
+}
+// expect: [0, 2, 4]
+// expect: [5, 3, 1]
+// expect: ValueError
+// expect: list<i32>
+// expect: list<i64>
+// expect: ValueError
+// expect: [-2, -1, 0, 1]
+// expect: [3000000000, 3000000001]
+// expect: ValueError
+// expect: ValueError

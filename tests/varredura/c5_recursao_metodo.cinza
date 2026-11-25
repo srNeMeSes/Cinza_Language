@@ -1,0 +1,18 @@
+// Q1e (varredura da spec, capítulo 5): o limite vale para método e construtor também
+class No {
+  No? prox;
+  pub {
+    No(i32 n) { if (n > 0) { prox = new No(n - 1); } }
+  }
+}
+class R {
+  pub {
+    fn m(i32 n) -> i32 { return m(n + 1); }
+  }
+}
+fn main() {
+  try { new No(10000); } except (StackOverflowError e) { print("construtor"); }
+  try { print(new R().m(0)); } except (StackOverflowError e) { print("método"); }
+}
+// expect: construtor
+// expect: método

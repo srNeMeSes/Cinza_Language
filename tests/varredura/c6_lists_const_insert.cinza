@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 6): Lists.insert numa lista const é erro
+import Lists;
+fn main() {
+  const list<i32> l = [1];
+  Lists.insert(l, 0, 1);
+}
+// expect-error: 'Lists.insert' altera a lista, mas 'l' é const

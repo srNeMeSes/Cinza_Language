@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 5): código depois de um try que sempre sai é inalcançável
+fn f() -> i32 {
+  try { return 1; } except (Error e) { return 2; }
+  print(1);
+}
+fn main() {}
+// expect-error: Código inalcançável

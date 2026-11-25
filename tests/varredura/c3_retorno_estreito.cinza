@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): a regra vale no retorno
+fn f(i64 x) -> i32 { return x; }
+fn main() {
+
+}
+// expect-error: esperado 'i32', mas retornando 'i64'

@@ -1,0 +1,106 @@
+// Q1e (varredura da spec, capítulo 6): Lists: ordenação estável, estatística, busca e alteração
+import Lists as L;
+fn main() {
+  list<string> s = ["b", "a", "c"];
+  try { L.sort_desc(s); print("ok"); } except (Error e) { print(e.kind); }
+  try { print(s); } except (Error e) { print(e.kind); }
+  list<string> nomes = ["x", "y", "z", "w"];
+  list<i32> chaves = [2, 1, 2, 1];
+  try { L.sort_by(nomes, chaves); print("ok"); } except (Error e) { print(e.kind); }
+  try { print(nomes); } except (Error e) { print(e.kind); }
+  try { print(chaves); } except (Error e) { print(e.kind); }
+  try { L.sort_by(nomes, [1]); print("ok"); } except (Error e) { print(e.kind); }
+  list<i32> o = [3, 1, 2];
+  try { print(L.sorted(o)); } except (Error e) { print(e.kind); }
+  try { print(o); } except (Error e) { print(e.kind); }
+  try { print(L.reversed(o)); } except (Error e) { print(e.kind); }
+  try { print(L.sum([2147483647, 1])); } except (Error e) { print(e.kind); }
+  try { print(L.sum(L.repeat(cast<i64>(1), 0))); } except (Error e) { print(e.kind); }
+  try { print(type(L.sum([1.f, 2.f]))); } except (Error e) { print(e.kind); }
+  try { print(L.product([3, 4])); } except (Error e) { print(e.kind); }
+  list<i32> vazia;
+  try { print(L.product(vazia)); } except (Error e) { print(e.kind); }
+  try { print(L.average([1, 2])); } except (Error e) { print(e.kind); }
+  try { print(type(L.average([1, 2]))); } except (Error e) { print(e.kind); }
+  try { print(L.average(vazia)); } except (Error e) { print(e.kind); }
+  try { print(L.min(vazia)); } except (Error e) { print(e.kind); }
+  try { print(L.max(["b", "c", "a"])); } except (Error e) { print(e.kind); }
+  try { print(L.index_of([1, 2, 1], 1)); } except (Error e) { print(e.kind); }
+  try { print(L.last_index_of([1, 2, 1], 1)); } except (Error e) { print(e.kind); }
+  try { print(L.index_of([1], 5)); } except (Error e) { print(e.kind); }
+  try { print(L.count([1, 2, 1], 1)); } except (Error e) { print(e.kind); }
+  try { print(L.first(vazia)); } except (Error e) { print(e.kind); }
+  try { print(L.last([1, 2])); } except (Error e) { print(e.kind); }
+  try { print(L.is_empty(vazia)); } except (Error e) { print(e.kind); }
+  list<i32> a = [1, 2];
+  try { L.insert(a, 2, 3); print("ok"); } except (Error e) { print(e.kind); }
+  try { L.insert(a, 0, 0); print("ok"); } except (Error e) { print(e.kind); }
+  try { L.insert(a, 5, 9); print("ok"); } except (Error e) { print(e.kind); }
+  try { print(a); } except (Error e) { print(e.kind); }
+  try { print(L.pop(a)); } except (Error e) { print(e.kind); }
+  try { print(L.pop(vazia)); } except (Error e) { print(e.kind); }
+  try { L.remove_value(a, 1); print("ok"); } except (Error e) { print(e.kind); }
+  try { L.remove_value(a, 7); print("ok"); } except (Error e) { print(e.kind); }
+  try { L.extend(a, a); print("ok"); } except (Error e) { print(e.kind); }
+  try { print(a); } except (Error e) { print(e.kind); }
+  try { L.swap(a, 0, 1); print("ok"); } except (Error e) { print(e.kind); }
+  try { L.swap(a, 0, 4); print("ok"); } except (Error e) { print(e.kind); }
+  try { print(a); } except (Error e) { print(e.kind); }
+  try { L.clear(a); print("ok"); } except (Error e) { print(e.kind); }
+  try { print(a); } except (Error e) { print(e.kind); }
+  try { print(L.slice([1, 2, 3], 1, 1)); } except (Error e) { print(e.kind); }
+  try { print(L.slice([1, 2, 3], 2, 4)); } except (Error e) { print(e.kind); }
+  try { print(L.concat([1], [2])); } except (Error e) { print(e.kind); }
+  try { print(L.unique([3, 1, 3, 2, 1])); } except (Error e) { print(e.kind); }
+  try { print(L.repeat(0, -1)); } except (Error e) { print(e.kind); }
+  try { print(L.repeat(0, 100000001)); } except (Error e) { print(e.kind); }
+  try { print(L.contains([[1]], [1])); } except (Error e) { print(e.kind); }
+}
+// expect: ok
+// expect: ["c", "b", "a"]
+// expect: ok
+// expect: ["y", "w", "x", "z"]
+// expect: [1, 1, 2, 2]
+// expect: ValueError
+// expect: [1, 2, 3]
+// expect: [3, 1, 2]
+// expect: [2, 1, 3]
+// expect: OverflowError
+// expect: 0
+// expect: f32
+// expect: 12
+// expect: 1
+// expect: 1.5
+// expect: f64
+// expect: ValueError
+// expect: ValueError
+// expect: c
+// expect: 0
+// expect: 2
+// expect: null
+// expect: 2
+// expect: IndexError
+// expect: 2
+// expect: true
+// expect: ok
+// expect: ok
+// expect: IndexError
+// expect: [0, 1, 2, 3]
+// expect: 3
+// expect: IndexError
+// expect: ok
+// expect: ValueError
+// expect: ok
+// expect: [0, 2, 0, 2]
+// expect: ok
+// expect: IndexError
+// expect: [2, 0, 0, 2]
+// expect: ok
+// expect: []
+// expect: []
+// expect: IndexError
+// expect: [1, 2]
+// expect: [3, 1, 2]
+// expect: ValueError
+// expect: ValueError
+// expect: true

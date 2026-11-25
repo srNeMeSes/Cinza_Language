@@ -1,0 +1,11 @@
+// Q1e (varredura da spec, capítulo 3): a assinatura precisa ser exatamente a mesma (i64 não é i32)
+interface I { fn f(i32 x) -> i32; }
+class C : I {
+  pub {
+    fn f(i64 x) -> i32 { return 0; }
+  }
+}
+fn main() {
+
+}
+// expect-error: não tem a assinatura exigida por 'I': f(i32) -> i32

@@ -1,0 +1,11 @@
+// Q1e (varredura da spec, capítulo 4): o construtor atribui o obrigatório no nível de cima (fora do if)
+class C {
+  i32 x;
+  pub {
+    C(bool b) {
+      if (b) { x = 1; } else { x = 2; }
+    }
+  }
+}
+fn main() {}
+// expect-error: não atribui o campo obrigatório 'x' no nível de cima

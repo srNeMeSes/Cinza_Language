@@ -1,0 +1,8 @@
+// Q1e (varredura da spec, capítulo 3): Error é a raiz dos erros: qualquer erro cabe num Error
+error MeuErro;
+fn main() {
+  Error e = ValueError("v");
+  Error m = MeuErro("m");
+  print(e.message, m.message, type(e), type(m));
+}
+// expect: v m ValueError MeuErro

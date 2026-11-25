@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 5): strings são imutáveis: s[i] = ... é erro
+fn main() {
+  string s = "ab";
+  s[0] = "x";
+}
+// expect-error: Strings são imutáveis

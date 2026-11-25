@@ -1,0 +1,10 @@
+// Q1e (varredura da spec, capítulo 5): acima de 2000 níveis, StackOverflowError (capturável); 2000 níveis cabem
+fn desce(i32 n) -> i32 { if (n == 0) { return 0; } return 1 + desce(n - 1); }
+fn main() {
+  print(desce(1990));
+  try { print(desce(5000)); } except (StackOverflowError e) { print(e.kind); }
+  print("continua");
+}
+// expect: 1990
+// expect: StackOverflowError
+// expect: continua

@@ -1,0 +1,8 @@
+// Q1e (varredura da spec, capítulo 2): list, dict e T? podem ficar sem "=" (vazios / null)
+fn main() {
+  list<i32> l;
+  dict<string, i32> d;
+  i32? o;
+  print(l, d, o, l.size());
+}
+// expect: [] {} null 0

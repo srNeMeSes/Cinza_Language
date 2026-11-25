@@ -1,0 +1,11 @@
+// Q1e (varredura da spec, capítulo 8): Pilha[i32] não cumpre Colecao[string]
+interface Colecao[T] { fn tamanho() -> i32; }
+class Pilha[T] : Colecao[T] {
+  pub {
+    fn tamanho() -> i32 { return 0; }
+  }
+}
+fn main() {
+  Colecao[string] c = new Pilha[i32]();
+}
+// expect-error: A classe 'Pilha[i32]' não declara cumprir 'Colecao[string]'

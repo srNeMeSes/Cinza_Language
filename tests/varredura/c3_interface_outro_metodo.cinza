@@ -1,0 +1,13 @@
+// Q1e (varredura da spec, capítulo 3): por um valor do tipo interface só se chamam os métodos que ela declara
+interface Forma { fn area() -> f64; }
+class Q : Forma {
+  pub {
+    fn area() -> f64 { return 1.ff; }
+    fn outro() {}
+  }
+}
+fn main() {
+  Forma f = new Q();
+  f.outro();
+}
+// expect-error: A interface 'Forma' não tem o método 'outro'

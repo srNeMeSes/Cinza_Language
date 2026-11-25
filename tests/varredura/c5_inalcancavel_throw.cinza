@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 5): código depois de throw é inalcançável
+fn main() {
+  throw ValueError("x");
+  print(1);
+}
+// expect-error: Código inalcançável

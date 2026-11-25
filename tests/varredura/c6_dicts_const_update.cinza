@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 6): Dicts.update num dict const é erro
+import Dicts;
+fn main() {
+  const dict<string, i32> d = {{"a", 1}};
+  Dicts.update(d, {{"a", 1}});
+}
+// expect-error: 'Dicts.update' altera o dict, mas 'd' é const

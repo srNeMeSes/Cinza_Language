@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): o mais largo não vira o mais estreito
+fn main() {
+  i64 a = 1;
+  i32 b = a;
+}
+// expect-error: declarado 'i32', mas atribuído 'i64'

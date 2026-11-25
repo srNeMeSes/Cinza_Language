@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 6): Dicts.clear num dict const é erro
+import Dicts;
+fn main() {
+  const dict<string, i32> d = {{"a", 1}};
+  Dicts.clear(d);
+}
+// expect-error: 'Dicts.clear' altera o dict, mas 'd' é const

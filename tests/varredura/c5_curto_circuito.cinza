@@ -1,0 +1,18 @@
+// Q1e (varredura da spec, capítulo 5): && e || avaliam o lado direito só se necessário
+fn v(string s, bool b) -> bool { print(s); return b; }
+fn main() {
+  print(v("a", false) and v("b", true));
+  print(v("c", true) or v("d", true));
+  print(v("e", true) && v("f", false));
+  print(v("g", false) || v("h", true));
+}
+// expect: a
+// expect: false
+// expect: c
+// expect: true
+// expect: e
+// expect: f
+// expect: false
+// expect: g
+// expect: h
+// expect: true

@@ -1,0 +1,14 @@
+// Q1e (varredura da spec, capítulo 3): o const para no objeto de classe: os objetos dentro da lista continuam alteráveis
+class Conta {
+  i32 saldo = 0;
+  pub {
+    fn deposita(i32 v) { saldo += v; }
+    fn total() -> i32 { return saldo; }
+  }
+}
+fn main() {
+  const list<Conta> l = [new Conta()];
+  l[0].deposita(5);
+  print(l[0].total());
+}
+// expect: 5

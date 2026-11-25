@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 8): Par[string, i32] não se atribui a Par[string, i64]
+struct Par[A, B] { A a; B b; }
+fn main() {
+  Par[string, i32] p = new Par[string, i32]("a", 1);
+  Par[string, i64] q = p;
+}
+// expect-error: declarado 'Par[string, i64]', mas atribuído 'Par[string, i32]'

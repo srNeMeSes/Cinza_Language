@@ -1,0 +1,8 @@
+// Q1e (varredura da spec, capítulo 3): o literal se adapta ao tipo esperado (dict e pair também)
+fn main() {
+  dict<string, i64> d = {{"a", 1}};
+  pair<i64, f64> p = {1, 2.f};
+  list<list<i64>> l = [[1], [2, 3]];
+  print(type(d), type(p), type(l), p);
+}
+// expect: dict<string, i64> pair<i64, f64> list<list<i64>> {1, 2}

@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 3): a chave de um dict não pode ser f32 nem f64
+fn main() {
+  dict<f64, i32> d;
+}
+// expect-error: Chave de dict não pode ser 'f64'

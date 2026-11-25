@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 3): bool não vira número
+fn main() {
+  i32 n = true;
+}
+// expect-error: declarado 'i32', mas atribuído 'bool'

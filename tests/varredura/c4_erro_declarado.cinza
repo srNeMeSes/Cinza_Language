@@ -1,0 +1,8 @@
+// Q1e (varredura da spec, capítulo 4): error declara um filho de Error; Tipo("mensagem") ou Tipo(), mensagem vazia
+error Saldo;
+fn main() {
+  try { throw Saldo("pouco"); } except (Saldo e) { print(e.message, type(e)); }
+  try { throw Saldo(); } except (Error e) { print("[" + e.message + "]", type(e) == Saldo); }
+}
+// expect: pouco Saldo
+// expect: [] true

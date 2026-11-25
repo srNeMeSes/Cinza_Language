@@ -1,0 +1,72 @@
+// Q1e (varredura da spec, capítulo 6): Json: tipos, erros e limites
+import Json;
+import Strings;
+fn main() {
+  try { print(Json.parse("  [1, 2]  ").size()); } except (Error e) { print(e.kind); }
+  try { print(Json.parse("{\"a\": 1, \"a\": 2}")); } except (Error e) { print(e.kind); }
+  try { print(Json.parse("\"\\u0000\"")); } except (Error e) { print(e.kind); }
+  try { print(Json.parse(Strings.repeat("[", 501) + Strings.repeat("]", 501))); } except (Error e) { print(e.kind); }
+  try { print(Json.parse(Strings.repeat("[", 500) + Strings.repeat("]", 500)).size()); } except (Error e) { print(e.kind); }
+  try { print(Json.parse("1").as_text()); } except (Error e) { print(e.kind); }
+  try { print(Json.parse("9223372036854775807").as_i64()); } except (Error e) { print(e.kind); }
+  try { print(Json.parse("1.5").as_i64()); } except (Error e) { print(e.kind); }
+  try { print(Json.parse("1e2").as_i64()); } except (Error e) { print(e.kind); }
+  try { print(Json.parse("1e400").as_f64()); } except (Error e) { print(e.kind); }
+  try { print(Json.parse("[1]").at(1)); } except (Error e) { print(e.kind); }
+  try { print(Json.parse("{}").at(0)); } except (Error e) { print(e.kind); }
+  try { print(Json.parse("[]").get("a")); } except (Error e) { print(e.kind); }
+  try { print(Json.parse("{}").field("a")); } except (Error e) { print(e.kind); }
+  try { print(Json.parse("{}").get("a")); } except (Error e) { print(e.kind); }
+  try { Json.parse("{}").remove("a"); print("ok"); } except (Error e) { print(e.kind); }
+  try { print(Json.null_value().is_null()); } except (Error e) { print(e.kind); }
+  try { print(Json.null_value().kind() == Json.Kind.Null); } except (Error e) { print(e.kind); }
+  try { print(Json.from_f64(0.5ff).to_text()); } except (Error e) { print(e.kind); }
+  try { print(Json.from_text("a\"\n\\ç").to_text()); } except (Error e) { print(e.kind); }
+  try { print(new Json.Value(Json.Kind.Number, "-12").as_i64()); } except (Error e) { print(e.kind); }
+  try { print(new Json.Value(Json.Kind.Number, "3.5e-2").as_f64()); } except (Error e) { print(e.kind); }
+  try { print(new Json.Value(Json.Kind.Number, "abc")); } except (Error e) { print(e.kind); }
+  try { print(new Json.Value(Json.Kind.Bool, "sim")); } except (Error e) { print(e.kind); }
+  try { print(new Json.Value(Json.Kind.List, "x")); } except (Error e) { print(e.kind); }
+  try { print(new Json.Value(Json.Kind.Text, "qualquer").as_text()); } except (Error e) { print(e.kind); }
+  try { print(Json.new_object().to_text_pretty(17)); } except (Error e) { print(e.kind); }
+  try { print(Json.new_list().to_text_pretty(0)); } except (Error e) { print(e.kind); }
+  Json.Value o = Json.parse("{\"b\": 1, \"a\": 2}");
+  o.set("b", Json.from_i64(3));
+  o.set("c", Json.from_bool(true));
+  try { print(o.to_text()); } except (Error e) { print(e.kind); }
+  try { Json.new_list().set("a", Json.null_value()); print("ok"); } except (Error e) { print(e.kind); }
+  Json.Value l = Json.new_list();
+  l.add(l);
+  try { print(l.to_text()); } except (Error e) { print(e.kind); }
+}
+// expect: 2
+// expect: ValueError
+// expect: ValueError
+// expect: ValueError
+// expect: 1
+// expect: ValueError
+// expect: 9223372036854775807
+// expect: ValueError
+// expect: ValueError
+// expect: OverflowError
+// expect: IndexError
+// expect: ValueError
+// expect: ValueError
+// expect: KeyError
+// expect: null
+// expect: KeyError
+// expect: true
+// expect: true
+// expect: 0.5
+// expect: "a\"\n\\ç"
+// expect: -12
+// expect: 0.035
+// expect: ValueError
+// expect: ValueError
+// expect: ValueError
+// expect: qualquer
+// expect: ValueError
+// expect: []
+// expect: {"b":3,"a":2,"c":true}
+// expect: ValueError
+// expect: ValueError

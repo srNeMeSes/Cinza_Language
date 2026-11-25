@@ -1,0 +1,12 @@
+// Q1e (varredura da spec, capítulo 4): o struct é um valor: copiado no argumento, no retorno e ao entrar numa lista
+struct P { i32 x = 0; }
+fn muda(P p) -> P { p.x = 5; return p; }
+fn main() {
+  P a = new P();
+  P b = muda(a);
+  list<P> l = [a];
+  a.x = 7;
+  l[0].x = 8;
+  print(a.x, b.x, l[0].x);
+}
+// expect: 7 5 8

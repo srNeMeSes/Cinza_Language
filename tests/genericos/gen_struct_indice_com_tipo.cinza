@@ -3,4 +3,4 @@ fn main() {
   list<i32> l = [5, 6];
   print(l[i32]);
 }
-// expect-error: 'l' não é um struct genérico: depois de um nome, [tipos] só vale para struct genérico
+// expect-error: 'l' não é um tipo genérico: depois de um nome, [tipos] só vale para struct, classe ou interface genérica

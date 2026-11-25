@@ -1,0 +1,15 @@
+// Q1e (varredura da spec, capítulo 5): em a op= b, o alvo é avaliado uma única vez, e o valor atual lido depois de avaliar b
+fn i(string s, i32 n) -> i32 { print(s); return n; }
+fn main() {
+  list<i32> l = [10, 20];
+  l[i("alvo", 1)] += i("b", 5);
+  print(l);
+  dict<string, i32> d = {{"a", 1}};
+  d["a"] *= i("dobro", 2);
+  print(d);
+}
+// expect: alvo
+// expect: b
+// expect: [10, 25]
+// expect: dobro
+// expect: {"a": 2}

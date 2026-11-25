@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 6): Lists.swap numa lista const é erro
+import Lists;
+fn main() {
+  const list<i32> l = [1];
+  Lists.swap(l, 0, 0);
+}
+// expect-error: 'Lists.swap' altera a lista, mas 'l' é const

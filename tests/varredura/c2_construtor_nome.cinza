@@ -1,0 +1,8 @@
+// Q1e (varredura da spec, capítulo 2): o construtor tem o nome da classe
+class C {
+  pub {
+    D() {}
+  }
+}
+fn main() {}
+// expect-error: esperado 'fn' ou construtor 'C()'

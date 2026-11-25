@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 5): com i32 x e i64 y, x += y é erro
+fn main() {
+  i32 x = 1;
+  i64 y = 2;
+  x += y;
+}
+// expect-error: produz 'i64', que não cabe no tipo 'i32' do alvo

@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): um tipo de erro com o nome de um embutido é erro
+error ValueError;
+fn main() {}
+// expect-error: é um tipo de erro embutido

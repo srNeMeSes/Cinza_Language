@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 4): uma função que retorna valor precisa retornar em todos os caminhos
+fn f(bool b) -> i32 {
+  if (b) { return 1; }
+}
+fn main() {}
+// expect-error: não retorna em todos os caminhos

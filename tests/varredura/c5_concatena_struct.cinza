@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 5): struct não se concatena
+struct S { i32 x = 0; }
+fn main() { print("a" + new S()); }
+// expect-error: Operador '+' não é suportado entre 'string' e 'S'

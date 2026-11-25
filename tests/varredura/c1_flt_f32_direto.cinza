@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 1): um literal f32 é lido direto em 32 bits (o mais próximo em float)
+fn main() {
+  print(0.1f, 16777217.0f, cast<f64>(0.1f) == 0.1ff);
+}
+// expect: 0.1 16777216 false

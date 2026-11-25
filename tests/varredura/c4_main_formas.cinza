@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 4): as formas da main: -> void e o nome do parâmetro livre
+fn main(list<string> argumentos) -> void {
+  print(argumentos.size(), argumentos);
+}
+// args: x y
+// expect: 2 ["x", "y"]

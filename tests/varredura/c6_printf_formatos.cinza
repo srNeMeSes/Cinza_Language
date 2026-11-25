@@ -1,0 +1,15 @@
+// Q1e (varredura da spec, capítulo 6): printf: largura (números à direita, o resto à esquerda, texto maior inteiro), casas, f32, ordem, {{ }}
+fn v(i32 n) -> i32 { print("avalia", n); return n; }
+fn main() {
+  f32 x = 2.675f;
+  f64 y = 2.675ff;
+  i32 n = -7;
+  string longo = "abcdefgh";
+  pair<i32, string> p = {1, "a"};
+  printf("[{n:4}] [{true:6}] [{longo:3}] [{y:.2f}] [{x:.2f}] [{1.5ff:8.3f}] [{n:.1f}]");
+  printf("{v(1)}-{v(2)} {{x}} {[1, 2]} [{p:9}]");
+}
+// expect: [  -7] [true  ] [abcdefgh] [2.68] [2.68] [   1.500] [-7.0]
+// expect: avalia 1
+// expect: avalia 2
+// expect: 1-2 {x} [1, 2] [{1, "a"} ]

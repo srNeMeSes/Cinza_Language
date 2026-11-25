@@ -1,0 +1,3 @@
+// Q1e (varredura da spec, capítulo 6): uma expressão mal escrita na interpolação é erro de compilação
+fn main() { printf("{1 +}"); }
+// expect-error: Expressão inválida em '{1 +}'

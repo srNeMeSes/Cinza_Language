@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): uma expressão void não é um valor (não se passa como argumento)
+fn f() {}
+fn main() {
+  print(f());
+}
+// expect-error: Argumento 1 de 'print' não tem valor

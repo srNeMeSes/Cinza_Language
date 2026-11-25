@@ -1,0 +1,14 @@
+// Q1e (varredura da spec, capítulo 6): Process: sem shell; nome vazio ou argumento com nulo, ValueError; programa que não existe, IOError
+import Process;
+fn main() {
+  try { print(Process.run("")); } except (Error e) { print(e.kind); }
+  try { print(Process.run("programa_que_nao_existe_q1e")); } except (Error e) { print(e.kind); }
+  try { print(Process.capture("programa_que_nao_existe_q1e", ["a"])); } except (Error e) { print(e.kind); }
+  try { print(Process.run("x.bat")); } except (Error e) { print(e.kind); }
+  try { print(Process.run("x.cmd")); } except (Error e) { print(e.kind); }
+}
+// expect: ValueError
+// expect: IOError
+// expect: IOError
+// expect: ValueError
+// expect: ValueError

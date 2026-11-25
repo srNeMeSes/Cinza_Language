@@ -1,0 +1,9 @@
+// Q1e (varredura da spec, capítulo 3): o método da interface precisa estar em pub { }
+interface Forma { fn area() -> f64; }
+class Q : Forma {
+  fn area() -> f64 { return 1.ff; }
+}
+fn main() {
+
+}
+// expect-error: 'area' precisa estar em pub { }

@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 8): a recursão com os mesmos tipos usa a mesma cópia, sem limite de cópias
+fn conta[T](T x, i32 n) -> i32 {
+  if (n == 0) { return 0; }
+  return 1 + conta(x, n - 1);
+}
+fn main() { print(conta("a", 1000)); }
+// expect: 1000

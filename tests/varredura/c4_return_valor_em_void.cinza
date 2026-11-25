@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): return com valor numa função void é erro
+fn f() { return 1; }
+fn main() {}
+// expect-error: Função void não pode retornar um valor

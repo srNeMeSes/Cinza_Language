@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): o programa não pode chamar a main
+fn f() { main(); }
+fn main() {}
+// expect-error: não pode ser chamada pelo próprio programa

@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 2): o corpo do if é sempre um bloco
+fn main() {
+  if (true) print(1);
+}
+// expect-error: SyntaxError
+// expect-error: obrigatório após 'if'

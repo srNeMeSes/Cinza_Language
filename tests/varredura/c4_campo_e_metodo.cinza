@@ -1,0 +1,11 @@
+// Q1e (varredura da spec, capítulo 4): um campo e um método podem ter o mesmo nome; m() no método tem precedência sobre a função global
+fn x() -> i32 { return 100; }
+class C {
+  i32 x = 1;
+  pub {
+    fn x() -> i32 { return 2; }
+    fn soma() -> i32 { return x + x(); }
+  }
+}
+fn main() { print(new C().soma(), x()); }
+// expect: 3 100

@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 3): var só vale para tipos primitivos
+fn main() {
+  var l = [1, 2];
+}
+// expect-error: Inferência 'var' só é permitida para tipos primitivos

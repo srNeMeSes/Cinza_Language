@@ -1,0 +1,68 @@
+// Q1e (varredura da spec, capítulo 6): Time: montar, desmontar, texto e contas (em UTC, para não depender do fuso)
+import Time;
+fn main() {
+  try { print(Time.make_utc(1970, 1, 1)); } except (Error e) { print(e.kind); }
+  try { print(Time.make_utc(1969, 12, 31, 23, 59, 59)); } except (Error e) { print(e.kind); }
+  try { print(Time.make_utc(2026, 2, 31)); } except (Error e) { print(e.kind); }
+  try { print(Time.make_utc(2026, 13, 1)); } except (Error e) { print(e.kind); }
+  try { print(Time.make_utc(2026, 1, 1, 24, 0, 0)); } except (Error e) { print(e.kind); }
+  try { print(Time.make_utc(2028, 2, 29) > 0); } except (Error e) { print(e.kind); }
+  try { print(Time.make_utc(2027, 2, 29)); } except (Error e) { print(e.kind); }
+  try { print(Time.year_utc(Time.make_utc(1, 1, 1))); } except (Error e) { print(e.kind); }
+  try { print(Time.year_utc(Time.make_utc(9999, 12, 31, 23, 59, 59))); } except (Error e) { print(e.kind); }
+  try { print(Time.year_utc(Time.make_utc(9999, 12, 31, 23, 59, 59) + 1)); } except (Error e) { print(e.kind); }
+  try { print(Time.make_utc(10000, 1, 1)); } except (Error e) { print(e.kind); }
+  try { print(Time.weekday_utc(Time.make_utc(2026, 11, 22))); } except (Error e) { print(e.kind); }
+  try { print(Time.weekday_utc(Time.make_utc(2026, 11, 23))); } except (Error e) { print(e.kind); }
+  try { print(Time.day_of_year_utc(Time.make_utc(2028, 12, 31))); } except (Error e) { print(e.kind); }
+  try { print(Time.format_utc(Time.make_utc(2026, 1, 2, 3, 4, 5), "yyyy-MM-dd HH:mm:ss (dd)")); } except (Error e) { print(e.kind); }
+  try { print(Time.parse_utc("2026-1-2", "yyyy-MM-dd")); } except (Error e) { print(e.kind); }
+  try { print(Time.parse_utc("02/01/2026x", "dd/MM/yyyy")); } except (Error e) { print(e.kind); }
+  try { print(Time.parse_utc("31/02/2026", "dd/MM/yyyy")); } except (Error e) { print(e.kind); }
+  try { print(Time.parse_utc("10:30", "HH:mm")); } except (Error e) { print(e.kind); }
+  try { print(Time.format_utc(Time.parse_utc("2026", "yyyy"), "dd/MM HH")); } except (Error e) { print(e.kind); }
+  try { print(Time.add_days(0, -1)); } except (Error e) { print(e.kind); }
+  try { print(Time.add_hours(1, 1)); } except (Error e) { print(e.kind); }
+  try { print(Time.add_seconds(9223372036854775807, 1)); } except (Error e) { print(e.kind); }
+  try { print(Time.add_days(9223372036854775807, 1)); } except (Error e) { print(e.kind); }
+  try { print(Time.is_leap_year(1900)); } except (Error e) { print(e.kind); }
+  try { print(Time.is_leap_year(2000)); } except (Error e) { print(e.kind); }
+  try { print(Time.days_in_month(2028, 2)); } except (Error e) { print(e.kind); }
+  try { print(Time.days_in_month(2026, 0)); } except (Error e) { print(e.kind); }
+  try { Time.sleep(-1); print("ok"); } except (Error e) { print(e.kind); }
+  try { Time.sleep(0); print("ok"); } except (Error e) { print(e.kind); }
+  try { print(Time.clock() >= 0); } except (Error e) { print(e.kind); }
+  try { print(type(Time.now())); } except (Error e) { print(e.kind); }
+}
+// expect: 0
+// expect: -1
+// expect: ValueError
+// expect: ValueError
+// expect: ValueError
+// expect: true
+// expect: ValueError
+// expect: 1
+// expect: 9999
+// expect: ValueError
+// expect: ValueError
+// expect: 7
+// expect: 1
+// expect: 366
+// expect: 2026-01-02 03:04:05 (02)
+// expect: ValueError
+// expect: ValueError
+// expect: ValueError
+// expect: 37800
+// expect: 01/01 00
+// expect: -86400
+// expect: 3601
+// expect: OverflowError
+// expect: OverflowError
+// expect: false
+// expect: true
+// expect: 29
+// expect: ValueError
+// expect: ValueError
+// expect: ok
+// expect: true
+// expect: i64

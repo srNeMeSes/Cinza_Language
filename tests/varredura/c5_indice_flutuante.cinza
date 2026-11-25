@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 5): o índice de list é inteiro (ponto flutuante é erro)
+fn main() {
+  list<i32> l = [1];
+  print(l[0.ff]);
+}
+// expect-error: Índice de lista deve ser inteiro

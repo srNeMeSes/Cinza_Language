@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): não há void?
+fn f() -> void? { return null; }
+fn main() {
+
+}
+// expect-error: 'void?' não existe

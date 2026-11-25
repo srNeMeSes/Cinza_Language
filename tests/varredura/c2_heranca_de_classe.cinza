@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 2): depois de ":" só interfaces
+class A {}
+class B : A {}
+fn main() {}
+// expect-error: não é uma interface

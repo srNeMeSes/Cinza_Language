@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 5): o tipo do except é um erro
+fn main() {
+  try {} except (i32 e) {}
+}
+// expect-error: Esperado o tipo do erro

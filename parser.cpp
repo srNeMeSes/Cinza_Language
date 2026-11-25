@@ -728,12 +728,13 @@ std::vector<Token> Parser::parseTypeParams(bool em_struct) {
     return params;
 }
 
-// N1: class Pilha[T], enum, interface, error: só funções do nível superior e (N5) structs
-// são genéricos. Relata e pula a lista, para a análise seguir sem erros em cascata.
+// N1: enum e error não são genéricos (desde o Q1a, as funções do nível superior, os structs, as
+// classes e as interfaces são). Relata e pula a lista, para a análise seguir sem erros em cascata.
 void Parser::recusaParametrosTipo(const std::string& oque) {
     if (!check(TokenType::LBRACKET)) return;
-    error(oque + " não aceita parâmetros de tipo: só funções do nível superior e structs podem "
-          "ser genéricos (fn nome[T](...), struct Nome[T] { ... })", peek());
+    error(oque + " não aceita parâmetros de tipo: só funções do nível superior, structs, classes e "
+          "interfaces podem ser genéricos (fn nome[T](...), struct Nome[T] { ... }, class Nome[T] "
+          "{ ... })", peek());
     int nivel = 0;
     do {
         if (check(TokenType::LBRACKET)) ++nivel;
@@ -1048,6 +1049,13 @@ StmtPtr Parser::parseStatement() {
             check(TokenType::TYPE_PAIR) ||
             check(TokenType::TYPE_VAR)) {
             return parseVarDeclStatement();
+        }
+
+        // void x; — void não é tipo de variável (Q1e)
+        if (check(TokenType::TYPE_VOID)) {
+            error("'void' só é usado como tipo de retorno de função (-> void); não há variável "
+                  "nem valor do tipo void", peek());
+            throw ParseError("void como tipo de variável", peek());
         }
 
         // Declaração de variável de tipo customizado: NomeClasse variavel;
@@ -1621,6 +1629,10 @@ StmtPtr Parser::parseClassDeclaration() {
 
                 fields.push_back(parseFieldDeclaration());
 
+            } else if (check(TokenType::TYPE_VOID)) {   // Q1e
+                error("'void' só é usado como tipo de retorno de função (-> void); um campo não pode ser "
+                      "void", peek());
+                synchronize();
             } else {
                 error("Membro de classe inválido: esperado campo, 'fn' ou 'pub'");
                 synchronize();
@@ -1763,9 +1775,9 @@ StmtPtr Parser::parseInterfaceDeclaration() {
         InterfaceDecl::Method m;
         m.token = advance();   // 'fn'
         m.name  = consume(TokenType::IDENTIFIER, "Esperado o nome do método").lexeme;
-        if (check(TokenType::LBRACKET)) {   // N1
-            error("Métodos não podem ser genéricos: só funções do nível superior "
-                  "(fn nome[T](...))", peek());
+        if (check(TokenType::LBRACKET)) {   // N1; Q1e: a mensagem da assinatura
+            error("Uma assinatura de interface não pode ser genérica: os parâmetros de tipo vão na "
+                  "interface (interface Nome[T] { fn " + m.name + "(T x); })", peek());
             parseTypeParams();
         }
         consume(TokenType::LPAREN, "Esperado '(' após o nome do método");
@@ -1889,6 +1901,10 @@ StmtPtr Parser::parseStructDeclaration() {
             }
             if (checkFieldStart()) {
                 fields.push_back(parseFieldDeclaration(true));
+            } else if (check(TokenType::TYPE_VOID)) {   // Q1e
+                error("'void' só é usado como tipo de retorno de função (-> void); um campo não pode ser "
+                      "void", peek());
+                synchronize();
             } else {
                 error("Membro de struct inválido: esperado um campo (tipo nome = valor;)");
                 synchronize();

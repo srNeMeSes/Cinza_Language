@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 6): Lists.sort numa lista const é erro
+import Lists;
+fn main() {
+  const list<i32> l = [1];
+  Lists.sort(l);
+}
+// expect-error: 'Lists.sort' altera a lista, mas 'l' é const

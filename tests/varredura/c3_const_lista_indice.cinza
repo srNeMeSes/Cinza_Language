@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): uma lista const não muda (atribuição por índice)
+fn main() {
+  const list<i32> l = [1];
+  l[0] = 2;
+}
+// expect-error: Constante 'l' não pode ser modificada

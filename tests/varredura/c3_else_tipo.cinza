@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): a alternativa precisa ser do tipo de dentro
+fn main() {
+  i32? a;
+  i32 b = a else "x";
+}
+// expect-error: A alternativa do 'else' precisa ser 'i32'

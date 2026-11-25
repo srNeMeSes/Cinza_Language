@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): const não pode ser reatribuído
+fn main() {
+  const i32 x = 1;
+  x = 2;
+}
+// expect-error: Constante 'x' não pode ser reatribuída

@@ -1,0 +1,11 @@
+// Q1e (varredura da spec, capítulo 3): as chaves i32, i64, string, bool e enum
+enum Cor { A, B }
+fn main() {
+  dict<i32, i32> a = {{1, 1}};
+  dict<i64, i32> b = {{3000000000, 2}};
+  dict<string, i32> c = {{"x", 3}};
+  dict<bool, i32> d = {{true, 4}};
+  dict<Cor, i32> e = {{Cor.B, 5}};
+  print(a[1] + b[3000000000] + c["x"] + d[true] + e[Cor.B]);
+}
+// expect: 15

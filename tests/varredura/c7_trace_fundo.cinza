@@ -1,0 +1,8 @@
+// Q1e (varredura da spec, capítulo 7): pilhas fundas: as 10 mais internas, "... (N chamadas omitidas)" e a mais externa
+fn desce(i32 n) {
+  if (n == 0) { throw ValueError("fundo"); }
+  desce(n - 1);
+}
+fn main() { desce(50); }
+// expect-error: ... (41 chamadas omitidas)
+// expect-error:     em main (

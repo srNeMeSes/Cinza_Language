@@ -1,0 +1,16 @@
+// Q1e (varredura da spec, capítulo 5): d[k] lê (KeyError sem a chave); add insere ou substitui; remove (KeyError); has, keys, values, size
+fn main() {
+  dict<string, i32> d;
+  d.add({"a", 1});
+  d.add({"a", 2});
+  d.add({"b", 3});
+  print(d.size(), d["a"], d.has("b"), d.has("z"), d.keys(), d.values());
+  try { print(d["z"]); } except (KeyError e) { print("ler"); }
+  try { d.remove("z"); } except (KeyError e) { print("remover"); }
+  d.remove("a");
+  print(d, type(d.size()), type([1].size()), type("a".size()));
+}
+// expect: 2 2 true false ["a", "b"] [2, 3]
+// expect: ler
+// expect: remover
+// expect: {"b": 3} i32 i32 i32

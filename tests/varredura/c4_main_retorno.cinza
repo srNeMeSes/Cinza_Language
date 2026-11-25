@@ -1,0 +1,3 @@
+// Q1e (varredura da spec, capítulo 4): main com retorno que não é void é erro
+fn main() -> i32 { return 0; }
+// expect-error: Assinatura inválida para 'main'

@@ -1,0 +1,13 @@
+// Q1e (varredura da spec, capítulo 4): os campos recebem os valores iniciais na ordem declarada, e podem usar os anteriores e self; depois o construtor
+fn log(string s, i32 v) -> i32 { print(s); return v; }
+class C {
+  i32 a = log("a", 1);
+  i32 b = a + log("b", 10);
+  pub {
+    C() { print("construtor", a, b); }
+  }
+}
+fn main() { C c = new C(); }
+// expect: a
+// expect: b
+// expect: construtor 1 11

@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 1): um literal que não cabe no tipo é erro léxico (f32 vai até cerca de 3.4e38)
+fn main() {
+  print(1000000000000000000000000000000000000000.0f);
+}
+// expect-error: LexicalError
+// expect-error: fora da faixa de f32

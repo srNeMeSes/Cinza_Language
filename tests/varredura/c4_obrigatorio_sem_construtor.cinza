@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 4): um campo obrigatório pede um construtor
+class C {
+  i32 x;
+}
+fn main() {}
+// expect-error: O campo 'x' da classe 'C' não tem valor inicial

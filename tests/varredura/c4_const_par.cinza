@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): no const global, literal de pair não é permitido
+const pair<i32, i32> P = {1, 2};
+fn main() {}
+// expect-error: precisa ser uma expressão constante

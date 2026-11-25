@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 3): não existe declaração de variável do tipo type
+fn main() {
+  type t = type(1);
+}
+// expect-error: Não existe variável do tipo 'type'

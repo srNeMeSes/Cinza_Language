@@ -377,7 +377,8 @@ fn f() -> int { fn inner() -> int { return 1; } return inner(); }
   > Nota: 20 testes `f25_*` (formas válidas e inválidas de `main`, `args`, comando solto, global mutável,
   > regras de `const`).
 - [x] Converter `program.cinza` e os exemplos das seções C3 e C4 para o formato com `main`. — feito em 2026-09-27
-- [ ] Atualizar o Apêndice A do livro (EBNF: `program = declaration*`).
+- [x] Atualizar o Apêndice A do livro (EBNF: `program = declaration*`). — encerrado em 2026-11-25 (Q1d): a
+      gramática está na spec (capítulo 2); o livro novo (Q7) a referencia
   > Nota (2026-09-29): adiado — o livro será reescrito no futuro; o conteúdo entra na nova versão.
   > ⚠️ Nota: o livro não está neste repositório; fica para quem o mantém.
 
@@ -515,11 +516,13 @@ fn f() -> int { fn inner() -> int { return 1; } return inner(); }
   > `Executor::applyBinary`, usada pelos dois. Testes `c1_composto_*`.
 - [x] Regra de tipo: o resultado de `a op b` deve ser atribuível ao tipo de `a` (`int x = 1; x += 1.5;` é erro). — feito em 2026-09-28
   > Nota: `c1_composto_tipo`; `const`, overflow e operador inválido também testados.
-- [ ] Documentar no livro/spec: `/` inteiro trunca em direção a zero; o sinal de `%` segue o dividendo.
+- [x] Documentar no livro/spec: `/` inteiro trunca em direção a zero; o sinal de `%` segue o dividendo. —
+      encerrado em 2026-11-25 (Q1d): está na spec (5.3, os operadores); o livro novo (Q7) o explica
   > Nota (2026-09-29): adiado — o livro será reescrito no futuro; o conteúdo entra na nova versão.
   > ⚠️ Nota: o livro/spec não está neste repositório. O comportamento já é esse e está coberto por
   > `a5_limites_validos` (`7 / -2` = -3, `7 % -2` = 1, `-7 % 2` = -1).
-- [ ] Atualizar a tabela de precedência (Apêndice A) com `not`, `and`, `or`.
+- [x] Atualizar a tabela de precedência (Apêndice A) com `not`, `and`, `or`. — encerrado em 2026-11-25
+      (Q1d): a tabela está na spec (capítulo 2, com `not`, `and`, `or` e o `else`); o livro novo (Q7) a usa
   > Nota (2026-09-29): adiado — o livro será reescrito no futuro; o conteúdo entra na nova versão.
   > ⚠️ Nota: o livro não está neste repositório. Para constar: `not` tem a precedência do `!` (unário),
   > `and` a do `&&` e `or` a do `||`.
@@ -810,10 +813,12 @@ não `Files.read_file`). Não há namespace `io`.
   > ciclos alcançáveis, coleta dentro de construtor, ciclos por op/dict, sem ciclo) e `tests/unit_gc.cpp`.
   > `bench/ciclos.cinza` (300 mil pares em ciclo): pico de 30,7 MB, contra 225,8 MB com os mesmos pares
   > presos; sem mudança nos outros benchmarks. `make test` verde, também sob ASan/UBSan.
-- [ ] CVM: máquina virtual própria (AST → bytecode → laço de execução em C++), partindo dos slots de B2 e
+- [x] CVM: máquina virtual própria (AST → bytecode → laço de execução em C++), partindo dos slots de B2 e
       do `Flow` de B4 e reaproveitando o runtime atual (`Value`, coleções, `stdlib.cpp`, erros). O interpretador
       atual fica como implementação de referência: os testes rodam nos dois modos (decisão de 2026-09-29,
-      revista no mesmo dia: substitui o backend LLVM por ser bem mais simples de implementar).
+      revista no mesmo dia: substitui o backend LLVM por ser bem mais simples de implementar). — feito com
+      outro desenho (seção F, a partir de 2026-10-02): uma CVM de registradores; o interpretador de árvore
+      saiu depois, e o LLVM voltou como segundo backend permanente (seção P)
 
 ---
 
@@ -848,25 +853,29 @@ Pontos que mudam a linguagem (aguardam decisão do autor):
   > Decidido (2026-10-01): sim, erro de compilação. Também conta como saída um `if`/`else` com os dois ramos
   > saindo, um `while (true)` sem `break` e um `try` com o bloco e todos os `except` saindo
   > (`SemanticAnalyzer::analyzeStatements`). Testes `rev_codigo_morto_*` e `rev_codigo_alcancavel`.
-- [ ] Campo e método com o mesmo nome (`int x` e `fn x()`), e método com o nome da classe (`fn A()` ao
+- [x] Campo e método com o mesmo nome (`int x` e `fn x()`), e método com o nome da classe (`fn A()` ao
       lado do construtor `A()`), são aceitos. Proibir?
   > Decidido (2026-10-01): continuam aceitos — campo e método são usados de formas diferentes (`x` e `x()`).
-- [ ] `dict.add({k, v})` com chave existente substitui em silêncio, enquanto `d[k] = v` com chave inexistente
+  > Encerrado em 2026-11-25 (Q1d): a regra está na spec (4.6).
+- [x] `dict.add({k, v})` com chave existente substitui em silêncio, enquanto `d[k] = v` com chave inexistente
       é erro. Tornar `add` em chave existente um `KeyError` (simétrico)?
-  > Decidido (2026-10-01): mantém como está (`add` substitui).
-- [ ] Comentário de bloco `/* ... */` não existe (só `//`). Acrescentar?
-  > Decidido (2026-10-01): não, por enquanto.
-- [ ] Decimal muito grande ou muito pequeno sai em notação científica (`1e+24`), que não é um literal válido
+  > Decidido (2026-10-01): mantém como está (`add` substitui). Encerrado em 2026-11-25 (Q1d): conferido
+  > no dict novo (Q11, ordem de inserção) — o `add` troca o valor no mesmo lugar.
+- [x] Comentário de bloco `/* ... */` não existe (só `//`). Acrescentar?
+  > Decidido (2026-10-01): não, por enquanto. Encerrado em 2026-11-25 (Q1d): continua só `//`.
+- [x] Decimal muito grande ou muito pequeno sai em notação científica (`1e+24`), que não é um literal válido
       da Cinza (o lexer não aceita expoente; `Convert.to_decimal` aceita). Aceitar expoente nos literais?
-  > Decidido (2026-10-01): não aceitar expoente nos literais.
+  > Decidido (2026-10-01): não aceitar expoente nos literais. Encerrado em 2026-11-25 (Q1d): vale para o
+  > `f32` e o `f64` de hoje (o `decimal` saiu; o print em notação científica está na spec 5.4).
 - [x] Overflow de `decimal` dá `inf` e operações seguintes dão `nan` (`print` mostra `inf -nan`), sem erro —
       enquanto `int` lança `OverflowError` (A5) e o NaN silencioso do `%` já foi corrigido (A10). Lançar
       `OverflowError` quando uma operação de `decimal` der infinito?
   > Decidido (2026-10-01): sim. Feito em 2026-10-01: `+ - * /` de decimal (e `Lists.sum`) que dão infinito
   > lançam `OverflowError: ... excede a faixa de decimal`; com isso o `nan` também não aparece mais. Literal
   > gigante já era barrado pelo lexer. Teste `rev_decimal_overflow`.
-- [ ] Para registro, sem proposta de mudança: `decimal x = 7 / 2;` dá `3` (divisão inteira antes da
-      conversão, como em C e Java).
+- [x] Para registro, sem proposta de mudança: `decimal x = 7 / 2;` dá `3` (divisão inteira antes da
+      conversão, como em C e Java). — obsoleto (Q1d, 2026-11-25): o `decimal` saiu (seção K); hoje
+      `f64 x = 7 / 2;` é erro de compilação (as duas famílias não se misturam: `cast<f64>`)
 
 ---
 
@@ -1570,9 +1579,11 @@ depois de um debate com duas revisões externas:
 
 **Etapas** (cada uma com a suíte verde, ASan/UBSan e um commit):
 
-- [ ] P0. Revisão do desenho (`llvm/DESENHO.md`) pelo autor. Spec 5.6: erro lançado no `finally`
+- [x] P0. Revisão do desenho (`llvm/DESENHO.md`) pelo autor. Spec 5.6: erro lançado no `finally`
   substitui o fluxo pendente, e o `exit` segue a mesma regra (o que a CVM já faz; exemplos
-  executáveis na spec).
+  executáveis na spec). — encerrado em 2026-11-25 (Q1d): o desenho foi implementado nas etapas P1 a
+  P10, cada uma aprovada pelo autor no merge, e o `llvm/DESENHO.md` segue atualizado com as decisões
+  delas (P10, Q11, Q2)
   > Revisão 2 (2026-11-18), depois de uma revisão externa: `CzValor` (C), `Value` (C++, dono) e
   > `ValorRef` (vista sem posse) separados — mesmo layout não torna os tipos intercambiáveis, e
   > as `NativeFn` passam a receber vistas; inicialização do alvo X86, triple e `DataLayout` do
@@ -1870,8 +1881,8 @@ antigas: o que muda, muda de vez); a última etapa (Q9) é a que a troca.
 test-llvm`, `run_tests.py --cinzac --O2`), um teste para cada correção, a spec atualizada quando a
 linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
 
-- [ ] Q1. Fechar o núcleo da linguagem. **[decidir]**
-  - Q1a. **Classes e interfaces genéricas** (pausadas em 2026-11-15, seção N). Já decidido: tipos
+- [x] Q1. Fechar o núcleo da linguagem. **[decidir]** — fechado em 2026-11-25 (o Q1e, o último)
+  - [x] Q1a. **Classes e interfaces genéricas** (pausadas em 2026-11-15, seção N). — feito em 2026-11-23 Já decidido: tipos
     sempre escritos (`Pilha[i32]`; `No[T]` dentro da própria classe; o construtor com o nome puro);
     campo sem valor inicial, em toda classe, obriga um construtor que o atribua no nível de cima
     antes de ler o campo, chamar método ou usar `self`; só os métodos chamados são conferidos
@@ -2087,13 +2098,45 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
     > números, tipo dinâmico, reflexão, ponteiros e memória manual, métodos genéricos e restrições
     > nos genéricos, infinito e NaN, import relativo. **Fora da 1.0, a rever com o uso real:**
     > concorrência (threads, `async`, canais; hoje o paralelismo é por `Process`) e macros.
-  - Q1d. **Limpar as pendências do documento**: os itens da seção E já decididos com a caixa
+  - [x] Q1d. **Limpar as pendências do documento**: os itens da seção E já decididos com a caixa
     aberta (campo e método com o mesmo nome, `dict.add`, comentário de bloco, expoente nos
     literais, `7 / 2` num decimal), o P0 aberto (revisão do desenho do backend pelo autor) e o
-    "CVM" da seção D (feito, com outro desenho: seção F).
-  - Q1e. **Varredura final da linguagem**: programas-sonda para cada capítulo da spec, atrás de
+    "CVM" da seção D (feito, com outro desenho: seção F). — feito em 2026-11-25: as caixas abertas do
+    documento fechadas com a nota de cada uma (as três do livro antigo passam ao livro novo, Q7; as
+    da revisão bruta, decididas em 2026-10-01, conferidas no código de hoje; a do `decimal`,
+    obsoleta; o P0, encerrado pelas etapas P1 a P10); o Q1a, o Q1f e o Q6 marcados como feitos.
+  - [x] Q1e. **Varredura final da linguagem**: programas-sonda para cada capítulo da spec, atrás de
     lacunas e incoerências entre a spec e as duas implementações, como a revisão bruta (E).
-  - Q1f. **Sistema de módulos.** O autor considera a modularização confusa (2026-11-19) e quer
+    > **Feito em 2026-11-25:** os oito capítulos sondados, com 429 sondas em `tests/varredura/`
+    > (`c1_` a `c8_`, cada uma afirmando o que a spec diz, com o trecho exato da mensagem nos
+    > erros), passando na CVM e no cinzac. **Defeitos corrigidos:** (1) uma expressão `void` passava
+    > como valor em `f() == f()` (dava `true`) e num literal (`print([f()])` mostrava `[void]`; dict
+    > e par também) — agora é erro (spec 3.1); (2) uma função, um método ou o valor inicial de um
+    > campo não enxergava um `const` declarado mais abaixo (spec 4.1: só o inicializador de um
+    > `const` fica com os de cima) — o semântico analisa os `const` globais antes, na ordem deles.
+    > **Spec corrigida:** 1.4 (`module`, `null` e `yield` na lista de reservadas; o `?`), 2.1
+    > (`paramsTipo` em `class` e `interface`; o comentário do campo sem `=`, que era de antes do
+    > Q1a), 7.1 (o fim da entrada no `input` é `null` desde o Q1b, não `IOError`), 7.2 (as causas de
+    > `ImportError` de hoje; "o mesmo caminho em dois lugares" era do `CINZA_PATH`), 8.1 (classes e
+    > interfaces aceitam parâmetros de tipo). **Mensagens:** um número colado em letras (`0x10`,
+    > `1e10`, `5abc`) e `.5ff` viram um erro léxico só, que diz o que não existe; `void x;` e um campo
+    > `void`; a chave de dict opcional; `type t`; `var x = f()` com `f` void; a classe que não declara
+    > a interface e a interface que não volta à classe; a declaração duplicada diz a linha da
+    > primeira (e, no nível superior, que não há sobrecarga; com o nome de um erro embutido, que é
+    > embutido); o valor de enum sem o nome do enum; `<` entre enums; a função de módulo chamada sem
+    > o apelido; "Na criação de 'P'" no struct (não tem construtor); os limites do formato do
+    > `printf`; o inteiro onde a nativa pede ponto flutuante; e as do genérico de antes do Q1a
+    > (`enum`/`error` com `[T]`, `l[i32]`, a assinatura genérica de interface, o construtor da
+    > cópia, a dedução dentro de coleções sem a dica de `cast`).
+    > **Decidido pelo autor (2026-11-25): a forma de `f32`/`f64` é a do `repr` do Python.** Era a do
+    > `std::to_chars`, a mais curta entre a decimal e a científica, e `print(100000.ff)` mostrava
+    > `1e+05` (mas `120000.ff`, `120000`). Agora os dígitos continuam os da menor forma que volta ao
+    > número no próprio tipo, e a forma é decimal com o expoente de -4 a 15 (`100000`, `0.0001`) e
+    > científica fora disso (`1e-05`, `1.5e+16`, `1.2345678901234568e+17`) — `textoFlutuante`, em
+    > `value.h`, a mesma nos dois backends; spec 5.4. Teste: `varredura/c5_forma_flutuante`. Com
+    > isso o Q1 está fechado. Rodou: as duas suítes inteiras (1276 na CVM, também com ASan/UBSan;
+    > 1221 no cinzac) e as sondas também em -O2.
+  - [x] Q1f. **Sistema de módulos.** (feito em 2026-11-24) O autor considera a modularização confusa (2026-11-19) e quer
     revê-la antes da 1.0. **[decidir]** Levantar com o autor o que confunde — os nomes completos
     (`util.texto::soma`) e os apelidos, `pub`, a raiz do projeto (`czm.mod` vazio ou a pasta do
     principal) e o `CINZA_PATH`, os módulos nativos com `import` obrigatório, o que um módulo pode
@@ -2559,7 +2602,8 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
   >   estático dá falsos positivos de *container-overflow* nas anotações da libc++, e o
   >   `test-llvm-debug` roda com `detect_container_overflow=0`; 711/711.
   > 711/711 em todos os jobs do CI (Linux GCC e Clang, Linux estático, Windows).
-- [ ] Q6. Ferramentas.
+- [x] Q6. Ferramentas. — feito em 2026-11-22 (o servidor de linguagem e o `cinza fmt`; o depurador
+  fica fora da 1.0)
   - Servidor de linguagem (LSP) mínimo, com o front-end de hoje: os erros enquanto se digita;
     depois ir para a definição, o tipo ao passar o mouse e completar nomes. A extensão passa a
     usá-lo (hoje ela só colore).

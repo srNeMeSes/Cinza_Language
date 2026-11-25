@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): uma interface precisa de pelo menos um método
+interface I { }
+fn main() {}
+// expect-error: A interface 'I' precisa de pelo menos um método

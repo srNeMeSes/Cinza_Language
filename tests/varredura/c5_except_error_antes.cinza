@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 5): except (Error ...) precisa ser o último
+fn main() {
+  try {} except (Error e) {} except (ValueError e) {}
+}
+// expect-error: 'except (Error e)' captura qualquer erro e precisa ser o último

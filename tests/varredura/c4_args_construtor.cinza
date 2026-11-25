@@ -1,0 +1,8 @@
+// Q1e (varredura da spec, capítulo 4): os argumentos de new casam com o construtor
+class C {
+  pub {
+    C(i32 x) {}
+  }
+}
+fn main() { new C("a"); }
+// expect-error: Argumento 1 do construtor de 'C': esperado 'i32'

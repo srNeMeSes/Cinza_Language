@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): uma expressão void não é um valor (não se atribui)
+fn f() {}
+fn main() {
+  var x = f();
+}
+// expect-error: 'x' não tem valor inicial: a expressão é 'void'

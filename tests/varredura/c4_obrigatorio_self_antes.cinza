@@ -1,0 +1,13 @@
+// Q1e (varredura da spec, capítulo 4): o construtor não usa self antes de atribuir os obrigatórios
+fn g(C c) {}
+class C {
+  i32 x;
+  pub {
+    C() {
+      g(self);
+      x = 1;
+    }
+  }
+}
+fn main() {}
+// expect-error: não pode usar self antes de atribuir o campo obrigatório 'x'

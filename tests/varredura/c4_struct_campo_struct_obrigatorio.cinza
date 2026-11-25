@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 4): um campo cujo tipo é um struct com obrigatórios também é obrigatório
+struct Contato { string nome; }
+struct Agenda { Contato c; }
+fn main() { new Agenda(); }
+// expect-error: Na criação de 'Agenda': o campo 'c' não tem valor inicial

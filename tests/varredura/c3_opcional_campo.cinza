@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 3): campo sobre T? é erro
+struct S { i32 x = 0; }
+fn main() {
+  S? s = new S();
+  print(s.x);
+}
+// expect-error: Tipo 'S?' não possui campos: o valor é opcional

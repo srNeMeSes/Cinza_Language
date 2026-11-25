@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 3): não há var?
+fn main() {
+  var? x = 1;
+}
+// expect-error: 'var?' não existe

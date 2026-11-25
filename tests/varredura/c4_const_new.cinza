@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 4): no const global, new não é permitido
+struct S { i32 x = 0; }
+const S X = new S();
+fn main() {}
+// expect-error: precisa ser uma expressão constante

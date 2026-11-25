@@ -1,0 +1,3 @@
+// Q1e (varredura da spec, capítulo 5): throw precisa de um erro
+fn main() { throw "x"; }
+// expect-error: 'throw' requer um erro

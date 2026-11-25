@@ -1,0 +1,58 @@
+// Q1e (varredura da spec, capítulo 6): Convert: o que o cast não faz (bool, conversão que pode falhar, bases)
+import Convert as cv;
+fn main() {
+  try { print(cv.to_i32("3000000000")); } except (Error e) { print(e.kind); }
+  try { print(cv.to_i64("3000000000")); } except (Error e) { print(e.kind); }
+  try { print(cv.to_i32(" 1")); } except (Error e) { print(e.kind); }
+  try { print(cv.to_i32("+7")); } except (Error e) { print(e.kind); }
+  try { print(cv.to_f32("1e39")); } except (Error e) { print(e.kind); }
+  try { print(cv.to_f64("2.5")); } except (Error e) { print(e.kind); }
+  try { print(cv.to_f64("inf")); } except (Error e) { print(e.kind); }
+  try { print(cv.to_f64("1,5")); } except (Error e) { print(e.kind); }
+  try { print(type(cv.to_f32("1"))); } except (Error e) { print(e.kind); }
+  try { print(cv.to_bool("false")); } except (Error e) { print(e.kind); }
+  try { print(cv.to_bool("True")); } except (Error e) { print(e.kind); }
+  try { print(cv.to_bool("1")); } except (Error e) { print(e.kind); }
+  try { print(cv.to_base(-255, 16)); } except (Error e) { print(e.kind); }
+  try { print(cv.to_base(0, 2)); } except (Error e) { print(e.kind); }
+  try { print(cv.to_base(5, 1)); } except (Error e) { print(e.kind); }
+  try { print(cv.to_base(5, 37)); } except (Error e) { print(e.kind); }
+  try { print(cv.to_octal(8)); } except (Error e) { print(e.kind); }
+  try { print(cv.to_hex(-9223372036854775808)); } except (Error e) { print(e.kind); }
+  try { print(cv.from_base("FF", 16)); } except (Error e) { print(e.kind); }
+  try { print(cv.from_base("-z", 36)); } except (Error e) { print(e.kind); }
+  try { print(cv.from_base("+101", 2)); } except (Error e) { print(e.kind); }
+  try { print(cv.from_base("2", 2)); } except (Error e) { print(e.kind); }
+  try { print(cv.from_base("0x10", 16)); } except (Error e) { print(e.kind); }
+  try { print(cv.from_base("", 10)); } except (Error e) { print(e.kind); }
+  try { print(cv.from_base("10", 40)); } except (Error e) { print(e.kind); }
+  try { print(cv.from_base("8000000000000000", 16)); } except (Error e) { print(e.kind); }
+  try { print(cv.from_base("-8000000000000000", 16)); } except (Error e) { print(e.kind); }
+}
+// expect: null
+// expect: 3000000000
+// expect: null
+// expect: 7
+// expect: null
+// expect: 2.5
+// expect: null
+// expect: null
+// expect: f32?
+// expect: false
+// expect: null
+// expect: null
+// expect: -ff
+// expect: 0
+// expect: ValueError
+// expect: ValueError
+// expect: 10
+// expect: -8000000000000000
+// expect: 255
+// expect: -35
+// expect: 5
+// expect: ValueError
+// expect: ValueError
+// expect: ValueError
+// expect: ValueError
+// expect: OverflowError
+// expect: -9223372036854775808

@@ -1,0 +1,9 @@
+// Q1e (varredura da spec, capítulo 3): i32 + i32 continua i32 e estoura em 32 bits
+fn main() {
+  i32 a = 2147483647;
+  try { print(a + 1); } except (OverflowError e) { print("estouro"); }
+  i64 b = 2147483647;
+  print(b + 1);
+}
+// expect: estouro
+// expect: 2147483648

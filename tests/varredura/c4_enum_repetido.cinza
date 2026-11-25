@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): sem repetir nomes
+enum E { A, A }
+fn main() {}
+// expect-error: Valor 'A' repetido no enum 'E'

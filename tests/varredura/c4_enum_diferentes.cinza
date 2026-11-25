@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 4): valores de enums diferentes não se comparam
+enum A { X }
+enum B { X }
+fn main() { print(A.X == B.X); }
+// expect-error: não é suportada entre 'A' e 'B'

@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 4): a criação sem fim também pelos valores padrão de um struct
+class A { S s = new S(); }
+struct S { list<i32> l; A a = new A(); }
+fn main() {}
+// expect-error: (A → S → A)

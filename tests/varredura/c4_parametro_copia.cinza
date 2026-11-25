@@ -1,0 +1,26 @@
+// Q1e (varredura da spec, capítulo 4): os parâmetros: primitivos e struct copiados; list, dict e objetos compartilhados
+struct P { i32 x = 0; }
+class C {
+  i32 n = 0;
+  pub {
+    fn inc() { n += 1; }
+    fn valor() -> i32 { return n; }
+  }
+}
+fn mexe(i32 a, P p, list<i32> l, dict<string, i32> d, C c) {
+  a = 9;
+  p.x = 9;
+  l.add(9);
+  d["k"] = 9;
+  c.inc();
+}
+fn main() {
+  i32 a = 1;
+  P p = new P();
+  list<i32> l = [1];
+  dict<string, i32> d = {{"k", 1}};
+  C c = new C();
+  mexe(a, p, l, d, c);
+  print(a, p.x, l, d, c.valor());
+}
+// expect: 1 0 [1, 9] {"k": 9} 1

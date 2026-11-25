@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 8): nem o de uma classe do módulo
+class C {}
+fn f[C](C a) {}
+fn main() {}
+// expect-error: o parâmetro de tipo 'C' tem o nome de um tipo declarado

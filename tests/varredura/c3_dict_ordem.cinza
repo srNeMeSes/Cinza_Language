@@ -1,0 +1,12 @@
+// Q1e (varredura da spec, capítulo 3): o dict fica na ordem de inserção; trocar o valor não move; remover e inserir põe no fim (d[k] = v só troca: a chave precisa existir)
+fn main() {
+  dict<string, i32> d = {{"c", 1}, {"a", 2}, {"b", 3}};
+  d["a"] = 20;
+  d.remove("c");
+  d.add({"c", 10});
+  print(d, d.keys(), d.values());
+  dict<string, i32> e = {{"b", 3}, {"c", 10}, {"a", 20}};
+  print(d == e, d != e);
+}
+// expect: {"a": 20, "b": 3, "c": 10} ["a", "b", "c"] [20, 3, 10]
+// expect: true false

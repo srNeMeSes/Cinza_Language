@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 5): continue não sai de um finally
+fn main() {
+  while (true) {
+    try {} finally { continue; }
+  }
+}
+// expect-error: 'continue' não pode sair de um bloco 'finally'

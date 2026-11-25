@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 8): o tipo de retorno não participa da dedução
+fn zero[T]() -> T { return cast<T>(0); }
+fn main() { i32 z = zero(); }
+// expect-error: Não é possível deduzir o tipo 'T' de 'zero'

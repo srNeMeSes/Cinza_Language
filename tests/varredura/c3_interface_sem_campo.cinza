@@ -1,0 +1,13 @@
+// Q1e (varredura da spec, capítulo 3): por um valor do tipo interface não há acesso a campos
+interface Forma { fn area() -> f64; }
+class Q : Forma {
+  f64 lado = 1.ff;
+  pub {
+    fn area() -> f64 { return lado; }
+  }
+}
+fn main() {
+  Forma f = new Q();
+  print(f.lado);
+}
+// expect-error: 'lado' não pode ser acessado por ela

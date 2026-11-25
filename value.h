@@ -15,6 +15,7 @@
 #include <stdexcept>
 #include <sstream>
 #include <charconv>
+#include <algorithm>
 
 namespace cinza {
 
@@ -866,6 +867,45 @@ inline bool Value::operator<(const Value& other) const {
 // pedaços a escrever vão numa pilha explícita, no heap. Cada item é um valor (com ou
 // sem aspas, se for string) ou um trecho fixo.
 namespace detail {
+// Q1e (decidido em 2026-11-25): a forma de f32/f64 é a do repr do Python. Os dígitos são os da
+// menor forma que volta ao mesmo número no próprio tipo (0.1f sai 0.1); com o expoente de -4 a
+// 15 a forma é decimal (100000, 0.0001; inteiro sem ".0"), fora disso científica, com o
+// expoente com sinal e pelo menos dois dígitos (1e-05, 1.5e+16).
+inline std::string textoFlutuante(double v, bool f32) {
+    char buf[64];
+    auto [fim, ec] = f32 ? std::to_chars(buf, buf + sizeof buf, static_cast<float>(v),
+                                         std::chars_format::scientific)
+                         : std::to_chars(buf, buf + sizeof buf, v, std::chars_format::scientific);
+    if (ec != std::errc()) return "?";
+    const char* e = std::find(buf, fim, 'e');   // "-1.2345e+05": a mantissa e o expoente
+    int expoente = 0;
+    std::from_chars(e + 1 + (e[1] == '+'), fim, expoente);
+    std::string out;
+    const char* p = buf;
+    if (*p == '-') { out += '-'; ++p; }
+    std::string digitos;
+    for (; p < e; ++p)
+        if (*p != '.') digitos += *p;
+    const int n = static_cast<int>(digitos.size());
+    if (expoente >= -4 && expoente < 16) {
+        if (expoente < 0)
+            out += "0." + std::string(static_cast<size_t>(-expoente - 1), '0') + digitos;
+        else if (n <= expoente + 1)
+            out += digitos + std::string(static_cast<size_t>(expoente + 1 - n), '0');
+        else
+            out += digitos.substr(0, static_cast<size_t>(expoente + 1)) + "." +
+                   digitos.substr(static_cast<size_t>(expoente + 1));
+    } else {
+        out += digitos[0];
+        if (n > 1) out += "." + digitos.substr(1);
+        const int a = expoente < 0 ? -expoente : expoente;
+        out += expoente < 0 ? "e-" : "e+";
+        if (a < 10) out += '0';
+        out += std::to_string(a);
+    }
+    return out;
+}
+
 // Um valor que não é contêiner, em texto (strings sem aspas)
 inline std::string folhaTexto(const Value& v) {
     using Kind = Value::Kind;
@@ -874,14 +914,9 @@ inline std::string folhaTexto(const Value& v) {
         case Kind::NULO:      return "null";
         case Kind::I64: case Kind::I32: return std::to_string(v.asInt());
         case Kind::F64: case Kind::F32: {
-            // A menor forma que volta ao mesmo número, na precisão do próprio
-            // tipo (0.1f sai 0.1, não 0.10000000149011612). Valor inteiro sai
-            // sem ".0" (4.0 → 4). Infinito e NaN não existem (seção M).
-            char buf[64];
-            auto [fim, ec] = v.kind() == Kind::F32
-                ? std::to_chars(buf, buf + sizeof buf, v.asF32())
-                : std::to_chars(buf, buf + sizeof buf, v.asFloat());
-            return ec == std::errc() ? std::string(buf, fim) : std::string("?");
+            // Infinito e NaN não existem (seção M); a forma está em textoFlutuante
+            return v.kind() == Kind::F32 ? textoFlutuante(v.asF32(), true)
+                                         : textoFlutuante(v.asFloat(), false);
         }
         case Kind::STRING:  return v.asString();
         case Kind::BOOL:    return v.asBool() ? "true" : "false";

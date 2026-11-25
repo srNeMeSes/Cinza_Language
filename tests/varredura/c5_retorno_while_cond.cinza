@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 5): um while com condição não garante o retorno
+fn f(bool b) -> i32 {
+  while (b) { return 1; }
+}
+fn main() {}
+// expect-error: não retorna em todos os caminhos

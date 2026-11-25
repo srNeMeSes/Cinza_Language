@@ -1,0 +1,10 @@
+// Q1e (varredura da spec, capítulo 6): days_between conta dias de calendário (local): de 23h de um dia a 1h do seguinte é 1; negativo se b vem antes
+import Time;
+fn main() {
+  i64 a = Time.make(2026, 3, 10, 23, 0, 0);
+  i64 b = Time.make(2026, 3, 11, 1, 0, 0);
+  print(Time.days_between(a, b), Time.days_between(b, a), Time.days_between(a, a));
+  print(Time.hour(a), Time.day(b), Time.format(a, "dd/MM HH:mm"), Time.parse("11/03/2026 01:00", "dd/MM/yyyy HH:mm") == b);
+}
+// expect: 1 -1 0
+// expect: 23 11 10/03 23:00 true

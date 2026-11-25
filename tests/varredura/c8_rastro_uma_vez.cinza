@@ -1,0 +1,8 @@
+// Q1e (varredura da spec, capítulo 8): cada combinação é analisada uma vez: o erro aparece uma vez, com o primeiro uso
+fn dono[T](T x) -> string { return x.dono; }
+fn main() {
+  print(dono(5));
+  print(dono(6));
+}
+// expect-error: usada em tests/varredura/c8_rastro_uma_vez.cinza:4
+// expect-not: c8_rastro_uma_vez.cinza:5

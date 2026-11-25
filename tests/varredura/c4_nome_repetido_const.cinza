@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 4): um const e uma função com o mesmo nome são erro
+const i32 f = 1;
+fn f() {}
+fn main() {}
+// expect-error: não há sobrecarga

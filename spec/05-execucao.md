@@ -159,7 +159,7 @@ Só sobre `bool`.
 | Valor          | Forma                                                                  |
 |----------------|------------------------------------------------------------------------|
 | `i32`, `i64`   | dígitos decimais: `-42`                                                |
-| `f32`, `f64`   | a menor forma que volta ao mesmo número **no próprio tipo**: `3.14`, `0.1` (`0.1f` também sai `0.1`); valor inteiro sem `.0` (`4`); muito grande ou muito pequeno em notação científica (`1e+24`); `-0` |
+| `f32`, `f64`   | os dígitos da menor forma que volta ao mesmo número **no próprio tipo**: `3.14`, `0.1` (`0.1f` também sai `0.1`); com o expoente decimal de -4 a 15, a forma decimal (`100000`, `0.0001`; valor inteiro sem `.0`: `4`); fora disso, a científica, com o expoente com sinal e pelo menos dois dígitos (`1e-05`, `1.5e+16`, `1e+24`) — a regra do `repr` do Python; `-0` |
 | `string`       | o próprio texto (dentro de coleções, entre aspas)                     |
 | `bool`         | `true`, `false`                                                        |
 | `list`         | `[1, 2]`, `["a", "b"]`                                                 |

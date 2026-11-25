@@ -1,0 +1,12 @@
+// Q1e (varredura da spec, capítulo 5): o erro vai para o primeiro except cujo tipo é o dele, ou Error; sem correspondente, continua subindo
+error Meu;
+fn main() {
+  try { throw Meu("m"); } except (ValueError e) { print("v"); } except (Meu e) { print("meu"); } except (Error e) { print("e"); }
+  try { throw IndexError("i"); } except (ValueError e) { print("v"); } except (Error e) { print("geral", e.kind); }
+  try {
+    try { throw KeyError("k"); } except (ValueError e) { print("não"); }
+  } except (KeyError e) { print("subiu"); }
+}
+// expect: meu
+// expect: geral IndexError
+// expect: subiu

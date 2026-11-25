@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 3): cast<f32>(2 + 3.f) é erro: a conta mistura famílias
+fn main() {
+  print(cast<f32>(2 + 3.f));
+}
+// expect-error: O literal 2 é inteiro, mas aqui se espera 'f32'

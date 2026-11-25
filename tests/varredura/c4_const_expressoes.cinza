@@ -1,0 +1,12 @@
+// Q1e (varredura da spec, capítulo 4): expressões constantes: literais, null, enum, operadores, else, cast, parênteses, Math.pi
+import Math;
+enum Cor { A, B }
+const i32? NADA = null;
+const i32 UM = NADA else 1;
+const Cor C = Cor.B;
+const bool IGUAL = C == Cor.B and not (UM > 2);
+const f64 X = cast<f64>(UM) * Math.pi;
+const string S = "a" + "b";
+const i64 G = (UM + 2) * 3 % 5;
+fn main() { print(NADA, UM, C, IGUAL, X > 3.ff, S, G); }
+// expect: null 1 Cor.B true true ab 4

@@ -1,0 +1,9 @@
+// Q1e (varredura da spec, capítulo 4): um parâmetro com o nome de um campo o esconde; self.campo o alcança
+class C {
+  i32 x = 1;
+  pub {
+    fn f(i32 x) -> i32 { return x * 10 + self.x; }
+  }
+}
+fn main() { print(new C().f(5)); }
+// expect: 51

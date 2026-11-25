@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): pair é invariante
+fn main() {
+  pair<i32, i32> a = {1, 2};
+  pair<i64, i32> b = a;
+}
+// expect-error: declarado 'pair<i64, i32>', mas atribuído 'pair<i32, i32>'

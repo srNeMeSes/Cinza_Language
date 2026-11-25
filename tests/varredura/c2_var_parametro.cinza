@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 2): var só em variável local e no for
+fn f(var x) {}
+fn main() {}
+// expect-error: 'var' não é permitido em parâmetros

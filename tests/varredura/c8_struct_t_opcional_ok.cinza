@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 8): um campo T? nasce null e não é obrigatório
+struct Caixa[T] { T? v; i32 n = 0; }
+fn main() {
+  Caixa[string] c = new Caixa[string]();
+  print(c, c.v == null);
+}
+// expect: Caixa[string]{v: null, n: 0} true

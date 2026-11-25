@@ -1,0 +1,18 @@
+// Q1e (varredura da spec, capítulo 5): um índice negativo ou além do fim, em runtime, lança IndexError; i64 vale como índice
+fn main() {
+  list<i32> l = [1, 2];
+  i32 n = -1;
+  i64 g = 1;
+  print(l[g]);
+  try { print(l[n]); } except (IndexError e) { print("negativo"); }
+  try { print(l[2]); } except (IndexError e) { print("além"); }
+  try { l[5] = 1; } except (IndexError e) { print("escrita"); }
+  try { l.remove(2); } except (IndexError e) { print("remove"); }
+  print(l.has(1), l.has(2), l.has(n));
+}
+// expect: 2
+// expect: negativo
+// expect: além
+// expect: escrita
+// expect: remove
+// expect: true false false

@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 1): não há prefixo de base (0x)
+fn main() {
+  i32 x = 0x10;
+}
+// expect-error: Literal '0x10' inválido

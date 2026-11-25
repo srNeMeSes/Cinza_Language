@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): comparar com null um valor que não é opcional é erro
+fn main() {
+  i32 a = 1;
+  print(a == null);
+}
+// expect-error: um 'i32' nunca é null

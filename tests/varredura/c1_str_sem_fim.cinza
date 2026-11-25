@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 1): string sem as aspas de fechamento é erro léxico
+fn main() {
+  print("aberta);
+}
+// expect-error: LexicalError
+// expect-error: String não terminada

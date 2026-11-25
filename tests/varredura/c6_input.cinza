@@ -1,0 +1,10 @@
+// Q1e (varredura da spec, capítulo 6): input escreve o prompt sem pular linha e lê uma linha sem o fim de linha; no fim, null
+fn main() {
+  while (string l = input("> ")) { print("[" + l + "]"); }
+  print("fim");
+}
+// stdin: um
+// stdin: dois  três
+// expect: > [um]
+// expect: > [dois  três]
+// expect: > fim

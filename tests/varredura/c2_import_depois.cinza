@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 2): os imports vêm antes de qualquer declaração
+fn f() {}
+import Math;
+fn main() {}
+// expect-error: import

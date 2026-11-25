@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 1): uma string pode ocupar várias linhas (a quebra faz parte do texto) e tem \n, \r
+fn main() {
+  string s = "a
+b";
+  print(s.size(), s == "a\nb", "x\ry".size());
+}
+// expect: 3 true 3

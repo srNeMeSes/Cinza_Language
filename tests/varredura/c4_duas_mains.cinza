@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): exatamente uma main
+fn main() {}
+fn main() {}
+// expect-error: 'main' já foi declarado neste escopo (na linha 2)

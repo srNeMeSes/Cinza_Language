@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 2): não há "[]" vazio
+fn main() {
+  list<i32> l = [];
+}
+// expect-error: Inicializador vazio '[]'

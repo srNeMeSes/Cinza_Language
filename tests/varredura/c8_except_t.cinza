@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 8): except (T e) com T um tipo de erro
+error Meu;
+fn tenta[T](T exemplo) -> string {
+  try { throw exemplo; } except (T e) { return "pegou " + e.kind; }
+}
+fn main() { print(tenta(Meu("m")), tenta(ValueError("v"))); }
+// expect: pegou Meu pegou ValueError

@@ -1,0 +1,26 @@
+// Q1e (varredura da spec, capítulo 5): numa chamada de método, o objeto é avaliado antes dos argumentos; argumentos e literais da esquerda para a direita
+class C {
+  pub {
+    fn m(i32 a, i32 b) -> i32 { return a + b; }
+  }
+}
+fn v(string s, i32 n) -> i32 { print(s); return n; }
+fn obj() -> C { print("objeto"); return new C(); }
+fn main() {
+  print(obj().m(v("a", 1), v("b", 2)));
+  list<i32> l = [v("x", 1), v("y", 2)];
+  dict<i32, i32> d = {{v("k1", 1), v("v1", 2)}, {v("k2", 3), v("v2", 4)}};
+  pair<i32, i32> p = {v("p1", 1), v("p2", 2)};
+}
+// expect: objeto
+// expect: a
+// expect: b
+// expect: 3
+// expect: x
+// expect: y
+// expect: k1
+// expect: v1
+// expect: k2
+// expect: v2
+// expect: p1
+// expect: p2

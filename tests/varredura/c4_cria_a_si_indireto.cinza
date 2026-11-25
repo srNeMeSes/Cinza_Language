@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 4): um new nos valores iniciais que volta ao próprio tipo por outro é erro
+class A { B b = new B(); }
+class B { A a = new A(); }
+fn main() {}
+// expect-error: 'A' cria a si mesmo nos valores iniciais dos campos (A → B → A)

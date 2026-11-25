@@ -1,0 +1,3 @@
+// Q1e (varredura da spec, capítulo 4): main com parâmetro que não é list<string> é erro
+fn main(list<i32> a) {}
+// expect-error: Assinatura inválida para 'main'

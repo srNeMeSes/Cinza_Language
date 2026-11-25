@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 8): com tipos explícitos, os argumentos seguem as regras normais (promoção, literais)
+fn soma[T](T a, T b) -> T { return a + b; }
+fn main() {
+  i32 x = 2000000000;
+  print(soma[i64](x, x), soma[f64](0.5f, 1.ff), type(soma[i64](1, 2)));
+}
+// expect: 4000000000 1.5 i64

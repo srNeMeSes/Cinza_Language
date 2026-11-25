@@ -1,0 +1,15 @@
+// Q1e (varredura da spec, capítulo 8): um método exigido por uma interface que a cópia cumpre é conferido
+interface Dobra[T] { fn dobro() -> T; }
+struct P { i32 x = 0; }
+class Caixa[T] : Dobra[T] {
+  T valor;
+  pub {
+    Caixa(T v) { valor = v; }
+    fn dobro() -> T { return valor + valor; }
+  }
+}
+fn main() {
+  Caixa[P] c = new Caixa[P](new P());
+}
+// expect-error: Operador '+' não é suportado entre 'P' e 'P'
+// expect-error:     em Caixa[P], usada em

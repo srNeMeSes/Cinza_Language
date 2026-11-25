@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 6): Lists.remove_value numa lista const é erro
+import Lists;
+fn main() {
+  const list<i32> l = [1];
+  Lists.remove_value(l, 1);
+}
+// expect-error: 'Lists.remove_value' altera a lista, mas 'l' é const

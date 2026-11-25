@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): um cast de texto inválido no const é erro de compilação
+const i32 X = cast<i32>("abc");
+fn main() {}
+// expect-error: O valor do const 'X' não pode ser calculado: ValueError

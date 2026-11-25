@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 8): l[i32] depois de uma variável é erro
+fn main() {
+  list<i32> l = [1];
+  print(l[i32]);
+}
+// expect-error: 'l' não é um tipo genérico

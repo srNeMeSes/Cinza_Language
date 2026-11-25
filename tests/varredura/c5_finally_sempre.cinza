@@ -1,0 +1,20 @@
+// Q1e (varredura da spec, capítulo 5): o finally roda depois do fluxo normal, de return, break, continue, de erro não capturado e de erro no except
+fn r() -> i32 { try { return 1; } finally { print("f-return"); } }
+fn sobe() { try { throw ValueError("x"); } finally { print("f-erro"); } }
+fn no_except() { try { throw ValueError("x"); } except (ValueError e) { throw KeyError("k"); } finally { print("f-except"); } }
+fn main() {
+  print(r());
+  for (i32 i in [1, 2]) {
+    try { if (i == 1) { continue; } break; } finally { print("f-laço", i); }
+  }
+  try { sobe(); } except (ValueError e) { print("pegou", e.kind); }
+  try { no_except(); } except (KeyError e) { print("pegou", e.kind); }
+}
+// expect: f-return
+// expect: 1
+// expect: f-laço 1
+// expect: f-laço 2
+// expect: f-erro
+// expect: pegou ValueError
+// expect: f-except
+// expect: pegou KeyError

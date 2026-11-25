@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): uma expressão void não é um valor, nem para comparar (f() == f() compilava e dava true)
+fn f() {}
+fn main() {
+  print(f() == f(), f() != f());
+}
+// expect-error: Operador '==': o lado esquerdo é 'void' e não tem valor

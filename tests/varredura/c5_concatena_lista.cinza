@@ -1,0 +1,3 @@
+// Q1e (varredura da spec, capítulo 5): coleções não se concatenam
+fn main() { print("a" + [1]); }
+// expect-error: Operador '+' não é suportado entre 'string' e 'list<i32>'

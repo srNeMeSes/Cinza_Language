@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 8): error não aceita parâmetros de tipo
+error E[T];
+fn main() {}
+// expect-error: error não aceita parâmetros de tipo

@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): o valor do if com declaração precisa ser opcional
+fn main() {
+  i32 a = 1;
+  if (i32 x = a) {}
+}
+// expect-error: precisa ser opcional (T?)

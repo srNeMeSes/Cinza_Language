@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 5): em list o índice é não negativo e não há fatia
+fn main() {
+  list<i32> l = [1];
+  print(l[1:]);
+}
+// expect-error: Fatia '[:]' só vale para string

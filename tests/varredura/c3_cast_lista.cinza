@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): coleções não convertem
+fn main() {
+  list<i32> l = [1];
+  print(cast<string>(l));
+}
+// expect-error: cast<string> recebeu 'list<i32>'

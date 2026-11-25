@@ -1,0 +1,88 @@
+// Q1e (varredura da spec, capítulo 6): Regex: a sintaxe e as funções nos limites da tabela
+import Regex as re;
+fn main() {
+  try { print(re.matches("ç", ".")); } except (Error e) { print(e.kind); }
+  try { print(re.matches("\n", ".")); } except (Error e) { print(e.kind); }
+  try { print(re.matches("]", "[]a]")); } except (Error e) { print(e.kind); }
+  try { print(re.matches("-", "[a-]")); } except (Error e) { print(e.kind); }
+  try { print(re.matches("é", "\\w")); } except (Error e) { print(e.kind); }
+  try { print(re.matches("_", "\\w")); } except (Error e) { print(e.kind); }
+  try { print(re.matches("a", "[\\D]")); } except (Error e) { print(e.kind); }
+  try { print(re.matches("\t", "\\s")); } except (Error e) { print(e.kind); }
+  try { print(re.find("abc", "c")); } except (Error e) { print(e.kind); }
+  try { print(re.find("ação", "o")); } except (Error e) { print(e.kind); }
+  try { print(re.find("abc", "z")); } except (Error e) { print(e.kind); }
+  try { print(re.groups("ab", "(a)|(b)")); } except (Error e) { print(e.kind); }
+  try { print(re.groups("b", "(a)?(b)(x*)")); } except (Error e) { print(e.kind); }
+  try { print(re.groups("z", "a")); } except (Error e) { print(e.kind); }
+  try { print(re.groups_all("a1b2", "([a-z])(\\d)")); } except (Error e) { print(e.kind); }
+  try { print(re.named("x", "(?<a>y)?x")); } except (Error e) { print(e.kind); }
+  try { print(re.named("q", "z")); } except (Error e) { print(e.kind); }
+  try { print(re.replace_all("abxd", "x*", "-")); } except (Error e) { print(e.kind); }
+  try { print(re.replace_first("aaa", "a", "b")); } except (Error e) { print(e.kind); }
+  try { print(re.replace_all("ab", "(?<l>a)", "${l}${l}$$")); } except (Error e) { print(e.kind); }
+  try { print(re.replace_all("ab", "(a)", "${1}1")); } except (Error e) { print(e.kind); }
+  try { print(re.replace_all("ab", "a", "$x")); } except (Error e) { print(e.kind); }
+  try { print(re.replace_all("ab", "a", "$2")); } except (Error e) { print(e.kind); }
+  try { print(re.split("a,b,", ",")); } except (Error e) { print(e.kind); }
+  try { print(re.split("", ",")); } except (Error e) { print(e.kind); }
+  try { print(re.split("abc", "")); } except (Error e) { print(e.kind); }
+  try { print(re.count("aaa", "a*")); } except (Error e) { print(e.kind); }
+  try { print(re.find_all("aaa", "a*?")); } except (Error e) { print(e.kind); }
+  try { print(re.escape("1+1")); } except (Error e) { print(e.kind); }
+  try { print(re.is_valid("a(b")); } except (Error e) { print(e.kind); }
+  try { print(re.contains("a(b", "a(b")); } except (Error e) { print(e.kind); }
+  try { print(re.matches("a", "a{1001}")); } except (Error e) { print(e.kind); }
+  try { print(re.matches("a", "(a{1000}){1000}")); } except (Error e) { print(e.kind); }
+  try { print(re.matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac", "(a+)+b")); } except (Error e) { print(e.kind); }
+  try { print(re.matches("AÇÃO", "(?i)ação")); } except (Error e) { print(e.kind); }
+  try { print(re.contains("a b", "\\bb\\b")); } except (Error e) { print(e.kind); }
+  try { print(re.contains("ab", "\\Bb")); } except (Error e) { print(e.kind); }
+  try { print(re.matches("ab", "^ab$")); } except (Error e) { print(e.kind); }
+  try { print(re.find_all("aaa", "a{2,}?")); } except (Error e) { print(e.kind); }
+  try { print(re.find_all("aaaa", "a{2}")); } except (Error e) { print(e.kind); }
+  try { print(re.matches("a", "(?=a)")); } except (Error e) { print(e.kind); }
+  try { print(re.matches("aa", "(a)\\1")); } except (Error e) { print(e.kind); }
+}
+// expect: true
+// expect: false
+// expect: true
+// expect: true
+// expect: true
+// expect: true
+// expect: true
+// expect: true
+// expect: 2
+// expect: 3
+// expect: null
+// expect: ["a", "a", null]
+// expect: ["b", null, "b", ""]
+// expect: []
+// expect: [["a1", "a", "1"], ["b2", "b", "2"]]
+// expect: {"a": null}
+// expect: {}
+// expect: -a-b-d-
+// expect: baa
+// expect: aa$b
+// expect: a1b
+// expect: ValueError
+// expect: ValueError
+// expect: ["a", "b", ""]
+// expect: [""]
+// expect: ["a", "b", "c"]
+// expect: 1
+// expect: ["", "", "", ""]
+// expect: 1\+1
+// expect: false
+// expect: ValueError
+// expect: ValueError
+// expect: ValueError
+// expect: false
+// expect: true
+// expect: true
+// expect: true
+// expect: true
+// expect: ["aa"]
+// expect: ["aa", "aa"]
+// expect: ValueError
+// expect: ValueError

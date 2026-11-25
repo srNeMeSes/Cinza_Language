@@ -1,0 +1,24 @@
+// Q1e (varredura da spec, capítulo 3): o bloco do else pode sair com break, continue, return e throw
+fn f(i32? x) -> i32 {
+  i32 v = x else { throw ValueError("sem"); };
+  return v;
+}
+fn main() {
+  list<i32?> l = [1, null, 3, null, 5];
+  i32 s = 0;
+  for (i32? o in l) {
+    i32 v = o else { continue; };
+    s += v;
+  }
+  i32 n = 0;
+  while (true) {
+    i32? o;
+    if (n < 3) { o = n; }
+    i32 v = o else { break; };
+    n = v + 1;
+  }
+  try { f(null); } except (ValueError e) { print(e.message); }
+  print(s, n, f(4));
+}
+// expect: sem
+// expect: 9 3 4

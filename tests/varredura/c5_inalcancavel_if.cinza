@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 5): código depois de um if/else que sempre sai é inalcançável
+fn f(bool b) -> i32 {
+  if (b) { return 1; } else { return 2; }
+  print(1);
+}
+fn main() {}
+// expect-error: Código inalcançável

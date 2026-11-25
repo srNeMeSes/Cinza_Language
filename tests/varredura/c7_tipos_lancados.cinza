@@ -1,0 +1,32 @@
+// Q1e (varredura da spec, capítulo 7): cada tipo embutido nos casos da tabela; TypeError só com throw; um erro declarado é filho de Error
+import Strings;
+import Lists;
+error Meu;
+fn tipo(i32 caso) -> string {
+  try {
+    if (caso == 0) { print(range(0, 1, 0)); }
+    if (caso == 1) { list<i32> l = [1]; l.remove(3); }
+    if (caso == 2) { dict<string, i32> d; d.remove("x"); }
+    if (caso == 3) { f64 z = 0.ff; print(0.ff / z); }
+    if (caso == 4) { print(Lists.sum([2147483647, 1])); }
+    if (caso == 5) { print(Strings.substr("a", 0, 5)); }
+    if (caso == 6) { throw TypeError("t"); }
+    if (caso == 7) { throw Meu("m"); }
+    if (caso == 8) { throw Error("raiz"); }
+  } except (Error e) {
+    return e.kind;
+  }
+  return "nenhum";
+}
+fn main() {
+  for (i32 i in range(0, 9)) { print(tipo(i)); }
+}
+// expect: ValueError
+// expect: IndexError
+// expect: KeyError
+// expect: ZeroDivisionError
+// expect: OverflowError
+// expect: IndexError
+// expect: TypeError
+// expect: Meu
+// expect: Error

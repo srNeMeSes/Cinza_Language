@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): um valor se escreve sempre qualificado
+enum Cor { Verde }
+fn main() { Cor c = Verde; }
+// expect-error: escreva Cor.Verde

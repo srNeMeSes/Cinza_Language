@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 6): Dicts.pop num dict const é erro
+import Dicts;
+fn main() {
+  const dict<string, i32> d = {{"a", 1}};
+  Dicts.pop(d, "a");
+}
+// expect-error: 'Dicts.pop' altera o dict, mas 'd' é const

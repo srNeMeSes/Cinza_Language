@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 4): no mesmo bloco, repetir um nome é erro
+fn main() {
+  i32 x = 1;
+  i32 x = 2;
+}
+// expect-error: 'x' já foi declarado neste escopo (na linha 3)

@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 3): yield só existe no bloco de um else
+fn main() {
+  yield 1;
+}
+// expect-error: 'yield' só existe no bloco de um else

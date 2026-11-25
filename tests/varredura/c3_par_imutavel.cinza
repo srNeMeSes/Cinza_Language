@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): o pair é imutável
+fn main() {
+  pair<i32, i32> p = {1, 2};
+  p.first = 3;
+}
+// expect-error: pair é imutável

@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 4): um método fora do pub { } é privado
+class C {
+  fn segredo() {}
+}
+fn main() { new C().segredo(); }
+// expect-error: Método 'segredo' é privado

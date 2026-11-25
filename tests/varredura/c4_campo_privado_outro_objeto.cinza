@@ -1,0 +1,10 @@
+// Q1e (varredura da spec, capítulo 4): os campos são privados, mas os métodos da classe os acessam em outro objeto da mesma classe
+class V {
+  i32 x = 0;
+  pub {
+    V(i32 v) { x = v; }
+    fn soma(V o) -> i32 { return x + o.x; }
+  }
+}
+fn main() { print(new V(2).soma(new V(3))); }
+// expect: 5

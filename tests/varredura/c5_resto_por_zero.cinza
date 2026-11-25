@@ -1,0 +1,16 @@
+// Q1e (varredura da spec, capítulo 5): divisão ou resto por zero entre inteiros lança ZeroDivisionError
+fn main() {
+  i32 z = 0;
+  i64 w = 0;
+  try { print(5 % z); } except (ZeroDivisionError e) { print("i32 %"); }
+  try { print(5 / w); } except (ZeroDivisionError e) { print("i64 /"); }
+  try { print(cast<i64>(5) % w); } except (ZeroDivisionError e) { print("i64 %"); }
+  i32 x = 5;
+  try { x /= z; } except (ZeroDivisionError e) { print("/="); }
+  try { x %= z; } except (ZeroDivisionError e) { print("%="); }
+}
+// expect: i32 %
+// expect: i64 /
+// expect: i64 %
+// expect: /=
+// expect: %=

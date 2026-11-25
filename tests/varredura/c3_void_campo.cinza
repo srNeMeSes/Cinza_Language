@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): nenhum campo pode ser void
+struct S { void x; }
+fn main() {
+
+}
+// expect-error: um campo não pode ser void

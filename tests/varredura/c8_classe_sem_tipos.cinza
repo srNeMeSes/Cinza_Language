@@ -1,0 +1,8 @@
+// Q1e (varredura da spec, capítulo 8): Pilha sozinho, sem os tipos, é erro
+class Pilha[T] {
+  list<T> l;
+}
+fn main() {
+  Pilha p = new Pilha();
+}
+// expect-error: a classe genérica 'Pilha' precisa dos tipos

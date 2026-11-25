@@ -1,0 +1,24 @@
+// Q1e (varredura da spec, capítulo 5): a tabela de igualdade: estrutural em list, dict, pair e struct; identidade em objeto, interface e erro
+interface I { fn f(); }
+class C : I {
+  pub {
+    fn f() {}
+  }
+}
+struct S { i32 x = 0; list<i32> l; }
+fn main() {
+  C a = new C();
+  C b = new C();
+  I i = a;
+  I j = a;
+  Error e = ValueError("x");
+  Error f = ValueError("x");
+  print([1, 2] == [1, 2], {{"a", 1}} == {{"a", 1}}, {1, "a"} == {1, "a"}, new S(1, [2]) == new S(1, [2]));
+  print(a == b, a == a, i == j, e == f, e == e, 1 == cast<i64>(1), -0.ff == 0.ff, type(1) == type(2));
+  i32? n;
+  i32? m = 1;
+  print(n == null, m == 1, n != m);
+}
+// expect: true true true true
+// expect: false true true false true true true true
+// expect: true true true

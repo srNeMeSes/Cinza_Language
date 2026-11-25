@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): funções não são valores (atribuir)
+fn f() {}
+fn main() { var g = f; }
+// expect-error: 'f' é uma função

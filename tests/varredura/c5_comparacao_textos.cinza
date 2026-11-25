@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 5): textos se comparam pela ordem dos code points
+fn main() {
+  print("a" < "b", "Z" < "a", "abc" < "abd", "ab" < "abc", "é" > "z", "" < "a", "b" >= "b");
+}
+// expect: true true true true true true true

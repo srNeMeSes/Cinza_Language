@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 3): const num parâmetro de tipo classe é erro
+class C {}
+fn f(const C c) {}
+fn main() {
+
+}
+// expect-error: 'const' não pode ser usado em objeto de classe ('C')

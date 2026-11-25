@@ -1,0 +1,11 @@
+// Q1e (varredura da spec, capítulo 4): na criação pelo nome, os informados na ordem escrita, depois os valores iniciais dos omitidos
+fn v(string s, i32 n) -> i32 { print(s); return n; }
+struct P { i32 a = v("a", 1); i32 b = v("b", 2); i32 c = v("c", 3); }
+fn main() {
+  P p = new P(c: v("c!", 30), a: v("a!", 10));
+  print(p);
+}
+// expect: c!
+// expect: a!
+// expect: b
+// expect: P{a: 10, b: 2, c: 30}

@@ -1,0 +1,8 @@
+// Q1e (varredura da spec, capítulo 6): em sort_by, também as chaves const são erro
+import Lists;
+fn main() {
+  list<string> n = ["a"];
+  const list<i32> c = [1];
+  Lists.sort_by(n, c);
+}
+// expect-error: 'Lists.sort_by' altera a lista, mas 'c' é const

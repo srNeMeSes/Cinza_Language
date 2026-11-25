@@ -1,0 +1,9 @@
+// Q1e (varredura da spec, capítulo 7): do semântico sai só o primeiro erro; nada do programa roda
+fn main() {
+  print("nunca");
+  i32 a = "x";
+  i32 b = "y";
+}
+// expect-error: 4:7: SemanticError
+// expect-not: 5:7
+// expect-not: nunca

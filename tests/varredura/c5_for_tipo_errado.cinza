@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 5): o tipo do iterador precisa aceitar o elemento
+fn main() {
+  for (string s in [1]) {}
+}
+// expect-error: Tipo do iterador 'string' é incompatível com o elemento da lista 'i32'

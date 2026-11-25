@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 7): tudo o que vem depois do arquivo vai para a main, mesmo começando com -
+fn main(list<string> a) { print(a); }
+// args: --help -t x
+// expect: ["--help", "-t", "x"]

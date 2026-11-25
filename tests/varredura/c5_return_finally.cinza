@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 5): return não sai de um finally
+fn f() -> i32 {
+  try { return 1; } finally { return 2; }
+}
+fn main() {}
+// expect-error: 'return' não é permitido dentro de 'finally'

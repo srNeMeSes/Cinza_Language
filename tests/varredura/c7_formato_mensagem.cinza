@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 7): o formato arquivo:linha:coluna: Tipo: mensagem, com / como separador
+fn main() {
+  list<i32> l = [1];
+  print(l[5]);
+}
+// expect-error: tests/varredura/c7_formato_mensagem.cinza:4:10: IndexError: índice 5 fora dos limites (tamanho: 1)
+// expect-error:     em main (tests/varredura/c7_formato_mensagem.cinza:4)

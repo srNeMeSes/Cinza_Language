@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 8): uma genérica pub de um módulo: os nomes do corpo no módulo dela, os tipos de quem usa; u.f[T](...)
+import modulos.genericos as g;
+fn main() {
+  print(g.primeiro([3, 9]), g.vezes_dez[i64](2), g.primeiro[string](["b"]));
+}
+// expect: 3 20 b

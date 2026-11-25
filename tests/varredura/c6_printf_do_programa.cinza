@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 6): uma função do programa chamada format tem precedência e recebe o texto sem interpolação
+fn format(string s) -> string { return "<" + s + ">"; }
+fn main() { print(format("{x}")); }
+// expect: <{x}>

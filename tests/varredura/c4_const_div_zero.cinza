@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): uma divisão por zero no const é erro de compilação
+const i32 X = 1 / 0;
+fn main() {}
+// expect-error: O valor do const 'X' não pode ser calculado: ZeroDivisionError

@@ -1,0 +1,11 @@
+// Q1e (varredura da spec, capítulo 4): os nomes de um módulo: função, const, new, tipo, except
+import modulos.geom as g;
+fn main() {
+  g.Ponto p = g.origem();
+  g.Contador c = new g.Contador();
+  c.inc();
+  try { g.valida(11); } except (g.ForaDaArea e) { print(e.message); }
+  print(p, c.valor(), g.LADO, new g.Ponto(x: 1));
+}
+// expect: valor alto
+// expect: Ponto{x: 0, y: 0} 1 3 Ponto{x: 1, y: 0}

@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 4): um tipo de erro com o nome de outro é erro
+error E;
+error E;
+fn main() {}
+// expect-error: 'E' já foi declarado neste escopo

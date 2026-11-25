@@ -1,0 +1,9 @@
+// Q1e (varredura da spec, capítulo 1): depois de "apelido." uma palavra reservada é aceita como nome
+import Random;
+fn main() {
+  Random.seed(7);
+  i32 a = Random.i32(1, 6);
+  f64 b = Random.f64();
+  print(a >= 1 and a <= 6, b >= 0.0ff and b < 1.0ff);
+}
+// expect: true true

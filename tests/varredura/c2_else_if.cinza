@@ -1,0 +1,14 @@
+// Q1e (varredura da spec, capítulo 2): else if encadeia sem chaves extras
+fn classe(i32 n) -> string {
+  if (n < 0) {
+    return "neg";
+  } else if (n == 0) {
+    return "zero";
+  } else {
+    return "pos";
+  }
+}
+fn main() {
+  print(classe(-1), classe(0), classe(5));
+}
+// expect: neg zero pos

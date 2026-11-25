@@ -1,0 +1,10 @@
+// Q1e (varredura da spec, capítulo 3): tipos como valores: ==, != e o nome no print
+enum Cor { A }
+error E;
+class C {}
+fn main() {
+  print(type(Cor.A) == Cor, type(E("x")) == E, type(new C()) != C, type(1) != i64, i64, list<string>);
+  print(type({1, "a"}), type(true), type("x"), type(1.5ff) == f64);
+}
+// expect: true true false true i64 list<string>
+// expect: pair<i32, string> bool string true

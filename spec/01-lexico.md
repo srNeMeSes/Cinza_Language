@@ -47,8 +47,8 @@ Palavras-chave:
 ```
 fn  return  if  else  while  for  in  true  false
 struct  class  pub  new  const  self  enum  interface  error
-break  continue  try  except  finally  throw  import  as
-and  or  not  cast
+break  continue  try  except  finally  throw  import  as  module
+and  or  not  cast  null  yield
 ```
 
 Nomes de tipo, também reservados:
@@ -159,6 +159,7 @@ fn main() {
 &&  ||  !                  lógicos (sinônimos: and, or, not)
 =   +=  -=  *=  /=  %=     atribuição
 ->                         tipo de retorno
+?                          tipo opcional (T?, seção 3.10)
 .   ,   ;   :              ponto, vírgula, ponto e vírgula, dois-pontos
 (   )   {   }   [   ]      agrupadores
 ```

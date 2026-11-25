@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): um struct não contém a si mesmo por valor
+struct S { i32 x = 0; S s; }
+fn main() {}
+// expect-error: Struct 'S' contém a si mesmo por valor

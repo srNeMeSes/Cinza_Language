@@ -1,0 +1,8 @@
+// Q1e (varredura da spec, capítulo 5): + com string concatena com qualquer primitivo, pela forma textual
+enum Cor { A }
+fn main() {
+  i64 g = 3000000000;
+  f32 f = 0.1f;
+  print("x" + g, f + "y", "b" + false, "n" + -1, "e" + 0.000001ff, "g" + cast<f64>("1e30"));
+}
+// expect: x3000000000 0.1y bfalse n-1 e1e-06 g1e+30

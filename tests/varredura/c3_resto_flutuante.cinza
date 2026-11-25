@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 3): % só existe entre inteiros
+fn main() {
+  print(5.ff % 2.ff);
+}
+// expect-error: Operador '%' só existe entre inteiros

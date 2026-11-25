@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): só assinaturas, sem corpo
+interface I { fn f() {} }
+fn main() {}
+// expect-error: na interface o método não tem corpo

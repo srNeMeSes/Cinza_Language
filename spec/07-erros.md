@@ -13,7 +13,7 @@ Os tipos embutidos:
 | `KeyError`           | leitura ou atualização (`d[k] = v`) de chave inexistente, `remove` de chave inexistente |
 | `ZeroDivisionError`  | `/` ou `%` por zero (inteiro ou ponto flutuante, inclusive `0.ff / 0.ff`); `Math.pow(0, negativo)` |
 | `OverflowError`      | resultado inteiro fora da faixa do tipo (`i32` ou `i64`); `cast<T>` para um tipo em que o valor não cabe; `Math.abs` do menor inteiro; `floor`/`ceil`/`round` fora de `i64`; resultado de ponto flutuante além do maior valor finito (`f32` ou `f64`: infinito não existe); `Math.exp`/`pow` grande demais; `Lists.sum` que estoura |
-| `IOError`            | fim da entrada em `input`; falha ao abrir, ler ou gravar em `Files` |
+| `IOError`            | falha ao abrir, ler ou gravar em `Files`; programa que não existe em `Process` (o fim da entrada em `input` não é erro: `null`) |
 | `StackOverflowError` | mais de 2000 chamadas aninhadas |
 | `TypeError`          | não é lançado pela linguagem (toda conferência de tipo é na compilação); existe para uso com `throw` |
 
@@ -51,7 +51,7 @@ fn main() {
 |-----------------|------|--------|
 | `LexicalError`  | léxico: caractere inválido, string sem fim, escape desconhecido, literal fora da faixa, identificador com acento | todos os do arquivo, juntos |
 | `SyntaxError`   | gramática | o analisador se recupera e relata os erros que encontrar |
-| `ImportError`   | módulos: arquivo não encontrado, o mesmo caminho em dois lugares, importação circular, nome reservado | o primeiro |
+| `ImportError`   | módulos: arquivo não encontrado, importação circular, `module` ausente ou com outro nome, nome reservado, `czm.mod` ou `czm.lock` inválido, pacote fora do lock ou do cache | o primeiro |
 | `SemanticError` | tipos, nomes, regras das declarações | o primeiro |
 
 Se houver erro de compilação, nada do programa é executado.

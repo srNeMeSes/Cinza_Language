@@ -1,0 +1,11 @@
+// Q1e (varredura da spec, capítulo 3): a alternativa do else só é avaliada quando o valor é null
+fn alt(i32 v) -> i32 { print("avaliou", v); return v; }
+fn main() {
+  i32? a = 1;
+  i32? b;
+  print(a else alt(10));
+  print(b else alt(20));
+}
+// expect: 1
+// expect: avaliou 20
+// expect: 20

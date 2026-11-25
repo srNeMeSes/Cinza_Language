@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 5): os campos de um erro são somente leitura
+fn main() {
+  Error e = ValueError("x");
+  e.message = "y";
+}
+// expect-error: Os campos de um erro são somente leitura

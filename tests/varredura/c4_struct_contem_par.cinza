@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): nem por um pair
+struct S { pair<i32, S> p; }
+fn main() {}
+// expect-error: Struct 'S' contém a si mesmo por valor

@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 8): Comparavel sozinho, sem os tipos, é erro
+interface Comparavel[T] { fn compara(T outro) -> i32; }
+fn f(Comparavel c) {}
+fn main() {}
+// expect-error: a interface genérica 'Comparavel' precisa dos tipos

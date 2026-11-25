@@ -1,0 +1,11 @@
+// Q1e (varredura da spec, capítulo 3): opcionais dentro de coleções e T cabendo em T? em argumento e retorno
+struct S { i32? idade; string nome; }
+fn f(string? s) -> i32? { if (s == null) { return null; } return 1; }
+fn main() {
+  dict<string, i32?> d = {{"a", null}, {"b", 2}};
+  pair<i32?, string> p = {null, "x"};
+  list<i32>? l = [1];
+  S s = new S(nome: "ana");
+  print(d, p, l, f("x"), f(null), s.idade, s);
+}
+// expect: {"a": null, "b": 2} {null, "x"} [1] 1 null null S{idade: null, nome: "ana"}

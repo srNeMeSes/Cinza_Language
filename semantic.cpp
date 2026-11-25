@@ -60,9 +60,24 @@ static std::string dicaCast(TypeRef esperado, TypeRef recebido) {
                "(ex.: valor else padrão) ou com if";
     if (recebido->is(TK::Null) && !esperado->is(TK::Optional))
         return ". null só cabe num tipo opcional: declare '" + esperado->str() + "?'";
+    // Q1e
+    if (recebido->is(TK::Void))
+        return ". A expressão é 'void' e não tem valor (a função não retorna nada)";
+    if (esperado->is(TK::Interface) && recebido->is(TK::Class))
+        return ". A classe '" + recebido->str() + "' não declara cumprir '" + esperado->str() +
+               "' (class " + recebido->str() + " : " + esperado->str() + ")";
+    if (esperado->is(TK::Class) && recebido->is(TK::Interface))
+        return ". Um valor do tipo interface não volta a ser a classe: use os métodos de '" +
+               recebido->str() + "'";
     auto conversivel = [](TypeRef t) { return t->isNumeric() || t->is(TK::String); };
     if (!conversivel(esperado) || !conversivel(recebido) || esperado == recebido) return "";
     return ". Converta com cast<" + esperado->str() + ">(valor)";
+}
+
+// Q1e: uma expressão void não é um valor (spec 3.1): não vira elemento de um literal
+static void exigeValor(TypeRef t, const std::string& onde, const Token& tok) {
+    if (t->is(TK::Void))
+        throw SemanticError(onde + ": a expressão é 'void' e não tem valor (a função não retorna nada)", tok);
 }
 
 // Mensagem de operação entre famílias diferentes (i32 + f64)
@@ -169,6 +184,12 @@ TypeRef TypeChecker::checkBinaryOp(TypeRef left, TokenType op, TypeRef right,
     // C1: operador como escrito no código (and ou &&; += numa atribuição composta)
     const std::string op_text = tok.lexeme.empty() ? tokenTypeToOperatorString(op) : tok.lexeme;
 
+    // Q1e: uma expressão void não é um valor (spec 3.1) — nem para comparar (f() == f())
+    if (left->is(TK::Void) || right->is(TK::Void))
+        throw SemanticError("Operador '" + op_text + "': o lado " +
+                            (left->is(TK::Void) ? "esquerdo" : "direito") +
+                            " é 'void' e não tem valor (a função não retorna nada)", tok);
+
     // Q1b: num opcional só valem == e != (com null, com outro do mesmo tipo ou com um valor do
     // tipo dele); o resto pede a ausência resolvida antes
     auto ausencia = [](TypeRef t) { return t->is(TK::Optional) || t->is(TK::Null); };
@@ -241,6 +262,9 @@ TypeRef TypeChecker::checkBinaryOp(TypeRef left, TokenType op, TypeRef right,
                 throw SemanticError(familiasMessage(tokenTypeToOperatorString(op), left, right), tok);
             }
             if (left->is(TK::String) && right->is(TK::String)) return types.boolType();
+            if (left->is(TK::Enum) && right->is(TK::Enum))   // Q1e
+                throw SemanticError("Comparação '" + tokenTypeToOperatorString(op) + "' entre valores de "
+                                    "enum: um enum só tem == e != (os valores não têm ordem nem número)", tok);
             throw SemanticError(
                 "Comparação '" + tokenTypeToOperatorString(op) +
                 "' não é suportada entre '" + l + "' e '" + r + "'", tok);
@@ -310,10 +334,18 @@ void SymbolTable::popScope() {
 // decrara os Symbols e evita redecração
 void SymbolTable::declare(const Symbol& sym, const Token& tok) {
     auto& current = scopes.back();                          // Obtém o escopo atual (topo da pilha)
-    if (current.count(sym.name)) {                          // Verifica se já existe um símbolo com o mesmo nome neste escopo
-        throw SemanticError(
-            "Declaração duplicada: '" + sym.name +          // Erro semântico: não é permitido redeclarar no mesmo escopo
-            "' já foi declarado neste escopo", tok);
+    if (auto it = current.find(sym.name); it != current.end()) {   // já existe neste escopo
+        // Q1e: onde está o primeiro; no nível superior, a lembrança de que não há sobrecarga
+        const Symbol& antes = it->second;
+        std::string onde;
+        if (antes.line > 0)
+            onde = " (na linha " + std::to_string(antes.line) + ")";
+        else if (const auto& k = builtinErrorKinds(); std::find(k.begin(), k.end(), sym.name) != k.end())
+            onde = ": é um tipo de erro embutido (capítulo 7 da spec)";
+        if (scopes.size() == 1 && antes.line > 0)
+            onde += ": não há sobrecarga, e dois itens do nível superior não têm o mesmo nome";
+        throw SemanticError("Declaração duplicada: '" + sym.name + "' já foi declarado neste escopo" + onde,
+                            tok);
     }
     current[sym.name] = sym;                                // Insere o símbolo no escopo atual
 }
@@ -871,8 +903,14 @@ void SemanticAnalyzer::analyze(std::vector<ModuleUnit>& units) {
         preRegisterDeclarations(program);
         checkStructCycles();   // C3
 
-        // Passo 2: analisar cada statement na ordem.
+        // Passo 2: analisar cada statement na ordem. Q1e: os const globais vêm antes, na ordem
+        // deles (spec 4.1): uma função, um método ou um campo enxerga um const declarado mais
+        // abaixo; o inicializador de um const continua só com os const de cima.
+        auto eh_const = [](const StmtPtr& s) { return s->node_kind == NodeKind::VarDecl; };
+        for (const auto& stmt : program.statements)
+            if (eh_const(stmt)) analyzeStmt(stmt.get());
         for (const auto& stmt : program.statements) {
+            if (eh_const(stmt)) continue;
             analyzeStmt(stmt.get());
             analisaInstancias();   // N2: cópias genéricas criadas por esta declaração
         }
@@ -1170,7 +1208,8 @@ void SemanticAnalyzer::confereCamposObrigatorios(ClassDecl* stmt, bool com_const
 
     if (!stmt->constructor)
         throwError("O campo '" + primeiro.name + "' da classe '" + nome + "' não tem valor inicial: declare um "
-                   "construtor que o atribua (" + nome + "(...) { " + primeiro.name + " = ...; }), dê a ele um "
+                   "construtor que o atribua (" + nome.substr(0, nome.find('[')) + "(...) { " + primeiro.name +
+                   " = ...; }), dê a ele um "
                    "valor inicial, ou declare-o opcional ('" + primeiro.type->toString() + "?', que nasce null)",
                    primeiro.token);
 
@@ -1344,10 +1383,10 @@ TypeRef SemanticAnalyzer::typeOf(Type* type) {
             if (!t->type_params.empty()) {
                 const std::string n = stripModulePrefixes(t->name);
                 if (!isKnownType(t->name))   // l[i32] com l uma lista: índice com um tipo
-                    throwError("'" + n + "' não é um struct genérico: depois de um nome, [tipos] só "
-                               "vale para struct genérico (Caixa[i32]); um índice é um valor, "
-                               "como " + n + "[0]", t->token);
-                throwError("'" + n + "' não é um struct genérico e não aceita tipos entre "
+                    throwError("'" + n + "' não é um tipo genérico: depois de um nome, [tipos] só "
+                               "vale para struct, classe ou interface genérica (Caixa[i32]); um "
+                               "índice é um valor, como " + n + "[0]", t->token);
+                throwError("'" + n + "' não é um tipo genérico e não aceita tipos entre "
                            "colchetes", t->token);
             }
         }
@@ -1608,7 +1647,10 @@ static TypeRef invalidDictKey(TypeRef type) {
 static std::string dictKeyMessage(TypeRef key_type) {
     if (key_type->isFloat())
         return "Chave de dict não pode ser '" + key_type->str() + "': comparação exata de ponto "
-               "flutuante não é confiável. Use i32, i64, string ou bool.";
+               "flutuante não é confiável. Use i32, i64, string, bool ou enum.";
+    if (key_type->is(TK::Optional))   // Q1e
+        return "Chave de dict não pode ser opcional ('" + key_type->str() + "'): uma chave sempre "
+               "existe. Use '" + key_type->elem()->str() + "'";
     return "Chave de dict deve ser i32, i64, string, bool ou enum, mas recebeu '" + key_type->str() + "'. "
            "Tipos compostos como list<>, pair<> e classes não podem ser chaves.";
 }
@@ -1668,6 +1710,9 @@ void SemanticAnalyzer::analyzeVarDecl(VarDeclStmt* stmt) {
     // Tipo CUSTOM deve ser uma classe declarada
     if (stmt->type->kind == Type::Kind::CUSTOM) {
         if (!isKnownType(stmt->type->name)) {
+            if (stmt->type->name == "type")   // Q1e
+                throwError("Não existe variável do tipo 'type': o valor de type(x) só serve para "
+                           "comparar com um tipo (type(x) == i32)", stmt->token);
             throwError("Tipo desconhecido '" + stmt->type->name + "'", stmt->token);
         }
     }
@@ -1692,6 +1737,9 @@ void SemanticAnalyzer::analyzeVarDecl(VarDeclStmt* stmt) {
                                         is_var ? nullptr : declared_type);
 
         if (is_var) {
+            if (init_type->is(TK::Void))   // Q1e
+                throwError("'" + stmt->name + "' não tem valor inicial: a expressão é 'void' (a função "
+                           "não retorna nada)", stmt->token);
             if (init_type->is(TK::Null))   // Q1b
                 throwError("'var' não infere o tipo de null: declare o tipo opcional, ex.: string? " +
                            stmt->name + " = null;", stmt->token);
@@ -2703,6 +2751,14 @@ TypeRef SemanticAnalyzer::analyzeIdentifier(IdentifierExpr* expr) {
             expr->type_value = types.structType(copia);
             return expr->resolved_type = types.typeType();
         }
+        // Q1e: um valor de enum escrito sem o enum (Verde em vez de Cor.Verde)
+        for (const auto& [curto, completo] : modules[current_module].globals)
+            if (auto en = enum_table.find(completo); en != enum_table.end())
+                for (const std::string& valor : en->second->members)
+                    if (valor == expr->name)
+                        throwError("Variável '" + expr->name + "' não declarada: '" + expr->name +
+                                   "' é um valor do enum '" + curto + "'; escreva " + curto + "." +
+                                   expr->name + " (o valor de um enum é sempre qualificado)", expr->token);
         throwError("Variável '" + expr->name + "' não declarada", expr->token);
     }
     expr->name = full;       // C5: global de módulo vira nome completo
@@ -2892,6 +2948,12 @@ TypeRef SemanticAnalyzer::analyzeCall(CallExpr* expr) {
     }
 
     if (!sym) {
+        // Q1e: o nome existe num módulo importado (pub): falta o apelido
+        for (const auto& [apelido, idx] : modules[current_module].imports)
+            if (modules[idx].pub.count(expr->function_name))
+                throwError("Função '" + expr->function_name + "' não declarada: o módulo '" + apelido +
+                           "' tem uma; os nomes de um módulo se usam pelo apelido: " + apelido + "." +
+                           expr->function_name + "(...)", expr->token);
         throwError("Função '" + expr->function_name + "' não declarada",
                    expr->token);
     }
@@ -3029,7 +3091,13 @@ TypeRef SemanticAnalyzer::analyzeNativeCall(CallExpr* expr, const NativeFn& fn) 
             TypeRef mostrado = expected ? expected : param;
             throwError("Argumento " + std::to_string(i + 1) + " de '" + nome +
                        "': esperado " + tiposAceitos(mostrado) + ", mas recebeu '" + at->str() + "'" +
-                       (mostrado->is(TK::TypeVar) ? std::string() : dicaCast(mostrado, at)),
+                       (mostrado->is(TK::TypeVar)
+                            ? (mostrado->name == "flutuante" && at->isInteger()   // Q1e
+                                   ? std::string(": inteiro não entra onde se espera ponto flutuante; "
+                                                 "escreva o literal com .ff (2.ff) ou converta com "
+                                                 "cast<f64>(n)")
+                                   : std::string())
+                            : dicaCast(mostrado, at)),
                        expr->token);
         }
     }
@@ -3450,6 +3518,26 @@ static bool lerFormato(const std::string& f, int& largura, int& casas) {
     return i == f.size() && !f.empty();
 }
 
+// Q1e: por que lerFormato recusou o formato (a regra que faltou, para a mensagem)
+static std::string motivoFormato(const std::string& f) {
+    if (!f.empty() && f[0] == '0')
+        return ": a largura não começa com 0 (não há preenchimento com zeros; use "
+               "Strings.pad_left(cast<string>(n), 5, \"0\"))";
+    size_t i = 0;
+    auto numero = [&]() -> long long {
+        long long n = 0;
+        while (i < f.size() && f[i] >= '0' && f[i] <= '9' && n <= 100000) n = n * 10 + (f[i++] - '0');
+        while (i < f.size() && f[i] >= '0' && f[i] <= '9') ++i;
+        return n;
+    };
+    if (numero() > 1000) return ": a largura vai até 1000";
+    if (i < f.size() && f[i] == '.') {
+        ++i;
+        if (numero() > 100) return ": as casas decimais vão de 0 a 100";
+    }
+    return "";
+}
+
 // printf("Olá, {nome}!") / format(...): o texto literal vira trechos fixos e
 // expressões {expr[:formato]}, cada uma analisada como qualquer expressão.
 // {{ e }} escrevem chaves. printf imprime (como print, pulando linha);
@@ -3528,8 +3616,9 @@ TypeRef SemanticAnalyzer::analyzeInterpolation(CallExpr* expr) {
         if (dois_pontos != std::string::npos) {
             const std::string formato = s.substr(dois_pontos + 1, j - dois_pontos - 1);
             if (!lerFormato(formato, parte.width, parte.precision))
-                throwError("Formato inválido '" + formato + "' em '{" + codigo + ":" + formato + "}'. Use a "
-                           "largura ({x:8}), as casas decimais ({x:.2f}) ou as duas ({x:8.2f})", origem);
+                throwError("Formato inválido '" + formato + "' em '{" + codigo + ":" + formato + "}'" +
+                           motivoFormato(formato) + ". Use a largura ({x:8}), as casas decimais ({x:.2f}) "
+                           "ou as duas ({x:8.2f})", origem);
         }
         TypeRef t = analyzeExpr(parte.expr.get());
         if (t->is(TK::Void))
@@ -3650,7 +3739,7 @@ TypeRef SemanticAnalyzer::analyzeNew(NewExpr* expr) {
             std::string lista;
             for (size_t k = 0; k < obrigatorios.size(); ++k)
                 lista += (k ? ", '" : "'") + obrigatorios[k] + "'";
-            throwError("Construtor de '" + info.name + "': " +
+            throwError("Na criação de '" + info.name + "': " +
                        (obrigatorios.size() == 1 ? "o campo " + lista + " não tem valor inicial"
                                                  : "os campos " + lista + " não têm valor inicial") +
                        (obrigatorios.size() == 1 ? "; informe-o" : "; informe-os") +
@@ -3659,7 +3748,7 @@ TypeRef SemanticAnalyzer::analyzeNew(NewExpr* expr) {
         }
         if (n != 0 && n != info.fields.size()) {
             throwError(
-                "Construtor de '" + info.name + "': informe todos os " +
+                "Na criação de '" + info.name + "': informe todos os " +
                 std::to_string(info.fields.size()) + " campos, em ordem, " +
                 (obrigatorios.empty() ? "ou nenhum (valores padrão), " : "") +
                 "ou os campos pelo nome (campo: valor), mas recebeu " + std::to_string(n) +
@@ -3740,8 +3829,11 @@ TypeRef SemanticAnalyzer::analyzeListLiteral(ListLiteralExpr* expr, TypeRef expe
 
     std::vector<TypeRef> elem_types;
     elem_types.reserve(expr->elements.size());
-    for (auto& elem : expr->elements)
-        elem_types.push_back(analyzeExpr(elem.get(), T));
+    for (size_t i = 0; i < expr->elements.size(); ++i) {
+        elem_types.push_back(analyzeExpr(expr->elements[i].get(), T));
+        exigeValor(elem_types.back(), "O elemento " + std::to_string(i + 1) + " da lista",
+                   expr->elements[i]->token);
+    }
 
     if (T) {
         bool fits = std::all_of(elem_types.begin(), elem_types.end(),
@@ -3815,6 +3907,8 @@ TypeRef SemanticAnalyzer::analyzeDictLiteral(DictLiteralExpr* expr, TypeRef expe
     for (size_t i = 0; i < expr->pairs.size(); ++i) {
         TypeRef kt = analyzeExpr(expr->pairs[i].first.get(),  K);
         TypeRef vt = analyzeExpr(expr->pairs[i].second.get(), V);
+        exigeValor(kt, "A chave da entrada " + std::to_string(i + 1) + " do dict", expr->pairs[i].first->token);
+        exigeValor(vt, "O valor da entrada " + std::to_string(i + 1) + " do dict", expr->pairs[i].second->token);
 
         // v2.00 #13 / A10: chaves só inteiros, string, bool ou enum
         if (!kt->isInteger() && !kt->is(TK::String) && !kt->is(TK::Bool) && !kt->is(TK::Enum)) {
@@ -3905,6 +3999,8 @@ TypeRef SemanticAnalyzer::analyzePairLiteral(PairLiteralExpr* expr, TypeRef expe
 
     TypeRef first_type  = analyzeExpr(expr->first.get(),  A);
     TypeRef second_type = analyzeExpr(expr->second.get(), B);
+    exigeValor(first_type, "O primeiro elemento do par", expr->first->token);
+    exigeValor(second_type, "O segundo elemento do par", expr->second->token);
 
     if (A &&
         TypeChecker::isAssignable(A, first_type) &&
@@ -4301,7 +4397,11 @@ TypeRef SemanticAnalyzer::analyzeGenericCall(CallExpr* expr, const Symbol& sym) 
             }
             throwError("tipos conflitantes para '" + g.type_params[static_cast<size_t>(k)].lexeme +
                        "' em '" + nome + "': '" + l.tipo->str() + "' e '" + a->str() + "'" +
-                       dicaCast(l.tipo, a), expr->token);
+                       (dentro || l.fixo
+                            ? std::string(": dentro de list, dict, pair ou de um tipo genérico, o tipo "
+                                          "precisa ser o mesmo (invariância)")   // Q1e
+                            : dicaCast(l.tipo, a)),
+                       expr->token);
         };
         std::function<void(const Type*, TypeRef, bool)> deduz =
             [&](const Type* p, TypeRef a, bool dentro) {

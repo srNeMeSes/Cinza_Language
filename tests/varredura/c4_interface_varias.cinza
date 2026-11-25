@@ -1,0 +1,15 @@
+// Q1e (varredura da spec, capítulo 4): várias interfaces depois de ":", separadas por vírgula
+interface A { fn a() -> i32; }
+interface B { fn b() -> i32; }
+class C : A, B {
+  pub {
+    fn a() -> i32 { return 1; }
+    fn b() -> i32 { return 2; }
+  }
+}
+fn main() {
+  A x = new C();
+  B y = new C();
+  print(x.a() + y.b());
+}
+// expect: 3

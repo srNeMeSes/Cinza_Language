@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 5): um try cujo except não retorna não garante
+fn f() -> i32 {
+  try { return 1; } except (Error e) { print(1); }
+}
+fn main() {}
+// expect-error: não retorna em todos os caminhos

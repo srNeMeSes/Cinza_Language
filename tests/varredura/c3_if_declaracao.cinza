@@ -1,0 +1,17 @@
+// Q1e (varredura da spec, capítulo 3): if com declaração: var vale, o nome só existe no bloco, uma interface que a classe cumpre vale
+interface I { fn n() -> i32; }
+class C : I {
+  pub {
+    fn n() -> i32 { return 7; }
+  }
+}
+fn acha(bool ok) -> C? { if (ok) { return new C(); } return null; }
+fn main() {
+  i32? a = 4;
+  if (var x = a) { print(x + 1, type(x)); }
+  if (I i = acha(true)) { print(i.n()); }
+  if (C c = acha(false)) { print("não"); } else { print("sem C"); }
+}
+// expect: 5 i32
+// expect: 7
+// expect: sem C

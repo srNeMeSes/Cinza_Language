@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 4): uma função void pode usar return; para sair antes
+fn f(i32 n) {
+  if (n > 0) { return; }
+  print("zero");
+}
+fn main() { f(1); f(0); }
+// expect: zero

@@ -250,6 +250,15 @@ Token Lexer::number() {
                           ".ff (f64)");
     }
 
+    // 0x10, 1e10, 5abc: o número colado em letras é um literal só, e inválido (não há
+    // prefixo de base nem expoente; seção 1.5 da spec)
+    if (identChar(peek())) {
+        while (identChar(peek())) advance();
+        return errorToken("Literal '" + source.substr(start, current - start) + "' inválido: um número "
+                          "não pode vir colado em letras (não há prefixo de base, como 0x, nem expoente, "
+                          "como 1e10)");
+    }
+
     Token token = makeToken(TokenType::INTEGER_LITERAL);
     const char* first = token.lexeme.data();
     const char* last  = first + token.lexeme.size();
@@ -468,7 +477,17 @@ Token Lexer::nextToken() {
         case ']': return makeToken(TokenType::RBRACKET);
         case ',': return makeToken(TokenType::COMMA);
         case ';': return makeToken(TokenType::SEMICOLON);
-        case '.': return makeToken(TokenType::DOT);
+        case '.': {
+            // .5ff: o flutuante começa por dígito (seção 1.5); nenhum outro uso do ponto vem
+            // seguido de dígito (não há acesso por número, como t.0)
+            if (isAsciiDigit(peek())) {
+                while (isAsciiDigit(peek()) || isAsciiAlnum(peek()) || peek() == '_') advance();
+                const std::string texto = source.substr(start, current - start);
+                return errorToken("Literal '" + texto + "' inválido: o número começa por dígito; "
+                                  "escreva 0" + texto);
+            }
+            return makeToken(TokenType::DOT);
+        }
         case ':': return makeToken(TokenType::COLON);
         case '?': return makeToken(TokenType::QUESTION);
         

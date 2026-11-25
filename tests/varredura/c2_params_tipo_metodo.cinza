@@ -1,0 +1,8 @@
+// Q1e (varredura da spec, capítulo 2): os parâmetros de tipo só em função do nível superior (não num método)
+class C {
+  pub {
+    fn m[T](T x) -> T { return x; }
+  }
+}
+fn main() {}
+// expect-error: Métodos não podem ser genéricos

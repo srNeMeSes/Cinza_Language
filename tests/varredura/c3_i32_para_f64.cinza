@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 3): inteiro não vira ponto flutuante
+fn main() {
+  f64 x = 1;
+}
+// expect-error: Escreva 1.ff

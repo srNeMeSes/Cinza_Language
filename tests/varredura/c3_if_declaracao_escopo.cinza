@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): o nome do if com declaração só existe no primeiro bloco
+fn main() {
+  i32? a = 1;
+  if (i32 x = a) {} else { print(x); }
+}
+// expect-error: Variável 'x' não declarada

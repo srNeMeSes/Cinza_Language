@@ -1,0 +1,8 @@
+// Q1e (varredura da spec, capítulo 2): os campos nomeados (nome: valor) só na criação de struct
+class C {
+  i32 x = 0;
+}
+fn main() {
+  C c = new C(x: 1);
+}
+// expect-error: só existem na criação de struct

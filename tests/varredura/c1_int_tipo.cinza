@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 1): o literal é i32 se couber, senão i64
+fn main() {
+  print(type(2147483647), type(2147483648), type(-2147483649));
+}
+// expect: i32 i64 i64

@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 3): T? com outro T? de tipo diferente não se compara
+fn main() {
+  i32? a;
+  string? b;
+  print(a == b);
+}
+// expect-error: entre 'i32?' e 'string?'

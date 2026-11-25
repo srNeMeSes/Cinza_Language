@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 8): com tipos explícitos, todos os parâmetros, na ordem
+fn f[T, U](T a, U b) {}
+fn main() { f[i32](1, 2); }
+// expect-error: 'f' tem 2 parâmetro(s) de tipo (T, U), mas a chamada informa 1

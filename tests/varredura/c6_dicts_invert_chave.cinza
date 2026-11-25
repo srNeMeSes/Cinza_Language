@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 6): invert com valores que não podem ser chave é erro de compilação
+import Dicts;
+fn main() {
+  dict<string, f64> d;
+  print(Dicts.invert(d));
+}
+// expect-error: 'Dicts.invert' devolveria um dict com chave 'f64'

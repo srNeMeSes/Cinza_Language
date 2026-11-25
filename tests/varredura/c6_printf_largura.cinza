@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 6): largura de até 1000
+fn main() {
+  i32 n = 1;
+  printf("{n:1001}");
+}
+// expect-error: a largura vai até 1000

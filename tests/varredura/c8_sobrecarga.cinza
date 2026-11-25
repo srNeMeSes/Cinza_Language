@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 8): uma genérica e outro item com o mesmo nome são erro
+fn f[T](T a) {}
+fn f(i32 a) {}
+fn main() {}
+// expect-error: não há sobrecarga

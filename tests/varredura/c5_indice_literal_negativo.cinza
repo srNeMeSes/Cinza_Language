@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 5): um literal negativo como índice de list é erro de compilação
+fn main() {
+  list<i32> l = [1];
+  print(l[-1]);
+}
+// expect-error: Índice negativo em lista não é permitido

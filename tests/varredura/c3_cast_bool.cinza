@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 3): bool não converte
+fn main() {
+  print(cast<i32>(true));
+}
+// expect-error: cast<i32>(bool) não existe

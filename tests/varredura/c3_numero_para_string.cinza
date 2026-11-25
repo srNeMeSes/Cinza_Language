@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 3): número não vira string
+fn main() {
+  string s = 1;
+}
+// expect-error: Converta com cast<string>(valor)

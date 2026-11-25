@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): um T? nunca cabe num T (retorno)
+fn f(i32? a) -> i32 { return a; }
+fn main() {
+
+}
+// expect-error: esperado 'i32', mas retornando 'i32?'

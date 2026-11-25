@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 2): o try precisa de pelo menos um except ou do finally
+fn main() {
+  try {
+    print(1);
+  }
+}
+// expect-error: pelo menos um 'except' ou um 'finally'

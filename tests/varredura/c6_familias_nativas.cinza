@@ -1,0 +1,15 @@
+// Q1e (varredura da spec, capítulo 6): o mesmo nome na assinatura: mesma família, o mais estreito alargado; i64 aceita i32, f64 aceita f32
+import Math;
+import Strings;
+fn main() {
+  try { print(type(Math.max(1, cast<i64>(2)))); } except (Error e) { print(e.kind); }
+  try { print(type(Math.max(1.f, 2.ff))); } except (Error e) { print(e.kind); }
+  try { print(type(Math.min(1.f, 2.f))); } except (Error e) { print(e.kind); }
+  try { print(Strings.repeat("a", 3)); } except (Error e) { print(e.kind); }
+  try { print(type(Strings.find("abc", "c"))); } except (Error e) { print(e.kind); }
+}
+// expect: i64
+// expect: f64
+// expect: f32
+// expect: aaa
+// expect: i32?

@@ -1,0 +1,14 @@
+// Q1e (varredura da spec, capítulo 5): erro não capturado termina o programa com código 1 e o stack trace, da chamada mais interna para fora
+fn interna() { throw ValueError("fundo"); }
+fn externa() { interna(); }
+fn main() {
+  print("antes");
+  externa();
+  print("nunca");
+}
+// expect: antes
+// expect-error: ValueError: fundo
+// expect-error: em interna
+// expect-error: em externa
+// expect-error: em main
+// expect-exit: 1

@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): no const global, literal de dict não é permitido
+const dict<string, i32> D = {{"a", 1}};
+fn main() {}
+// expect-error: precisa ser uma expressão constante

@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 1): 9223372036854775808 só vale depois do "-" unário
+fn main() {
+  i64 x = 9223372036854775808;
+}
+// expect-error: 9223372036854775808

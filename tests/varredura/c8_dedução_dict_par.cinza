@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 8): T deduzido de dentro de dict e pair
+fn chaves[K, V](dict<K, V> d) -> list<K> { return d.keys(); }
+fn segundo[A, B](pair<A, B> p) -> B { return p.second; }
+fn main() {
+  print(chaves({{"a", 1}, {"b", 2}}), segundo({1, "dois"}));
+}
+// expect: ["a", "b"] dois

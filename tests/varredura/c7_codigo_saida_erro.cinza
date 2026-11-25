@@ -1,0 +1,3 @@
+// Q1e (varredura da spec, capítulo 7): um erro de runtime não capturado sai com 1
+fn main() { throw ValueError("x"); }
+// expect-exit: 1

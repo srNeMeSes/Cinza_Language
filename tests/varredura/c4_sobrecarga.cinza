@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 4): não há sobrecarga: dois itens com o mesmo nome são erro
+fn f(i32 x) {}
+fn f(string s) {}
+fn main() {}
+// expect-error: não há sobrecarga

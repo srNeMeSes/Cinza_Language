@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): só == e != se aplicam
+enum Cor { A, B }
+fn main() { print(Cor.A < Cor.B); }
+// expect-error: um enum só tem == e !=

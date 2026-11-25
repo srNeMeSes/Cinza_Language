@@ -1,0 +1,3 @@
+// Q1e (varredura da spec, capítulo 5): listas não se comparam por ordem
+fn main() { print([1] < [2]); }
+// expect-error: Comparação '<' não é suportada entre 'list<i32>' e 'list<i32>'

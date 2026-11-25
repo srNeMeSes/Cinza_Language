@@ -1,0 +1,17 @@
+// Q1e (varredura da spec, capítulo 5): na cópia rasa, um campo objeto continua o mesmo objeto
+class C {
+  i32 n = 0;
+  pub {
+    fn inc() { n += 1; }
+    fn valor() -> i32 { return n; }
+  }
+}
+struct S { C c = new C(); dict<string, i32> d; }
+fn main() {
+  S a = new S();
+  S b = a;
+  b.c.inc();
+  b.d.add({"x", 1});
+  print(a.c.valor(), a.d);
+}
+// expect: 1 {"x": 1}

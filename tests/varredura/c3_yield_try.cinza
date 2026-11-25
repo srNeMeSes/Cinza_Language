@@ -1,0 +1,8 @@
+// Q1e (varredura da spec, capítulo 3): yield não sai de dentro de um try
+fn main() {
+  i32? a;
+  i32 b = a else {
+    try { yield 1; } except (Error e) { yield 2; }
+  };
+}
+// expect-error: 'yield' não pode sair de dentro de um try

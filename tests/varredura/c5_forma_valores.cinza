@@ -1,0 +1,10 @@
+// Q1e (varredura da spec, capítulo 5): a forma textual de objeto, erro, enum, tipo, string em coleções e aninhados
+enum Cor { Verde }
+class Pessoa {}
+struct S { string s = "a"; list<string> l; }
+fn main() {
+  print(new Pessoa(), ValueError("msg"), Cor.Verde, list<i64>, [["a"], ["b", "c"]], new S(), {{"k", [1]}});
+  print("" + 1 == "1", format("{Cor.Verde}") == "Cor.Verde");
+}
+// expect: <Pessoa object> ValueError: msg Cor.Verde list<i64> [["a"], ["b", "c"]] S{s: "a", l: []} {"k": [1]}
+// expect: true true

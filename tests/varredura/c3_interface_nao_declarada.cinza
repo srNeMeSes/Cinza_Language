@@ -1,0 +1,11 @@
+// Q1e (varredura da spec, capítulo 3): a classe que não declarou a interface não é aceita, mesmo com os métodos
+interface Forma { fn area() -> f64; }
+class R {
+  pub {
+    fn area() -> f64 { return 1.ff; }
+  }
+}
+fn main() {
+  Forma f = new R();
+}
+// expect-error: A classe 'R' não declara cumprir 'Forma'

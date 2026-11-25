@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 3): sem tipo esperado, o literal de lista toma o tipo mais largo da família
+fn main() {
+  print(type([1, 2]), type([1, 3000000000]), type([1.f, 2.5ff]), type([1.f]));
+}
+// expect: list<i32> list<i64> list<f64> list<f32>

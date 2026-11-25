@@ -1,0 +1,3 @@
+// Q1e (varredura da spec, capítulo 4): o arquivo principal precisa ter uma main
+fn f() {}
+// expect-error: Função 'main' não encontrada

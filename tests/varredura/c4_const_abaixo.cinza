@@ -1,0 +1,12 @@
+// Q1e (varredura da spec, capítulo 4): uma função, um método e o valor inicial de um campo enxergam um const declarado mais abaixo (só o inicializador de um const fica com os de cima); antes dava "Variável 'L' não declarada"
+fn main() { print(L, f(), new C().x(), D); }
+fn f() -> i32 { return L * 2; }
+class C {
+  i32 v = L + 1;
+  pub {
+    fn x() -> i32 { return v + L; }
+  }
+}
+const i32 L = 1;
+const i32 D = L + 10;
+// expect: 1 2 3 11

@@ -1,0 +1,8 @@
+// Q1e (varredura da spec, capítulo 8): dentro de coleções, o tipo é sempre o mesmo (sem promover)
+fn par[T](list<T> a, list<T> b) {}
+fn main() {
+  list<i32> a = [1];
+  list<i64> b = [2];
+  par(a, b);
+}
+// expect-error: o tipo precisa ser o mesmo (invariância)

@@ -1,0 +1,30 @@
+// Q1e (varredura da spec, capítulo 5): a tabela de cópia: pair e struct copiados; list, dict, objeto e erro compartilhados
+struct S { i32 x = 0; }
+class C {
+  i32 n = 0;
+  pub {
+    fn inc() { n += 1; }
+    fn valor() -> i32 { return n; }
+  }
+}
+fn main() {
+  pair<i32, string> p = {1, "a"};
+  pair<i32, string> q = p;
+  q = {2, "b"};
+  S s = new S();
+  S t = s;
+  t.x = 5;
+  list<i32> l = [1];
+  list<i32> m = l;
+  m.add(2);
+  dict<string, i32> d;
+  dict<string, i32> e = d;
+  e.add({"k", 1});
+  C c = new C();
+  C o = c;
+  o.inc();
+  Error x = ValueError("v");
+  Error y = x;
+  print(p, s.x, l, d, c.valor(), x == y, y.message);
+}
+// expect: {1, "a"} 0 [1, 2] {"k": 1} 1 true v

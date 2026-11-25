@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): um arquivo que não existe é ImportError
+import modulos.nao_existe;
+fn main() {}
+// expect-error: módulo 'modulos.nao_existe' não encontrado

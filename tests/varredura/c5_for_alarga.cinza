@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 5): for (i64 x in lista_de_i32) alarga cada elemento
+fn main() {
+  list<i32> l = [2147483647];
+  for (i64 x in l) { print(x + 1); }
+}
+// expect: 2147483648

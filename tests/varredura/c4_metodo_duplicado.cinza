@@ -1,0 +1,9 @@
+// Q1e (varredura da spec, capítulo 4): declarar o mesmo método duas vezes é erro
+class C {
+  pub {
+    fn m() {}
+    fn m() {}
+  }
+}
+fn main() {}
+// expect-error: Método 'm' declarado mais de uma vez

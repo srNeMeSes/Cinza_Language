@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 5): objetos não se concatenam
+class C {}
+fn main() { print("a" + new C()); }
+// expect-error: Operador '+' não é suportado entre 'string' e 'C'

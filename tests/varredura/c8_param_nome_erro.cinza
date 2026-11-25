@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 8): nem o de um erro do módulo
+error E;
+fn f[E](E a) {}
+fn main() {}
+// expect-error: o parâmetro de tipo 'E' tem o nome de um tipo declarado

@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 5): repetir um tipo de except é erro
+fn main() {
+  try {} except (ValueError e) {} except (ValueError f) {}
+}
+// expect-error: 'except (ValueError ...)' repetido

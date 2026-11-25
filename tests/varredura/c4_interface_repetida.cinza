@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): sem repetir nomes de método
+interface I { fn f(); fn f(); }
+fn main() {}
+// expect-error: Método 'f' repetido na interface 'I'

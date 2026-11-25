@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 2): não há T??
+fn main() {
+  i32?? x;
+}
+// expect-error: não há opcional de opcional

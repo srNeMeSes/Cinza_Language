@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 6): {x:.2f} só para números
+fn main() {
+  string s = "x";
+  printf("{s:.2f}");
+}
+// expect-error: O formato de casas decimais só vale para números

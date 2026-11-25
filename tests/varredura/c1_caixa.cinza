@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 1): maiúsculas e minúsculas são diferentes (nome e Nome são distintos)
+fn main() {
+  i32 nome = 1;
+  i32 Nome = 2;
+  print(nome, Nome);
+}
+// expect: 1 2

@@ -1,0 +1,10 @@
+// Q1e (varredura da spec, capítulo 4): com campo obrigatório, os valores iniciais não usam o objeto
+class C {
+  i32 x;
+  i32 y = x + 1;
+  pub {
+    C() { x = 1; }
+  }
+}
+fn main() {}
+// expect-error: O valor inicial de 'y' não pode usar o objeto

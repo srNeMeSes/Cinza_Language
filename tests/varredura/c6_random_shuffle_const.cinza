@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 6): shuffle numa lista const é erro
+import Random;
+fn main() {
+  const list<i32> l = [1];
+  Random.shuffle(l);
+}
+// expect-error: 'Random.shuffle' altera a lista, mas 'l' é const

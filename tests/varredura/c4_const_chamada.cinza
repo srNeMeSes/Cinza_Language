@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 4): no const global, chamadas de função não são permitidas
+fn f() -> i32 { return 1; }
+const i32 X = f();
+fn main() {}
+// expect-error: precisa ser uma expressão constante

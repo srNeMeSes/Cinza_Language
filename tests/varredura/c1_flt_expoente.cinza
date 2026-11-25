@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 1): o literal 1e10 não é válido
+fn main() {
+  print(1e10);
+}
+// expect-error: Literal '1e10' inválido

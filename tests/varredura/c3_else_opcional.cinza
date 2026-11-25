@@ -1,0 +1,8 @@
+// Q1e (varredura da spec, capítulo 3): else com outro T? deixa o resultado T?
+fn main() {
+  i32? a;
+  i32? b;
+  var c = a else b;
+  print(type(c), c);
+}
+// expect: i32? null

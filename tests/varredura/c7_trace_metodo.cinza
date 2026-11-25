@@ -1,0 +1,8 @@
+// Q1e (varredura da spec, capítulo 7): um método aparece como Classe.metodo
+class C {
+  pub {
+    fn m() { throw KeyError("k"); }
+  }
+}
+fn main() { new C().m(); }
+// expect-error:     em C.m (

@@ -1,0 +1,10 @@
+// Q1e (varredura da spec, capítulo 5): for num dict recebe um pair<K, V>, na ordem de inserção
+fn main() {
+  dict<string, i32> d = {{"b", 2}, {"a", 1}};
+  for (pair<string, i32> p in d) { print(p.first, p.second); }
+  for (var p in d) { print(type(p)); }
+}
+// expect: b 2
+// expect: a 1
+// expect: pair<string, i32>
+// expect: pair<string, i32>

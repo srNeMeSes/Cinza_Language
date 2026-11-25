@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 4): um parâmetro com o nome de um apelido é erro
+import Math;
+fn f(i32 Math) {}
+fn main() {}
+// expect-error: 'Math' já é o apelido de um módulo importado

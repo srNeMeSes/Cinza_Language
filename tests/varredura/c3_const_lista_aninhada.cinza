@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): uma lista const não muda em nenhuma profundidade
+fn main() {
+  const list<list<i32>> l = [[1]];
+  l[0].add(2);
+}
+// expect-error: Listas const não podem ser modificadas

@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 8): var não vale como argumento de tipo
+fn f[T]() {}
+fn main() { f[var](); }
+// expect-error: 'var' não pode ser o tipo de 'T'

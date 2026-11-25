@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 8): os parâmetros de tipo não se repetem
+fn f[T, T](T a) {}
+fn main() {}
+// expect-error: Parâmetro de tipo 'T' repetido em 'f'

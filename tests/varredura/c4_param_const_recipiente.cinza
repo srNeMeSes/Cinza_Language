@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): um parâmetro const recipiente não pode ser alterado
+fn f(const list<i32> l) { l.add(1); }
+fn main() {}
+// expect-error: Listas const não podem ser modificadas

@@ -1,0 +1,21 @@
+// Q1e (varredura da spec, capítulo 6): Lists.copy é rasa: objetos compartilhados; structs, valores
+import Lists;
+class C {
+  i32 n = 0;
+  pub {
+    fn inc() { n += 1; }
+    fn valor() -> i32 { return n; }
+  }
+}
+struct S { i32 x = 0; }
+fn main() {
+  list<C> a = [new C()];
+  list<C> b = Lists.copy(a);
+  b[0].inc();
+  b.add(new C());
+  list<S> s = [new S()];
+  list<S> t = Lists.copy(s);
+  t[0].x = 9;
+  print(a[0].valor(), a.size(), s[0].x);
+}
+// expect: 1 1 0

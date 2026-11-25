@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): não há número por trás (Cor.A + 1)
+enum Cor { A }
+fn main() { print(Cor.A + 1); }
+// expect-error: Operador '+' não é suportado entre 'Cor' e 'i32'

@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 8): o tipo de um struct genérico também se escreve como valor
+struct Par[A, B] { A a; B b; }
+fn main() {
+  Par[string, i32] p = new Par[string, i32]("a", 1);
+  print(type(p) == Par[string, i32], type(p) == Par[string, i64], Par[i32, i32]);
+}
+// expect: true false Par[i32, i32]

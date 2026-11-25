@@ -2,4 +2,4 @@
 fn main() {
   dict<string?, i32> d;
 }
-// expect-error: Chave de dict deve ser i32, i64, string, bool ou enum, mas recebeu 'string?'
+// expect-error: Chave de dict não pode ser opcional ('string?')

@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): else null é erro
+fn main() {
+  i32? a;
+  i32? b = a else null;
+}
+// expect-error: 'else null' não resolve a ausência

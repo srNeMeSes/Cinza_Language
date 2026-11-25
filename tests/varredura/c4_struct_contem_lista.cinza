@@ -1,0 +1,8 @@
+// Q1e (varredura da spec, capítulo 4): dentro de uma list, um struct pode conter a si mesmo
+struct Arv { i32 v = 0; list<Arv> filhos; }
+fn main() {
+  Arv a = new Arv(v: 1);
+  a.filhos.add(new Arv(v: 2));
+  print(a);
+}
+// expect: Arv{v: 1, filhos: [Arv{v: 2, filhos: []}]}

@@ -1,0 +1,3 @@
+// Q1e (varredura da spec, capítulo 6): um nome inexistente na interpolação é erro de compilação
+fn main() { printf("{nada}"); }
+// expect-error: Variável 'nada' não declarada

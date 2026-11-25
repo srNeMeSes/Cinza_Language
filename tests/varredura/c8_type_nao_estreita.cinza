@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 8): type(x) == T compara com o tipo concreto, mas não estreita: todo o corpo vale para a cópia
+fn descreve[T](T x) -> string {
+  if (type(x) == string) { return "texto"; }
+  return "outro";
+}
+fn main() { print(descreve("a"), descreve(1)); }
+// expect: texto outro

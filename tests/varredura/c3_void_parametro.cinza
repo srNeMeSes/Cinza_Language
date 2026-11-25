@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): nenhum parâmetro pode ser void
+fn f(void x) {}
+fn main() {
+
+}
+// expect-error: Tipo 'void' não pode ser usado no parâmetro 'x'

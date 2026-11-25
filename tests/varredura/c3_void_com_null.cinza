@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): comparar uma expressão void com null também é erro (não há 'void?')
+fn f() {}
+fn main() {
+  print(null == f());
+}
+// expect-error: Operador '==': o lado direito é 'void'

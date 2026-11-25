@@ -1,0 +1,10 @@
+// Q1e (varredura da spec, capítulo 2): a else b else c é a else (b else c)
+fn main() {
+  i32? a;
+  i32? b = 7;
+  i32 c = a else b else 9;
+  i32? d;
+  i32 e = a else d else 9;
+  print(c, e);
+}
+// expect: 7 9

@@ -1,0 +1,9 @@
+// Q1e (varredura da spec, capítulo 4): um campo obrigatório do próprio tipo é erro
+class No {
+  No prox;
+  pub {
+    No(No p) { prox = p; }
+  }
+}
+fn main() {}
+// expect-error: fecha um ciclo (No → No)

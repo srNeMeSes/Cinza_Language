@@ -1,0 +1,15 @@
+// Q1e (varredura da spec, capítulo 4): um ciclo de campos obrigatórios entre classes é erro
+class A {
+  B b;
+  pub {
+    A(B x) { b = x; }
+  }
+}
+class B {
+  A a;
+  pub {
+    B(A x) { a = x; }
+  }
+}
+fn main() {}
+// expect-error: fecha um ciclo (A → B → A)

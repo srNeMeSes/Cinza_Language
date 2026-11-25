@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 5): a divisão entre inteiros é inteira: cast<f64>(7 / 2) dá 3
+fn main() {
+  print(cast<f64>(7 / 2), cast<f64>(7) / 2.ff, -7 / -2, 7 / -2, -7 % -2, 7 % -2);
+}
+// expect: 3 3.5 3 -3 -1 1

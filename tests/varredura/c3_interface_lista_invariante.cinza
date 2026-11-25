@@ -1,0 +1,12 @@
+// Q1e (varredura da spec, capítulo 3): list<Q> não é list<Forma>
+interface Forma { fn area() -> f64; }
+class Q : Forma {
+  pub {
+    fn area() -> f64 { return 4.ff; }
+  }
+}
+fn main() {
+  list<Q> l = [new Q()];
+  list<Forma> f = l;
+}
+// expect-error: declarado 'list<Forma>', mas atribuído 'list<Q>'

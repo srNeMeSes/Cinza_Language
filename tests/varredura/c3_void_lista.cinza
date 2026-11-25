@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): uma expressão void não vira elemento de lista (print([f()]) mostrava [void])
+fn f() {}
+fn main() {
+  print([1, f()]);
+}
+// expect-error: O elemento 2 da lista: a expressão é 'void' e não tem valor

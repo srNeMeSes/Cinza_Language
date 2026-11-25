@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): uma expressão void não vira elemento de par
+fn f() {}
+fn main() {
+  print({f(), 1});
+}
+// expect-error: O primeiro elemento do par: a expressão é 'void'

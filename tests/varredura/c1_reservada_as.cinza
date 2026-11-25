@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 1): "as" é palavra reservada: não serve de nome de variável
+fn main() {
+  i32 as = 1;
+}
+// expect-error: SyntaxError
+// expect-error: Esperado nome da variável (token: 'as')

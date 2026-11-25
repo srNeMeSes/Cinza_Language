@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 8): uma cópia pode gerar outras (uma genérica que chama outra com outros tipos)
+fn b[T](T x) -> string { return format("{type(x)}"); }
+fn a[T](T x) -> string { return b([x]) + " " + b({x, x}); }
+fn main() { print(a(1), a("s")); }
+// expect: list<i32> pair<i32, i32> list<string> pair<string, string>

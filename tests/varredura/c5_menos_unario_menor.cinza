@@ -1,0 +1,13 @@
+// Q1e (varredura da spec, capítulo 5): -x com o menor valor lança OverflowError (i32 e i64)
+fn main() {
+  i32 a = -2147483648;
+  i64 b = -9223372036854775808;
+  try { print(-a); } except (OverflowError e) { print("i32"); }
+  try { print(-b); } except (OverflowError e) { print("i64"); }
+  try { print(a * -1); } except (OverflowError e) { print("i32 *"); }
+  try { print(a - 1); } except (OverflowError e) { print("i32 -"); }
+}
+// expect: i32
+// expect: i64
+// expect: i32 *
+// expect: i32 -

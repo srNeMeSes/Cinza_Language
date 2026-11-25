@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): for sobre T? é erro
+fn main() {
+  list<i32>? l = [1];
+  for (i32 x in l) {}
+}
+// expect-error: mas recebeu 'list<i32>?': o valor é opcional

@@ -1,0 +1,8 @@
+// Q1e (varredura da spec, capítulo 6): uma função com retorno pode terminar num exit; uma função do programa chamada exit tem precedência
+fn le(i32 n) -> i32 {
+  if (n > 0) { return n; }
+  exit(3);
+}
+fn main() { print(le(1)); print(le(0)); }
+// expect: 1
+// expect-exit: 3

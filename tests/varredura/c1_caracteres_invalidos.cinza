@@ -1,0 +1,8 @@
+// Q1e (varredura da spec, capítulo 1): $ e # são erro léxico, e todos os erros léxicos saem juntos
+fn main() {
+  i32 a = 1 $ 2;
+  i32 b = 3 # 4;
+}
+// expect-error: LexicalError
+// expect-error: 3:13
+// expect-error: 4:13

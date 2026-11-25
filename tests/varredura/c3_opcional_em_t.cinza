@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): um T? nunca cabe num T (atribuição)
+fn main() {
+  i32? a = 1;
+  i32 b = a;
+}
+// expect-error: declarado 'i32', mas atribuído 'i32?'

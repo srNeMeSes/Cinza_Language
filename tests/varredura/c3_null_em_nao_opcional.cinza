@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 3): null só cabe num T?
+fn main() {
+  i32 x = null;
+}
+// expect-error: null só cabe num tipo opcional: declare 'i32?'

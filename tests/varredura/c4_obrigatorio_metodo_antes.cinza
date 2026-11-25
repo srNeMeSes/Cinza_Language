@@ -1,0 +1,13 @@
+// Q1e (varredura da spec, capítulo 4): o construtor não chama um método antes de atribuir os obrigatórios
+class C {
+  i32 x;
+  pub {
+    C() {
+      f();
+      x = 1;
+    }
+    fn f() {}
+  }
+}
+fn main() {}
+// expect-error: não pode chamar um método antes de atribuir o campo obrigatório 'x'

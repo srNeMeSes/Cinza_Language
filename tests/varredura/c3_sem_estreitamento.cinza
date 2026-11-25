@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): não há estreitamento: x != null não muda o tipo de x
+fn main() {
+  string? s = "a";
+  if (s != null) { print(s.size()); }
+}
+// expect-error: Tipo 'string?' não possui métodos: o valor é opcional

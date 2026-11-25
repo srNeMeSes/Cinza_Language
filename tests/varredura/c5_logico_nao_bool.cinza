@@ -1,0 +1,3 @@
+// Q1e (varredura da spec, capítulo 5): os lógicos só sobre bool
+fn main() { print(1 and 2); }
+// expect-error: Operador lógico 'and' requer 'bool'

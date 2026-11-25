@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 3): elementos de tipos incompatíveis são erro
+fn main() {
+  print([1, "a"]);
+}
+// expect-error: elemento 2 tem tipo 'string', incompatível com 'i32'

@@ -1,0 +1,13 @@
+// Q1e (varredura da spec, capítulo 5): um struct numa lista ou noutro struct é alterado no lugar
+struct P { i32 x = 0; }
+struct Q { P p = new P(); }
+fn main() {
+  list<P> l = [new P()];
+  l[0].x = 1;
+  Q q = new Q();
+  q.p.x = 2;
+  dict<string, P> d = {{"a", new P()}};
+  d["a"].x = 3;
+  print(l[0].x, q.p.x, d["a"].x);
+}
+// expect: 1 2 3

@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 4): funções não são valores (passar)
+fn f() {}
+fn g(i32 x) {}
+fn main() { g(f); }
+// expect-error: 'f' é uma função

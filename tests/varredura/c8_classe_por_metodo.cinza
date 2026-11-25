@@ -1,0 +1,18 @@
+// Q1e (varredura da spec, capítulo 8): na cópia, o corpo de um método só é conferido quando ele é usado
+struct P { i32 x = 0; }
+class Caixa[T] {
+  T valor;
+  pub {
+    Caixa(T v) { valor = v; }
+    fn pega() -> T { return valor; }
+    fn dobro() -> T { return valor + valor; }
+  }
+}
+fn main() {
+  Caixa[P] c = new Caixa[P](new P(3));
+  print(c.pega());
+  Caixa[i32] d = new Caixa[i32](4);
+  print(d.dobro());
+}
+// expect: P{x: 3}
+// expect: 8

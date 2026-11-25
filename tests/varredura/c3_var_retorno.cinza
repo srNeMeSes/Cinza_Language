@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): var não vale em retorno
+fn f() -> var { return 1; }
+fn main() {
+
+}
+// expect-error: 'var' não é permitido como tipo de retorno

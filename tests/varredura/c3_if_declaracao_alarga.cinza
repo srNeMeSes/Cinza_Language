@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): o nome do if com declaração é do tipo exato de dentro (sem alargar)
+fn main() {
+  i32? a = 1;
+  if (i64 x = a) {}
+}
+// expect-error: declare 'i32' (o tipo de dentro do opcional)

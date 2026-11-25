@@ -1,0 +1,9 @@
+// Q1e (varredura da spec, capítulo 2): no máximo um construtor
+class C {
+  pub {
+    C() {}
+    C(i32 x) {}
+  }
+}
+fn main() {}
+// expect-error: já possui um construtor

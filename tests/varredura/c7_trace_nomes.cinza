@@ -1,0 +1,13 @@
+// Q1e (varredura da spec, capítulo 7): no stack trace, métodos como Classe.metodo, construtores como new Classe, genéricas com os tipos
+class C {
+  pub {
+    C(i32 x) { falha(x); }
+    fn m(i32 x) { new C(x); }
+  }
+}
+fn falha[T](T x) { throw ValueError("fundo"); }
+fn main() { new C(0).m(1); }
+// expect-error: ValueError: fundo
+// expect-error:     em falha[i32] (
+// expect-error:     em new C (
+// expect-error:     em main (

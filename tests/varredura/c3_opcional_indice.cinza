@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): índice sobre T? é erro
+fn main() {
+  list<i32>? l = [1];
+  print(l[0]);
+}
+// expect-error: no tipo 'list<i32>?': o valor é opcional

@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 4): os parâmetros estão no mesmo escopo do corpo
+fn f(i32 x) {
+  i32 x = 2;
+}
+fn main() {}
+// expect-error: 'x' já foi declarado neste escopo

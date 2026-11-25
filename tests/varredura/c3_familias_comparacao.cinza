@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 3): entre famílias nada é implícito, inclusive em comparações
+fn main() {
+  i32 n = 1;
+  f64 x = 2.ff;
+  print(n < x);
+}
+// expect-error: Operador '<' entre 'i32' e 'f64'

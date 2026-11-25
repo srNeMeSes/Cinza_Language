@@ -1,0 +1,13 @@
+// Q1e (varredura da spec, capítulo 5): com i64 y e i32 x, y += x vale
+fn main() {
+  i64 y = 3000000000;
+  i32 x = 1;
+  y += x;
+  f64 a = 1.5ff;
+  f32 b = 0.5f;
+  a *= b;
+  string s = "a";
+  s += 1;
+  print(y, a, s);
+}
+// expect: 3000000001 0.75 a1

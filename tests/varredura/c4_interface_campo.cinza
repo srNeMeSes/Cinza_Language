@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): sem campos
+interface I { i32 x = 0; fn f(); }
+fn main() {}
+// expect-error: Uma interface só tem assinaturas de métodos

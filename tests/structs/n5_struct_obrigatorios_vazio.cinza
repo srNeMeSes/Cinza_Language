@@ -3,4 +3,4 @@ struct Contato { string nome; string telefone = ""; string email; }
 fn main() {
   Contato c = new Contato();
 }
-// expect-error: Construtor de 'Contato': os campos 'nome', 'email' não têm valor inicial
+// expect-error: Na criação de 'Contato': os campos 'nome', 'email' não têm valor inicial

@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): sem o apelido, o nome do módulo não é visível
+import modulos.geom;
+fn main() { print(area(2)); }
+// expect-error: os nomes de um módulo se usam pelo apelido: geom.area(...)

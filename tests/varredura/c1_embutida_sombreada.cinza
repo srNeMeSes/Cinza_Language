@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 1): print, range, type... não são reservadas: a função do programa tem precedência
+fn range(i32 a, i32 b) -> i32 { return a * 100 + b; }
+fn main() {
+  print(range(1, 2));
+}
+// expect: 102

@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 8): um struct genérico que nunca é usado só passa pela sintaxe e pelas regras da declaração
+struct Indice[K] { dict<K, i32> posicoes; K? nada; }
+fn main() { print("ok"); }
+// expect: ok

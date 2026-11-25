@@ -1,0 +1,18 @@
+// Q1e (varredura da spec, capítulo 5): string: s[i] negativo conta do fim; fatias com passo; caracteres, não bytes
+fn main() {
+  string s = "aé🙂z";
+  print(s.size(), s[1], s[2], s[-1], s[-4], s[1:3], s[::2], s[::-1], s[-1:-5:-1], s[3:4], "[" + s[4:] + "]");
+  try { print(s[4]); } except (IndexError e) { print("IndexError 4"); }
+  try { print(s[-5]); } except (IndexError e) { print("IndexError -5"); }
+  try { print(s[::0]); } except (ValueError e) { print("ValueError passo"); }
+  try { print(s[3:1]); } except (IndexError e) { print("IndexError ini > fim"); }
+  try { print(s[1:3:-1]); } except (IndexError e) { print("IndexError negativo"); }
+  try { print(s[-6:]); } except (IndexError e) { print("IndexError -6"); }
+}
+// expect: 4 é 🙂 z a é🙂 a🙂 z🙂éa z🙂éa z []
+// expect: IndexError 4
+// expect: IndexError -5
+// expect: ValueError passo
+// expect: IndexError ini > fim
+// expect: IndexError negativo
+// expect: IndexError -6

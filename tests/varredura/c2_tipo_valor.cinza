@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 2): um tipo escrito como valor só serve para comparar com type(x)
+struct P { i32 x = 0; }
+fn main() {
+  list<i64> l;
+  print(type(l) == list<i64>, type(l) == list<i32>, type(new P()) == P, type(1.5f) == f32);
+}
+// expect: true false true true

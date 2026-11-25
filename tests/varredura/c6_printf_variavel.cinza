@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 6): o argumento de printf é um texto literal
+fn main() {
+  string s = "x";
+  printf(s);
+}
+// expect-error: 'printf' recebe um único texto literal

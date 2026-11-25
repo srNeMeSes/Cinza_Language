@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 4): nem indiretamente
+struct A { B b; }
+struct B { A a; }
+fn main() {}
+// expect-error: contém a si mesmo por valor (B → A → B)

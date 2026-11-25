@@ -1,0 +1,3 @@
+// Q1e (varredura da spec, capítulo 6): uma chave sem par é erro
+fn main() { printf("a { b"); }
+// expect-error: '{' sem '}' no texto de 'printf'

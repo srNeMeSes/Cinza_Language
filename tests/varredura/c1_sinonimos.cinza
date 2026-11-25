@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 1): and/or/not são sinônimos de &&/||/!, e str de string
+fn main() {
+  str s = "x";
+  string t = s;
+  print(true and false, true || false, not true, !false, (true && true) == (true and true), t);
+}
+// expect: false true false true true x

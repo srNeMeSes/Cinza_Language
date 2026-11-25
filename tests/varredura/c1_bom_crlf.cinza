@@ -1,0 +1,5 @@
+﻿// Q1e (varredura da spec, capítulo 1): o BOM no início é ignorado; fins de linha \r\n; a tabulação separa tokens
+fn main() {
+	print(	1,	2);
+}
+// expect: 1 2

@@ -1,0 +1,20 @@
+// Q1e (varredura da spec, capítulo 5): objetos em ciclo são liberados (o programa não observa; aqui, só não pode esgotar)
+class No {
+  No? outro;
+  list<i32> carga;
+  pub {
+    fn liga(No n) { outro = n; }
+    fn enche() { for (i32 i in range(0, 100)) { carga.add(i); } }
+  }
+}
+fn main() {
+  for (i32 i in range(0, 20000)) {
+    No a = new No();
+    No b = new No();
+    a.liga(b);
+    b.liga(a);
+    a.enche();
+  }
+  print("ok");
+}
+// expect: ok

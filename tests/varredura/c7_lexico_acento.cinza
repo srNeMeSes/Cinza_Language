@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 7): identificador com acento é LexicalError
+fn main() {
+  i32 ação = 1;
+}
+// expect-error: LexicalError

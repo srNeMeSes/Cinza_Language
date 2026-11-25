@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): um enum tem pelo menos um valor
+enum E { }
+fn main() {}
+// expect-error: O enum 'E' precisa de pelo menos um valor

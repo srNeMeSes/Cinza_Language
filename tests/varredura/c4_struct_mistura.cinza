@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): a mistura com argumentos sem nome é erro
+struct P { i32 x = 0; i32 y = 0; }
+fn main() { new P(1, y: 2); }
+// expect-error: não misture argumentos pelo nome

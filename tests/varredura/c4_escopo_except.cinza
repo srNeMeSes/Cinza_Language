@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 4): a variável do except existe só dentro do bloco
+fn main() {
+  try { throw ValueError("x"); } except (ValueError e) {}
+  print(e.message);
+}
+// expect-error: Variável 'e' não declarada

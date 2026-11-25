@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): uma variável com o nome de um apelido é erro
+import modulos.geom;
+fn main() { i32 geom = 1; }
+// expect-error: 'geom' já é o apelido de um módulo importado

@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 3): um struct const não muda em nenhuma profundidade (campo)
+struct S { i32 x; }
+fn main() {
+  const S s = new S(x: 1);
+  s.x = 2;
+}
+// expect-error: 's.x' altera o conteúdo de 's', que é const

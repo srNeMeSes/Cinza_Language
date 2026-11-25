@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 5): break não sai de um finally
+fn main() {
+  while (true) {
+    try {} finally { break; }
+  }
+}
+// expect-error: 'break' não pode sair de um bloco 'finally'

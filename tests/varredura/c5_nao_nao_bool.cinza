@@ -1,0 +1,3 @@
+// Q1e (varredura da spec, capítulo 5): o ! só sobre bool
+fn main() { print(!1); }
+// expect-error: Operador '!' requer 'bool'

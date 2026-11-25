@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): usar um nome sem pub de outro módulo é erro
+import modulos.geom;
+fn main() { print(geom.SEGREDO); }
+// expect-error: 'SEGREDO' é privado no módulo 'geom'

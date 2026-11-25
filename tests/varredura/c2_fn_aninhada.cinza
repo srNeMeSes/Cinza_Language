@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 2): fn só no nível superior
+fn main() {
+  fn g() {}
+}
+// expect-error: 'fn' só é permitido no nível superior

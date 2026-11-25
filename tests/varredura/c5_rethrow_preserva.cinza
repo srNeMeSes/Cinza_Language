@@ -1,0 +1,10 @@
+// Q1e (varredura da spec, capítulo 5): throw e preserva o tipo, a mensagem e a posição originais
+fn f() { throw KeyError("k"); }
+fn main() {
+  try {
+    try { f(); } except (Error e) { throw e; }
+  } except (KeyError e) {
+    print(e.kind, e.message, e.line, e.column);
+  }
+}
+// expect: KeyError k 2 16

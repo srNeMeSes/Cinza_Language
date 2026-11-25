@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 2): uma local sem "=" só para list, dict e T?
+fn main() {
+  i32 x;
+}
+// expect-error: 'x' deve ser inicializado

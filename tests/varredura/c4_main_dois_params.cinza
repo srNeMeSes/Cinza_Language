@@ -1,0 +1,3 @@
+// Q1e (varredura da spec, capítulo 4): main com dois parâmetros é erro
+fn main(list<string> a, i32 b) {}
+// expect-error: Assinatura inválida para 'main'

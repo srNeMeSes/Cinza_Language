@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 5): a forma de f32 e f64: os dígitos da menor que volta ao número no próprio tipo; decimal com o expoente de -4 a 15, científica fora (a regra do repr do Python, decidida em 2026-11-25; antes 100000 saía 1e+05)
+fn main() {
+  print(0.1f, 0.1ff, 1.f / 3.f, 1.ff / 3.ff, 100.ff, cast<f64>("1e21"), cast<f64>("1e22"), 123456789012345678.ff, 0.001ff, 0.00001ff, 0.00012ff, 1000.f, 100000.ff, 1000000.f, 0.0001ff, cast<f64>("1e16"), cast<f64>("9999999999999998"), cast<f64>("1.5e16"));
+}
+// expect: 0.1 0.1 0.33333334 0.3333333333333333 100 1e+21 1e+22 1.2345678901234568e+17 0.001 1e-05 0.00012 1000 100000 1000000 0.0001 1e+16 9999999999999998 1.5e+16

@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 7): escape desconhecido é LexicalError, e todos os léxicos do arquivo saem juntos
+fn main() {
+  print("a\q");
+  print("b\x");
+}
+// expect-error: 3:9: LexicalError
+// expect-error: 4:9: LexicalError

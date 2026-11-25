@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 3): a chave de um dict não pode ser coleção
+fn main() {
+  dict<list<i32>, i32> d;
+}
+// expect-error: mas recebeu 'list<i32>'

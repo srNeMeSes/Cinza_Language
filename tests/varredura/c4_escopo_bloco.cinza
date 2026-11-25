@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 4): a variável só existe até o fim do bloco
+fn main() {
+  if (true) { i32 y = 1; }
+  print(y);
+}
+// expect-error: Variável 'y' não declarada

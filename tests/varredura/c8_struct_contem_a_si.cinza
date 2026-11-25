@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 8): um struct genérico não contém a si mesmo por valor
+struct S[T] { T v; S[T] s; }
+fn main() {
+  S[i32] x = new S[i32](1, new S[i32]());
+}
+// expect-error: Struct 'S[i32]' contém a si mesmo por valor

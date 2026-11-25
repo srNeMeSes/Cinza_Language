@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 4): o campo de struct com obrigatórios deixa de ser obrigatório com um valor inicial completo
+struct Contato { string nome; }
+struct Agenda { Contato c = new Contato(nome: ""); i32 n = 0; }
+fn main() { print(new Agenda()); }
+// expect: Agenda{c: Contato{nome: ""}, n: 0}

@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 8): o rastro vai da cópia mais interna para fora, uma linha por uso
+fn dono[T](T x) -> string { return x.dono; }
+fn mostra[T](T x) -> string { return dono(x); }
+fn main() { print(mostra(5)); }
+// expect-error: Tipo 'i32' não possui campos
+// expect-error:     em dono[i32], usada em tests/varredura/c8_rastro_cadeia.cinza:3
+// expect-error:     em mostra[i32], usada em tests/varredura/c8_rastro_cadeia.cinza:4

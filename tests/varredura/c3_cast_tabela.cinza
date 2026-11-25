@@ -1,0 +1,9 @@
+// Q1e (varredura da spec, capítulo 3): a tabela do cast<T>
+fn main() {
+  print(cast<f32>(2) + 3.f, cast<i32>(-2.9ff), cast<f32>(16777217), cast<f64>(0.5f), cast<i64>(7));
+  print(cast<string>(0.1f), cast<string>(1.5ff), cast<string>(-3), cast<i32>("+5"), cast<i32>("-0"));
+  print(cast<f64>("1.5e3"), cast<f64>("-2"), cast<f64>("1e-999"), cast<f32>("0.25"));
+}
+// expect: 5 -2 16777216 0.5 7
+// expect: 0.1 1.5 -3 5 0
+// expect: 1500 -2 0 0.25

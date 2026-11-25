@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 2): void só como tipo de retorno
+fn main() {
+  void x;
+}
+// expect-error: 'void' só é usado como tipo de retorno

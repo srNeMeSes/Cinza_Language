@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 4): de um módulo: cr.Cor.Verde
+import modulos.cores as cr;
+fn main() {
+  cr.Cor c = cr.Cor.Verde;
+  print(c, c == cr.favorita(), cr.favorita());
+}
+// expect: Cor.Verde false Cor.Azul

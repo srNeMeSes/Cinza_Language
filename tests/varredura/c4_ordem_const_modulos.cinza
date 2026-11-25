@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 4): os const globais rodam antes da main (inclusive os de um módulo importado)
+import modulos.geom;
+const i64 DOBRO = geom.LADO * 2;
+fn main() { print(DOBRO, geom.LADO); }
+// expect: 6 3

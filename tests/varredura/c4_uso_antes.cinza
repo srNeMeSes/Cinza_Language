@@ -1,0 +1,19 @@
+// Q1e (varredura da spec, capítulo 4): as declarações do nível superior podem ser usadas antes de onde aparecem
+fn main() {
+  B b = new B();
+  print(b.a().n(), Cor.X, LIMITE, dobro(2));
+}
+fn dobro(i32 x) -> i32 { return x * 2; }
+class B {
+  pub {
+    fn a() -> A { return new A(); }
+  }
+}
+class A {
+  pub {
+    fn n() -> i32 { return 7; }
+  }
+}
+enum Cor { X }
+const i32 LIMITE = 9;
+// expect: 7 Cor.X 9 4

@@ -1,0 +1,22 @@
+// Q1e (varredura da spec, capítulo 8): com T struct, o parâmetro é cópia; com T list ou objeto, compartilhado
+struct S { i32 x = 0; }
+class C {
+  i32 n = 0;
+  pub {
+    fn inc() { n += 1; }
+    fn valor() -> i32 { return n; }
+  }
+}
+fn mexe_s[T](T s) { s.x = 9; }
+fn mexe_l[T](list<T> l, T x) { l.add(x); }
+fn mexe_c[T](T c) { c.inc(); }
+fn main() {
+  S s = new S();
+  mexe_s(s);
+  list<i32> l = [1];
+  mexe_l(l, 2);
+  C c = new C();
+  mexe_c(c);
+  print(s.x, l, c.valor());
+}
+// expect: 0 [1, 2] 1

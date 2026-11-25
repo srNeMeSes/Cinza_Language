@@ -1,0 +1,8 @@
+// Q1e (varredura da spec, capítulo 5): código depois de continue é inalcançável
+fn main() {
+  for (i32 i in [1]) {
+    continue;
+    print(1);
+  }
+}
+// expect-error: Código inalcançável

@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 3): var não vale dentro de list<>
+fn main() {
+  list<var> l;
+}
+// expect-error: Tipo 'var' não é permitido dentro de 'list<>'

@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 5): código depois de um while (true) sem break é inalcançável
+fn main() {
+  while (true) {}
+  print(1);
+}
+// expect-error: Código inalcançável

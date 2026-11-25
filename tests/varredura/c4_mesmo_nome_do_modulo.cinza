@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 4): o arquivo principal pode ter uma função com o mesmo nome de uma do módulo
+import modulos.geom;
+fn area(i64 l) -> i64 { return -l; }
+fn main() { print(area(2), geom.area(2)); }
+// expect: -2 4

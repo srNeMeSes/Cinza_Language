@@ -1,0 +1,3 @@
+// Q1e (varredura da spec, capítulo 5): os dois lados precisam ser do mesmo tipo
+fn main() { print("1" == 1); }
+// expect-error: Comparação '==' não é suportada entre 'string' e 'i32'

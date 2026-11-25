@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): a condição de if sobre T? é erro
+fn main() {
+  bool? b = true;
+  if (b) {}
+}
+// expect-error: mas recebeu 'bool?': o valor é opcional

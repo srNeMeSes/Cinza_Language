@@ -1,0 +1,8 @@
+// Q1e (varredura da spec, capítulo 3): sobre um T? valem == e != com null, com outro T? e com um valor do tipo dele
+fn main() {
+  i32? a;
+  i32? b;
+  i32? c = 5;
+  print(a == b, a == null, c == 5, c != 5, c == a, 5 == c, null == a);
+}
+// expect: true true true false false true true

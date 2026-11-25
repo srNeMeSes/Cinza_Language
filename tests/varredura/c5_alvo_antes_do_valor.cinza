@@ -1,0 +1,16 @@
+// Q1e (varredura da spec, capítulo 5): numa atribuição, as partes do alvo (base e índices, da esquerda para a direita) antes do valor
+fn i(string s, i32 n) -> i32 { print(s); return n; }
+fn main() {
+  list<list<i32>> m = [[0, 0], [0, 0]];
+  m[i("linha", 1)][i("coluna", 0)] = i("valor", 9);
+  print(m);
+  dict<string, i32> d = {{"a", 1}};
+  d[cast<string>(i("chave", 0)) + "a"] = i("v", 2);
+}
+// expect: linha
+// expect: coluna
+// expect: valor
+// expect: [[0, 0], [9, 0]]
+// expect: chave
+// expect: v
+// expect-error: KeyError

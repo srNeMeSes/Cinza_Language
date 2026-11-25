@@ -6,4 +6,4 @@ fn main() {
   print(t);
   Time u = new Time();
 }
-// expect-error: Construtor de 'Time': o campo 'capitao' não tem valor inicial
+// expect-error: Na criação de 'Time': o campo 'capitao' não tem valor inicial

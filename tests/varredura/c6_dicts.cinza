@@ -1,0 +1,49 @@
+// Q1e (varredura da spec, capítulo 6): Dicts: ler, alterar, criar; nada falha em silêncio
+import Dicts;
+fn main() {
+  dict<string, i32> d = {{"a", 1}, {"b", 2}, {"c", 1}};
+  try { print(Dicts.get(d, "b")); } except (Error e) { print(e.kind); }
+  try { print(type(Dicts.get(d, "b"))); } except (Error e) { print(e.kind); }
+  try { print(Dicts.get(d, "z")); } except (Error e) { print(e.kind); }
+  try { print(Dicts.keys_of(d, 1)); } except (Error e) { print(e.kind); }
+  try { print(Dicts.keys_of(d, 9)); } except (Error e) { print(e.kind); }
+  try { print(Dicts.items(d)); } except (Error e) { print(e.kind); }
+  try { print(Dicts.is_empty(d)); } except (Error e) { print(e.kind); }
+  try { print(Dicts.pop(d, "z")); } except (Error e) { print(e.kind); }
+  try { print(Dicts.pop(d, "a")); } except (Error e) { print(e.kind); }
+  try { print(d); } except (Error e) { print(e.kind); }
+  try { Dicts.update(d, {{"c", 5}, {"a", 0}}); print("ok"); } except (Error e) { print(e.kind); }
+  try { print(d); } except (Error e) { print(e.kind); }
+  try { print(Dicts.merge({{"x", 1}, {"y", 2}}, {{"y", 3}, {"z", 4}})); } except (Error e) { print(e.kind); }
+  try { print(Dicts.from_lists(["a"], [1, 2])); } except (Error e) { print(e.kind); }
+  try { print(Dicts.from_lists(["a", "a"], [1, 2])); } except (Error e) { print(e.kind); }
+  try { print(Dicts.from_pairs([{1, "um"}, {2, "dois"}])); } except (Error e) { print(e.kind); }
+  try { print(Dicts.from_pairs([{1, "um"}, {1, "dois"}])); } except (Error e) { print(e.kind); }
+  try { print(Dicts.invert({{"a", 1}, {"b", 1}})); } except (Error e) { print(e.kind); }
+  dict<string, i32> e = Dicts.copy(d);
+  e.add({"novo", 1});
+  try { print(d.size()); } except (Error e) { print(e.kind); }
+  try { Dicts.clear(d); print("ok"); } except (Error e) { print(e.kind); }
+  try { print(Dicts.is_empty(d)); } except (Error e) { print(e.kind); }
+}
+// expect: 2
+// expect: i32?
+// expect: null
+// expect: ["a", "c"]
+// expect: []
+// expect: [{"a", 1}, {"b", 2}, {"c", 1}]
+// expect: false
+// expect: KeyError
+// expect: 1
+// expect: {"b": 2, "c": 1}
+// expect: ok
+// expect: {"b": 2, "c": 5, "a": 0}
+// expect: {"x": 1, "y": 3, "z": 4}
+// expect: ValueError
+// expect: ValueError
+// expect: {1: "um", 2: "dois"}
+// expect: ValueError
+// expect: ValueError
+// expect: 3
+// expect: ok
+// expect: true

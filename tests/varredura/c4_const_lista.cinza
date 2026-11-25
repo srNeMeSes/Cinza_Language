@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): no const global, literal de list não é permitido
+const list<i32> L = [1, 2];
+fn main() {}
+// expect-error: precisa ser uma expressão constante

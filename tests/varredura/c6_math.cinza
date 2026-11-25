@@ -1,0 +1,136 @@
+// Q1e (varredura da spec, capítulo 6): Math: domínio, estouro, arredondamento e inteiros
+import Math;
+fn main() {
+  try { print(Math.sqrt(-1.ff)); } except (Error e) { print(e.kind); }
+  try { print(Math.cbrt(-8.ff)); } except (Error e) { print(e.kind); }
+  try { print(Math.pow(-8.ff, 0.5ff)); } except (Error e) { print(e.kind); }
+  try { print(Math.pow(0.ff, -1.ff)); } except (Error e) { print(e.kind); }
+  try { print(Math.pow(10.ff, 400.ff)); } except (Error e) { print(e.kind); }
+  try { print(Math.pow(2.f, 200.f)); } except (Error e) { print(e.kind); }
+  try { print(Math.exp(1000.ff)); } except (Error e) { print(e.kind); }
+  try { print(Math.exp(100.f)); } except (Error e) { print(e.kind); }
+  try { print(Math.exp(-1000.ff)); } except (Error e) { print(e.kind); }
+  try { print(Math.log(-1.ff)); } except (Error e) { print(e.kind); }
+  try { print(Math.log10(1000.ff)); } except (Error e) { print(e.kind); }
+  try { print(Math.log2(8.ff)); } except (Error e) { print(e.kind); }
+  try { print(Math.log10(0.ff)); } except (Error e) { print(e.kind); }
+  try { print(Math.log_base(8.ff, 1.ff)); } except (Error e) { print(e.kind); }
+  try { print(Math.log_base(8.ff, -2.ff)); } except (Error e) { print(e.kind); }
+  try { print(Math.hypot(cast<f64>("1e200"), cast<f64>("1e200")) > 1.ff); } except (Error e) { print(e.kind); }
+  try { print(Math.asin(2.ff)); } except (Error e) { print(e.kind); }
+  try { print(Math.acos(-1.5ff)); } except (Error e) { print(e.kind); }
+  try { print(Math.atan2(1.ff, 0.ff) == Math.pi / 2.ff); } except (Error e) { print(e.kind); }
+  try { print(Math.atan2(0.ff, -1.ff) == Math.pi); } except (Error e) { print(e.kind); }
+  try { print(Math.degrees(Math.pi)); } except (Error e) { print(e.kind); }
+  try { print(Math.is_close(Math.radians(180.ff), Math.pi)); } except (Error e) { print(e.kind); }
+  try { print(Math.tau == 2.ff * Math.pi); } except (Error e) { print(e.kind); }
+  try { print(Math.e); } except (Error e) { print(e.kind); }
+  try { print(Math.floor(-2.5ff)); } except (Error e) { print(e.kind); }
+  try { print(Math.ceil(-2.5ff)); } except (Error e) { print(e.kind); }
+  try { print(Math.round(0.5ff)); } except (Error e) { print(e.kind); }
+  try { print(Math.round(-0.5ff)); } except (Error e) { print(e.kind); }
+  try { print(Math.trunc(2.7ff)); } except (Error e) { print(e.kind); }
+  try { print(type(Math.floor(2.5f))); } except (Error e) { print(e.kind); }
+  try { print(Math.floor(cast<f64>("1e19"))); } except (Error e) { print(e.kind); }
+  try { print(Math.round(cast<f64>("-1e19"))); } except (Error e) { print(e.kind); }
+  try { print(Math.round_to(2.5ff, 2)); } except (Error e) { print(e.kind); }
+  try { print(Math.round_to(-2.675ff, 2)); } except (Error e) { print(e.kind); }
+  try { print(Math.round_to(1.005ff, 2)); } except (Error e) { print(e.kind); }
+  try { print(Math.round_to(2.5ff, -1)); } except (Error e) { print(e.kind); }
+  try { print(Math.abs(-2147483648)); } except (Error e) { print(e.kind); }
+  try { print(Math.abs(cast<i64>(-2147483648))); } except (Error e) { print(e.kind); }
+  try { print(Math.abs(-9223372036854775808)); } except (Error e) { print(e.kind); }
+  try { print(Math.sign(-5)); } except (Error e) { print(e.kind); }
+  try { print(Math.sign(0.ff)); } except (Error e) { print(e.kind); }
+  try { print(type(Math.sign(2.5ff))); } except (Error e) { print(e.kind); }
+  try { print(Math.clamp(5, 10, 0)); } except (Error e) { print(e.kind); }
+  try { print(Math.clamp(-1, 0, 10)); } except (Error e) { print(e.kind); }
+  try { print(Math.gcd(-12, 18)); } except (Error e) { print(e.kind); }
+  try { print(Math.gcd(0, 0)); } except (Error e) { print(e.kind); }
+  try { print(Math.lcm(0, 5)); } except (Error e) { print(e.kind); }
+  try { print(Math.lcm(-4, 6)); } except (Error e) { print(e.kind); }
+  try { print(Math.gcd(-2147483648, 0)); } except (Error e) { print(e.kind); }
+  try { print(Math.lcm(2147483647, 2147483646)); } except (Error e) { print(e.kind); }
+  try { print(Math.is_even(-2)); } except (Error e) { print(e.kind); }
+  try { print(Math.is_odd(-3)); } except (Error e) { print(e.kind); }
+  try { print(Math.factorial(0)); } except (Error e) { print(e.kind); }
+  try { print(Math.factorial(20)); } except (Error e) { print(e.kind); }
+  try { print(Math.factorial(21)); } except (Error e) { print(e.kind); }
+  try { print(Math.factorial(-1)); } except (Error e) { print(e.kind); }
+  try { print(Math.is_prime(1)); } except (Error e) { print(e.kind); }
+  try { print(Math.is_prime(2)); } except (Error e) { print(e.kind); }
+  try { print(Math.is_prime(-7)); } except (Error e) { print(e.kind); }
+  try { print(Math.is_prime(9223372036854775783)); } except (Error e) { print(e.kind); }
+  try { print(Math.is_prime(9223372036854775807)); } except (Error e) { print(e.kind); }
+  try { print(Math.is_close(0.1f + 0.2f, 0.3f)); } except (Error e) { print(e.kind); }
+  try { print(Math.is_close(1.ff, 1.0000001ff)); } except (Error e) { print(e.kind); }
+  try { print(Math.is_close(0.ff, 0.0000000000001ff)); } except (Error e) { print(e.kind); }
+  try { print(type(Math.sqrt(4.f))); } except (Error e) { print(e.kind); }
+  try { print(Math.sqrt(4.f) + 1.f); } except (Error e) { print(e.kind); }
+}
+// expect: ValueError
+// expect: -2
+// expect: ValueError
+// expect: ZeroDivisionError
+// expect: OverflowError
+// expect: OverflowError
+// expect: OverflowError
+// expect: OverflowError
+// expect: 0
+// expect: ValueError
+// expect: 3
+// expect: 3
+// expect: ValueError
+// expect: ValueError
+// expect: ValueError
+// expect: true
+// expect: ValueError
+// expect: ValueError
+// expect: true
+// expect: true
+// expect: 180
+// expect: true
+// expect: true
+// expect: 2.718281828459045
+// expect: -3
+// expect: -2
+// expect: 1
+// expect: -1
+// expect: 2
+// expect: i64
+// expect: OverflowError
+// expect: OverflowError
+// expect: 2.5
+// expect: -2.68
+// expect: 1.01
+// expect: ValueError
+// expect: OverflowError
+// expect: 2147483648
+// expect: OverflowError
+// expect: -1
+// expect: 0
+// expect: i32
+// expect: ValueError
+// expect: 0
+// expect: 6
+// expect: 0
+// expect: 0
+// expect: 12
+// expect: OverflowError
+// expect: OverflowError
+// expect: true
+// expect: true
+// expect: 1
+// expect: 2432902008176640000
+// expect: OverflowError
+// expect: ValueError
+// expect: false
+// expect: true
+// expect: false
+// expect: true
+// expect: false
+// expect: true
+// expect: false
+// expect: true
+// expect: f32
+// expect: 3

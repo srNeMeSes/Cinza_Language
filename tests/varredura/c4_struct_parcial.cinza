@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): um número parcial de argumentos é erro
+struct P { i32 x = 0; i32 y = 0; }
+fn main() { new P(1); }
+// expect-error: Na criação de 'P': informe todos os 2 campos

@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): x * 2 com x de ponto flutuante é erro (escreva 2.ff)
+fn main() {
+  f64 x = 1.5ff;
+  print(x * 2);
+}
+// expect-error: Escreva 2.ff

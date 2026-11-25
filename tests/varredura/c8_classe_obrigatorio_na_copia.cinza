@@ -1,0 +1,8 @@
+// Q1e (varredura da spec, capítulo 8): as regras dos campos obrigatórios valem em cada cópia
+class Caixa[T] {
+  T valor;
+}
+fn main() {
+  Caixa[i32] c = new Caixa[i32]();
+}
+// expect-error: construtor que o atribua (Caixa(...)

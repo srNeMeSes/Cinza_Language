@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 2): a < b < c é válido na sintaxe, mas compara bool com número: erro de tipo
+fn main() {
+  print(1 < 2 < 3);
+}
+// expect-error: SemanticError
+// expect-error: entre 'bool' e 'i32'

@@ -1,0 +1,10 @@
+// Q1e (varredura da spec, capítulo 6): no for, range não cria a lista e não tem o limite de 100 milhões
+fn main() {
+  i64 n = 0;
+  for (i64 i in range(0, 300000000, 1)) {
+    n += 1;
+    if (n == 3) { break; }
+  }
+  print(n);
+}
+// expect: 3

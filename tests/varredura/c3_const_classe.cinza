@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): const diretamente num tipo de classe é erro
+class C {}
+fn main() {
+  const C c = new C();
+}
+// expect-error: 'const' não pode ser usado em objeto de classe ('C')

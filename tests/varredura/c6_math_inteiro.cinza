@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 6): sqrt(2) é erro de compilação
+import Math;
+fn main() { print(Math.sqrt(2)); }
+// expect-error: inteiro não entra onde se espera ponto flutuante

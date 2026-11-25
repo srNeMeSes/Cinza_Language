@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 8): depois de ".", o nome é de membro, não o parâmetro de tipo (x.T é o campo T)
+struct S { i32 T = 5; }
+fn campo[T](S s, T outro) -> i32 { return s.T; }
+fn main() { print(campo(new S(), "x")); }
+// expect: 5

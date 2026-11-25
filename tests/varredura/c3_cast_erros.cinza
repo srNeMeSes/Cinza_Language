@@ -1,0 +1,38 @@
+// Q1e (varredura da spec, capítulo 3): os erros do cast<T> em execução
+fn tenta_i(string s) {
+  try { print(cast<i32>(s)); } except (ValueError e) { print("ValueError"); } except (OverflowError e) { print("OverflowError"); }
+}
+fn tenta_f(string s) {
+  try { print(cast<f64>(s)); } except (ValueError e) { print("ValueError"); } except (OverflowError e) { print("OverflowError"); }
+}
+fn main() {
+  tenta_i(" 5");
+  tenta_i("5 ");
+  tenta_i("");
+  tenta_i("1.5");
+  tenta_i("3000000000");
+  tenta_f("inf");
+  tenta_f("nan");
+  tenta_f("1e999");
+  tenta_f("1.");
+  tenta_f("abc");
+  f64 grande = cast<f64>("1e300");
+  try { print(cast<f32>(grande)); } except (OverflowError e) { print("f32 OverflowError"); }
+  try { print(cast<i64>(grande)); } except (OverflowError e) { print("i64 OverflowError"); }
+  try { print(cast<i32>(3000000000.ff)); } except (OverflowError e) { print("i32 OverflowError"); }
+  try { print(cast<i32>(cast<i64>(-2147483649))); } except (OverflowError e) { print("i64→i32 OverflowError"); }
+}
+// expect: ValueError
+// expect: ValueError
+// expect: ValueError
+// expect: ValueError
+// expect: OverflowError
+// expect: ValueError
+// expect: ValueError
+// expect: OverflowError
+// expect: ValueError
+// expect: ValueError
+// expect: f32 OverflowError
+// expect: i64 OverflowError
+// expect: i32 OverflowError
+// expect: i64→i32 OverflowError

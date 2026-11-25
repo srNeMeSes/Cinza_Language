@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): sem construtor, new não recebe argumentos
+class C {}
+fn main() { new C(1); }
+// expect-error: Construtor de 'C': esperados 0 argumento(s)

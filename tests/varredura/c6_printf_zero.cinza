@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 6): largura começando com 0 é erro
+fn main() {
+  i32 n = 1;
+  printf("{n:05}");
+}
+// expect-error: a largura não começa com 0

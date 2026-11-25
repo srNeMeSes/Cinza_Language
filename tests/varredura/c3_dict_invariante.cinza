@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): dict é invariante
+fn main() {
+  dict<string, i32> a;
+  dict<string, i64> b = a;
+}
+// expect-error: declarado 'dict<string, i64>', mas atribuído 'dict<string, i32>'

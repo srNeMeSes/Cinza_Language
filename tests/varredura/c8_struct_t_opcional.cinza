@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 8): um T? numa genérica com T já opcional é erro na cópia
+struct Caixa[T] { T? v; }
+fn main() {
+  Caixa[i32?] c = new Caixa[i32?]();
+}
+// expect-error: Com T = i32?, o struct 'Caixa' não é válido

@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): usar uma função sem pub de outro módulo é erro
+import modulos.geom;
+fn main() { print(geom.dobro(1)); }
+// expect-error: 'dobro' é privado no módulo 'geom'

@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): uma interface não pode ser instanciada
+interface I { fn f(); }
+fn main() { I i = new I(); }
+// expect-error: A interface 'I' não pode ser instanciada

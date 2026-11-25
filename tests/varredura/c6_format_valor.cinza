@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 6): format devolve o texto do printf
+fn main() {
+  i32 n = 3;
+  string s = format("n={n:3}|");
+  print(s, s.size());
+}
+// expect: n=  3| 6

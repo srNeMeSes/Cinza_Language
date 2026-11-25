@@ -1,0 +1,20 @@
+// Q1e (varredura da spec, capítulo 8): uma classe genérica cumpre uma interface com os parâmetros dela
+interface Colecao[T] { fn primeiro() -> T?; fn tamanho() -> i32; }
+class Pilha[T] : Colecao[T] {
+  list<T> itens;
+  pub {
+    fn poe(T x) { itens.add(x); }
+    fn primeiro() -> T? { if (itens.size() == 0) { return null; } return itens[0]; }
+    fn tamanho() -> i32 { return itens.size(); }
+  }
+}
+fn resumo(Colecao[string] c) -> string { return (c.primeiro() else "-") + " " + c.tamanho(); }
+fn main() {
+  Pilha[string] p = new Pilha[string]();
+  print(resumo(p));
+  p.poe("a");
+  p.poe("b");
+  print(resumo(p), type(p));
+}
+// expect: - 0
+// expect: a 2 Pilha[string]

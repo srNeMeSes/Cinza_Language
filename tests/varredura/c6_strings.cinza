@@ -1,0 +1,171 @@
+// Q1e (varredura da spec, capítulo 6): Strings: os limites da tabela
+import Strings as st;
+fn main() {
+  try { print(st.find("abc", "z")); } except (Error e) { print(e.kind); }
+  try { print(st.find_last("abcabc", "bc")); } except (Error e) { print(e.kind); }
+  try { print(st.find_from("abcabc", "a", 1)); } except (Error e) { print(e.kind); }
+  try { print(st.find_from("abc", "a", 3)); } except (Error e) { print(e.kind); }
+  try { print(st.find_from("abc", "a", 4)); } except (Error e) { print(e.kind); }
+  try { print(st.find_from("abc", "a", -1)); } except (Error e) { print(e.kind); }
+  try { print(st.positions("aaaa", "aa")); } except (Error e) { print(e.kind); }
+  try { print(st.positions("abc", "z")); } except (Error e) { print(e.kind); }
+  try { print(st.positions("abc", "")); } except (Error e) { print(e.kind); }
+  try { print(st.count("aaaa", "aa")); } except (Error e) { print(e.kind); }
+  try { print(st.count("a", "")); } except (Error e) { print(e.kind); }
+  try { print(st.char_at("ação", 3)); } except (Error e) { print(e.kind); }
+  try { print(st.char_at("ação", 4)); } except (Error e) { print(e.kind); }
+  try { print(st.char_at("ação", -1)); } except (Error e) { print(e.kind); }
+  try { print(st.substr("coração", 4, 3)); } except (Error e) { print(e.kind); }
+  try { print(st.substr("abc", 2, 2)); } except (Error e) { print(e.kind); }
+  try { print(st.slice("coração", 2, 4)); } except (Error e) { print(e.kind); }
+  try { print(st.slice("abc", 2, 1)); } except (Error e) { print(e.kind); }
+  try { print(st.slice("abc", 0, 4)); } except (Error e) { print(e.kind); }
+  try { print(st.left("ação", 2)); } except (Error e) { print(e.kind); }
+  try { print(st.left("ab", 9)); } except (Error e) { print(e.kind); }
+  try { print(st.right("ação", 2)); } except (Error e) { print(e.kind); }
+  try { print(st.right("ab", -1)); } except (Error e) { print(e.kind); }
+  try { print(st.chars("aç")); } except (Error e) { print(e.kind); }
+  try { print(st.split("a,,b,", ",")); } except (Error e) { print(e.kind); }
+  try { print(st.split("abc", "")); } except (Error e) { print(e.kind); }
+  try { print(st.split("", ",")); } except (Error e) { print(e.kind); }
+  try { print(st.lines("a\r\nb\n")); } except (Error e) { print(e.kind); }
+  try { print(st.lines("a\n\nb")); } except (Error e) { print(e.kind); }
+  try { print(st.words(" \t a\nb  ")); } except (Error e) { print(e.kind); }
+  try { print("[" + st.trim(" \t\n a \r") + "]"); } except (Error e) { print(e.kind); }
+  try { print("[" + st.trim_start("  a  ") + "]"); } except (Error e) { print(e.kind); }
+  try { print("[" + st.trim_end("  a  ") + "]"); } except (Error e) { print(e.kind); }
+  try { print(st.replace("aaa", "a", "bb")); } except (Error e) { print(e.kind); }
+  try { print(st.replace_first("aaa", "a", "b")); } except (Error e) { print(e.kind); }
+  try { print(st.remove("banana", "an")); } except (Error e) { print(e.kind); }
+  try { print(st.replace("a", "", "x")); } except (Error e) { print(e.kind); }
+  try { print(st.remove("a", "")); } except (Error e) { print(e.kind); }
+  list<string> nenhuma;
+  try { print("[" + st.join(nenhuma, "-") + "]"); } except (Error e) { print(e.kind); }
+  try { print(st.repeat("ab", 0)); } except (Error e) { print(e.kind); }
+  try { print(st.repeat("a", -1)); } except (Error e) { print(e.kind); }
+  try { print(st.repeat("aaaa", 300000000)); } except (Error e) { print(e.kind); }
+  try { print(st.reverse("ação")); } except (Error e) { print(e.kind); }
+  try { print(st.pad_left("abc", 2)); } except (Error e) { print(e.kind); }
+  try { print(st.pad_right("a", 3, "ç") + "|"); } except (Error e) { print(e.kind); }
+  try { print(st.pad_left("a", 3, "xy")); } except (Error e) { print(e.kind); }
+  try { print(st.pad_left("a", 3, "")); } except (Error e) { print(e.kind); }
+  try { print(st.pad_left("a", 300000000)); } except (Error e) { print(e.kind); }
+  try { print("[" + st.center("a", 4) + "]"); } except (Error e) { print(e.kind); }
+  try { print(st.center("a", 4, "*")); } except (Error e) { print(e.kind); }
+  try { print(st.fixed(2.675ff, 2)); } except (Error e) { print(e.kind); }
+  try { print(st.fixed(-0.5ff, 0)); } except (Error e) { print(e.kind); }
+  try { print(st.fixed(1.f, 3)); } except (Error e) { print(e.kind); }
+  try { print(st.fixed(1.ff, 101)); } except (Error e) { print(e.kind); }
+  try { print(st.fixed(1.ff, -1)); } except (Error e) { print(e.kind); }
+  try { print(st.upper("ação ü")); } except (Error e) { print(e.kind); }
+  try { print(st.lower("ÁÉÍ ÇÕ")); } except (Error e) { print(e.kind); }
+  try { print(st.capitalize("ana MARIA")); } except (Error e) { print(e.kind); }
+  try { print(st.capitalize("")); } except (Error e) { print(e.kind); }
+  try { print(st.title("ANA maria-josé")); } except (Error e) { print(e.kind); }
+  try { print(st.is_empty("")); } except (Error e) { print(e.kind); }
+  try { print(st.is_digit("")); } except (Error e) { print(e.kind); }
+  try { print(st.is_digit("-1")); } except (Error e) { print(e.kind); }
+  try { print(st.is_digit("0123")); } except (Error e) { print(e.kind); }
+  try { print(st.is_alpha("ação")); } except (Error e) { print(e.kind); }
+  try { print(st.is_alpha("a1")); } except (Error e) { print(e.kind); }
+  try { print(st.is_alnum("ação1")); } except (Error e) { print(e.kind); }
+  try { print(st.is_space(" \t\n")); } except (Error e) { print(e.kind); }
+  try { print(st.is_space("")); } except (Error e) { print(e.kind); }
+  try { print(st.is_upper("ABC 1")); } except (Error e) { print(e.kind); }
+  try { print(st.is_upper("123")); } except (Error e) { print(e.kind); }
+  try { print(st.is_lower("ação")); } except (Error e) { print(e.kind); }
+  try { print(st.ord("ç")); } except (Error e) { print(e.kind); }
+  try { print(st.ord("ab")); } except (Error e) { print(e.kind); }
+  try { print(st.ord("")); } except (Error e) { print(e.kind); }
+  try { print(st.chr(128578)); } except (Error e) { print(e.kind); }
+  try { print(st.chr(-1)); } except (Error e) { print(e.kind); }
+  try { print(st.chr(1114112)); } except (Error e) { print(e.kind); }
+  try { print(st.chr(55296)); } except (Error e) { print(e.kind); }
+  try { print(st.equals_ignore_case("AÇÃO", "ação")); } except (Error e) { print(e.kind); }
+  try { print(st.compare("a", "b")); } except (Error e) { print(e.kind); }
+  try { print(st.compare("b", "b")); } except (Error e) { print(e.kind); }
+  try { print(st.compare("é", "z")); } except (Error e) { print(e.kind); }
+}
+// expect: null
+// expect: 4
+// expect: 3
+// expect: null
+// expect: IndexError
+// expect: IndexError
+// expect: [0, 2]
+// expect: []
+// expect: ValueError
+// expect: 2
+// expect: ValueError
+// expect: o
+// expect: IndexError
+// expect: IndexError
+// expect: ção
+// expect: IndexError
+// expect: ra
+// expect: IndexError
+// expect: IndexError
+// expect: aç
+// expect: ab
+// expect: ão
+// expect: ValueError
+// expect: ["a", "ç"]
+// expect: ["a", "", "b", ""]
+// expect: ValueError
+// expect: [""]
+// expect: ["a", "b"]
+// expect: ["a", "", "b"]
+// expect: ["a", "b"]
+// expect: [a]
+// expect: [a  ]
+// expect: [  a]
+// expect: bbbbbb
+// expect: baa
+// expect: ba
+// expect: ValueError
+// expect: ValueError
+// expect: []
+// expect: 
+// expect: ValueError
+// expect: ValueError
+// expect: oãça
+// expect: abc
+// expect: açç|
+// expect: ValueError
+// expect: ValueError
+// expect: ValueError
+// expect: [ a  ]
+// expect: *a**
+// expect: 2.68
+// expect: -1
+// expect: 1.000
+// expect: ValueError
+// expect: ValueError
+// expect: AÇÃO Ü
+// expect: áéí çõ
+// expect: Ana maria
+// expect: 
+// expect: Ana Maria-josé
+// expect: true
+// expect: false
+// expect: false
+// expect: true
+// expect: true
+// expect: false
+// expect: true
+// expect: true
+// expect: false
+// expect: true
+// expect: false
+// expect: true
+// expect: 231
+// expect: ValueError
+// expect: ValueError
+// expect: 🙂
+// expect: ValueError
+// expect: ValueError
+// expect: ValueError
+// expect: true
+// expect: -1
+// expect: 0
+// expect: 1

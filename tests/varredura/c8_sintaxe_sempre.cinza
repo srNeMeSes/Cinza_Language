@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 8): um erro de sintaxe numa genérica nunca usada é relatado
+fn nunca[T](T x) { print(x; }
+fn main() {}
+// expect-error: SyntaxError

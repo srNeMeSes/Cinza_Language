@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 3): uma expressão void não vira chave nem valor de dict
+fn f() {}
+fn main() {
+  print({{"a", f()}});
+}
+// expect-error: O valor da entrada 1 do dict: a expressão é 'void'

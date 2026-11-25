@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 6): Lists.extend numa lista const é erro
+import Lists;
+fn main() {
+  const list<i32> l = [1];
+  Lists.extend(l, [1]);
+}
+// expect-error: 'Lists.extend' altera a lista, mas 'l' é const

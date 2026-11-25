@@ -1,0 +1,6 @@
+// Q1e (varredura da spec, capítulo 4): o iterador do for existe só dentro do corpo
+fn main() {
+  for (i32 i in [1]) {}
+  print(i);
+}
+// expect-error: Variável 'i' não declarada

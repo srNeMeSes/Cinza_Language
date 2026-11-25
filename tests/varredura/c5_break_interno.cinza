@@ -1,0 +1,12 @@
+// Q1e (varredura da spec, capítulo 5): break e continue afetam o laço mais interno
+fn main() {
+  for (i32 i in [1, 2]) {
+    for (i32 j in [1, 2, 3]) {
+      if (j == 2) { continue; }
+      if (j == 3) { break; }
+      print(i, j);
+    }
+  }
+}
+// expect: 1 1
+// expect: 2 1

@@ -1,0 +1,16 @@
+// Q1e (varredura da spec, capítulo 8): um método chamado por outro método usado é conferido
+struct P { i32 x = 0; }
+class Caixa[T] {
+  T valor;
+  pub {
+    Caixa(T v) { valor = v; }
+    fn um() -> T { return dois(); }
+    fn dois() -> T { return valor + valor; }
+  }
+}
+fn main() {
+  Caixa[P] c = new Caixa[P](new P());
+  print(c.um());
+}
+// expect-error: Operador '+' não é suportado entre 'P' e 'P'
+// expect-error:     em Caixa[P], usada em

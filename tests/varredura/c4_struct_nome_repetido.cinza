@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): um campo repetido é erro
+struct P { i32 x = 0; }
+fn main() { new P(x: 1, x: 2); }
+// expect-error: O campo 'x' foi informado mais de uma vez

@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 8): assinatura de interface não aceita parâmetros de tipo
+interface I { fn f[T](T x); }
+fn main() {}
+// expect-error: Uma assinatura de interface não pode ser genérica

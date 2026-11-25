@@ -1,0 +1,8 @@
+// Q1e (varredura da spec, capítulo 4): self não pode ser reatribuído
+class C {
+  pub {
+    fn f() { self = new C(); }
+  }
+}
+fn main() {}
+// expect-error: 'self' não pode ser reatribuído

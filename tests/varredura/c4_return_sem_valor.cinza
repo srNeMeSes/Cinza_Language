@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): return; numa função com retorno é erro
+fn f() -> i32 { return; }
+fn main() {}
+// expect-error: precisa retornar um valor no 'return'

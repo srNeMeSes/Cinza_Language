@@ -1,0 +1,7 @@
+// Q1e (varredura da spec, capítulo 3): um T? nunca cabe num T (argumento)
+fn f(i32 x) {}
+fn main() {
+  i32? a = 1;
+  f(a);
+}
+// expect-error: esperado 'i32', mas recebeu 'i32?'

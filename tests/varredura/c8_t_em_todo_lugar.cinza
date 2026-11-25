@@ -1,0 +1,17 @@
+// Q1e (varredura da spec, capítulo 8): T vale onde se escreve um tipo: list<T>, dict<string, T>, pair<T, U>, cast<T>, type(x) == T, new T(), printf
+struct P { i32 x = 0; }
+fn tudo[T, U](T a, U b) -> string {
+  list<T> l = [a];
+  dict<string, T> d = {{"k", a}};
+  pair<T, U> p = {a, b};
+  return format("{l} {d} {p} {type(a) == T} {cast<string>(cast<T>(3))} {type(cast<T>(1))}");
+}
+fn cria[T]() -> T { return new T(); }
+fn main() {
+  print(tudo(1, "x"));
+  print(tudo(2.5ff, true));
+  print(cria[P]());
+}
+// expect: [1] {"k": 1} {1, "x"} true 3 i32
+// expect: [2.5] {"k": 2.5} {2.5, true} true 3 f64
+// expect: P{x: 0}

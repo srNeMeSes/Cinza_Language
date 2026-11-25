@@ -1,0 +1,12 @@
+// Q1e (varredura da spec, capítulo 3): um valor do tipo interface nunca volta a ser a classe
+interface Forma { fn area() -> f64; }
+class Q : Forma {
+  pub {
+    fn area() -> f64 { return 4.ff; }
+  }
+}
+fn main() {
+  Forma f = new Q();
+  Q q = f;
+}
+// expect-error: Um valor do tipo interface não volta a ser a classe

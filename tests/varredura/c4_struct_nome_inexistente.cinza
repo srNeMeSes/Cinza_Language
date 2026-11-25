@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): um nome que não é campo é erro
+struct P { i32 x = 0; }
+fn main() { new P(z: 1); }
+// expect-error: 'z' não é campo do struct 'P'

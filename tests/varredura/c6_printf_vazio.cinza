@@ -1,0 +1,3 @@
+// Q1e (varredura da spec, capítulo 6): {} vazio é erro
+fn main() { printf("a {} b"); }
+// expect-error: '{}' vazio no texto de 'printf'

@@ -1,0 +1,5 @@
+// Q1e (varredura da spec, capítulo 4): dois imports com o mesmo apelido são erro
+import modulos.geom;
+import modulos.cores as geom;
+fn main() {}
+// expect-error: Apelido de módulo 'geom' repetido

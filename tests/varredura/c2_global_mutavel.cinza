@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 2): no nível superior só há const: não há variável global
+i32 x = 1;
+fn main() {}
+// expect-error: precisa ser 'const'

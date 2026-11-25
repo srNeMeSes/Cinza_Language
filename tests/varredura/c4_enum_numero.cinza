@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): não há número por trás (Cor c = 1)
+enum Cor { A }
+fn main() { Cor c = 1; }
+// expect-error: declarado 'Cor', mas atribuído 'i32'

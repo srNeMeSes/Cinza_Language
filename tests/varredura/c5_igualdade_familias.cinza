@@ -1,0 +1,3 @@
+// Q1e (varredura da spec, capítulo 5): 1 == 1.ff é erro de compilação
+fn main() { print(1 == 1.ff); }
+// expect-error: inteiro e ponto flutuante não se misturam

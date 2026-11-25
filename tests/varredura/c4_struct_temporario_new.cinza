@@ -1,0 +1,4 @@
+// Q1e (varredura da spec, capítulo 4): atribuir a um campo de um struct temporário (new) é erro
+struct P { i32 x = 0; }
+fn main() { new P().x = 1; }
+// expect-error: o struct é uma cópia temporária

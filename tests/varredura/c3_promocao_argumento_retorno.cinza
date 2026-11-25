@@ -1,0 +1,9 @@
+// Q1e (varredura da spec, capítulo 3): a promoção i32 → i64 e f32 → f64 vale em argumento e retorno
+fn dobro(i64 x) -> i64 { return x * 2; }
+fn larga(i32 x) -> i64 { return x; }
+fn meio(f32 x) -> f64 { return x; }
+fn main() {
+  i32 a = 2000000000;
+  print(dobro(a), larga(a) + larga(a), meio(0.5f) * 2.ff, type(meio(0.5f)));
+}
+// expect: 4000000000 4000000000 1 f64

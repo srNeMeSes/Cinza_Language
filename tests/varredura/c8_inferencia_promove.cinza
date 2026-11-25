@@ -1,0 +1,9 @@
+// Q1e (varredura da spec, capítulo 8): na dedução, números da mesma família combinam no mais largo; um literal se adapta
+fn par[T](T a, T b) -> string { return format("{type(a)} {a + b}"); }
+fn main() {
+  i32 x = 1;
+  i64 y = 2;
+  f32 f = 0.5f;
+  print(par(x, y), par(f, 1.5ff), par(y, 3));
+}
+// expect: i64 3 f64 2 i64 5
