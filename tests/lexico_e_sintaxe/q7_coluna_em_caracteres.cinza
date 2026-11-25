@@ -1,0 +1,5 @@
+// Q7: a coluna conta caracteres, não bytes do UTF-8 (antes, cada acento antes do erro adiantava uma coluna: 2:28)
+fn main() {
+  string s = "ação"; i32 x = "e";
+}
+// expect-error: q7_coluna_em_caracteres.cinza:3:26: SemanticError

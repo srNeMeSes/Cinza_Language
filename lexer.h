@@ -129,6 +129,10 @@ struct Token {
     // C5: arquivo de onde o token veio (0 = principal; ver source_files.h)
     int file_id = 0;
 
+    // Q7: a posição logo depois do último caractere do token (o ';' que falta é relatado ali)
+    int end_line = 0;
+    int end_column = 0;
+
     // B6: posição do token no formato dos diagnósticos
     SourceLocation loc() const { return {file_id, line, column}; }
     

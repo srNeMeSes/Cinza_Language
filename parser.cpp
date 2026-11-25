@@ -84,7 +84,17 @@ bool Parser::match(const std::vector<TokenType>& types) {
 
 const Token& Parser::consume(TokenType type, const std::string& message) {
     if (check(type)) return advance();
-    
+
+    // Q7: o ';' que falta no fim de uma linha é relatado logo depois do último token dela, não
+    // no começo da linha seguinte (o token que veio no lugar continua na mensagem)
+    if (type == TokenType::SEMICOLON && current > 0 && previous().end_line > 0 &&
+        previous().end_line < peek().line) {
+        Token onde = peek();
+        onde.line   = previous().end_line;
+        onde.column = previous().end_column;
+        error(message, onde);
+        throw ParseError(message, onde);
+    }
     error(message, peek());
     throw ParseError(message, peek());
 }

@@ -81,7 +81,10 @@ arquivo:linha:coluna: Tipo: mensagem
 
 Sem posição (por exemplo, um arquivo que não abre): `arquivo: Tipo: mensagem`. O arquivo aparece
 como foi informado na linha de comando, com `/` como separador; num erro dentro de um módulo,
-aparece o caminho do módulo. Linhas e colunas começam em 1.
+aparece o caminho do módulo. Linhas e colunas começam em 1, e a coluna conta **caracteres** (code
+points), não bytes, como os índices de texto: numa linha com `"ação"`, o que vem depois conta o
+`ç` e o `ã` como um caractere cada. É também a unidade de `e.column` (seção 5.6). Um `;` que falta
+no fim de uma linha é relatado logo depois do último token dela.
 
 Um erro de runtime não capturado vem seguido do **stack trace**, da chamada mais interna para
 fora, uma por linha:

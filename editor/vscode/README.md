@@ -16,7 +16,8 @@ Suporte à linguagem Cinza no VS Code.
     (`2.5fff`, `1f`) e literal fora da faixa (inteiro acima de i64; `f32`/`f64` grandes
     demais, contados pelos dígitos antes do ponto);
   - escape desconhecido numa string (`\q`) e `}` sem `{` num `printf`;
-  - caracteres que não existem na Cinza: `` ~ ^ ? ' \ ` # $ @ `` e `&` ou `|` sozinhos.
+  - caracteres que não existem na Cinza: `` ~ ^ ' \ ` # $ @ `` e `&` ou `|` sozinhos (o `?` é o
+    tipo opcional, `T?`).
 
 ## Servidor de linguagem
 

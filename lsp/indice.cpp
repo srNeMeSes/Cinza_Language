@@ -4,6 +4,7 @@
 #include "../plataforma.h"
 #include "../source_files.h"
 #include "../types.h"
+#include "../utf8.h"
 #include <algorithm>
 #include <climits>
 #include <filesystem>
@@ -143,12 +144,13 @@ private:
         return canonicos_[file_id] = canonico(fileName(file_id));
     }
 
-    // A coluna (em bytes, a partir de 1) do nome na linha do token, a partir dele
+    // A coluna (em bytes, a partir de 1) do nome na linha do token, a partir dele (a coluna do
+    // token conta caracteres: Q7)
     int coluna(const Token& t, const std::string& nome) {
         const auto& ls = linhas_(t.file_id);
         if (t.line < 1 || t.line > static_cast<int>(ls.size()) || nome.empty()) return t.column;
         const std::string& l = ls[static_cast<std::size_t>(t.line - 1)];
-        std::size_t p = l.find(nome, t.column > 0 ? static_cast<std::size_t>(t.column - 1) : 0);
+        std::size_t p = l.find(nome, t.column > 0 ? utf8::byteDoCaractere(l, t.column - 1) : 0);
         while (p != std::string::npos) {
             const bool antes = p == 0 || !palavra(static_cast<unsigned char>(l[p - 1]));
             const bool depois = p + nome.size() >= l.size() || !palavra(static_cast<unsigned char>(l[p + nome.size()]));

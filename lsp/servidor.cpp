@@ -7,6 +7,7 @@
 #include "../plataforma.h"
 #include "../semantic.h"
 #include "../source_files.h"
+#include "../utf8.h"
 #include "../versao.h"
 #include <filesystem>
 #include <fstream>
@@ -141,11 +142,12 @@ Valor posicao(int linha, int caractere) {
     return p;
 }
 
-// O trecho do diagnóstico: da coluna (em bytes, a partir de 1) até o fim da palavra que começa nela
+// O trecho do diagnóstico: da coluna (em caracteres, a partir de 1: Q7) até o fim da palavra que
+// começa nela
 Valor trecho(const std::vector<std::string>& ls, int linha, int coluna) {
     const int l = linha > 0 ? linha - 1 : 0;
     const std::string texto = l < static_cast<int>(ls.size()) ? ls[static_cast<std::size_t>(l)] : std::string();
-    std::size_t ini = coluna > 0 ? static_cast<std::size_t>(coluna - 1) : 0;
+    std::size_t ini = coluna > 0 ? utf8::byteDoCaractere(texto, coluna - 1) : 0;
     if (ini > texto.size()) ini = texto.size();
     std::size_t fim = ini;
     auto palavra = [](unsigned char c) { return std::isalnum(c) || c == '_' || c >= 0x80; };

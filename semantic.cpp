@@ -2,6 +2,7 @@
 #include "parser.h"          // printf/format: as expressões dentro do texto
 #include "runtime_error.h"   // C4: builtinErrorKinds
 #include "operacoes.h"       // Q1f: as contas dos const, as mesmas da execução
+#include "utf8.h"            // Q7: as colunas contam caracteres
 #include <sstream>
 #include <limits>
 #include <algorithm>
@@ -3607,7 +3608,8 @@ TypeRef SemanticAnalyzer::analyzeInterpolation(CallExpr* expr) {
         }
         CallExpr::InterpPart parte;
         try {
-            parte.expr = Parser::parseEmbedded(codigo, origem, static_cast<int>(i + 2), apelidos,
+            parte.expr = Parser::parseEmbedded(codigo, origem,   // Q7: a coluna em caracteres
+                                               static_cast<int>(utf8::tamanho(s.substr(0, i + 1))) + 1, apelidos,
                                                troca);
         } catch (const ParseError& e) {
             throwError("Expressão inválida em '{" + codigo + "}' no texto de '" + nome + "': " + e.what(),

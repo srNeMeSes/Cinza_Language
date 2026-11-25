@@ -1,0 +1,12 @@
+// Capítulo 1, exercício 4: quantos argumentos, o primeiro e o último.
+fn main(list<string> args) {
+  print("argumentos:", args.size());
+  if (args.size() > 0) {
+    print("primeiro:", args[0]);
+    print("último:", args[args.size() - 1]);
+  }
+}
+// args: um dois três
+// expect: argumentos: 3
+// expect: primeiro: um
+// expect: último: três

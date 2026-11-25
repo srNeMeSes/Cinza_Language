@@ -1,0 +1,8 @@
+// Q7: e.column e a posição do erro de execução contam caracteres, nos dois backends (antes 3:24 e 4:16)
+fn main() {
+  list<string> l = ["á"];
+  try { print("ãã", l[5]); } except (IndexError e) { print(e.line, e.column); }
+  print("ç", l[7]);
+}
+// expect: 4 22
+// expect-error: q7_coluna_em_caracteres_execucao.cinza:5:15: IndexError

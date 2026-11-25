@@ -6,7 +6,7 @@
 #
 # O pacote tem bin/ (o cinza, o cinzac e a pasta runtime/ que o cinzac usa para ligar), a licença,
 # os avisos das licenças de terceiros (com os textos que o sistema de build tiver em licencas/), o
-# README e a spec. Roda da raiz do repositório. Variáveis: LICENCAS (pastas com os textos das
+# README, a spec e o livro (sem o plano de trabalho dele). Roda da raiz do repositório. Variáveis: LICENCAS (pastas com os textos das
 # licenças de terceiros a copiar, separadas por espaço).
 set -eu
 plataforma=$1
@@ -25,6 +25,8 @@ cp -r llvm/bin/runtime "$pasta/bin/runtime"
 cp LICENSE README.md "$pasta/"
 cp distribuicao/LICENCAS-TERCEIROS.md "$pasta/"
 cp -r spec "$pasta/spec"
+cp -r livro "$pasta/livro"
+rm -f "$pasta/livro/PLANO.md"
 for d in ${LICENCAS:-}; do
     [ -d "$d" ] && cp -r "$d" "$pasta/licencas/$(basename "$d")"
 done

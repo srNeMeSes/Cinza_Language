@@ -1,0 +1,7 @@
+// Capítulo 1, exercício 1: o nome e o ano numa linha, a soma na seguinte.
+fn main() {
+  print("Ana", 2026);
+  print(1234 + 4321);
+}
+// expect: Ana 2026
+// expect: 5555

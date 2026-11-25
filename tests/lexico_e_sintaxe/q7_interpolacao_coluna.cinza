@@ -1,0 +1,5 @@
+// Q7: a coluna de uma expressão dentro do printf conta os acentos do texto antes dela como um caractere cada
+fn main() {
+  printf("ãé {nada}");
+}
+// expect-error: q7_interpolacao_coluna.cinza:3:15: SemanticError: Variável 'nada' não declarada

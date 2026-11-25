@@ -22,9 +22,11 @@ Cada tests/*.cinza declara a saída esperada em comentários:
     // env: NOME=valor (variável de ambiente; caminhos relativos à raiz do projeto)
     // stdin: linha   (uma linha da entrada padrão; várias diretivas = várias linhas)
 
-Também roda os exemplos executáveis da especificação (spec/*.md): todo bloco
-```cinza que tenha `// expect:` ou `// expect-error:` é extraído para
-tests/spec_exemplos/ e conferido com as mesmas regras. Um capítulo com a linha `<!-- exemplos-pendentes: motivo -->` é escrito antes do
+Também roda os exemplos executáveis da especificação (spec/*.md) e do livro (livro/*.md, Q7):
+todo bloco ```cinza que tenha `// expect:` ou `// expect-error:` é extraído para
+tests/spec_exemplos/ e conferido com as mesmas regras. As soluções dos exercícios do livro
+(livro/solucoes/*.cinza) e, nos projetos de exemplo (livro/exemplos/, cada um com o seu czm.mod),
+os arquivos com expectativas também são testes. Um capítulo com a linha `<!-- exemplos-pendentes: motivo -->` é escrito antes do
 código: seus exemplos são o alvo de uma etapa em andamento e ficam de fora (a suíte
 avisa quantos). Blocos sem essas linhas
 são só ilustrativos.
@@ -46,6 +48,7 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 DIR_TESTES = RAIZ / "tests"
 DIR_SPEC = RAIZ / "spec"
+DIR_LIVRO = RAIZ / "livro"   # Q7
 DIR_EXEMPLOS = DIR_TESTES / "spec_exemplos"   # gerado a cada execução (fora do git)
 RE_BLOCO = re.compile(r"^```cinza[ \t]*\r?\n(.*?)^```", re.M | re.S)
 RE_PENDENTES = re.compile(r"<!--\s*exemplos-pendentes:\s*(.*?)\s*-->")
@@ -242,20 +245,19 @@ def rodar(binario, caminho):
 
 
 def exemplos_da_spec(filtro):
-    """Extrai os exemplos executáveis de spec/*.md. Devolve [(nome, caminho)],
-    com nome no formato "spec/arquivo.md:linha"."""
-    if not DIR_SPEC.is_dir():
-        return []
+    """Extrai os exemplos executáveis de spec/*.md e de livro/*.md (Q7). Devolve
+    [(nome, caminho)], com nome no formato "spec/arquivo.md:linha" (ou "livro/...")."""
     DIR_EXEMPLOS.mkdir(exist_ok=True)
     for velho in DIR_EXEMPLOS.glob("*.cinza"):
         velho.unlink()
     exemplos = []
-    for md in sorted(DIR_SPEC.glob("*.md")):
+    fontes = [(pasta, pasta.name) for pasta in (DIR_SPEC, DIR_LIVRO) if pasta.is_dir()]
+    for md, origem in ((md, origem) for pasta, origem in fontes for md in sorted(pasta.glob("*.md"))):
         texto = md.read_text(encoding="utf-8")
         pendente = RE_PENDENTES.search(texto)
         if pendente:
             n = len(RE_BLOCO.findall(texto))
-            print(f"PEND  spec/{md.name}: {n} exemplos fora da suíte ({pendente.group(1)})")
+            print(f"PEND  {origem}/{md.name}: {n} exemplos fora da suíte ({pendente.group(1)})")
             continue
         for m in RE_BLOCO.finditer(texto):
             codigo = m.group(1)
@@ -264,13 +266,33 @@ def exemplos_da_spec(filtro):
                         for l in codigo.splitlines())):
                 continue
             linha = texto.count("\n", 0, m.start()) + 1
-            nome = f"spec/{md.name}:{linha}"
+            nome = f"{origem}/{md.name}:{linha}"
             if filtro and filtro not in nome:
                 continue
-            caminho = DIR_EXEMPLOS / f"{md.stem}_{linha}.cinza"
+            prefixo = "" if origem == "spec" else origem + "_"   # livro_01-comecando_12
+            caminho = DIR_EXEMPLOS / f"{prefixo}{md.stem}_{linha}.cinza"
             caminho.write_text(codigo, encoding="utf-8")
             exemplos.append((nome, caminho))
     return exemplos
+
+
+def testes_do_livro(filtro):
+    """Q7: as soluções dos exercícios (livro/solucoes/*.cinza, todas são testes) e, nos projetos
+    de exemplo (livro/exemplos/<projeto>/, com czm.mod), os arquivos com expectativas."""
+    testes = []
+    for p in sorted(DIR_LIVRO.rglob("*.cinza")) if DIR_LIVRO.is_dir() else []:
+        partes = p.relative_to(DIR_LIVRO).parts
+        if partes[0] == "solucoes":
+            eh = True
+        elif partes[0] == "exemplos":
+            esperado, erros, _ = ler_expectativas(p)
+            eh = bool(esperado or erros or ler_codigo_saida(p))
+        else:
+            eh = False
+        nome = "livro/" + p.relative_to(DIR_LIVRO).as_posix()
+        if eh and filtro in nome:
+            testes.append((nome, p))
+    return testes
 
 
 def confere_versao(binario):
@@ -829,6 +851,7 @@ def main():
               if not fora.intersection(p.relative_to(DIR_TESTES).parts[:-1])
               and filtro in p.relative_to(DIR_TESTES).as_posix() and eh_teste(p)]
     testes += exemplos_da_spec(filtro)
+    testes += testes_do_livro(filtro)
     so_formatador = not CINZAC and filtro and (filtro in "formatador/" or filtro in "lsp/")
     if not testes and not so_formatador:
         print(f"Nenhum teste encontrado em {DIR_TESTES} com o filtro '{filtro}'")

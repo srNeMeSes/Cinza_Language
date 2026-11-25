@@ -110,9 +110,10 @@ inline char Lexer::peekNext() const {
     return source[current + 1];
 }
 
-// Consome e retorna o caractere atual
+// Consome e retorna o caractere atual. Q7 (decidido em 2026-11-25): a coluna conta caracteres,
+// não bytes — o byte de continuação do UTF-8 (10xxxxxx) não a avança
 inline char Lexer::advance() {
-    column++;
+    if ((static_cast<unsigned char>(source[current]) & 0xC0) != 0x80) column++;
     return source[current++];
 }
 
@@ -121,7 +122,7 @@ inline bool Lexer::match(char expected) {
     if (isAtEnd()) return false;
     if (source[current] != expected) return false;
     current++;
-    column++;
+    column++;   // `expected` é sempre um caractere ASCII
     return true;
 }
 
@@ -505,6 +506,8 @@ std::vector<Token> Lexer::tokenize() {
     do {
         token = nextToken();
         token.file_id = file_id;   // C5
+        token.end_line = line;     // Q7
+        token.end_column = column;
         tokens.push_back(token);
     } while (token.type != TokenType::END_OF_FILE);
     

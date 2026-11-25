@@ -1,0 +1,5 @@
+// Q7: o ';' que falta no fim de uma linha é relatado logo depois do último token dela (antes, no começo da linha seguinte: 4:1)
+fn main() {
+  print("Olá, mundo!")
+}
+// expect-error: q7_ponto_virgula_fim_da_linha.cinza:3:23: SyntaxError: Esperado ';' após expressão (token: '}')

@@ -1,0 +1,15 @@
+// Capítulo 1, exercício 2: o programa corrigido.
+//
+// O compilador acha os erros por fase, e cada fase só roda se a anterior passou:
+//   1. léxico:    2:17: LexicalError: Caractere inesperado: '$'          ($ não existe na Cinza)
+//   2. sintaxe:   3:24: SyntaxError: Esperado ';' após expressão (token: 'imprime')
+//   3. semântica: 4:3: SemanticError: Função 'imprime' não declarada     (a embutida é print)
+// Por isso só aparece um erro de cada vez: corrigido o $, surge o ';'; corrigido o ';', o nome.
+fn main() {
+  print("Cinza" + "!");
+  print("versão", 0.6f);
+  print("fim");
+}
+// expect: Cinza!
+// expect: versão 0.6
+// expect: fim
