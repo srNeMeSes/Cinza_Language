@@ -1,0 +1,8 @@
+// Q7: um parâmetro com valor padrão (antes: "Uma atribuição não é uma expressão")
+fn saudacao(string nome = "mundo", i32 vezes = 1) {
+  print(nome, vezes);
+}
+fn main() {}
+// expect-error: 2:25: SyntaxError: A Cinza não tem valor padrão nos parâmetros
+// expect-error: 2:46: SyntaxError: A Cinza não tem valor padrão nos parâmetros
+// expect-not: atribuição não é uma expressão

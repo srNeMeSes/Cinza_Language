@@ -1,0 +1,6 @@
+// Q7: um argumento pelo nome numa chamada de função (antes: "Esperado ')' após argumentos (token: ':')")
+fn area(f64 largura, f64 altura) -> f64 { return largura * altura; }
+fn main() {
+  print(area(largura: 2.ff, altura: 3.ff));
+}
+// expect-error: 4:21: SyntaxError: Argumentos pelo nome (largura: valor) só existem na criação de struct (new Ponto(x: 1)); numa chamada, os argumentos vão em ordem

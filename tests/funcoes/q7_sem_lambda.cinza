@@ -1,0 +1,8 @@
+// Q7: uma função anônima (lambda) é um erro só, que explica a alternativa (antes, quatro erros em cascata)
+fn main() {
+  var f = fn(i32 x) -> i32 { return x * 2; };
+  print(1);
+}
+// expect-error: 3:11: SyntaxError: A Cinza não tem funções anônimas (lambdas) nem funções como valor
+// expect-not: deve ser inicializado
+// expect-not: Esperado nome da variável

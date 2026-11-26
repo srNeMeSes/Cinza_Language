@@ -91,6 +91,12 @@ const Token& Parser::consume(TokenType type, const std::string& message) {
         error("A Cinza não tem o operador ternário (condição ? a : b): use um if/else", peek());
         throw ParseError(message, peek());
     }
+    if (check(TokenType::COLON) && type == TokenType::RPAREN && current > 0 &&
+        previous().type == TokenType::IDENTIFIER) {
+        error("Argumentos pelo nome (" + previous().lexeme + ": valor) só existem na criação de struct "
+              "(new Ponto(x: 1)); numa chamada, os argumentos vão em ordem", peek());
+        throw ParseError(message, peek());
+    }
     if (check(TokenType::OP_ASSIGN) && (type == TokenType::RPAREN || type == TokenType::COMMA)) {
         error("Uma atribuição não é uma expressão na Cinza (não tem valor): faça a atribuição numa "
               "instrução própria", peek());
@@ -674,6 +680,19 @@ ExprPtr Parser::parsePrimaryExpr() {
         return expr;
     }
     
+    // Q7: fn(...) { ... } como valor (a função anônima, a lambda): relata uma vez e pula ela toda
+    if (check(TokenType::KW_FN)) {
+        const Token onde = peek();
+        error("A Cinza não tem funções anônimas (lambdas) nem funções como valor: declare a função no "
+              "nível de cima e chame-a pelo nome. Para passar um comportamento adiante, use um objeto "
+              "de uma classe que cumpre uma interface", onde);
+        advance();
+        pulaParenteses();
+        while (!check(TokenType::LBRACE) && !check(TokenType::SEMICOLON) && !isAtEnd()) advance();
+        pulaBloco();
+        throw ParseError("função anônima", onde);
+    }
+
     // Q7: o que outras linguagens têm e a Cinza não: ++ e -- (x += 1) e ** (Math.pow)
     auto colados = [](const Token& a, const Token& b) {
         return a.end_line == b.line && a.end_column == b.column;
@@ -1598,6 +1617,17 @@ std::vector<Parameter> Parser::parseParameterList() {
                       "'). Use um tipo explícito, ex.: 'fn f(i64 " +
                       param_name_token.lexeme + ")'.", type_token);
                 throw ParseError("'var' inválido em parâmetro", type_token);
+            }
+            // Q7: fn f(i32 x = 1): não há valor padrão; relata e pula o valor, para seguir
+            if (check(TokenType::OP_ASSIGN)) {
+                error("A Cinza não tem valor padrão nos parâmetros: todo argumento é passado na "
+                      "chamada (para variações, declare funções com nomes diferentes)", peek());
+                int nivel = 0;
+                while (!isAtEnd() && !(nivel == 0 && (check(TokenType::COMMA) || check(TokenType::RPAREN)))) {
+                    if (check(TokenType::LPAREN) || check(TokenType::LBRACKET)) ++nivel;
+                    else if (check(TokenType::RPAREN) || check(TokenType::RBRACKET)) --nivel;
+                    advance();
+                }
             }
             parameters.emplace_back(std::move(param_type), param_name_token.lexeme, 
                                    param_name_token, param_const);
