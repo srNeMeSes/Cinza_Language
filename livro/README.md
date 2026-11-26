@@ -13,7 +13,7 @@ livro ensina, a spec define.
 **Parte I — Primeiros passos**
 
 1. [Começando](01-comecando.md)
-2. Valores, tipos e variáveis
+2. [Valores, tipos e variáveis](02-valores-e-tipos.md)
 3. Operadores e expressões
 4. Controle de fluxo
 5. Funções

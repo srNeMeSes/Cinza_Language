@@ -88,7 +88,7 @@ versão roda sozinha: o leitor pode pular para qualquer capítulo.
   nativo); a extensão do VS Code e o `cinza fmt`; ler a primeira mensagem de erro (o formato
   `arquivo:linha:coluna: Tipo: mensagem`); argumentos da linha de comando (`main(list<string>
   args)`). *Spec: 4.2, 7.3, 7.4.*
-- [ ] **2. Valores, tipos e variáveis** — `i32`, `i64`, `f32`, `f64`, `string`, `bool`; os
+- [x] **2. Valores, tipos e variáveis** (2026-11-25) — `i32`, `i64`, `f32`, `f64`, `string`, `bool`; os
   literais (o tipo do inteiro pelo tamanho; `1.5f` e `1.5ff`: a precisão sempre escrita; sem `0x`
   nem expoente); declarar com tipo e com `var`; o valor inicial obrigatório; as duas famílias que
   não se misturam e a promoção dentro da família; `cast<T>` e as conversões que podem falhar;
@@ -263,4 +263,5 @@ Commits por parte do livro, num ramo `q7-livro`; merge no `main` quando o autor 
 |------|-----------------|
 | 2026-11-25 | Plano escrito; público decidido (quem já programa). |
 | 2026-11-25 | O suporte da suíte (`livro/*.md`, `livro/solucoes/`, `livro/exemplos/`); o sumário (`livro/README.md`); o capítulo 1, com 10 exemplos e 4 soluções, nos dois backends. Achados no caminho, corrigidos no compilador com teste: o `;` que falta é relatado no fim da linha dele (era no começo da seguinte); as colunas contam caracteres, não bytes (decidido pelo autor; spec 7.3; o LSP converte); o README da extensão listava o `?` como inválido. |
+| 2026-11-25 | Os exemplos no formato do livro (o código limpo, ```saida e ```erro à parte; decidido pelo autor). O capítulo 2, com 23 exemplos e as soluções. Achado no caminho, corrigido no léxico com teste: um literal com expoente (`6.022e23`, `1.5e-3`) diz que não há notação com expoente e sugere o `cast<f64>("...")` (antes falava do sufixo `f`/`ff`, e `1.5e-3` virava `1.5e` menos 3). |
 | 2026-11-25 | Revisão externa do plano: entram a regra editorial do porquê, objetivos e pré-requisitos por capítulo, o mapa do sistema de tipos (cap. 2), o caminho da compilação e o diagnóstico (cap. 24), C++ e C# no apêndice F. |

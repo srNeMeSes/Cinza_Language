@@ -1,0 +1,12 @@
+// Q7: um literal com expoente diz que não há notação com expoente e como escrever (antes, 6.022e23
+// dizia "o sufixo é f ou ff" e 1.5e-3 virava 1.5e menos 3); a sugestão leva o número sem o sufixo
+fn main() {
+  f64 a = 6.022e23;
+  f64 b = 1.5e-3;
+  i64 c = 1e10;
+  f64 d = 2E+5ff;
+}
+// expect-error: 4:11: LexicalError: Literal '6.022e23' inválido: a Cinza não tem notação com expoente; escreva o número por extenso ou converta o texto: cast<f64>("6.022e23")
+// expect-error: 5:11: LexicalError: Literal '1.5e-3' inválido
+// expect-error: 6:11: LexicalError: Literal '1e10' inválido
+// expect-error: cast<f64>("2E+5")

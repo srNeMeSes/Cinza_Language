@@ -190,6 +190,26 @@ Token Lexer::errorToken(const std::string& message) {
 Token Lexer::number() {
     auto at = [&](size_t k) -> char { return current + k < source.size() ? source[current + k] : '\0'; };
     auto identChar = [](char c) { return isAsciiAlnum(c) || c == '_' || isNonAscii(c); };
+    // Q7: 1e10, 6.022e23, 1.5e-3: não há notação com expoente (spec 1.5). Consome o expoente
+    // inteiro (com o sinal) e o que vier colado, para o erro mostrar o literal todo
+    size_t fim_expoente = 0;
+    auto expoente = [&]() -> bool {
+        if (peek() != 'e' && peek() != 'E') return false;
+        const bool com_sinal = (at(1) == '+' || at(1) == '-') && isAsciiDigit(at(2));
+        if (!isAsciiDigit(at(1)) && !com_sinal) return false;
+        advance();
+        if (com_sinal) advance();
+        while (isAsciiDigit(peek())) advance();
+        fim_expoente = current;
+        while (identChar(peek())) advance();   // um sufixo colado (2e5ff)
+        return true;
+    };
+    auto erroExpoente = [&]() {
+        const std::string texto = source.substr(start, current - start);
+        return errorToken("Literal '" + texto + "' inválido: a Cinza não tem notação com expoente; "
+                          "escreva o número por extenso ou converta o texto: cast<f64>(\"" +
+                          source.substr(start, fim_expoente - start) + "\")");
+    };
 
     // Consome dígitos antes do ponto
     while (isAsciiDigit(peek())) {
@@ -208,6 +228,7 @@ Token Lexer::number() {
             if (at(1) == 'f' && !identChar(at(2)))      { advance(); advance(); largura = 64; }
             else if (!identChar(at(1)))                 { advance(); largura = 32; }
         }
+        if (largura == 0 && expoente()) return erroExpoente();
         if (largura == 0) {
             // consome o resto do "sufixo" (1.5x, 1.5fff) para o erro mostrar tudo
             while (identChar(peek())) advance();
@@ -251,13 +272,14 @@ Token Lexer::number() {
                           ".ff (f64)");
     }
 
-    // 0x10, 1e10, 5abc: o número colado em letras é um literal só, e inválido (não há
-    // prefixo de base nem expoente; seção 1.5 da spec)
+    if (expoente()) return erroExpoente();
+
+    // 0x10, 5abc: o número colado em letras é um literal só, e inválido (não há prefixo de
+    // base; seção 1.5 da spec)
     if (identChar(peek())) {
         while (identChar(peek())) advance();
         return errorToken("Literal '" + source.substr(start, current - start) + "' inválido: um número "
-                          "não pode vir colado em letras (não há prefixo de base, como 0x, nem expoente, "
-                          "como 1e10)");
+                          "não pode vir colado em letras (não há prefixo de base, como 0x)");
     }
 
     Token token = makeToken(TokenType::INTEGER_LITERAL);
