@@ -132,12 +132,18 @@ void Parser::synchronize() {
     // abriu fechá-la normalmente. No nível superior não há chave aberta, então
     // o '}' avulso é consumido (garante que o parser avança).
     if (check(TokenType::RBRACE) && brace_depth > 0) return;
+    // Q7: um bloco aberto no meio do que se pula é pulado inteiro — senão o '}' dele fecharia a
+    // função, e o '}' dela viraria um segundo erro, falso
+    if (check(TokenType::LBRACE)) { pulaBloco(); return; }
     advance();
 
     while (!isAtEnd()) {
         if (previous().type == TokenType::SEMICOLON) return;
 
         switch (peek().type) {
+            case TokenType::LBRACE:
+                pulaBloco();
+                return;
             case TokenType::RBRACE:
                 if (brace_depth > 0) return;
                 advance();
@@ -165,6 +171,34 @@ void Parser::synchronize() {
     }
 }
 
+
+void Parser::pulaBloco() {
+    if (!check(TokenType::LBRACE)) return;
+    int nivel = 0;
+    do {
+        if (check(TokenType::LBRACE)) ++nivel;
+        else if (check(TokenType::RBRACE)) --nivel;
+        advance();
+    } while (nivel > 0 && !isAtEnd());
+}
+
+void Parser::pulaParenteses() {
+    if (!check(TokenType::LPAREN)) return;
+    int nivel = 0;
+    do {
+        if (check(TokenType::LPAREN)) ++nivel;
+        else if (check(TokenType::RPAREN)) --nivel;
+        advance();
+    } while (nivel > 0 && !isAtEnd());
+}
+
+// Q7: uma construção que a Cinza escreve de outro jeito (elif, switch, do/while, o for do C):
+// relata uma vez, pula o resto dela e segue com uma instrução vazia (com o erro de sintaxe
+// registrado, o programa não passa desta fase)
+StmtPtr Parser::construcaoDeFora(const std::string& msg, const Token& onde) {
+    error(msg, onde);
+    return std::make_unique<BlockStmt>(onde, std::vector<StmtPtr>{});
+}
 
 // ============================================================================
 // TYPE PARSING
@@ -1234,6 +1268,29 @@ StmtPtr Parser::parseAssignmentOrExprStatement() {
                                             op_token.type, std::move(value));
     }
 
+    // Q7: elif, switch e do/while, escritos como em outras linguagens, chegam aqui como uma
+    // chamada (ou um nome) seguida de um bloco
+    if (check(TokenType::LBRACE)) {
+        std::string nome;
+        if (expr->node_kind == NodeKind::Identifier) nome = static_cast<IdentifierExpr*>(expr.get())->name;
+        else if (expr->node_kind == NodeKind::Call) nome = static_cast<CallExpr*>(expr.get())->function_name;
+        std::string msg;
+        if (nome == "elif" || nome == "elsif" || nome == "elseif")
+            msg = "A Cinza escreve 'else if', não '" + nome + "': } else if (condição) { ... }";
+        else if (nome == "switch" && expr->node_kind == NodeKind::Call)
+            msg = "A Cinza não tem switch: use if / else if (ou um dict, para associar valores)";
+        else if (nome == "do" && expr->node_kind == NodeKind::Identifier)
+            msg = "A Cinza não tem do/while: use while (true) { ...; if (not condição) { break; } }";
+        if (!msg.empty()) {
+            pulaBloco();
+            if (nome == "do" && match(TokenType::KW_WHILE)) {   // o "while (cond);" do fim
+                pulaParenteses();
+                match(TokenType::SEMICOLON);
+            }
+            return construcaoDeFora(msg, start_token);
+        }
+    }
+
     // Expressão statement
     consume(TokenType::SEMICOLON, "Esperado ';' após expressão");
     return std::make_unique<ExprStmt>(start_token, std::move(expr));
@@ -1243,7 +1300,7 @@ StmtPtr Parser::parseAssignmentOrExprStatement() {
 StmtPtr Parser::parseIfStatement() {
     Token if_token = advance(); // consome 'if'
     
-    consume(TokenType::LPAREN, "Esperado '(' após 'if'");
+    consume(TokenType::LPAREN, "Esperado '(' após 'if': a condição vai entre parênteses, if (x > 0) { ... }");
     // Q1b: if (T nome = opcional)
     TypePtr decl_type;
     Token   decl_tok;
@@ -1257,7 +1314,7 @@ StmtPtr Parser::parseIfStatement() {
     
     // v2.00 #1: bloco obrigatório
     if (!check(TokenType::LBRACE)) {
-        error("Bloco '{...}' obrigatório após 'if'. Corpos sem bloco não são permitidos no Cinza.", peek());
+        error("Bloco '{...}' obrigatório após 'if'. Corpos sem bloco não são permitidos na Cinza.", peek());
         throw ParseError("Bloco obrigatório", peek());
     }
     StmtPtr then_branch = parseBlockStatement();
@@ -1333,7 +1390,7 @@ bool Parser::checkDeclaracaoNaCondicao() const {
 StmtPtr Parser::parseWhileStatement() {
     Token while_token = advance(); // consome 'while'
     
-    consume(TokenType::LPAREN, "Esperado '(' após 'while'");
+    consume(TokenType::LPAREN, "Esperado '(' após 'while': a condição vai entre parênteses, while (x > 0) { ... }");
     // Q1b: while (T nome = opcional)
     TypePtr decl_type;
     Token   decl_tok;
@@ -1365,7 +1422,7 @@ StmtPtr Parser::parseWhileStatement() {
 StmtPtr Parser::parseForStatement() {
     Token for_token = advance(); // consome 'for'
     
-    consume(TokenType::LPAREN, "Esperado '(' após 'for'");
+    consume(TokenType::LPAREN, "Esperado '(' após 'for': for (i32 x in lista) { ... }");
     
     // Aceita tipo explícito (i64, string, etc), 'var' ou identificador direto
     std::string iterator_name;
@@ -1387,9 +1444,25 @@ StmtPtr Parser::parseForStatement() {
         // Agora espera o nome do iterador
         iterator_name = consume(TokenType::IDENTIFIER, "Esperado nome do iterador após tipo").lexeme;
         
-    } else {
+    } else if (!(check(TokenType::IDENTIFIER) && current + 1 < tokens.size() &&
+                 tokens[current + 1].type == TokenType::OP_ASSIGN)) {
         error("Esperado tipo do iterador no for");
         throw ParseError("For inválido", peek());
+    }
+
+    // Q7: for (i32 i = 0; i < n; i += 1) e for (i = 0; ...): o for de três partes do C
+    if (check(TokenType::OP_ASSIGN) || check(TokenType::SEMICOLON) ||
+        (check(TokenType::IDENTIFIER) && iterator_name.empty())) {
+        const Token onde = peek();
+        int nivel = 1;   // dentro do '(' do for
+        while (!isAtEnd() && nivel > 0) {
+            if (check(TokenType::LPAREN)) ++nivel;
+            else if (check(TokenType::RPAREN)) --nivel;
+            advance();
+        }
+        pulaBloco();
+        return construcaoDeFora("O for da Cinza percorre uma coleção: for (i32 i in range(0, n)) { ... }. "
+                                "Não há o for de três partes do C (inicialização; condição; passo)", onde);
     }
     
     consume(TokenType::KW_IN, "Esperado 'in' no for");

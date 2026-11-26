@@ -1,0 +1,8 @@
+// Q7: o for de três partes do C (antes: dois erros, "Esperado 'in' no for" e "Esperado ';'")
+fn main() {
+  for (i32 i = 0; i < 3; i += 1) {
+    print(i);
+  }
+}
+// expect-error: 3:14: SyntaxError: O for da Cinza percorre uma coleção: for (i32 i in range(0, n)) { ... }
+// expect-not: Esperado expressão (token: '}')

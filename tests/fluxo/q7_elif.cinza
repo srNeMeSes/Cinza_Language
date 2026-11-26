@@ -1,0 +1,11 @@
+// Q7: elif: 'else if' (antes: "Esperado ';' após expressão" e um segundo erro falso no '}' da função)
+fn main() {
+  i32 n = 5;
+  if (n > 3) {
+    print("a");
+  } elif (n > 1) {
+    print("b");
+  }
+}
+// expect-error: 6:5: SyntaxError: A Cinza escreve 'else if', não 'elif'
+// expect-not: Esperado expressão (token: '}')

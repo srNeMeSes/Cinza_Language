@@ -1,0 +1,8 @@
+// Q7: do/while: while (true) com break; o "while (cond);" do fim também é pulado
+fn main() {
+  do {
+    print(1);
+  } while (false);
+}
+// expect-error: 3:3: SyntaxError: A Cinza não tem do/while: use while (true) { ...; if (not condição) { break; } }
+// expect-not: Esperado expressão (token: '}')

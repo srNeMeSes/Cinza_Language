@@ -1,0 +1,9 @@
+// Q7: if sem parênteses (Go, Rust): a forma certa na mensagem, e um erro só
+fn main() {
+  i32 n = 5;
+  if n > 3 {
+    print("grande");
+  }
+}
+// expect-error: 4:6: SyntaxError: Esperado '(' após 'if': a condição vai entre parênteses, if (x > 0) { ... }
+// expect-not: Esperado expressão (token: '}')

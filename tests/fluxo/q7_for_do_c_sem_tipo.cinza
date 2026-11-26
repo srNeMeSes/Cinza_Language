@@ -1,0 +1,8 @@
+// Q7: o for do C sem o tipo (for (i = 0; ...))
+fn main() {
+  for (i = 0; i < 3; i += 1) {
+    print(i);
+  }
+}
+// expect-error: 3:8: SyntaxError: O for da Cinza percorre uma coleção
+// expect-not: Esperado expressão (token: '}')

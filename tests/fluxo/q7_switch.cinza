@@ -1,0 +1,9 @@
+// Q7: switch: if / else if
+fn main() {
+  i32 n = 1;
+  switch (n) {
+    print(n);
+  }
+}
+// expect-error: 4:3: SyntaxError: A Cinza não tem switch: use if / else if
+// expect-not: Esperado expressão (token: '}')

@@ -1,0 +1,11 @@
+// Q7: depois de um erro de sintaxe, a recuperação pula o bloco que se abre no meio, e o erro seguinte é real
+fn main() {
+  i32 x = 0;
+  if (x = 1) {
+    print(x);
+  }
+  print("a" "b");
+}
+// expect-error: 4:9: SyntaxError: Uma atribuição não é uma expressão
+// expect-error: 7:13: SyntaxError: Esperado ')' após argumentos
+// expect-not: Esperado expressão (token: '}')

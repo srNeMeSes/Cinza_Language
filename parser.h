@@ -98,6 +98,9 @@ private:
     
     // Sincronização após erro
     void synchronize();
+    void pulaBloco();        // Q7: um bloco { ... } inteiro, com os aninhados
+    void pulaParenteses();   // Q7: um ( ... ) inteiro, a partir do '('
+    StmtPtr construcaoDeFora(const std::string& msg, const Token& onde);   // Q7: relata e segue
     
     // ========================================================================
     // PARSING DE TIPOS
