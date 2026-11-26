@@ -1,0 +1,6 @@
+// Q7: not a == 1 é (not a) == 1: a mensagem explica
+fn main() {
+  i32 a = 1;
+  print(not a == 1);
+}
+// expect-error: 4:9: SemanticError: Operador 'not' requer 'bool', mas recebeu 'i32'. O 'not' se aplica só ao que vem logo depois

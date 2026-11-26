@@ -1,0 +1,5 @@
+// Q7: não há ** (antes: "Esperado expressão (token: '*')")
+fn main() {
+  print(2 ** 10);
+}
+// expect-error: A Cinza não tem o operador de potência ('**'): use Math.pow(base, expoente)

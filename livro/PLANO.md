@@ -97,7 +97,7 @@ versão roda sozinha: o leitor pode pular para qualquer capítulo.
   que é referência (compartilhado), o implícito (só alargar dentro da família) e o explícito
   (`cast`), o que nunca é `null`, o que é conferido na compilação e o que sobra para a execução —
   cada item com o capítulo que o aprofunda. *Spec: 1.5, 3.1, 3.2, 3.5, 3.6, 5.1, 5.4.*
-- [ ] **3. Operadores e expressões** — aritmética (a divisão inteira trunca em direção a zero; o
+- [x] **3. Operadores e expressões** (2026-11-26) — aritmética (a divisão inteira trunca em direção a zero; o
   sinal do `%` segue o dividendo); comparação, igualdade (estrutural e por identidade, adiantada) e
   os lógicos com `and`/`or`/`not`; concatenação com `+`; a atribuição composta e a regra do tipo
   do alvo; a tabela de precedência; a ordem de avaliação (da esquerda para a direita, o
@@ -264,4 +264,5 @@ Commits por parte do livro, num ramo `q7-livro`; merge no `main` quando o autor 
 | 2026-11-25 | Plano escrito; público decidido (quem já programa). |
 | 2026-11-25 | O suporte da suíte (`livro/*.md`, `livro/solucoes/`, `livro/exemplos/`); o sumário (`livro/README.md`); o capítulo 1, com 10 exemplos e 4 soluções, nos dois backends. Achados no caminho, corrigidos no compilador com teste: o `;` que falta é relatado no fim da linha dele (era no começo da seguinte); as colunas contam caracteres, não bytes (decidido pelo autor; spec 7.3; o LSP converte); o README da extensão listava o `?` como inválido. |
 | 2026-11-25 | Os exemplos no formato do livro (o código limpo, ```saida e ```erro à parte; decidido pelo autor). O capítulo 2, com 23 exemplos e as soluções. Achado no caminho, corrigido no léxico com teste: um literal com expoente (`6.022e23`, `1.5e-3`) diz que não há notação com expoente e sugere o `cast<f64>("...")` (antes falava do sufixo `f`/`ff`, e `1.5e-3` virava `1.5e` menos 3). |
+| 2026-11-26 | O capítulo 3, com 25 exemplos e as soluções. Achadas no caminho, as mensagens para o que outras linguagens têm e a Cinza não, melhoradas com testes (`tests/operadores/q7_*`): `++` e `--`, `**`, os operadores de bits (`&`, `|`, `^`, `~`), o ternário, a atribuição como expressão, a comparação encadeada (`1 < x < 10`) e o `not a == 1`. |
 | 2026-11-25 | Revisão externa do plano: entram a regra editorial do porquê, objetivos e pré-requisitos por capítulo, o mapa do sistema de tipos (cap. 2), o caminho da compilação e o diagnóstico (cap. 24), C++ e C# no apêndice F. |

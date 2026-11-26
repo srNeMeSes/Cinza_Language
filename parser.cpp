@@ -85,6 +85,18 @@ bool Parser::match(const std::vector<TokenType>& types) {
 const Token& Parser::consume(TokenType type, const std::string& message) {
     if (check(type)) return advance();
 
+    // Q7: o ternário e a atribuição usada como valor, que outras linguagens têm
+    if (check(TokenType::QUESTION) &&
+        (type == TokenType::SEMICOLON || type == TokenType::RPAREN || type == TokenType::COMMA)) {
+        error("A Cinza não tem o operador ternário (condição ? a : b): use um if/else", peek());
+        throw ParseError(message, peek());
+    }
+    if (check(TokenType::OP_ASSIGN) && (type == TokenType::RPAREN || type == TokenType::COMMA)) {
+        error("Uma atribuição não é uma expressão na Cinza (não tem valor): faça a atribuição numa "
+              "instrução própria", peek());
+        throw ParseError(message, peek());
+    }
+
     // Q7: o ';' que falta no fim de uma linha é relatado logo depois do último token dela, não
     // no começo da linha seguinte (o token que veio no lugar continua na mensagem)
     if (type == TokenType::SEMICOLON && current > 0 && previous().end_line > 0 &&
@@ -628,6 +640,28 @@ ExprPtr Parser::parsePrimaryExpr() {
         return expr;
     }
     
+    // Q7: o que outras linguagens têm e a Cinza não: ++ e -- (x += 1) e ** (Math.pow)
+    auto colados = [](const Token& a, const Token& b) {
+        return a.end_line == b.line && a.end_column == b.column;
+    };
+    const Token& aqui = peek();
+    const bool tem_anterior = current > 0;
+    const bool tem_dois = current > 1;
+    if ((aqui.type == TokenType::OP_PLUS &&
+         ((tem_anterior && previous().type == TokenType::OP_PLUS && colados(previous(), aqui)) ||
+          (current + 1 < tokens.size() && tokens[current + 1].type == TokenType::OP_PLUS &&
+           colados(aqui, tokens[current + 1])))) ||
+        (tem_dois && previous().type == TokenType::OP_MINUS && tokens[current - 2].type == TokenType::OP_MINUS &&
+         colados(tokens[current - 2], previous()))) {
+        error("A Cinza não tem '++' nem '--': escreva x += 1 (ou x -= 1)", aqui);
+        throw ParseError("++ ou --", aqui);
+    }
+    if (aqui.type == TokenType::OP_MULTIPLY && tem_anterior && previous().type == TokenType::OP_MULTIPLY &&
+        colados(previous(), aqui)) {
+        error("A Cinza não tem o operador de potência ('**'): use Math.pow(base, expoente), em ponto "
+              "flutuante (Math.pow(2.ff, 10.ff))", aqui);
+        throw ParseError("**", aqui);
+    }
     error("Esperado expressão");
     throw ParseError("Expressão inválida", peek());
 }

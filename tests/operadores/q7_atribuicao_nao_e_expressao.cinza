@@ -1,0 +1,6 @@
+// Q7: a atribuição não é expressão (antes: "Esperado ')' após expressão (token: '=')")
+fn main() {
+  i32 a = 0;
+  i32 b = (a = 5);
+}
+// expect-error: 4:14: SyntaxError: Uma atribuição não é uma expressão na Cinza (não tem valor)

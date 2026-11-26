@@ -1,0 +1,7 @@
+// Q7: 1 < x < 10 não encadeia (antes: "Comparação '<' não é suportada entre 'bool' e 'i32'")
+fn main() {
+  i32 x = 5;
+  print(1 < x < 10);
+}
+// expect-error: 4:15: SemanticError: A Cinza não encadeia comparações
+// expect-error: Escreva 'a < b and b < c'

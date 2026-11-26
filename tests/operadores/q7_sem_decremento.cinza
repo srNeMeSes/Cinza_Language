@@ -1,0 +1,6 @@
+// Q7: não há -- (antes: "Esperado expressão (token: ';')")
+fn main() {
+  i32 i = 0;
+  i--;
+}
+// expect-error: 4:6: SyntaxError: A Cinza não tem '++' nem '--'

@@ -1,0 +1,6 @@
+// Q7: não há ternário (antes: "Esperado ';' após declaração de variável (token: '?')")
+fn main() {
+  i32 n = 5;
+  string s = n > 3 ? "grande" : "pequeno";
+}
+// expect-error: 4:20: SyntaxError: A Cinza não tem o operador ternário (condição ? a : b): use um if/else

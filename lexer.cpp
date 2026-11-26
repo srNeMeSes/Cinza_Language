@@ -485,11 +485,13 @@ Token Lexer::nextToken() {
         // Operadores lógicos
         case '&':
             if (match('&')) return makeToken(TokenType::OP_AND);
-            return errorToken("Caractere inesperado '&'");
+            return errorToken("Caractere inesperado '&': a Cinza não tem operadores de bits; o 'e' "
+                              "lógico é && (ou and)");   // Q7
         
         case '|':
             if (match('|')) return makeToken(TokenType::OP_OR);
-            return errorToken("Caractere inesperado '|'");
+            return errorToken("Caractere inesperado '|': a Cinza não tem operadores de bits; o 'ou' "
+                              "lógico é || (ou or)");   // Q7
         
         // Delimitadores
         case '(': return makeToken(TokenType::LPAREN);
@@ -515,6 +517,11 @@ Token Lexer::nextToken() {
         case '?': return makeToken(TokenType::QUESTION);
         
         default:
+            if (c == '^')   // Q7
+                return errorToken("Caractere inesperado: '^': a Cinza não tem operadores de bits nem "
+                                  "de potência (para potência, Math.pow)");
+            if (c == '~')
+                return errorToken("Caractere inesperado: '~': a Cinza não tem operadores de bits");
             return errorToken(std::string("Caractere inesperado: '") + c + "'");
     }
 }

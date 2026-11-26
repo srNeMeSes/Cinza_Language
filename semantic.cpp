@@ -310,8 +310,12 @@ TypeRef TypeChecker::checkUnaryOp(TokenType op, TypeRef operand, const Token& to
 
         case TokenType::OP_NOT:
             if (operand->is(TK::Bool)) return operand;
+            // Q7: not a == 1 é (not a) == 1 — o not pega só o que vem logo depois
             throw SemanticError(
-                "Operador '" + tok.lexeme + "' requer 'bool', mas recebeu '" + operand->str() + "'", tok);
+                "Operador '" + tok.lexeme + "' requer 'bool', mas recebeu '" + operand->str() + "'. O '" +
+                tok.lexeme + "' se aplica só ao que vem logo depois: '" + tok.lexeme + " a == 1' é '(" +
+                tok.lexeme + " a) == 1'; para negar a comparação, use parênteses ('" + tok.lexeme +
+                " (a == 1)') ou '!='", tok);
 
         default:
             throw SemanticError("Operador unário desconhecido", tok);
@@ -2784,6 +2788,16 @@ TypeRef SemanticAnalyzer::analyzeIdentifier(IdentifierExpr* expr) {
 TypeRef SemanticAnalyzer::analyzeBinary(BinaryExpr* expr) {
     TypeRef left_type  = analyzeExpr(expr->left.get());
     TypeRef right_type = analyzeExpr(expr->right.get());
+
+    // Q7: 1 < x < 10 não encadeia (como no Python): compara o bool de 1 < x com 10
+    auto ordem = [](TokenType t) {
+        return t == TokenType::OP_LESS || t == TokenType::OP_LESS_EQUAL ||
+               t == TokenType::OP_GREATER || t == TokenType::OP_GREATER_EQUAL;
+    };
+    if (ordem(expr->op) && expr->left->node_kind == NodeKind::Binary &&
+        ordem(static_cast<BinaryExpr*>(expr->left.get())->op) && !right_type->is(TK::Bool))
+        throwError("A Cinza não encadeia comparações: 'a < b < c' compara o resultado de 'a < b' (um "
+                   "bool) com c. Escreva 'a < b and b < c'", expr->token);
 
     // x * 2 com x de ponto flutuante: o erro aponta o literal e a correção
     if (left_type->isFloat() && right_type->isInteger())

@@ -1,0 +1,5 @@
+// Q7: 5 - -3 e --3 continuam válidos (o menos unário duas vezes)
+fn main() {
+  print(5 - -3, --3);
+}
+// expect: 8 3

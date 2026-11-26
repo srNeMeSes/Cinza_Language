@@ -1,0 +1,11 @@
+// Q7: não há operadores de bits (antes: "Caractere inesperado '&'"); os léxicos saem juntos
+fn main() {
+  i32 a = 6 & 3;
+  i32 b = 6 | 3;
+  i32 c = 6 ^ 3;
+  i32 d = ~6;
+}
+// expect-error: 3:13: LexicalError: Caractere inesperado '&': a Cinza não tem operadores de bits; o 'e' lógico é && (ou and)
+// expect-error: 4:13: LexicalError: Caractere inesperado '|': a Cinza não tem operadores de bits; o 'ou' lógico é || (ou or)
+// expect-error: 5:13: LexicalError: Caractere inesperado: '^': a Cinza não tem operadores de bits nem de potência
+// expect-error: 6:11: LexicalError: Caractere inesperado: '~': a Cinza não tem operadores de bits

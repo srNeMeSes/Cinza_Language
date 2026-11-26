@@ -1,0 +1,6 @@
+// Q7: não há ++ prefixo
+fn main() {
+  i32 i = 0;
+  ++i;
+}
+// expect-error: 4:3: SyntaxError: A Cinza não tem '++' nem '--'

@@ -1,6 +1,6 @@
-// Q1e (varredura da spec, capítulo 2): a < b < c é válido na sintaxe, mas compara bool com número: erro de tipo
+// Q1e (varredura da spec, capítulo 2): a < b < c é válido na sintaxe, mas compara bool com número: erro de tipo (Q7: a mensagem diz que não encadeia)
 fn main() {
   print(1 < 2 < 3);
 }
 // expect-error: SemanticError
-// expect-error: entre 'bool' e 'i32'
+// expect-error: A Cinza não encadeia comparações: 'a < b < c' compara o resultado de 'a < b' (um bool) com c. Escreva 'a < b and b < c'

@@ -14,7 +14,7 @@ livro ensina, a spec define.
 
 1. [Começando](01-comecando.md)
 2. [Valores, tipos e variáveis](02-valores-e-tipos.md)
-3. Operadores e expressões
+3. [Operadores e expressões](03-operadores.md)
 4. Controle de fluxo
 5. Funções
 
