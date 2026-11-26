@@ -22,14 +22,24 @@ Cada tests/*.cinza declara a saída esperada em comentários:
     // env: NOME=valor (variável de ambiente; caminhos relativos à raiz do projeto)
     // stdin: linha   (uma linha da entrada padrão; várias diretivas = várias linhas)
 
-Também roda os exemplos executáveis da especificação (spec/*.md) e do livro (livro/*.md, Q7):
-todo bloco ```cinza que tenha `// expect:` ou `// expect-error:` é extraído para
-tests/spec_exemplos/ e conferido com as mesmas regras. As soluções dos exercícios do livro
-(livro/solucoes/*.cinza) e, nos projetos de exemplo (livro/exemplos/, cada um com o seu czm.mod),
-os arquivos com expectativas também são testes. Um capítulo com a linha `<!-- exemplos-pendentes: motivo -->` é escrito antes do
+Também roda os exemplos executáveis da especificação (spec/*.md): todo bloco ```cinza que
+tenha `// expect:` ou `// expect-error:` é extraído para tests/spec_exemplos/ e conferido com as
+mesmas regras.
+
+No livro (livro/*.md, Q7) o código fica limpo e a saída vem num bloco à parte, logo depois:
+```cinza [nome.cinza] com o programa (sem nome: prog.cinza), seguido de ```saida (a saída
+exata, linha por linha) e/ou ```erro (cada linha, um trecho da mensagem de erro). Antes do
+código, comentários HTML que o leitor não vê: <!-- args: a b -->, <!-- stdin: linha -->,
+<!-- env: NOME=valor -->, <!-- exit: N --> e <!-- nao: trecho -->. Cada exemplo é extraído para
+tests/spec_exemplos/livro/<capítulo>_<linha>/<nome> e roda de dentro dessa pasta, com o nome
+puro, para as mensagens mostrarem o arquivo como o leitor o chamaria (ola.cinza:2:23: ...).
+Um ```cinza sem ```saida, ```erro nem <!-- exit --> é só ilustrativo. As soluções dos
+exercícios (livro/solucoes/*.md) seguem o mesmo formato; nos projetos de exemplo
+(livro/exemplos/, cada um com o seu czm.mod), os arquivos .cinza com expectativas são testes.
+
+Um capítulo da spec com a linha `<!-- exemplos-pendentes: motivo -->` é escrito antes do
 código: seus exemplos são o alvo de uma etapa em andamento e ficam de fora (a suíte
-avisa quantos). Blocos sem essas linhas
-são só ilustrativos.
+avisa quantos). Na spec, blocos sem as linhas // expect são só ilustrativos.
 
 Sem expect-error: o programa deve sair com código 0 (ou o de `expect-exit`) e o
 stdout deve ser exatamente a sequência de linhas `expect`.
@@ -40,6 +50,7 @@ início do stdout.
 
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -50,6 +61,7 @@ DIR_TESTES = RAIZ / "tests"
 DIR_SPEC = RAIZ / "spec"
 DIR_LIVRO = RAIZ / "livro"   # Q7
 DIR_EXEMPLOS = DIR_TESTES / "spec_exemplos"   # gerado a cada execução (fora do git)
+DIR_EXEMPLOS_LIVRO = DIR_EXEMPLOS / "livro"   # Q7: uma pasta por exemplo (gerado)
 RE_BLOCO = re.compile(r"^```cinza[ \t]*\r?\n(.*?)^```", re.M | re.S)
 RE_PENDENTES = re.compile(r"<!--\s*exemplos-pendentes:\s*(.*?)\s*-->")
 # Folgado para o build com sanitizers (-O0 + ASan é dezenas de vezes mais lento:
@@ -170,15 +182,20 @@ def rodar(binario, caminho):
     if not esperado and not erros and not codigo_esperado:
         return False, "nenhum '// expect' encontrado no arquivo", ""
 
-    comando = [str(binario), str(caminho.relative_to(RAIZ))] + ler_argumentos(caminho)
+    # Q7: um exemplo do livro roda de dentro da pasta dele, com o nome puro (ola.cinza:2:23: ...)
+    if DIR_EXEMPLOS_LIVRO in caminho.parents:
+        pasta_teste, arquivo = caminho.parent, caminho.name
+    else:
+        pasta_teste, arquivo = RAIZ, str(caminho.relative_to(RAIZ))
+    comando = [str(binario), arquivo] + ler_argumentos(caminho)
     proc = None
     if CINZAC:
         contador_nativo += 1
         exe = PASTA_NATIVA / f"t{contador_nativo}.exe"
         try:
             opcoes = (["-O2"] if CINZAC_O2 else []) + (["--asan"] if CINZAC_ASAN else [])
-            comp = subprocess.run([str(binario), str(caminho.relative_to(RAIZ)), "-o", str(exe)] + opcoes,
-                                  cwd=RAIZ, capture_output=True, timeout=TIMEOUT_S * 2,
+            comp = subprocess.run([str(binario), arquivo, "-o", str(exe)] + opcoes,
+                                  cwd=pasta_teste, capture_output=True, timeout=TIMEOUT_S * 2,
                                   env=ler_ambiente(caminho))
         except subprocess.TimeoutExpired:
             return False, f"tempo esgotado na compilação ({TIMEOUT_S * 2} s)", ""
@@ -194,8 +211,8 @@ def rodar(binario, caminho):
 
     try:
         if proc is None:
-            proc = subprocess.run(comando, cwd=RAIZ, capture_output=True, timeout=TIMEOUT_S,
-                                  env=ler_ambiente(caminho), input=ler_entrada(caminho))
+            proc = subprocess.run(comando, cwd=pasta_teste if not CINZAC else RAIZ, capture_output=True,
+                                  timeout=TIMEOUT_S, env=ler_ambiente(caminho), input=ler_entrada(caminho))
     except subprocess.TimeoutExpired:
         return False, f"tempo esgotado ({TIMEOUT_S} s)", ""
 
@@ -250,8 +267,8 @@ def exemplos_da_spec(filtro):
     DIR_EXEMPLOS.mkdir(exist_ok=True)
     for velho in DIR_EXEMPLOS.glob("*.cinza"):
         velho.unlink()
-    exemplos = []
-    fontes = [(pasta, pasta.name) for pasta in (DIR_SPEC, DIR_LIVRO) if pasta.is_dir()]
+    exemplos = exemplos_do_livro(filtro)
+    fontes = [(DIR_SPEC, "spec")] if DIR_SPEC.is_dir() else []
     for md, origem in ((md, origem) for pasta, origem in fontes for md in sorted(pasta.glob("*.md"))):
         texto = md.read_text(encoding="utf-8")
         pendente = RE_PENDENTES.search(texto)
@@ -276,15 +293,70 @@ def exemplos_da_spec(filtro):
     return exemplos
 
 
+RE_CERCA = re.compile(r"^```([^\n`]*)\r?\n(.*?)^```[ \t]*$", re.M | re.S)
+RE_DIRETIVA_HTML = re.compile(r"<!--[ \t]*(args|stdin|env|exit|nao):[ \t]?([^\n]*?)[ \t]*-->\s*$")
+DIRETIVAS_LIVRO = {"args": "args", "stdin": "stdin", "env": "env", "exit": "expect-exit",
+                   "nao": "expect-not"}
+
+
+def exemplos_do_livro(filtro):
+    """Q7: os exemplos de livro/*.md, no formato do livro (o código num ```cinza, a saída num
+    ```saida e o erro num ```erro logo depois; as diretivas em comentários HTML antes). Cada um
+    vira tests/spec_exemplos/livro/<capítulo>_<linha>/<nome>, com as linhas // da suíte."""
+    if DIR_EXEMPLOS_LIVRO.is_dir():
+        shutil.rmtree(DIR_EXEMPLOS_LIVRO)
+    if not DIR_LIVRO.is_dir():
+        return []
+    exemplos = []
+    for md in sorted(DIR_LIVRO.glob("*.md")) + sorted((DIR_LIVRO / "solucoes").glob("*.md")):
+        texto = md.read_text(encoding="utf-8")
+        relativo = md.relative_to(DIR_LIVRO).as_posix()   # 01-comecando.md, solucoes/01-comecando.md
+        cercas = [(m.start(), m.end(), m.group(1).split(), m.group(2)) for m in RE_CERCA.finditer(texto)]
+        for i, (ini, fim, info, corpo) in enumerate(cercas):
+            if not info or info[0] != "cinza":
+                continue
+            nome_arquivo = info[1] if len(info) > 1 else "prog.cinza"
+            # as diretivas: os comentários HTML logo antes do código
+            diretivas, antes = [], texto[:ini]
+            while (m := RE_DIRETIVA_HTML.search(antes)) and not antes[m.end():].strip():
+                diretivas.insert(0, (m.group(1), m.group(2)))
+                antes = antes[:m.start()]
+            # os blocos de saída e de erro logo depois (um ```console no meio, com o comando que o
+            # leitor digita, é só ilustrativo)
+            saida, erros, ultimo = [], [], fim
+            for (ini2, fim2, info2, corpo2) in cercas[i + 1:]:
+                if texto[ultimo:ini2].strip() or not info2 or info2[0] not in ("saida", "erro", "console"):
+                    break
+                if info2[0] == "console":
+                    ultimo = fim2
+                    continue
+                (saida if info2[0] == "saida" else erros).extend(corpo2.splitlines())
+                ultimo = fim2
+            if not saida and not erros and not any(d == "exit" for d, _ in diretivas):
+                continue   # só ilustrativo
+            linha = texto.count("\n", 0, ini) + 1
+            nome = f"livro/{relativo}:{linha}"
+            if filtro and filtro not in nome:
+                continue
+            linhas = [corpo.rstrip("\n"), ""]
+            linhas += [f"// {DIRETIVAS_LIVRO[d]}: {v}" for d, v in diretivas]
+            linhas += [f"// expect: {l}".rstrip() if l else "// expect:" for l in saida]
+            linhas += [f"// expect-error: {l}" for l in erros if l.strip()]
+            pasta = DIR_EXEMPLOS_LIVRO / f"{relativo[:-3].replace('/', '-')}_{linha}"
+            pasta.mkdir(parents=True)
+            caminho = pasta / nome_arquivo
+            caminho.write_text("\n".join(linhas) + "\n", encoding="utf-8")
+            exemplos.append((nome, caminho))
+    return exemplos
+
+
 def testes_do_livro(filtro):
-    """Q7: as soluções dos exercícios (livro/solucoes/*.cinza, todas são testes) e, nos projetos
-    de exemplo (livro/exemplos/<projeto>/, com czm.mod), os arquivos com expectativas."""
+    """Q7: nos projetos de exemplo do livro (livro/exemplos/<projeto>/, com czm.mod), os arquivos
+    com expectativas. (As soluções dos exercícios são livro/solucoes/*.md, no formato do livro.)"""
     testes = []
     for p in sorted(DIR_LIVRO.rglob("*.cinza")) if DIR_LIVRO.is_dir() else []:
         partes = p.relative_to(DIR_LIVRO).parts
-        if partes[0] == "solucoes":
-            eh = True
-        elif partes[0] == "exemplos":
+        if partes[0] == "exemplos":
             esperado, erros, _ = ler_expectativas(p)
             eh = bool(esperado or erros or ler_codigo_saida(p))
         else:

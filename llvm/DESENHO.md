@@ -24,7 +24,7 @@ aberta, ela está marcada **[decidir]**.
 léxico → parser → semântico (AST analisada, genéricos copiados)            ← front-end, sem LLVM
              ├── compilador da CVM (da AST) → bytecode → CVM            → cinza prog.cinza
              └── AST → CIR (posse, temporários, erros, limpeza)
-                       → CIR → LLVM (llvm-c) → .o → g++ (ligação)       → cinzac prog.cinza -o prog.exe
+                       → CIR → LLVM → .o → lld embutido (ligação, Q5)   → cinzac prog.cinza -o prog.exe
 runtime (C++; contagem embutida + coleta de ciclos; interface C)          ← comum aos dois
 ```
 

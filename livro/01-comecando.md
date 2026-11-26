@@ -39,8 +39,8 @@ mais nada**: o `cinzac` leva consigo o LLVM, o ligador e as bibliotecas que os p
 No Linux, tanto as ferramentas quanto os programas que o `cinzac` gera são executáveis estáticos
 — rodam em qualquer distribuição, sem dependências.
 
-O pacote traz também a especificação da linguagem (`spec/`) e, na página da release, a extensão
-do VS Code (o arquivo `.vsix`, seção 1.7).
+O pacote traz também este livro (`livro/`) e a especificação da linguagem (`spec/`); na página da
+release está a extensão do VS Code (o arquivo `.vsix`, seção 1.7).
 
 ### Do código-fonte
 
@@ -69,21 +69,24 @@ cinzac 0.6.0 (LLVM 20.1.8, alvo x86_64-w64-windows-gnu)
 
 Crie um arquivo `ola.cinza`:
 
-```cinza
+```cinza ola.cinza
 fn main() {
   print("Olá, mundo!");
 }
-// expect: Olá, mundo!
+```
+
+```saida
+Olá, mundo!
 ```
 
 Todo programa começa pela função `main`. `fn` declara uma função; o corpo vai entre chaves e
 cada instrução termina em `;`. `print` escreve os valores na saída e pula a linha.
 
-> **Convenção deste livro.** As linhas `// expect:` no fim de um exemplo mostram o que ele
-> escreve — uma linha de `// expect:` por linha da saída. São comentários comuns para a Cinza; a
-> suíte de testes do compilador as usa para conferir que cada exemplo do livro faz exatamente o
-> que o texto diz. Do mesmo jeito, `// expect-error:` mostra (um trecho de) a mensagem de erro, e
-> `// args:` os argumentos passados ao programa.
+> **Convenção deste livro.** Depois de um programa, o bloco **saida** mostra exatamente o que ele
+> escreve, e o bloco **erro**, a mensagem de erro que ele produz. Os dois não fazem parte do
+> programa: são o resultado de rodá-lo. Todos os programas do livro com esses blocos rodam na
+> suíte de testes do compilador, na CVM e no `cinzac`, que confere que o resultado é exatamente o
+> mostrado — se a linguagem mudar, o livro não fica desatualizado em silêncio.
 
 `print` aceita qualquer número de valores, de qualquer tipo, e os separa com um espaço. Sem
 argumentos, só pula a linha:
@@ -94,9 +97,12 @@ fn main() {
   print();
   print("uma lista:", [1, 2, 3], "e um booleano:", true);
 }
-// expect: A soma de 2 e 3 é 5
-// expect:
-// expect: uma lista: [1, 2, 3] e um booleano: true
+```
+
+```saida
+A soma de 2 e 3 é 5
+
+uma lista: [1, 2, 3] e um booleano: true
 ```
 
 Comentários começam com `//` e vão até o fim da linha. A Cinza não tem comentário de bloco
@@ -147,7 +153,10 @@ fn dobro(i32 x) -> i32 {
 }
 
 const i32 LIMITE = 21;
-// expect: 42
+```
+
+```saida
+42
 ```
 
 A ordem das declarações não importa: a `main` usa `dobro` e `LIMITE`, que vêm depois dela. O
@@ -156,10 +165,13 @@ A ordem das declarações não importa: a `main` usa `dobro` e `LIMITE`, que vê
 Também **não há variáveis globais mutáveis**: no nível de cima, só `const`. Um valor que muda
 mora dentro de uma função, ou de um objeto (capítulo 12):
 
-```cinza
+```cinza contador.cinza
 i32 contador = 0;
 fn main() { }
-// expect-error: Variável global 'contador' precisa ser 'const': não há variáveis globais mutáveis
+```
+
+```erro
+contador.cinza:1:5: SyntaxError: Variável global 'contador' precisa ser 'const': não há variáveis globais mutáveis. Use 'const' ou mova a declaração para dentro de 'fn main()'. (token: 'contador')
 ```
 
 > **Por quê?** Estado global mutável é o que torna um programa difícil de entender em partes:
@@ -179,15 +191,13 @@ fn main(list<string> args) -> void { }
 
 Esqueça o `;` do primeiro programa:
 
-```cinza
+```cinza ola.cinza
 fn main() {
   print("Olá, mundo!")
 }
-// expect-error: 2:23: SyntaxError: Esperado ';' após expressão (token: '}')
 ```
 
-```console
-$ cinza ola.cinza
+```erro
 ola.cinza:2:23: SyntaxError: Esperado ';' após expressão (token: '}')
 ```
 
@@ -205,41 +215,45 @@ O tipo diz em que fase o problema foi achado:
 | `ImportError` | os módulos: um arquivo que não existe | o primeiro |
 | `SemanticError` | os tipos e os nomes: uma função que não existe, um tipo errado | o primeiro |
 
-Um erro semântico típico — o nome escrito errado:
+Cada fase só começa se a anterior terminou sem erros. Um erro semântico típico — o nome escrito
+errado:
 
-```cinza
+```cinza ola.cinza
 fn main() {
   prnt("Olá");
 }
-// expect-error: 2:3: SemanticError: Função 'prnt' não declarada
+```
+
+```erro
+ola.cinza:2:3: SemanticError: Função 'prnt' não declarada
 ```
 
 **Com qualquer erro de compilação, nada do programa roda** — nem as linhas antes do erro. O
-programa abaixo não imprime `antes`:
+programa abaixo não chega a imprimir `antes`:
 
-```cinza
+<!-- nao: antes -->
+```cinza tipos.cinza
 fn main() {
   print("antes");
   i32 x = "texto";
 }
-// expect-error: SemanticError: Tipo incompatível na declaração de 'x': declarado 'i32', mas atribuído 'string'
-// expect-not: antes
+```
+
+```erro
+tipos.cinza:3:7: SemanticError: Tipo incompatível na declaração de 'x': declarado 'i32', mas atribuído 'string'
 ```
 
 O que só se descobre executando é um **erro de execução**. Ele também tem tipo e mensagem, e vem
 seguido do *stack trace* — as chamadas em andamento, da mais interna para fora:
 
-```cinza
+```cinza indice.cinza
 fn main() {
   list<string> nomes = ["Ana", "Bia"];
   print(nomes[2]);
 }
-// expect-error: 3:14: IndexError: índice 2 fora dos limites (tamanho: 2)
-// expect-error:     em main (
 ```
 
-```console
-$ cinza indice.cinza
+```erro
 indice.cinza:3:14: IndexError: índice 2 fora dos limites (tamanho: 2)
     em main (indice.cinza:3)
 ```
@@ -255,16 +269,18 @@ com `exit(n)` (capítulo 5). Scripts e ferramentas de integração contínua pod
 
 Tudo o que vem depois do nome do arquivo vai para a `main`, numa `list<string>`:
 
-```cinza
+<!-- args: ana 42 --verbose -->
+```cinza args.cinza
 fn main(list<string> args) {
   print("recebi", args.size(), "argumentos:", args);
 }
-// args: ana 42 --verbose
-// expect: recebi 3 argumentos: ["ana", "42", "--verbose"]
 ```
 
 ```console
 $ cinza args.cinza ana 42 --verbose
+```
+
+```saida
 recebi 3 argumentos: ["ana", "42", "--verbose"]
 ```
 
@@ -297,7 +313,8 @@ Um programa que cumprimenta cada nome recebido na linha de comando — e explica
 recebe nenhum. Ele adianta um pouco do que vem nos próximos capítulos (o `if`, o `for`, uma função
 com retorno), mas deve ser legível para quem já programa:
 
-```cinza
+<!-- args: Ana Bia Caio -->
+```cinza saudacao.cinza
 // saudacao.cinza: cinza saudacao.cinza <nome>...
 
 fn saudacao(string nome) -> string {
@@ -314,19 +331,22 @@ fn main(list<string> args) {
   }
   print("Saudei", args.size(), "pessoas.");
 }
-// args: Ana Bia Caio
-// expect: Olá, Ana!
-// expect: Olá, Bia!
-// expect: Olá, Caio!
-// expect: Saudei 3 pessoas.
 ```
 
 ```console
 $ cinza saudacao.cinza Ana Bia Caio
+```
+
+```saida
 Olá, Ana!
 Olá, Bia!
 Olá, Caio!
 Saudei 3 pessoas.
+```
+
+Sem nenhum nome, ele explica o uso e sai com o código 2:
+
+```console
 $ cinza saudacao.cinza
 Uso: cinza saudacao.cinza <nome>...
 $ echo $?
@@ -371,7 +391,7 @@ Repare em três coisas:
 4. Escreva um programa que imprima quantos argumentos recebeu e o primeiro e o último deles (se
    houver pelo menos um).
 
-As soluções estão em [`solucoes/01-*.cinza`](solucoes/).
+As soluções estão em [`solucoes/01-comecando.md`](solucoes/01-comecando.md).
 
 ## Na spec
 

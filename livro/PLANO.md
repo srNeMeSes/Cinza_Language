@@ -25,16 +25,32 @@ terminar, a caixa dele é marcada aqui. Quem retoma o trabalho lê este arquivo 
 
 - **Onde:** `livro/`, um arquivo Markdown por capítulo (`01-comecando.md`, ...), mais
   `livro/README.md` com o sumário. Os apêndices em `livro/apendice-a-gramatica.md` etc.
-- **Exemplos executados pela suíte:** blocos ` ```cinza ` com `// expect:` (e `// expect-error:`,
-  `// stdin:`, `// args:`, `// expect-exit:`), como na spec. O `tests/run_tests.py` passa a extrair
-  também os de `livro/` (hoje só lê `spec/`): todo exemplo roda na CVM e no cinzac, e um exemplo
-  quebrado quebra o `make test`. Trechos que não são programas completos (uma linha de comando,
-  um `czm.mod`, um fragmento) vão em ` ```text ` ou ` ```console `.
+- **Exemplos executados pela suíte** (decidido pelo autor em 2026-11-25: o código limpo, sem as
+  linhas `// expect`, e a saída à parte):
+  - ` ```cinza nome.cinza ` — o programa, como o leitor o escreveria (o nome é opcional; sem
+    ele, `prog.cinza`);
+  - logo depois, ` ```saida ` — a saída exata, linha por linha — e/ou ` ```erro ` — a mensagem de
+    erro, com o arquivo pelo nome do bloco (`ola.cinza:2:23: SyntaxError: ...`); cada linha é
+    conferida como trecho;
+  - um ` ```console ` entre os dois, com o comando que o leitor digita, é só ilustrativo;
+  - os raros casos com argumentos, entrada, ambiente, código de saída ou um trecho que não pode
+    aparecer: comentários HTML logo antes do código, que o leitor não vê — `<!-- args: a b -->`,
+    `<!-- stdin: linha -->`, `<!-- env: NOME=valor -->`, `<!-- exit: 2 -->`,
+    `<!-- nao: trecho -->`.
+
+  O `tests/run_tests.py` extrai cada exemplo para `tests/spec_exemplos/livro/<capítulo>_<linha>/`
+  e o roda de dentro da pasta, com o nome puro, na CVM e no cinzac; um exemplo quebrado quebra o
+  `make test`. Um ` ```cinza ` sem saída nem erro é só ilustrativo. Trechos que não são programas
+  completos (uma linha de comando, um `czm.mod`, um fragmento) vão em ` ```text ` ou
+  ` ```console `.
 - **Exemplos com vários arquivos** (módulos, pacotes, arquivos lidos do disco): o projeto de
-  exemplo fica em `livro/exemplos/<capítulo>/`, com um teste em `tests/` que o roda; o capítulo
-  mostra os arquivos e a saída.
+  exemplo fica em `livro/exemplos/<projeto>/`, com o seu `czm.mod`; os `.cinza` dele com
+  expectativas são testes; o capítulo mostra os arquivos e a saída.
 - **Exercícios:** de 3 a 5 por capítulo, no fim, do mais simples ao mais aberto. As soluções em
-  `livro/solucoes/NN-*.cinza`, cada uma um programa com `// expect:`, rodadas pela suíte.
+  `livro/solucoes/NN-nome.md`, no mesmo formato dos capítulos, rodadas pela suíte.
+- **PDF** (pedido do autor em 2026-11-25): os `.md` são a fonte; ao fim, um `make livro` gera o
+  livro inteiro num PDF (e num HTML) pelo pandoc, com o sumário, a numeração e os blocos de saída
+  e de erro com rótulo próprio; o PDF entra na release.
 - **Estrutura de cada capítulo:** os objetivos (o que o leitor sabe fazer ao fim, 2 a 4 tópicos)
   e os pré-requisitos (os capítulos de que ele depende); as seções, cada uma
   com um exemplo curto que roda; um "Programa do capítulo" que junta tudo num programa de verdade
@@ -217,6 +233,9 @@ versão roda sozinha: o leitor pode pular para qualquer capítulo.
 
 ## Fora do livro (o resto do Q7)
 
+- [ ] **O PDF e o HTML do livro** (`make livro`, pelo pandoc): os capítulos e os apêndices na
+  ordem do sumário, os blocos `saida` e `erro` com rótulo, os comentários HTML de fora; o PDF na
+  release.
 - [ ] **Guia de instalação e uso** (`INSTALAR.md`, ou a seção do capítulo 1 extraída): os pacotes,
   o PATH, os dois comandos e as opções, compilar do código-fonte.
 - [ ] **README** em português e em inglês, apontando para o livro, a spec e o guia.
