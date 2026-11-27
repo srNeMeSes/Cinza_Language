@@ -1,0 +1,9 @@
+// Q7: {} e [] vazios são um erro só cada (antes, o {} dava mais dois erros em cascata)
+fn main() {
+  dict<string, i32> d = {};
+  list<i32> l = [];
+  print(1);
+}
+// expect-error: 3:25: SyntaxError: Inicializador vazio '{}' não é permitido
+// expect-error: 4:17: SyntaxError: Inicializador vazio '[]' não é permitido
+// expect-not: Esperado expressão

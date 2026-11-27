@@ -1,0 +1,7 @@
+// Q7: {"a": 1}, o dict do Python e do JSON, mostra a forma da Cinza, num erro só (antes: "Esperado ',' entre os dois valores do pair" e mais dois em cascata)
+fn main() {
+  dict<string, i32> d = {"a": 1, "b": 2};
+  print(1);
+}
+// expect-error: 3:29: SyntaxError: Um dict se escreve com pares entre chaves, separados por vírgula: {{"a", 1}, {"b", 2}}; não há a forma {chave: valor}
+// expect-not: Esperado expressão

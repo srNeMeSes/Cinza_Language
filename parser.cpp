@@ -619,6 +619,7 @@ ExprPtr Parser::parsePrimaryExpr() {
             error("Inicializador vazio '{}' não é permitido. "
                   "Para declarar sem valor, omita o inicializador: 'dict<K,V> nome;'",
                   brace_token);
+            advance();   // Q7: o '}' também, para a análise seguir sem erros em cascata
             throw ParseError("Inicializador vazio proibido", brace_token);
         }
 
@@ -1009,6 +1010,7 @@ ExprPtr Parser::parseListLiteral() {
         error("Inicializador vazio '[]' não é permitido. "
               "Para declarar sem valor, omita o inicializador: 'list<T> nome;'",
               bracket_token);
+        advance();   // Q7: o ']' também, para a análise seguir sem erros em cascata
         throw ParseError("Inicializador vazio proibido", bracket_token);
     }
 
@@ -1027,6 +1029,19 @@ ExprPtr Parser::parsePairLiteral() {
     Token brace_token = advance(); // consome '{'
     
     ExprPtr first = parseExpression();
+    // Q7: {"a": 1}, o dict do Python e do JSON: a forma da Cinza, e o literal pulado inteiro
+    if (check(TokenType::COLON)) {
+        const Token onde = peek();
+        error("Um dict se escreve com pares entre chaves, separados por vírgula: {{\"a\", 1}, {\"b\", 2}}; "
+              "não há a forma {chave: valor}", onde);
+        int nivel = 1;   // dentro do '{' deste literal
+        while (!isAtEnd() && nivel > 0) {
+            if (check(TokenType::LBRACE)) ++nivel;
+            else if (check(TokenType::RBRACE)) --nivel;
+            advance();
+        }
+        throw ParseError("dict no estilo {chave: valor}", onde);
+    }
     consume(TokenType::COMMA, "Esperado ',' entre os dois valores do pair");
     ExprPtr second = parseExpression();
     consume(TokenType::RBRACE, "Esperado '}' após o par {key, value}");

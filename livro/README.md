@@ -22,7 +22,7 @@ livro ensina, a spec define.
 
 6. [Textos](06-textos.md)
 7. [Listas](07-listas.md)
-8. Dicionários e pares
+8. [Dicionários e pares](08-dicionarios-e-pares.md)
 9. Structs
 10. Enums e tipos como valores
 11. O opcional: `T?` e `null`
