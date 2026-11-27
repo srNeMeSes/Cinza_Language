@@ -1,0 +1,11 @@
+// Q7: catch (Java, C#, JavaScript) aponta o except, num erro só (antes: "'try' precisa de pelo menos um 'except' ou um 'finally'")
+fn main() {
+  try {
+    print(1);
+  } catch (Error e) {
+    print(e.message);
+  }
+  print(2);
+}
+// expect-error: 5:5: SyntaxError: A Cinza escreve 'except', não 'catch': except (ValueError e) { ... }
+// expect-not: precisa de pelo menos um

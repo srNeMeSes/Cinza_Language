@@ -1,0 +1,7 @@
+// Q7: raise (Python, Ruby) aponta o throw (antes, o raise era lido como o tipo de uma variável: "Use: raise ValueError = new raise(...)")
+fn main() {
+  raise ValueError("x");
+  print(1);
+}
+// expect-error: 3:3: SyntaxError: A Cinza escreve 'throw', não 'raise': throw ValueError("mensagem");
+// expect-not: deve ser inicializado

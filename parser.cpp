@@ -1170,6 +1170,16 @@ StmtPtr Parser::parseStatement() {
             throw ParseError("void como tipo de variável", peek());
         }
 
+        // Q7: raise (Python, Ruby) no lugar do throw
+        if (check(TokenType::IDENTIFIER) && peek().lexeme == "raise" && current + 1 < tokens.size() &&
+            tokens[current + 1].type == TokenType::IDENTIFIER) {
+            const Token onde = peek();
+            error("A Cinza escreve 'throw', não 'raise': throw ValueError(\"mensagem\");", onde);
+            while (!check(TokenType::SEMICOLON) && !check(TokenType::RBRACE) && !isAtEnd()) advance();
+            match(TokenType::SEMICOLON);
+            return std::make_unique<BlockStmt>(onde, std::vector<StmtPtr>{});
+        }
+
         // Declaração de variável de tipo customizado: NomeClasse variavel;
         // C5: tipo de módulo, tx.Pessoa p; N5: struct genérico, Par[i32, string] p
         if (checkCustomTypeDecl()) {
@@ -2067,6 +2077,20 @@ StmtPtr Parser::parseTryStatement() {
     };
 
     StmtPtr body = bloco("try");
+
+    // Q7: catch (Java, C#, JavaScript) e rescue (Ruby): a mensagem diz o nome da Cinza, e a
+    // cláusula é pulada inteira (um erro só)
+    if (check(TokenType::IDENTIFIER) && (peek().lexeme == "catch" || peek().lexeme == "rescue")) {
+        const Token onde = peek();
+        error("A Cinza escreve 'except', não '" + onde.lexeme + "': except (ValueError e) { ... }", onde);
+        while (check(TokenType::IDENTIFIER) && (peek().lexeme == "catch" || peek().lexeme == "rescue")) {
+            advance();
+            pulaParenteses();
+            pulaBloco();
+        }
+        if (match(TokenType::KW_FINALLY)) bloco("finally");
+        return std::make_unique<BlockStmt>(onde, std::vector<StmtPtr>{});
+    }
 
     std::vector<ExceptClause> handlers;
     while (match(TokenType::KW_EXCEPT)) {
