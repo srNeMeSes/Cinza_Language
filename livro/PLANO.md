@@ -113,7 +113,7 @@ versão roda sozinha: o leitor pode pular para qualquer capítulo.
 
 ### Parte II — Dados
 
-- [ ] **6. Textos** — `string` em UTF-8: tamanho e índices em caracteres, não em bytes; índices
+- [x] **6. Textos** (2026-11-26) — `string` em UTF-8: tamanho e índices em caracteres, não em bytes; índices
   negativos e fatias com passo; strings imutáveis; `printf` e `format` com interpolação e
   formatos (`{x:.2f}`, `{nome:10}`); o módulo `Strings` por tarefa (buscar, partir, limpar,
   montar, testar), com os opcionais de `find`. *Spec: 1.5, 5.7, 6.1 (interpolação), 6.2 Strings.*
@@ -267,4 +267,5 @@ Commits por parte do livro, num ramo `q7-livro`; merge no `main` quando o autor 
 | 2026-11-26 | O capítulo 3, com 25 exemplos e as soluções. Achadas no caminho, as mensagens para o que outras linguagens têm e a Cinza não, melhoradas com testes (`tests/operadores/q7_*`): `++` e `--`, `**`, os operadores de bits (`&`, `|`, `^`, `~`), o ternário, a atribuição como expressão, a comparação encadeada (`1 < x < 10`) e o `not a == 1`. |
 | 2026-11-26 | O capítulo 4, com 20 exemplos e as soluções. Achados no caminho, corrigidos no parser com testes (`tests/fluxo/q7_*`): a recuperação de um erro de sintaxe pula inteiro o bloco que se abre no meio (antes, o `}` dele fechava a função, e o `}` dela virava um segundo erro, falso); `elif`/`elsif`/`elseif`, `switch`, `do`/`while` e o `for` de três partes do C com mensagem própria, um erro só; o `if`/`while`/`for` sem parênteses mostra a forma certa; "no Cinza" virou "na Cinza". |
 | 2026-11-26 | O capítulo 5, com 19 exemplos e as soluções: a Parte I completa. Achados no caminho, corrigidos no parser com testes (`tests/funcoes/q7_*`): a função anônima (`fn(...) { }` numa expressão) é um erro só, que aponta a interface como alternativa (antes, quatro em cascata); o valor padrão de parâmetro e o argumento pelo nome numa chamada com mensagem própria. Fica como está, explicado no livro: o `StackOverflowError` aponta a declaração da função chamada, não a chamada. |
+| 2026-11-26 | O capítulo 6, com 26 exemplos e as soluções. Achados no caminho, melhorados com testes: um método que não existe em `string`, `list` ou `dict`, mas cuja função está no módulo, aponta o módulo (`s.upper()` → `Strings.upper(s)`, com import Strings); `'a'` entre aspas simples é um erro só, que mostra as aspas duplas (antes, dois "Caractere inesperado"). |
 | 2026-11-25 | Revisão externa do plano: entram a regra editorial do porquê, objetivos e pré-requisitos por capítulo, o mapa do sistema de tipos (cap. 2), o caminho da compilação e o diagnóstico (cap. 24), C++ e C# no apêndice F. |

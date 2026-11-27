@@ -1,0 +1,6 @@
+// Q7: um texto entre aspas simples é um erro só, que mostra as aspas duplas (antes, dois "Caractere inesperado: '''")
+fn main() {
+  print('a', 'ola');
+}
+// expect-error: 3:9: LexicalError: Texto entre aspas simples ('a'): na Cinza os textos se escrevem entre aspas duplas ("a"), e um caractere é uma string de tamanho 1
+// expect-error: 3:14: LexicalError: Texto entre aspas simples ('ola')

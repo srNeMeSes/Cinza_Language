@@ -81,6 +81,18 @@ static void exigeValor(TypeRef t, const std::string& onde, const Token& tok) {
         throw SemanticError(onde + ": a expressão é 'void' e não tem valor (a função não retorna nada)", tok);
 }
 
+// Q7: s.upper(), l.sort(): o método não existe, mas o módulo da biblioteca tem a função —
+// a dica de como chamá-la (as funções de texto, de lista e de dict ficam nos módulos)
+static std::string dicaModulo(const std::string& modulo, const std::string& metodo, const std::string& exemplo) {
+    if (const NativeModule* nm = findNativeModule(modulo))
+        for (const NativeFn& f : nm->fns)
+            if (f.name == metodo)
+                return ". As funções de " + exemplo + " ficam no módulo " + modulo + ": " + modulo + "." +
+                       metodo + "(" + (modulo == "Strings" ? "s" : modulo == "Lists" ? "l" : "d") +
+                       (f.params.size() > 1 ? ", ...)" : ")") + ", com import " + modulo + ";";
+    return "";
+}
+
 // Mensagem de operação entre famílias diferentes (i32 + f64)
 static std::string familiasMessage(const std::string& op_text, TypeRef l, TypeRef r) {
     TypeRef f = l->isFloat() ? l : r;
@@ -3230,7 +3242,7 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
                            expr->token);
             return expr->resolved_type = types.voidType();
         }
-        throwError("Método '" + m + "' não existe em 'list<T>'", expr->token);
+        throwError("Método '" + m + "' não existe em 'list<T>'" + dicaModulo("Lists", m, "lista"), expr->token);
     }
 
     // ── dict<K,V> built-ins ───────────────────────────────────────────────
@@ -3295,8 +3307,8 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
                 throwError("'dict.values()' não aceita argumentos", expr->token);
             return expr->resolved_type = types.list(V);
         }
-        throwError("Método '" + expr->method_name + "' não existe em 'dict<K,V>'",
-                   expr->token);
+        throwError("Método '" + expr->method_name + "' não existe em 'dict<K,V>'" +
+                   dicaModulo("Dicts", expr->method_name, "dict"), expr->token);
     }
 
     // ── string built-ins ──────────────────────────────────────────────────
@@ -3306,8 +3318,8 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
                 throwError("'string.size()' não aceita argumentos", expr->token);
             return expr->resolved_type = types.i32Type();
         }
-        throwError("Método '" + expr->method_name + "' não existe em 'string'",
-                   expr->token);
+        throwError("Método '" + expr->method_name + "' não existe em 'string'" +
+                   dicaModulo("Strings", expr->method_name, "texto"), expr->token);
     }
 
     // ── C4: erro não tem métodos ──────────────────────────────────────────

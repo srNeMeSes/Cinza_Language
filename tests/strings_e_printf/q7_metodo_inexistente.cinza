@@ -1,0 +1,7 @@
+// Q7: sem a função no módulo, a mensagem continua só a do método
+fn main() {
+  string s = "a";
+  print(s.foo());
+}
+// expect-error: 4:10: SemanticError: Método 'foo' não existe em 'string'
+// expect-not: módulo Strings

@@ -20,7 +20,7 @@ livro ensina, a spec define.
 
 **Parte II — Dados**
 
-6. Textos
+6. [Textos](06-textos.md)
 7. Listas
 8. Dicionários e pares
 9. Structs

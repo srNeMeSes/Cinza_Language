@@ -1,0 +1,6 @@
+// Q7: um método que não existe, mas cuja função está no módulo da biblioteca, aponta o módulo (texto, lista e dict)
+fn main() {
+  string s = "abc";
+  print(s.upper());
+}
+// expect-error: 4:10: SemanticError: Método 'upper' não existe em 'string'. As funções de texto ficam no módulo Strings: Strings.upper(s), com import Strings;

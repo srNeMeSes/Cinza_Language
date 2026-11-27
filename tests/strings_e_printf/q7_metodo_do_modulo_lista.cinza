@@ -1,0 +1,6 @@
+// Q7: list.sort() aponta Lists.sort(l); com mais parâmetros, "(l, ...)"
+fn main() {
+  list<i32> l = [2, 1];
+  l.extend([3]);
+}
+// expect-error: 4:4: SemanticError: Método 'extend' não existe em 'list<T>'. As funções de lista ficam no módulo Lists: Lists.extend(l, ...), com import Lists;

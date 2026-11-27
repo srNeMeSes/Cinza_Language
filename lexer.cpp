@@ -517,6 +517,17 @@ Token Lexer::nextToken() {
         case '?': return makeToken(TokenType::QUESTION);
         
         default:
+            if (c == '\'') {   // Q7: 'a' (o char do C e do Java, a string do Python)
+                size_t fim = current;
+                while (fim < source.size() && source[fim] != '\'' && source[fim] != '\n') ++fim;
+                if (fim < source.size() && source[fim] == '\'') {
+                    const std::string dentro = source.substr(current, fim - current);
+                    while (current <= fim) advance();
+                    return errorToken("Texto entre aspas simples ('" + dentro + "'): na Cinza os textos se "
+                                      "escrevem entre aspas duplas (\"" + dentro + "\"), e um caractere é uma "
+                                      "string de tamanho 1");
+                }
+            }
             if (c == '^')   // Q7
                 return errorToken("Caractere inesperado: '^': a Cinza não tem operadores de bits nem "
                                   "de potência (para potência, Math.pow)");
