@@ -1,0 +1,16 @@
+// Q7 (decidido pelo autor): self.campo = valor atribui um campo obrigatório no construtor — o jeito de escrever quando o parâmetro tem o nome do campo (antes: "não pode usar self antes de atribuir")
+class Ponto {
+  i32 x;
+  i32 y;
+  pub {
+    Ponto(i32 x, i32 y) {
+      self.x = x;
+      self.y = y;
+    }
+    fn soma() -> i32 { return x + y; }
+  }
+}
+fn main() {
+  print(new Ponto(3, 4).soma());
+}
+// expect: 7

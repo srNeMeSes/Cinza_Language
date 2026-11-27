@@ -1202,8 +1202,19 @@ static const Expr* usoDoObjeto(const Expr& e) {
     return achou;
 }
 
+// Q7 (decidido pelo autor em 2026-11-27): `self.campo = valor` também atribui o campo — é o jeito de
+// escrever a atribuição quando um parâmetro tem o nome do campo. Devolve o nome do campo, ou "".
+static std::string selfCampoAlvo(const Expr& alvo) {
+    if (alvo.node_kind != NodeKind::MemberAccess) return "";
+    auto& m = static_cast<const MemberAccessExpr&>(alvo);
+    if (m.object->node_kind != NodeKind::Identifier ||
+        static_cast<const IdentifierExpr&>(*m.object).res.kind != Resolution::Kind::Self)
+        return "";
+    return m.member_name;
+}
+
 // Q1a: o primeiro uso do objeto incompleto numa instrução (e nas de dentro dela); um return
-// também conta. O alvo direto de `campo = valor` não é um uso (é a atribuição)
+// também conta. O alvo direto de `campo = valor` (ou de `self.campo = valor`) não é um uso
 static const Token* usoNaInstrucao(const Stmt& s, std::string& o_que) {
     if (s.node_kind == NodeKind::Return) { o_que = "retornar"; return &s.token; }
     const Token* t = nullptr;
@@ -1218,8 +1229,10 @@ static const Token* usoNaInstrucao(const Stmt& s, std::string& o_que) {
     };
     if (s.node_kind == NodeKind::Assign) {
         auto& a = static_cast<const AssignStmt&>(s);
-        const bool campo_direto = a.op == TokenType::OP_ASSIGN && a.target->node_kind == NodeKind::Identifier &&
-            static_cast<const IdentifierExpr&>(*a.target).res.kind == Resolution::Kind::Field;
+        const bool campo_direto = a.op == TokenType::OP_ASSIGN &&
+            ((a.target->node_kind == NodeKind::Identifier &&
+              static_cast<const IdentifierExpr&>(*a.target).res.kind == Resolution::Kind::Field) ||
+             !selfCampoAlvo(*a.target).empty());
         if (!campo_direto) expr(*a.target);
         expr(*a.value);
     } else {
@@ -1278,6 +1291,11 @@ void SemanticAnalyzer::confereCamposObrigatorios(ClassDecl* stmt, bool com_const
             if (a.op == TokenType::OP_ASSIGN && a.target->node_kind == NodeKind::Identifier) {
                 auto& id = static_cast<const IdentifierExpr&>(*a.target);
                 if (id.res.kind == Resolution::Kind::Field) faltam.erase(id.res.slot);
+            }
+            if (a.op == TokenType::OP_ASSIGN) {   // Q7: self.campo = valor
+                const std::string campo = selfCampoAlvo(*a.target);
+                for (std::size_t k = 0; k < stmt->fields.size() && !campo.empty(); ++k)
+                    if (stmt->fields[k].name == campo) faltam.erase(k);
             }
         }
     }
@@ -2885,7 +2903,10 @@ TypeRef SemanticAnalyzer::analyzeCast(CastExpr* expr) {
     TypeRef alvo = typeOf(expr->written.get());
     if (!alvo->isNumeric() && !alvo->is(TK::String))
         throwError("cast<" + alvo->str() + "> não existe: cast converte só para i32, i64, f32, f64 ou "
-                   "string", expr->token);
+                   "string" + ((alvo->is(TK::Class) || alvo->is(TK::Interface))   // Q7: o downcast
+                                   ? std::string(". Objetos não se convertem, e um valor de interface não volta "
+                                                 "a ser a classe: use os métodos da interface")
+                                   : std::string()), expr->token);
     TypeRef origem = analyzeExpr(expr->operand.get());
     if (!origem->isNumeric() && !origem->is(TK::String)) {
         if (origem->is(TK::Bool))

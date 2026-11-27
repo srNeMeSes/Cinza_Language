@@ -1,0 +1,5 @@
+// Q7: struct Q : Forma — um struct não cumpre interfaces (antes: "Esperado '{' após nome do struct")
+interface Forma { fn area() -> f64; }
+struct Q : Forma { f64 lado = 1.ff; }
+fn main() {}
+// expect-error: 3:10: SyntaxError: Um struct não cumpre interfaces: ele só tem campos, e uma interface exige métodos. Use uma class

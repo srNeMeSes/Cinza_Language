@@ -1,0 +1,12 @@
+// Q7: um campo, um corpo e um "default fn" numa interface são um erro cada, sem cascata (antes, "Esperado expressão (token: '}')" e "precisa de pelo menos um método" a mais)
+interface Forma {
+  f64 area;
+  fn nome() -> string { return "?"; }
+  default fn cor() -> string;
+}
+fn main() {}
+// expect-error: 3:3: SyntaxError: Uma interface só tem assinaturas de métodos
+// expect-error: 4:23: SyntaxError: Esperado ';' após a assinatura: na interface o método não tem corpo
+// expect-error: 5:3: SyntaxError: Uma interface só tem assinaturas de métodos
+// expect-not: Esperado expressão
+// expect-not: precisa de pelo menos um método

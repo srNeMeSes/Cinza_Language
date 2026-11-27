@@ -2645,6 +2645,14 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
     EBNF; C1: a divisão inteira e o sinal do `%`, a tabela de precedência).
   - Guia de instalação e de uso dos dois comandos; o README em português e em inglês.
   - As mensagens de erro (spec, capítulo 7) revistas como referência.
+  > **Andamento:** o plano, as convenções e o andamento do livro estão em `livro/PLANO.md`. As
+  > **decisões de linguagem tomadas no caminho**, cada uma com a spec e os testes: (1) 2026-11-25:
+  > as colunas das mensagens e do `e.column` contam caracteres, não bytes do UTF-8 (spec 7.3); (2)
+  > 2026-11-25: a forma de `f32`/`f64` é a do `repr` do Python (spec 5.4; no Q1e); (3)
+  > 2026-11-27: no construtor, `self.campo = valor;` atribui um campo obrigatório, como
+  > `campo = valor;` — o jeito de escrever quando um parâmetro tem o nome do campo (spec 4.6;
+  > `tests/classes/q7_self_campo_obrigatorio`). As mensagens de erro melhoradas no caminho estão no
+  > andamento do `PLANO.md`, capítulo a capítulo.
 - [ ] Q8. Prévia pública (0.9). Divulgar como prévia: o que funciona e por que é interessante,
   que mudanças incompatíveis ainda podem acontecer, o que falta. Um canal de retorno (issues do
   GitHub). Pelo menos alguns programas reais escritos por outras pessoas; os defeitos e as

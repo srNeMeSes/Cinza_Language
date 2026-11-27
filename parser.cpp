@@ -1961,11 +1961,19 @@ StmtPtr Parser::parseInterfaceDeclaration() {
     consume(TokenType::LBRACE, "Esperado '{' após o nome da interface");
     DepthGuard guard{brace_depth};
     std::vector<InterfaceDecl::Method> metodos;
+    bool membro_invalido = false;   // Q7: já relatado; a interface "vazia" não é um erro a mais
     while (!check(TokenType::RBRACE) && !isAtEnd()) {
         if (!check(TokenType::KW_FN)) {
             error("Uma interface só tem assinaturas de métodos: fn nome(parâmetros) -> tipo;",
                   peek());
-            throw ParseError("interface só tem métodos", peek());
+            membro_invalido = true;
+            // Q7: pula o membro inteiro (um campo, um "default fn ..."), sem erros em cascata
+            while (!check(TokenType::SEMICOLON) && !check(TokenType::RBRACE) && !isAtEnd()) {
+                if (check(TokenType::LBRACE)) { pulaBloco(); continue; }
+                advance();
+            }
+            match(TokenType::SEMICOLON);
+            continue;
         }
         InterfaceDecl::Method m;
         m.token = advance();   // 'fn'
@@ -1980,12 +1988,17 @@ StmtPtr Parser::parseInterfaceDeclaration() {
         consume(TokenType::RPAREN, "Esperado ')' após os parâmetros");
         m.return_type = std::make_unique<Type>(Type::Kind::VOID);
         if (match(TokenType::OP_ARROW)) m.return_type = parseType();
-        consume(TokenType::SEMICOLON, "Esperado ';' após a assinatura: na interface o método não "
-                                      "tem corpo");
+        if (check(TokenType::LBRACE)) {   // Q7: o corpo é relatado e pulado, sem erros em cascata
+            error("Esperado ';' após a assinatura: na interface o método não tem corpo", peek());
+            pulaBloco();
+        } else {
+            consume(TokenType::SEMICOLON, "Esperado ';' após a assinatura: na interface o método não "
+                                          "tem corpo");
+        }
         metodos.push_back(std::move(m));
     }
     consume(TokenType::RBRACE, "Esperado '}' ao fim da interface");
-    if (metodos.empty()) {
+    if (metodos.empty() && !membro_invalido) {
         error("A interface '" + name_token.lexeme + "' precisa de pelo menos um método.", name_token);
         throw ParseError("interface vazia", name_token);
     }
@@ -2091,6 +2104,11 @@ StmtPtr Parser::parseStructDeclaration() {
     std::vector<Token> type_params;   // N5: struct Par[A, B]
     if (check(TokenType::LBRACKET)) type_params = parseTypeParams(true);
 
+    if (check(TokenType::COLON)) {   // Q7: struct Q : Forma
+        error("Um struct não cumpre interfaces: ele só tem campos, e uma interface exige métodos. Use uma "
+              "class", peek());
+        while (!check(TokenType::LBRACE) && !isAtEnd()) advance();
+    }
     consume(TokenType::LBRACE, "Esperado '{' após nome do struct");
     DepthGuard struct_brace_guard{brace_depth};   // A9
 

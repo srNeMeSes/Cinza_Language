@@ -30,7 +30,7 @@ livro ensina, a spec define.
 **Parte III — Organizando o programa**
 
 12. [Classes](12-classes.md)
-13. Interfaces
+13. [Interfaces](13-interfaces.md)
 14. Erros e exceções
 15. `const` e imutabilidade
 16. Genéricos: funções

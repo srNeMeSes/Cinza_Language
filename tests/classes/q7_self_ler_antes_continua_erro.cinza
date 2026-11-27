@@ -1,0 +1,14 @@
+// Q7: com self.campo = valor aceito, ler o objeto antes de todos os obrigatórios continua erro
+class Ponto {
+  i32 x;
+  i32 y;
+  pub {
+    Ponto(i32 x, i32 y) {
+      self.x = x;
+      print(self.x);
+      self.y = y;
+    }
+  }
+}
+fn main() { }
+// expect-error: 8:13: SemanticError: O construtor de 'Ponto' não pode usar self antes de atribuir o campo obrigatório 'y'

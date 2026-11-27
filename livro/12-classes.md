@@ -317,8 +317,9 @@ fn main() {
 15
 ```
 
-No construtor, o parâmetro `passo` esconde o campo `passo`; `self.passo` é o campo. `self` não pode
-ser reatribuído — ele é sempre o objeto atual. E quem vem do Java ou do C# recebe a indicação:
+No construtor, o parâmetro `passo` esconde o campo `passo`; `self.passo` é o campo. O mesmo vale
+para um campo **obrigatório**: no construtor, `self.campo = valor;` é a atribuição dele, como
+`campo = valor;`. `self` não pode ser reatribuído — ele é sempre o objeto atual. E quem vem do Java ou do C# recebe a indicação:
 
 ```cinza this.cinza
 class C {

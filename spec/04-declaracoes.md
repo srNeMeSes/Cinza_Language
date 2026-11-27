@@ -173,9 +173,10 @@ chama o método `m` do próprio objeto, com precedência sobre uma função glob
 **Campo sem valor inicial.** `list` e `dict` nascem vazios e um opcional (`T?`) nasce `null`
 (seção 3.10). Qualquer outro campo sem valor inicial é **obrigatório**, e então:
 
-- a classe precisa de um construtor, que atribui cada campo obrigatório (`campo = valor;`) **no
-  nível de cima** do corpo — fora de `if`, laço e `try` — **antes** de ler um campo, chamar um
-  método, usar `self` ou retornar; um caminho que não atribua é erro de compilação;
+- a classe precisa de um construtor, que atribui cada campo obrigatório (`campo = valor;`, ou
+  `self.campo = valor;` quando um parâmetro tem o nome do campo) **no nível de cima** do corpo —
+  fora de `if`, laço e `try` — **antes** de ler um campo, chamar um método, usar `self` de outro
+  jeito ou retornar; um caminho que não atribua é erro de compilação;
 - os valores iniciais dos outros campos não podem usar o objeto (`self`, os campos, os métodos),
   porque rodam antes do construtor;
 - um campo obrigatório do próprio tipo (`class No { No prox; }`), ou um ciclo deles entre classes

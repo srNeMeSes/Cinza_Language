@@ -1,0 +1,10 @@
+// Q7: cast<Classe>(valor de interface), o downcast de outras linguagens, explica que não há volta
+interface Forma { fn area() -> f64; }
+class Q : Forma {
+  pub { fn area() -> f64 { return 1.ff; } }
+}
+fn main() {
+  Forma f = new Q();
+  Q q = cast<Q>(f);
+}
+// expect-error: 8:9: SemanticError: cast<Q> não existe: cast converte só para i32, i64, f32, f64 ou string. Objetos não se convertem, e um valor de interface não volta a ser a classe: use os métodos da interface
