@@ -260,6 +260,13 @@ TypeRef TypeChecker::checkBinaryOp(TypeRef left, TokenType op, TypeRef right,
             // v2.00 #3: concatenação string + primitivo
             if (left->is(TK::String) && right->isPrimitive())          return types.stringType();
             if (left->isPrimitive() && right->is(TK::String))          return types.stringType();
+            // Q7: "cor: " + Cor.Verde, "itens: " + [1, 2]: o texto de um valor que não é primitivo
+            // vem da interpolação
+            if ((left->is(TK::String) || right->is(TK::String)) && !left->is(TK::Void) && !right->is(TK::Void))
+                throw SemanticError(
+                    "Operador '" + op_text + "' não é suportado entre '" + l + "' e '" + r + "'. O + junta "
+                    "texto com números, textos e bool; para pôr outro valor num texto, use a interpolação: "
+                    "format(\"... {x}\")", tok);
             throw SemanticError(
                 "Operador '" + op_text + "' não é suportado entre '" + l + "' e '" + r + "'", tok);
 
@@ -2873,7 +2880,9 @@ TypeRef SemanticAnalyzer::analyzeCast(CastExpr* expr) {
             throwError("cast<" + alvo->str() + ">(bool) não existe: bool não é número. Use um if ou "
                        "uma comparação", expr->token);
         throwError("cast<" + alvo->str() + "> recebeu '" + origem->str() + "': cast converte só números "
-                   "e string", expr->token);
+                   "e string" + (alvo->is(TK::String)   // Q7: o texto de outro valor vem da interpolação
+                                     ? std::string(". Para o texto de outro valor, use a interpolação: format(\"{x}\")")
+                                     : std::string()), expr->token);
     }
     return expr->resolved_type = alvo;
 }
@@ -3371,6 +3380,13 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
     // ── Método de classe definida pelo usuário ────────────────────────────
     auto it = obj_type->is(TK::Class) ? class_table.find(obj_type->name) : class_table.end();
     if (it == class_table.end()) {
+        // Q7: Cor.A.name() e Cor.values(): sem reflexão, o enum só tem os valores
+        if (obj_type->is(TK::Enum))
+            throwError("Tipo '" + obj_type->str() + "' não possui métodos: um valor de enum só tem == e !=; o "
+                       "nome dele vem do print ou de format(\"{x}\")", expr->token);
+        if (obj_type->is(TK::Type))
+            throwError("Um tipo escrito como valor não tem métodos: ele só serve para comparar com type(x). "
+                       "Para percorrer os valores de um enum, monte a lista: [Cor.A, Cor.B, ...]", expr->token);
         throwError("Tipo '" + obj_type->str() + "' não possui métodos" +
                    (obj_type->is(TK::Optional) ? dicaOpcional(obj_type) : " (não é uma classe conhecida)"),
                    expr->token);

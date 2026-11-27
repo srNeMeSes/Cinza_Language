@@ -24,7 +24,7 @@ livro ensina, a spec define.
 7. [Listas](07-listas.md)
 8. [Dicionários e pares](08-dicionarios-e-pares.md)
 9. [Structs](09-structs.md)
-10. Enums e tipos como valores
+10. [Enums e tipos como valores](10-enums-e-tipos.md)
 11. O opcional: `T?` e `null`
 
 **Parte III — Organizando o programa**

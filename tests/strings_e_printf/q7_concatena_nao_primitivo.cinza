@@ -1,0 +1,6 @@
+// Q7: texto + um valor que não é primitivo (enum, lista) aponta a interpolação; cast<string> também
+enum Cor { Verde }
+fn main() {
+  print("cor: " + Cor.Verde);
+}
+// expect-error: 4:17: SemanticError: Operador '+' não é suportado entre 'string' e 'Cor'. O + junta texto com números, textos e bool; para pôr outro valor num texto, use a interpolação: format("... {x}")

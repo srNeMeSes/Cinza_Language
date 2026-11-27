@@ -1,0 +1,6 @@
+// Q7: cast<string> de um enum aponta a interpolação
+enum Cor { Verde }
+fn main() {
+  print(cast<string>(Cor.Verde));
+}
+// expect-error: 4:9: SemanticError: cast<string> recebeu 'Cor': cast converte só números e string. Para o texto de outro valor, use a interpolação: format("{x}")

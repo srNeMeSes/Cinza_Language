@@ -323,7 +323,7 @@ fn main() {
 ```
 
 ```erro
-itens.cinza:2:19: SemanticError: Operador '+' não é suportado entre 'string' e 'list<i32>'
+itens.cinza:2:19: SemanticError: Operador '+' não é suportado entre 'string' e 'list<i32>'. O + junta texto com números, textos e bool; para pôr outro valor num texto, use a interpolação: format("... {x}")
 ```
 
 ## 3.6 Atribuição composta: `+= -= *= /= %=`

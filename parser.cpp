@@ -1978,10 +1978,20 @@ StmtPtr Parser::parseEnumDeclaration() {
         error("O enum '" + name_token.lexeme + "' precisa de pelo menos um valor.", peek());
         throw ParseError("enum vazio", peek());
     }
+    bool com_numero = false;   // Q7: a mensagem do "Vermelho = 1" sai uma vez por enum
     do {
         Token m = consume(TokenType::IDENTIFIER, "Esperado o nome de um valor do enum");
         membros.push_back(m.lexeme);
         tokens_membros.push_back(m);
+        // Q7: enum Cor { Vermelho = 1 } (o enum do C, do C# e do Java com valores)
+        if (check(TokenType::OP_ASSIGN)) {
+            if (!com_numero)
+                error("Os valores de um enum são só nomes, sem número por trás: escreva enum " + name_token.lexeme +
+                      " { " + m.lexeme + ", ... } (para associar um número a cada valor, use um dict<" +
+                      name_token.lexeme + ", i32>)", peek());
+            com_numero = true;
+            while (!check(TokenType::COMMA) && !check(TokenType::RBRACE) && !isAtEnd()) advance();
+        }
     } while (match(TokenType::COMMA));
     consume(TokenType::RBRACE, "Esperado '}' ao fim do enum (os valores são separados por ',')");
     return std::make_unique<EnumDecl>(enum_token, name_token.lexeme, std::move(membros),

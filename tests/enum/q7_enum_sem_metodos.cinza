@@ -1,0 +1,6 @@
+// Q7: Cor.A.name() aponta o print e a interpolação (antes: "não possui métodos (não é uma classe conhecida)")
+enum Cor { A }
+fn main() {
+  print(Cor.A.name());
+}
+// expect-error: 4:14: SemanticError: Tipo 'Cor' não possui métodos: um valor de enum só tem == e !=; o nome dele vem do print ou de format("{x}")

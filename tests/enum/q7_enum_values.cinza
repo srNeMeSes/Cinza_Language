@@ -1,0 +1,6 @@
+// Q7: Cor.values() (Java): um tipo não tem métodos; a lista dos valores se monta (antes: "Tipo 'type' não possui métodos")
+enum Cor { A, B }
+fn main() {
+  print(Cor.values());
+}
+// expect-error: 4:12: SemanticError: Um tipo escrito como valor não tem métodos: ele só serve para comparar com type(x). Para percorrer os valores de um enum, monte a lista: [Cor.A, Cor.B, ...]

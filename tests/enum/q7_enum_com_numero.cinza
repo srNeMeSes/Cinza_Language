@@ -1,0 +1,5 @@
+// Q7: enum com valores numéricos (C, C#, Java): só nomes, uma mensagem por enum (antes: "Esperado '}' ao fim do enum")
+enum Cor { Vermelho = 1, Verde = 2 }
+fn main() {}
+// expect-error: 2:21: SyntaxError: Os valores de um enum são só nomes, sem número por trás: escreva enum Cor { Vermelho, ... } (para associar um número a cada valor, use um dict<Cor, i32>)
+// expect-not: Verde, ...
