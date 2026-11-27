@@ -93,6 +93,20 @@ static std::string dicaModulo(const std::string& modulo, const std::string& meto
     return "";
 }
 
+// Q7: o nome que outras linguagens usam para o que a Cinza chama de outro jeito
+// (l.append → l.add, s.length() → s.size(), d.put → d.add); `alvo` é "l", "s" ou "d"
+static std::string dicaNomeComum(const std::string& m, const std::string& alvo) {
+    if (m == "length" || m == "len" || m == "Length" || (m == "count" && alvo == "s"))
+        return ". O tamanho é o método size(): " + alvo + ".size()";
+    if (alvo == "l" && (m == "append" || m == "push" || m == "push_back" || m == "add_last"))
+        return ". Para acrescentar no fim, use l.add(x)";
+    if (alvo == "d" && (m == "put" || m == "set" || m == "insert"))
+        return ". Para inserir ou trocar, use d.add({chave, valor})";
+    if (alvo == "d" && (m == "contains_key" || m == "containsKey" || m == "contains"))
+        return ". Para saber se a chave existe, use d.has(chave)";
+    return "";
+}
+
 // Mensagem de operação entre famílias diferentes (i32 + f64)
 static std::string familiasMessage(const std::string& op_text, TypeRef l, TypeRef r) {
     TypeRef f = l->isFloat() ? l : r;
@@ -2975,6 +2989,10 @@ TypeRef SemanticAnalyzer::analyzeCall(CallExpr* expr) {
     }
 
     if (!sym) {
+        // Q7: len(x) do Python, length(x)
+        if (expr->function_name == "len" || expr->function_name == "length" || expr->function_name == "sizeof")
+            throwError("Função '" + expr->function_name + "' não declarada: o tamanho de um texto, de uma lista ou "
+                       "de um dict é o método size(): x.size()", expr->token);
         // Q1e: o nome existe num módulo importado (pub): falta o apelido
         for (const auto& [apelido, idx] : modules[current_module].imports)
             if (modules[idx].pub.count(expr->function_name))
@@ -3124,7 +3142,14 @@ TypeRef SemanticAnalyzer::analyzeNativeCall(CallExpr* expr, const NativeFn& fn) 
                                                  "escreva o literal com .ff (2.ff) ou converta com "
                                                  "cast<f64>(n)")
                                    : std::string())
-                            : dicaCast(mostrado, at)),
+                            : dicaCast(mostrado, at)) +
+                       // Q7: Lists.sort de objetos ou structs: o caminho é o sort_by
+                       ((mostrado->is(TK::List) && mostrado->elem()->is(TK::TypeVar) &&
+                         mostrado->elem()->name == "comparável" &&
+                         (nome.ends_with("sort") || nome.ends_with("sort_desc") || nome.ends_with("sorted")))
+                            ? std::string(". Para ordenar objetos ou structs, use Lists.sort_by(l, chaves), com "
+                                          "a lista das chaves (números ou textos) na mesma ordem")
+                            : std::string()),
                        expr->token);
         }
     }
@@ -3242,7 +3267,8 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
                            expr->token);
             return expr->resolved_type = types.voidType();
         }
-        throwError("Método '" + m + "' não existe em 'list<T>'" + dicaModulo("Lists", m, "lista"), expr->token);
+        throwError("Método '" + m + "' não existe em 'list<T>'" + dicaModulo("Lists", m, "lista") +
+                   dicaNomeComum(m, "l"), expr->token);
     }
 
     // ── dict<K,V> built-ins ───────────────────────────────────────────────
@@ -3308,7 +3334,8 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
             return expr->resolved_type = types.list(V);
         }
         throwError("Método '" + expr->method_name + "' não existe em 'dict<K,V>'" +
-                   dicaModulo("Dicts", expr->method_name, "dict"), expr->token);
+                   dicaModulo("Dicts", expr->method_name, "dict") + dicaNomeComum(expr->method_name, "d"),
+                   expr->token);
     }
 
     // ── string built-ins ──────────────────────────────────────────────────
@@ -3319,7 +3346,8 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
             return expr->resolved_type = types.i32Type();
         }
         throwError("Método '" + expr->method_name + "' não existe em 'string'" +
-                   dicaModulo("Strings", expr->method_name, "texto"), expr->token);
+                   dicaModulo("Strings", expr->method_name, "texto") + dicaNomeComum(expr->method_name, "s"),
+                   expr->token);
     }
 
     // ── C4: erro não tem métodos ──────────────────────────────────────────
@@ -3445,6 +3473,12 @@ TypeRef SemanticAnalyzer::analyzeMemberAccess(MemberAccessExpr* expr) {
     // ── Classe definida pelo usuário ──────────────────────────────────────
     auto it = obj_type->is(TK::Class) ? class_table.find(obj_type->name) : class_table.end();
     if (it == class_table.end()) {
+        // Q7: l.length, s.len, d.size (sem parênteses): o tamanho é o método size()
+        const std::string& nm = expr->member_name;
+        if ((obj_type->is(TK::List) || obj_type->is(TK::Dict) || obj_type->is(TK::String)) &&
+            (nm == "length" || nm == "len" || nm == "size" || nm == "Length" || nm == "count"))
+            throwError("'" + obj_type->str() + "' não tem o campo '" + nm + "': o tamanho é o método size(), "
+                       "com parênteses (x.size())", expr->token);
         throwError("Tipo '" + obj_type->str() + "' não possui campos" +
                    (obj_type->is(TK::Optional) ? dicaOpcional(obj_type)
                     : obj_type->isPrimitive() ? std::string() : " (não é uma classe conhecida)"), expr->token);

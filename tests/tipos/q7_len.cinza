@@ -1,0 +1,6 @@
+// Q7: len(x) do Python aponta x.size() (antes: "Função 'len' não declarada")
+fn main() {
+  list<i32> l = [1];
+  print(len(l));
+}
+// expect-error: 4:9: SemanticError: Função 'len' não declarada: o tamanho de um texto, de uma lista ou de um dict é o método size(): x.size()

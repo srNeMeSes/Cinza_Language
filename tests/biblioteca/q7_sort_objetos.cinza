@@ -1,0 +1,8 @@
+// Q7: Lists.sort de objetos aponta Lists.sort_by (antes, só "esperado 'list<comparável>'")
+import Lists;
+class C { i32 x = 0; }
+fn main() {
+  list<C> l = [new C()];
+  Lists.sort(l);
+}
+// expect-error: 6:3: SemanticError: Argumento 1 de 'Lists.sort': esperado 'list<comparável>', mas recebeu 'list<C>'. Para ordenar objetos ou structs, use Lists.sort_by(l, chaves)

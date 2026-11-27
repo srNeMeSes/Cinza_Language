@@ -1,0 +1,6 @@
+// Q7: s.length() aponta s.size(); d.put aponta d.add
+fn main() {
+  string s = "a";
+  print(s.length());
+}
+// expect-error: 4:10: SemanticError: Método 'length' não existe em 'string'. O tamanho é o método size(): s.size()

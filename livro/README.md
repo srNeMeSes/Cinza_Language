@@ -21,7 +21,7 @@ livro ensina, a spec define.
 **Parte II — Dados**
 
 6. [Textos](06-textos.md)
-7. Listas
+7. [Listas](07-listas.md)
 8. Dicionários e pares
 9. Structs
 10. Enums e tipos como valores

@@ -1,0 +1,6 @@
+// Q7: l.append, len(l), l.length, s.length(), d.put — os nomes de outras linguagens apontam o da Cinza
+fn main() {
+  list<i32> l = [1];
+  l.append(2);
+}
+// expect-error: 4:4: SemanticError: Método 'append' não existe em 'list<T>'. Para acrescentar no fim, use l.add(x)

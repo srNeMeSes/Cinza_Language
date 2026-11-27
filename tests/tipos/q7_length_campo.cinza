@@ -1,0 +1,6 @@
+// Q7: l.length (sem parênteses) aponta o método size() (antes: "não possui campos (não é uma classe conhecida)")
+fn main() {
+  list<i32> l = [1];
+  print(l.length);
+}
+// expect-error: 4:10: SemanticError: 'list<i32>' não tem o campo 'length': o tamanho é o método size(), com parênteses (x.size())

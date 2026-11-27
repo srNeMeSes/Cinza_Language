@@ -1,0 +1,6 @@
+// Q7: d.put(k, v) do Java aponta d.add({chave, valor})
+fn main() {
+  dict<string, i32> d;
+  d.put("a", 1);
+}
+// expect-error: 4:4: SemanticError: Método 'put' não existe em 'dict<K,V>'. Para inserir ou trocar, use d.add({chave, valor})
