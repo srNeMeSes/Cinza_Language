@@ -1,0 +1,6 @@
+// Q7: Ponto p = {1, 2} (o literal de struct do C e do C#) aponta o new
+struct Ponto { i32 x = 0; i32 y = 0; }
+fn main() {
+  Ponto p = {1, 2};
+}
+// expect-error: 4:9: SemanticError: Tipo incompatível na declaração de 'p': declarado 'Ponto', mas atribuído 'pair<i32, i32>'. Um struct ou uma classe se cria com new Ponto(...)

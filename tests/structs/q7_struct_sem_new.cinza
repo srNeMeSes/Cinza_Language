@@ -1,0 +1,6 @@
+// Q7: Ponto(1, 2) sem new aponta o new (antes: "'Ponto' não é uma função")
+struct Ponto { i32 x = 0; i32 y = 0; }
+fn main() {
+  Ponto p = Ponto(1, 2);
+}
+// expect-error: 4:13: SemanticError: 'Ponto' não é uma função: um struct ou uma classe se cria com new Ponto(...)

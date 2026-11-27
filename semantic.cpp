@@ -64,6 +64,8 @@ static std::string dicaCast(TypeRef esperado, TypeRef recebido) {
     // Q1e
     if (recebido->is(TK::Void))
         return ". A expressão é 'void' e não tem valor (a função não retorna nada)";
+    if ((esperado->is(TK::Struct) || esperado->is(TK::Class)) && recebido->is(TK::Pair))   // Q7: Ponto p = {1, 2}
+        return ". Um struct ou uma classe se cria com new " + esperado->str() + "(...)";
     if (esperado->is(TK::Interface) && recebido->is(TK::Class))
         return ". A classe '" + recebido->str() + "' não declara cumprir '" + esperado->str() +
                "' (class " + recebido->str() + " : " + esperado->str() + ")";
@@ -3003,6 +3005,10 @@ TypeRef SemanticAnalyzer::analyzeCall(CallExpr* expr) {
                    expr->token);
     }
     if (sym->kind != Symbol::Kind::FUNCTION) {
+        // Q7: Ponto(1, 2) sem new
+        if (sym->kind == Symbol::Kind::CLASS)
+            throwError("'" + expr->function_name + "' não é uma função: um struct ou uma classe se cria com "
+                       "new " + expr->function_name + "(...)", expr->token);
         throwError("'" + expr->function_name + "' não é uma função", expr->token);
     }
     // Fase 2.5: main é o ponto de entrada, chamado só pela CVM

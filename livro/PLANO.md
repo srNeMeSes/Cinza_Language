@@ -127,7 +127,7 @@ versão roda sozinha: o leitor pode pular para qualquer capítulo.
   `==` sem ligar para a ordem; o `for` com `pair<K, V>`; `pair<A, B>` imutável; o módulo `Dicts`
   (`get` devolve opcional, `items`, `merge`, `invert`...). Programa: contar palavras de um texto.
   *Spec: 3.3, 5.7, 6.2 Dicts.*
-- [ ] **9. Structs** — o agrupamento de campos que é um **valor**: cópia na atribuição, no
+- [x] **9. Structs** (2026-11-26) — o agrupamento de campos que é um **valor**: cópia na atribuição, no
   argumento e no retorno (cópia rasa); os três jeitos de criar (`new P()`, em ordem, pelo nome);
   os campos obrigatórios; por que atribuir a um temporário é erro; um struct que contém uma lista
   de si mesmo. Programa: a tarefa vira um struct. *Spec: 4.7, 5.1.*
@@ -270,4 +270,5 @@ Commits por parte do livro, num ramo `q7-livro`; merge no `main` quando o autor 
 | 2026-11-26 | O capítulo 6, com 26 exemplos e as soluções. Achados no caminho, melhorados com testes: um método que não existe em `string`, `list` ou `dict`, mas cuja função está no módulo, aponta o módulo (`s.upper()` → `Strings.upper(s)`, com import Strings); `'a'` entre aspas simples é um erro só, que mostra as aspas duplas (antes, dois "Caractere inesperado"). |
 | 2026-11-26 | O capítulo 7, com 24 exemplos e as soluções; o `tarefas` começa (versão 1: duas listas de textos). Achados no caminho, melhorados com testes: os nomes de outras linguagens apontam o da Cinza — `l.append`/`push` → `l.add`, `len(x)`, `l.length`/`s.length()` → `size()`, `d.put` → `d.add`, `d.contains_key` → `d.has` — e o `Lists.sort` de objetos aponta o `Lists.sort_by`. |
 | 2026-11-26 | O capítulo 8, com 20 exemplos e as soluções. Achados no caminho, corrigidos no parser com testes: `{"a": 1}` (o dict do Python e do JSON) mostra a forma da Cinza num erro só (antes, três); os literais vazios `{}` e `[]` são um erro só cada (o `{}` dava mais dois em cascata). |
+| 2026-11-26 | O capítulo 9, com 16 exemplos e as soluções; o `tarefas` na versão 2 (a tarefa é um struct). Achados no caminho, melhorados com testes (`tests/structs/q7_*`): um método num struct é um erro só (antes, mais um "Esperado nome do campo"); `Ponto(1, 2)` sem `new` e `Ponto p = {1, 2}` apontam o `new`. Uma afirmação do texto (a ordem da montagem de uma árvore de structs) estava errada pela cópia rasa e foi reescrita com um exemplo testado: o que o texto afirma sobre o comportamento vira exemplo com saída. |
 | 2026-11-25 | Revisão externa do plano: entram a regra editorial do porquê, objetivos e pré-requisitos por capítulo, o mapa do sistema de tipos (cap. 2), o caminho da compilação e o diagnóstico (cap. 24), C++ e C# no apêndice F. |

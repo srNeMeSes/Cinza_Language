@@ -1,0 +1,9 @@
+// Q7: um método num struct é um erro só (antes, mais um "Esperado nome do campo (token: '{')")
+struct Ponto {
+  i32 x = 0;
+  fn norma() -> i32 { return x; }
+  i32 y = 0;
+}
+fn main() {}
+// expect-error: 4:3: SyntaxError: struct 'Ponto' só pode ter campos
+// expect-not: Esperado nome do campo

@@ -2059,7 +2059,10 @@ StmtPtr Parser::parseStructDeclaration() {
                 error("struct '" + name_token.lexeme + "' só pode ter campos: métodos e o "
                       "bloco 'pub' não são permitidos em struct (todos os campos já são "
                       "públicos). Use 'class' se precisar de métodos.", peek());
-                throw ParseError("Membro inválido em struct", peek());
+                // Q7: pula o método (ou o bloco pub) inteiro, para não virar um segundo erro, falso
+                while (!check(TokenType::LBRACE) && !check(TokenType::RBRACE) && !isAtEnd()) advance();
+                pulaBloco();
+                continue;
             }
             if (checkFieldStart()) {
                 fields.push_back(parseFieldDeclaration(true));
