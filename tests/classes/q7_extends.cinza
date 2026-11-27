@@ -1,0 +1,6 @@
+// Q7: class B extends A: não há herança (antes: "Esperado '{' após nome da classe")
+class Animal {}
+class Cachorro extends Animal {}
+fn main() {}
+// expect-error: 3:16: SyntaxError: A Cinza não tem herança: para reaproveitar código, use composição (um campo com um objeto da outra classe); para polimorfismo, interfaces (class Cachorro : Interface { ... })
+// expect-not: Membro de classe inválido

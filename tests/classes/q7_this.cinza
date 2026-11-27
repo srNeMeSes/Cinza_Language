@@ -1,0 +1,10 @@
+// Q7: this aponta self (antes: "Variável 'this' não declarada")
+class C {
+  i32 x = 0;
+  pub {
+    fn f() -> i32 { return this.x; }
+  }
+}
+fn main() {}
+// expect-error: 5:28: SemanticError: 'this' não existe na Cinza: o objeto atual é self (self.campo, self.metodo())
+// expect-not: Membro de classe inválido

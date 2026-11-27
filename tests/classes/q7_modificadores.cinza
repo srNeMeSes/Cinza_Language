@@ -1,0 +1,11 @@
+// Q7: public, private e static apontam o jeito da Cinza (antes: "Membro de classe inválido"), um erro cada
+class C {
+  private i32 x = 0;
+  static i32 total = 0;
+  public fn f() {}
+}
+fn main() {}
+// expect-error: 3:3: SyntaxError: Não há 'private': os campos são sempre privados, e um método fora do bloco pub { ... } é privado
+// expect-error: 4:3: SyntaxError: Não há membros 'static': o que é da classe, e não de cada objeto, fica no nível de cima
+// expect-error: 5:3: SyntaxError: Não há 'public': os métodos públicos e o construtor vão no bloco pub { ... }
+// expect-not: Membro de classe inválido

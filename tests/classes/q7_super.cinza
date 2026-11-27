@@ -1,0 +1,9 @@
+// Q7: super: não há herança
+class C {
+  pub {
+    fn f() { super.f(); }
+  }
+}
+fn main() {}
+// expect-error: 4:14: SemanticError: 'super' não existe na Cinza: não há herança (para reaproveitar código, use composição)
+// expect-not: Membro de classe inválido

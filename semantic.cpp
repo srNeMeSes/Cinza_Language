@@ -2792,6 +2792,12 @@ TypeRef SemanticAnalyzer::analyzeIdentifier(IdentifierExpr* expr) {
             expr->type_value = types.structType(copia);
             return expr->resolved_type = types.typeType();
         }
+        // Q7: this e super de outras linguagens
+        if (expr->name == "this")
+            throwError("'this' não existe na Cinza: o objeto atual é self (self.campo, self.metodo())", expr->token);
+        if (expr->name == "super")
+            throwError("'super' não existe na Cinza: não há herança (para reaproveitar código, use composição)",
+                       expr->token);
         // Q7: o nulo de outras linguagens
         if (expr->name == "nil" || expr->name == "None" || expr->name == "NULL" || expr->name == "undefined" ||
             expr->name == "nullptr" || expr->name == "Nothing")

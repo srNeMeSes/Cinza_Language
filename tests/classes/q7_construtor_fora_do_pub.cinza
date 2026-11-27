@@ -1,0 +1,8 @@
+// Q7: o construtor fora do pub (antes: "Membro de classe inválido (token: 'C')")
+class C {
+  i32 x = 0;
+  C() { x = 1; }
+}
+fn main() {}
+// expect-error: 4:3: SyntaxError: O construtor de 'C' fica no bloco pub: pub { C(...) { ... } }
+// expect-not: Membro de classe inválido

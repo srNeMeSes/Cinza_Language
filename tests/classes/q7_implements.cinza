@@ -1,0 +1,8 @@
+// Q7: class B implements I: as interfaces vão depois de ':'
+interface I { fn f(); }
+class C implements I {
+  pub { fn f() {} }
+}
+fn main() {}
+// expect-error: 3:9: SyntaxError: A Cinza escreve as interfaces que a classe cumpre depois de ':': class C : Interface { ... }
+// expect-not: Membro de classe inválido

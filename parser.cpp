@@ -1712,6 +1712,18 @@ StmtPtr Parser::parseClassDeclaration() {
         } while (match(TokenType::COMMA));
     }
 
+    // Q7: class B extends A (Java), class B implements I
+    if (check(TokenType::IDENTIFIER) && (peek().lexeme == "extends" || peek().lexeme == "implements" ||
+                                         peek().lexeme == "inherits")) {
+        const Token onde = peek();
+        if (onde.lexeme == "implements")
+            error("A Cinza escreve as interfaces que a classe cumpre depois de ':': class " + class_name +
+                  " : Interface { ... }", onde);
+        else
+            error("A Cinza não tem herança: para reaproveitar código, use composição (um campo com um objeto da "
+                  "outra classe); para polimorfismo, interfaces (class " + class_name + " : Interface { ... })", onde);
+        while (!check(TokenType::LBRACE) && !isAtEnd()) advance();
+    }
     consume(TokenType::LBRACE, "Esperado '{' após nome da classe");
     DepthGuard class_brace_guard{brace_depth};   // A9
 
@@ -1796,7 +1808,28 @@ StmtPtr Parser::parseClassDeclaration() {
                       "void", peek());
                 synchronize();
             } else {
-                error("Membro de classe inválido: esperado campo, 'fn' ou 'pub'");
+                // Q7: os modificadores de Java, C# e C++, e o construtor fora do pub
+                const Token& t = peek();
+                std::string msg;
+                if (t.type == TokenType::IDENTIFIER) {
+                    const std::string& w = t.lexeme;
+                    if (w == "public")
+                        msg = "Não há 'public': os métodos públicos e o construtor vão no bloco pub { ... }";
+                    else if (w == "private" || w == "protected")
+                        msg = "Não há '" + w + "': os campos são sempre privados, e um método fora do bloco pub { ... } "
+                              "é privado";
+                    else if (w == "static")
+                        msg = "Não há membros 'static': o que é da classe, e não de cada objeto, fica no nível de cima, "
+                              "como uma função ou um const";
+                    else if (w == "abstract" || w == "virtual" || w == "override" || w == "final")
+                        msg = "Não há '" + w + "': a Cinza não tem herança, e o polimorfismo é pelas interfaces";
+                    else if (w == class_name && current + 1 < tokens.size() &&
+                             tokens[current + 1].type == TokenType::LPAREN)
+                        msg = "O construtor de '" + class_name + "' fica no bloco pub: pub { " + class_name +
+                              "(...) { ... } }";
+                }
+                if (!msg.empty()) error(msg, t);
+                else error("Membro de classe inválido: esperado campo, 'fn' ou 'pub'");
                 synchronize();
             }
 
