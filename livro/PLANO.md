@@ -134,7 +134,7 @@ versão roda sozinha: o leitor pode pular para qualquer capítulo.
 - [x] **10. Enums e tipos como valores** (2026-11-26) — `enum` (valores só nomes, sempre qualificados, chave de
   dict); `type(x)` e os tipos escritos como valor; o que a Cinza não tem (reflexão) e por quê.
   Programa: prioridade e situação da tarefa. *Spec: 3.8, 4.8.*
-- [ ] **11. O opcional: `T?` e `null`** — o `null` só onde o tipo diz; `valor else padrão`, o
+- [x] **11. O opcional: `T?` e `null`** (2026-11-26) — o `null` só onde o tipo diz; `valor else padrão`, o
   `else` com bloco e `yield`; `if (T x = opcional)` e `while (T x = opcional)`; sem estreitamento
   (`x != null` não muda o tipo); a biblioteca devolve opcionais (`find`, `Dicts.get`, `Env.get`,
   `input`, `Convert.to_i32`); quando usar um opcional e quando um erro. Programa: buscar uma tarefa
@@ -272,4 +272,5 @@ Commits por parte do livro, num ramo `q7-livro`; merge no `main` quando o autor 
 | 2026-11-26 | O capítulo 8, com 20 exemplos e as soluções. Achados no caminho, corrigidos no parser com testes: `{"a": 1}` (o dict do Python e do JSON) mostra a forma da Cinza num erro só (antes, três); os literais vazios `{}` e `[]` são um erro só cada (o `{}` dava mais dois em cascata). |
 | 2026-11-26 | O capítulo 9, com 16 exemplos e as soluções; o `tarefas` na versão 2 (a tarefa é um struct). Achados no caminho, melhorados com testes (`tests/structs/q7_*`): um método num struct é um erro só (antes, mais um "Esperado nome do campo"); `Ponto(1, 2)` sem `new` e `Ponto p = {1, 2}` apontam o `new`. Uma afirmação do texto (a ordem da montagem de uma árvore de structs) estava errada pela cópia rasa e foi reescrita com um exemplo testado: o que o texto afirma sobre o comportamento vira exemplo com saída. |
 | 2026-11-26 | O capítulo 10, com 14 exemplos e as soluções; o `tarefas` na versão 3 (prioridade e situação como enums). Achados no caminho, melhorados com testes: `enum Cor { Vermelho = 1 }` diz que os valores são só nomes (uma vez por enum); `Cor.A.name()` e `Cor.values()` explicam a falta de reflexão; o `+` entre texto e um valor que não é primitivo (enum, lista) e o `cast<string>` de um enum apontam a interpolação (o exemplo do capítulo 3 com a mensagem nova). |
+| 2026-11-26 | O capítulo 11, com 19 exemplos e as soluções: a Parte II completa; o `tarefas` na versão 4 (a busca devolve um opcional; responsável e prazo opcionais). Achados no caminho, melhorados com testes: a dica do opcional mostra o `if (T v = valor)` e avisa que `x != null` não muda o tipo (o estreitamento do Kotlin e do TypeScript), mantendo o começo da mensagem; `nil`, `None`, `NULL`, `undefined` e `nullptr` apontam o `null`. O exemplo do capítulo 6 com a mensagem nova. |
 | 2026-11-25 | Revisão externa do plano: entram a regra editorial do porquê, objetivos e pré-requisitos por capítulo, o mapa do sistema de tipos (cap. 2), o caminho da compilação e o diagnóstico (cap. 24), C++ e C# no apêndice F. |

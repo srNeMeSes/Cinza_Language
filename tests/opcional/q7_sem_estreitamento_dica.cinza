@@ -1,0 +1,8 @@
+// Q7: usar um T? depois de "x != null" (o estreitamento do Kotlin e do TypeScript) explica que o tipo não muda e mostra o if com declaração
+fn main() {
+  string? s = "abc";
+  if (s != null) {
+    print(s.size());
+  }
+}
+// expect-error: 5:12: SemanticError: Tipo 'string?' não possui métodos: o valor é opcional; resolva a ausência antes, com else (ex.: valor else padrão) ou com if (T v = valor) { ... }; um x != null não muda o tipo de x

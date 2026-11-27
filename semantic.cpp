@@ -49,8 +49,9 @@ bool TypeChecker::widens(TypeRef to, TypeRef from) {
 // é explícita — a mesma sugestão das operações entre famílias
 // Q1b: a dica quando um T? foi usado como T (método, campo, índice, for, condição)
 static std::string dicaOpcional(TypeRef t) {
+    // Q7: a forma do if com declaração, e o aviso de que não há estreitamento (Kotlin, TypeScript)
     return t->is(TK::Optional) ? ": o valor é opcional; resolva a ausência antes, com else (ex.: valor "
-                                 "else padrão) ou com if"
+                                 "else padrão) ou com if (T v = valor) { ... }; um x != null não muda o tipo de x"
                                : "";
 }
 
@@ -58,7 +59,7 @@ static std::string dicaCast(TypeRef esperado, TypeRef recebido) {
     // Q1b: um T? onde se espera T, ou null onde não cabe
     if (recebido->is(TK::Optional) && !esperado->is(TK::Optional))
         return ". O valor é opcional ('" + recebido->str() + "'): resolva a ausência antes, com else "
-               "(ex.: valor else padrão) ou com if";
+               "(ex.: valor else padrão) ou com if (T v = valor) { ... }; um x != null não muda o tipo de x";
     if (recebido->is(TK::Null) && !esperado->is(TK::Optional))
         return ". null só cabe num tipo opcional: declare '" + esperado->str() + "?'";
     // Q1e
@@ -227,7 +228,7 @@ TypeRef TypeChecker::checkBinaryOp(TypeRef left, TokenType op, TypeRef right,
             TypeRef o = ausencia(left) ? left : right;
             throw SemanticError("Operador '" + op_text + "' com " +
                                 (o->is(TK::Null) ? std::string("null") : "um valor opcional ('" + o->str() + "')") +
-                                ": resolva a ausência antes, com else (ex.: x else 0) ou com if", tok);
+                                ": resolva a ausência antes, com else (ex.: x else 0) ou com if (T v = x) { ... }; um x != null não muda o tipo de x", tok);
         }
         const std::string cmp = tokenTypeToOperatorString(op);
         if (left->is(TK::Null) && right->is(TK::Null)) return types.boolType();
@@ -336,7 +337,7 @@ TypeRef TypeChecker::checkUnaryOp(TokenType op, TypeRef operand, const Token& to
         throw SemanticError("Operador '" + tok.lexeme + "' com " +
                             (operand->is(TK::Null) ? std::string("null")
                                                    : "um valor opcional ('" + operand->str() + "')") +
-                            ": resolva a ausência antes, com else (ex.: x else 0) ou com if", tok);
+                            ": resolva a ausência antes, com else (ex.: x else 0) ou com if (T v = x) { ... }; um x != null não muda o tipo de x", tok);
     switch (op) {
         case TokenType::OP_MINUS:
             if (operand->isNumeric()) return operand;
@@ -2791,6 +2792,11 @@ TypeRef SemanticAnalyzer::analyzeIdentifier(IdentifierExpr* expr) {
             expr->type_value = types.structType(copia);
             return expr->resolved_type = types.typeType();
         }
+        // Q7: o nulo de outras linguagens
+        if (expr->name == "nil" || expr->name == "None" || expr->name == "NULL" || expr->name == "undefined" ||
+            expr->name == "nullptr" || expr->name == "Nothing")
+            throwError("'" + expr->name + "' não existe na Cinza: a ausência de valor é null, e ela só cabe num "
+                       "tipo opcional (T?)", expr->token);
         // Q1e: um valor de enum escrito sem o enum (Verde em vez de Cor.Verde)
         for (const auto& [curto, completo] : modules[current_module].globals)
             if (auto en = enum_table.find(completo); en != enum_table.end())

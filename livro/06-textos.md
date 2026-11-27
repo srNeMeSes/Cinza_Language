@@ -343,7 +343,7 @@ fn main() {
 ```
 
 ```erro
-busca.cinza:4:7: SemanticError: Tipo incompatível na declaração de 'i': declarado 'i32', mas atribuído 'i32?'. O valor é opcional ('i32?'): resolva a ausência antes, com else (ex.: valor else padrão) ou com if
+busca.cinza:4:7: SemanticError: Tipo incompatível na declaração de 'i': declarado 'i32', mas atribuído 'i32?'. O valor é opcional ('i32?'): resolva a ausência antes, com else (ex.: valor else padrão) ou com if (T v = valor) { ... }; um x != null não muda o tipo de x
 ```
 
 O capítulo 11 é todo sobre isso. Por ora, as duas formas mais usadas: `else` dá um valor para o caso

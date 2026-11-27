@@ -1,0 +1,6 @@
+// Q7: nil, None, NULL, undefined, nullptr apontam o null (antes: "Variável 'nil' não declarada")
+fn main() {
+  string? s = nil;
+  string? t = None;
+}
+// expect-error: 3:15: SemanticError: 'nil' não existe na Cinza: a ausência de valor é null, e ela só cabe num tipo opcional (T?)
