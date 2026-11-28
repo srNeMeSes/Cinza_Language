@@ -160,7 +160,7 @@ versão roda sozinha: o leitor pode pular para qualquer capítulo.
   inteiro fechado, em qualquer profundidade; o `const` que para no objeto de classe (e por que
   `const Pessoa p` é erro); o `const` global como expressão constante calculada na compilação.
   *Spec: 3.9, 4.3.*
-- [ ] **16. Genéricos: funções** — `fn maior[T](T a, T b) -> T`; a monomorfização (uma cópia
+- [x] **16. Genéricos: funções** (2026-11-28) — `fn maior[T](T a, T b) -> T`; a monomorfização (uma cópia
   por combinação de tipos, sem custo na execução); a conferência no uso (sem restrições
   declaradas: `T` precisa ter o que o corpo usa — e por que a Cinza escolheu isso em vez de
   `T: Forma`, com o preço: o erro aparece no uso, com o rastro); a dedução dos tipos e os tipos explícitos;
@@ -279,4 +279,5 @@ Commits por parte do livro, num ramo `q7-livro`; merge no `main` quando o autor 
 | 2026-11-27 | O capítulo 15, com 25 exemplos e as soluções; o `tarefas` na versão 8 (constantes globais para o limite do título e o separador; os comandos numa constante da `main`, passada por um parâmetro const). **Decidido pelo autor**: const só vai para const — o valor de um const que guarda lista ou dict só vai para variável ou parâmetro const, e a versão alterável é a cópia explícita (antes, `list<i32> b = a;` ou um parâmetro sem const alteravam o const pela outra referência, nos dois backends; spec 3.9; registrado no REVISAO, Q7; `tests/const/q7_*`); o parâmetro const de uma interface é const na classe. **Decidido pelo autor em 2026-11-28**: o
 `const` é somente leitura, não imutável (`list<i32> a; const list<i32> b = a; a.add(3)` muda `b`);
 a seção 15.5 o mostra, e o valor que ninguém altera nasce no const. Mensagens, com testes: `final` aponta o `const`; `let` e `val` apontam a declaração com tipo, `var` ou `const`; `list<const i32>` dá um erro só; o const global usado antes da declaração diz que ela está mais abaixo; o `.add` numa parte de um const nomeia o const; a nota sobre objetos de classe só aparece quando há objetos no tipo. |
+| 2026-11-28 | O capítulo 16, com 23 exemplos e as soluções; o programa do capítulo conta, ordena e mostra frequências de palavras, números e enums com quatro genéricas (doze cópias). Mensagens, com testes (`tests/genericos/q7_*`): `fn maior<T>` aponta os colchetes (antes, "Esperado '('"); `maior<i32>(...)` aponta os colchetes, num erro só (antes, "Esperado ')'"); `[T: Comparable]` e `[T extends X]` dizem que não há restrições (antes, "Esperado ']'"); o conflito entre inteiro e ponto flutuante sugere o ponto flutuante (antes, `cast<i32>`, que perderia a parte decimal); a chave inválida no tipo de retorno aponta o tipo, também na cópia de uma genérica (antes, a coluna 1 do `fn`). |
 | 2026-11-25 | Revisão externa do plano: entram a regra editorial do porquê, objetivos e pré-requisitos por capítulo, o mapa do sistema de tipos (cap. 2), o caminho da compilação e o diagnóstico (cap. 24), C++ e C# no apêndice F. |

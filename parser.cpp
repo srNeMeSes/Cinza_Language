@@ -527,6 +527,18 @@ ExprPtr Parser::parseUnaryExpr() {
     return parsePostfixExpr(parsePrimaryExpr());
 }
 
+// Q7: um tipo embutido (i32, string, list...): depois de '<' nunca é uma comparação
+static bool ehTipoEmbutido(TokenType t) {
+    switch (t) {
+        case TokenType::TYPE_I32: case TokenType::TYPE_I64: case TokenType::TYPE_F32: case TokenType::TYPE_F64:
+        case TokenType::TYPE_STRING: case TokenType::TYPE_BOOL: case TokenType::TYPE_LIST:
+        case TokenType::TYPE_DICT: case TokenType::TYPE_PAIR:
+            return true;
+        default:
+            return false;
+    }
+}
+
 // r: LiteralExpr(IdentifierExpr(2)), LiteralExpr(true), LiteralExpr(2.3), parseCallExpr()
 ExprPtr Parser::parsePrimaryExpr() {
     // Literais booleanos
@@ -663,6 +675,17 @@ ExprPtr Parser::parsePrimaryExpr() {
             return parseCallExpr();
         }
         if (checkGenericCall()) return parseGenericCall(name_token);   // f[i32](...)
+        // Q7: f<i32>(...) (Rust, Java, C#, C++): um tipo embutido logo depois de '<' nunca é uma
+        // comparação válida
+        if (check(TokenType::OP_LESS) && current + 1 < tokens.size() && ehTipoEmbutido(tokens[current + 1].type)) {
+            error("Os tipos de uma chamada genérica vão entre colchetes: " + name_token.lexeme + "[" +
+                  tokens[current + 1].lexeme + "](...)", peek());
+            advance();   // '<': lê os tipos e segue com a chamada, sem erro em cascata
+            do { parseType(); } while (match(TokenType::COMMA));
+            match(TokenType::OP_GREATER);
+            if (check(TokenType::LPAREN)) return parseCallExpr();
+            throw ParseError("chamada genérica com < >", peek());
+        }
         
         return std::make_unique<IdentifierExpr>(name_token, name_token.lexeme);
     }
@@ -821,6 +844,14 @@ std::vector<Token> Parser::parseTypeParams(bool em_struct) {
         params.push_back(consume(TokenType::IDENTIFIER,
             "Esperado o nome de um parâmetro de tipo (um identificador, ex.: T): entre os "
             "colchetes da declaração só vêm nomes; os tipos concretos vêm na chamada"));
+        // Q7: T: Comparable (Rust, Swift), T extends X (Java, TypeScript)
+        if (check(TokenType::COLON) || (check(TokenType::IDENTIFIER) && peek().lexeme == "extends")) {
+            error("A Cinza não tem restrições nos parâmetros de tipo ('" + params.back().lexeme +
+                  (check(TokenType::COLON) ? std::string(": ") : std::string(" extends ")) + "...'): o corpo é "
+                  "conferido em cada uso, com o tipo concreto. Escreva só o nome: [" + params.back().lexeme + "]",
+                  peek());
+            while (!check(TokenType::COMMA) && !check(TokenType::RBRACKET) && !isAtEnd()) advance();
+        }
     } while (match(TokenType::COMMA));
     consume(TokenType::RBRACKET, "Esperado ']' após os parâmetros de tipo");
     return params;
@@ -1609,6 +1640,20 @@ StmtPtr Parser::parseFunctionDeclaration(bool metodo) {
         } else {
             type_params = parseTypeParams();
         }
+    }
+
+    // Q7: fn maior<T>(...) (Rust, C#, TypeScript): os colchetes da Cinza
+    if (check(TokenType::OP_LESS)) {
+        const Token onde = peek();
+        std::string nomes;
+        advance();
+        while (!check(TokenType::OP_GREATER) && !check(TokenType::LPAREN) && !isAtEnd()) {
+            if (check(TokenType::IDENTIFIER)) nomes += (nomes.empty() ? "" : ", ") + peek().lexeme;
+            advance();
+        }
+        match(TokenType::OP_GREATER);
+        error("Os parâmetros de tipo vão entre colchetes, não entre '<' e '>': fn " + name_token.lexeme + "[" +
+              (nomes.empty() ? std::string("T") : nomes) + "](...)", onde);
     }
 
     consume(TokenType::LPAREN, "Esperado '(' após nome da função");

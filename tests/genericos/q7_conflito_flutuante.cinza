@@ -1,0 +1,8 @@
+// Q7: o conflito entre inteiro e ponto flutuante sugere o ponto flutuante (o cast<i32> perderia a parte decimal).
+fn maior[T](T a, T b) -> T {
+  return a;
+}
+fn main() {
+  print(maior(1, 2.5ff));
+}
+// expect-error: converta com cast<f64>(...)

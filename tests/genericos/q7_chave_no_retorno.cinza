@@ -1,0 +1,11 @@
+// Q7: a chave inválida no tipo de retorno aponta o tipo (antes, o 'fn', na coluna 1), também na cópia de uma genérica.
+fn inverte[K, V](const dict<K, V> d) -> dict<V, K> {
+  dict<V, K> r;
+  return r;
+}
+fn main() {
+  dict<string, f64> notas = {{"ana", 9.5ff}};
+  print(inverte(notas));
+}
+// expect-error: 2:41: SemanticError: Chave de dict não pode ser 'f64'
+// expect-error:     em inverte[string, f64], usada em

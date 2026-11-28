@@ -2591,8 +2591,9 @@ void SemanticAnalyzer::analyzeFunctionDecl(FunctionDecl* stmt) {
         if (param.is_const && isClassLike(ptype))
             throwError(constClassMessage(ptype), param.token);
     }
-    if (TypeRef bad = invalidDictKey(ret_type))
-        throwError(dictKeyMessage(bad), stmt->token);
+    if (TypeRef bad = invalidDictKey(ret_type))   // Q7: aponta o tipo de retorno, não o 'fn'
+        throwError(dictKeyMessage(bad), stmt->return_type && stmt->return_type->token.line > 0
+                                            ? stmt->return_type->token : stmt->token);
 
     TypeRef saved_ret    = current_function_return_type;
     bool    saved_inside = inside_function;
@@ -4801,7 +4802,12 @@ TypeRef SemanticAnalyzer::analyzeGenericCall(CallExpr* expr, const Symbol& sym) 
                        (dentro || l.fixo
                             ? std::string(": dentro de list, dict, pair ou de um tipo genérico, o tipo "
                                           "precisa ser o mesmo (invariância)")   // Q1e
-                            : dicaCast(l.tipo, a)),
+                            : ((l.tipo->isInteger() && a->isFloat()) || (l.tipo->isFloat() && a->isInteger()))
+                                  // Q7: o cast<i32> da dica comum perderia a parte decimal
+                                  ? ": inteiro e ponto flutuante não se misturam; escreva o inteiro como ponto "
+                                    "flutuante (2.ff) ou converta com cast<" + (a->isFloat() ? a : l.tipo)->str() +
+                                    ">(...)"
+                                  : dicaCast(l.tipo, a)),
                        expr->token);
         };
         std::function<void(const Type*, TypeRef, bool)> deduz =

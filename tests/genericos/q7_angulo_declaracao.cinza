@@ -1,0 +1,6 @@
+// Q7: fn maior<T> (Rust, C#, TypeScript) aponta os colchetes.
+fn maior<T>(T a, T b) -> T {
+  return a;
+}
+fn main() {}
+// expect-error: Os parâmetros de tipo vão entre colchetes, não entre '<' e '>': fn maior[T](...)

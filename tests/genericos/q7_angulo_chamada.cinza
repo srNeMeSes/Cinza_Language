@@ -1,0 +1,8 @@
+// Q7: maior<i32>(...) aponta os colchetes, num erro só.
+fn maior[T](T a, T b) -> T {
+  return a;
+}
+fn main() {
+  print(maior<i32>(1, 2));
+}
+// expect-error: Os tipos de uma chamada genérica vão entre colchetes: maior[i32](...)

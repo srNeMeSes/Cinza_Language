@@ -33,7 +33,7 @@ livro ensina, a spec define.
 13. [Interfaces](13-interfaces.md)
 14. [Erros e exceções](14-erros.md)
 15. [`const` e imutabilidade](15-const.md)
-16. Genéricos: funções
+16. [Genéricos: funções](16-genericos-funcoes.md)
 17. Genéricos: structs, classes e interfaces
 18. Módulos e projetos
 19. Pacotes
