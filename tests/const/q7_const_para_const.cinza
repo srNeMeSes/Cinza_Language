@@ -1,0 +1,15 @@
+// Q7: de const para const, e a cópia explícita, valem; números, textos e structs de valores copiam livres.
+import Lists;
+struct P { i32 x = 0; }
+fn main() {
+  const list<i32> a = [1, 2];
+  const list<i32> b = a;
+  list<i32> c = Lists.copy(a);
+  c.add(3);
+  i32 x = a[0];
+  const P p = new P(1);
+  P q = p;
+  q.x = 5;
+  print(b, c, x, p.x, q.x);
+}
+// expect: [1, 2] [1, 2, 3] 1 1 5

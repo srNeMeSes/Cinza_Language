@@ -1,0 +1,6 @@
+// Q7: o dict de um const não vai para uma variável alterável; a sugestão é Dicts.copy.
+fn main() {
+  const dict<string, i32> d = {{"a", 1}};
+  dict<string, i32> e = d;
+}
+// expect-error: Dicts.copy(d)

@@ -1,0 +1,7 @@
+// Q7: o parâmetro const de uma interface é const na classe que a cumpre.
+interface I { fn f(const list<i32> l); }
+class C : I {
+  pub { fn f(list<i32> l) { l.add(1); } }
+}
+fn main() {}
+// expect-error: O parâmetro 'l' de 'C.f' precisa ser const, como em 'I'

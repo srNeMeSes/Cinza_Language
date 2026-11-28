@@ -1,0 +1,9 @@
+// Q7: o valor montado com um const pode ir para outro const.
+struct Turma { string nome; list<string> alunos; }
+fn main() {
+  const list<string> a = ["Ana"];
+  const Turma t = new Turma("A", a);
+  const list<list<string>> m = [a, a];
+  print(t.alunos, m);
+}
+// expect: ["Ana"] [["Ana"], ["Ana"]]

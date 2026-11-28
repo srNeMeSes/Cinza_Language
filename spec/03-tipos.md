@@ -293,6 +293,51 @@ fn main() {
 // expect-error: Listas const não podem ser modificadas
 ```
 
+**Const só vai para const.** Listas e dicts são compartilhados na atribuição e na passagem de
+argumento (seção 3.3), então um valor que vem de um const e **guarda uma lista ou um dict** — o
+próprio const, uma parte dele, ou um valor montado com ele (`[a]`, `{x, a}`, `new Turma("A", a)`) —
+só pode ir para outro lugar const:
+
+- uma variável const (local ou o iterador já ligado ao mesmo const) ou um parâmetro const;
+- nunca para uma variável alterável, uma atribuição, um parâmetro sem `const`, um `return`, um
+  `.add` ou uma nativa que guarda o argumento (`Lists.insert`, `Lists.extend` de listas de listas).
+
+Para ter uma versão alterável, copie explicitamente: `Lists.copy(a)`, `Dicts.copy(d)`. A cópia é
+rasa: numa lista de listas, as de dentro continuam do const, e é preciso copiar cada uma. Números,
+textos, `bool`, enums e structs só de valores copiam livres, e objetos de classe também (o const
+para no objeto).
+
+O que vem de um const continua do const: o iterador de um `for` sobre uma lista const de listas, a
+variável de um `if`/`while` com declaração sobre um opcional const, o elemento que uma nativa
+devolve (`Lists.first(m)`), a alternativa de um `else`. Um parâmetro const numa interface precisa
+ser const também no método da classe que a cumpre.
+
+```cinza
+fn altera(list<i32> l) {
+  l.add(1);
+}
+
+fn f(const list<i32> l) {
+  altera(l);
+}
+
+fn main() {}
+// expect-error: e o parâmetro 'l' não é
+```
+
+```cinza
+import Lists;
+
+fn main() {
+  const list<i32> a = [1, 2];
+  const list<i32> b = a;
+  list<i32> c = Lists.copy(a);
+  c.add(3);
+  print(a, b, c);
+}
+// expect: [1, 2] [1, 2] [1, 2, 3]
+```
+
 As regras do `const` global (o que pode aparecer no inicializador) estão na seção 4.3.
 
 ## 3.10 Opcional: `T?` e `null`

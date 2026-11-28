@@ -1,0 +1,7 @@
+// Q7: o parâmetro const não passa a lista para um parâmetro alterável.
+fn altera(list<i32> l) { l.add(1); }
+fn f(const list<i32> l) {
+  altera(l);
+}
+fn main() {}
+// expect-error: Argumento 1 de 'altera': 'l', que é const, e o parâmetro 'l' não é

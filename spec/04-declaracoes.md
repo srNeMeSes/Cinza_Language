@@ -81,7 +81,7 @@ fn main() { print(B); }
 const i64 B = A * 3;
 const i64 A = 2;
 fn main() { print(B); }
-// expect-error: Variável 'A' não declarada
+// expect-error: 'A' é declarado mais abaixo
 ```
 
 ## 4.4 Funções

@@ -1,0 +1,8 @@
+// Q7: o else e o if com declaração sobre um opcional const dão a mesma lista.
+fn main() {
+  const list<i32>? a = [1];
+  if (list<i32> b = a) {
+    b.add(2);
+  }
+}
+// expect-error: em 'b': a lista é parte de 'a', que é const

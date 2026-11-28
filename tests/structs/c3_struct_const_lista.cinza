@@ -4,4 +4,4 @@ fn main() {
     const Turma t = new Turma("A", ["Ana"]);
     t.alunos.add("Bia");
 }
-// expect-error: em lista const
+// expect-error: a lista é parte de 't', que é const

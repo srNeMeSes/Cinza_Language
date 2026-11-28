@@ -2,4 +2,4 @@
 const i64 A = B;
 const i64 B = 1;
 fn main() {}
-// expect-error: Variável 'B' não declarada
+// expect-error: 'B' é declarado mais abaixo

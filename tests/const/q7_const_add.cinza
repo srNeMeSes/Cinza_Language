@@ -1,0 +1,7 @@
+// Q7: .add não guarda a lista de um const numa lista alterável.
+fn main() {
+  const list<i32> a = [1];
+  list<list<i32>> m;
+  m.add(a);
+}
+// expect-error: 'm.add' não pode guardar 'a', que é const

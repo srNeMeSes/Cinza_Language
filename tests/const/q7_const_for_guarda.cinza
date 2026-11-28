@@ -1,0 +1,9 @@
+// Q7: o iterador não leva a lista de dentro para outra lista alterável.
+fn main() {
+  const list<list<i32>> m = [[1], [2]];
+  list<list<i32>> c;
+  for (list<i32> linha in m) {
+    c.add(linha);
+  }
+}
+// expect-error: 'c.add' não pode guardar 'linha', que é parte de 'm' (const)

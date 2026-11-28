@@ -561,7 +561,10 @@ void SemanticAnalyzer::registerInterface(const InterfaceDecl& in, bool simbolo) 
         mi.return_type = typeOf(m.return_type.get());
         mi.is_public   = true;
         mi.line        = m.token.line;
-        for (const auto& p : m.parameters) mi.param_types.push_back(typeOf(p.type.get()));
+        for (const auto& p : m.parameters) {
+            mi.param_types.push_back(typeOf(p.type.get()));
+            mi.param_const.push_back(p.is_const);
+        }
         info.nomes.push_back(m.name);
         info.metodos.push_back(std::move(mi));
     }
@@ -624,6 +627,13 @@ void SemanticAnalyzer::checkInterfaces(ClassDecl* cls) {
                 throwError("O método " + assinatura(nome, tem) + " da classe '" + classe + "' não "
                            "tem a assinatura exigida por '" + iface + "': " +
                            assinatura(nome, exigido) + ".", fn->token);
+            // Q7: quem chama pela interface passa um const ao parâmetro const; a classe não
+            // pode tratá-lo como alterável
+            for (size_t p = 0; p < exigido.param_const.size() && p < tem.param_const.size(); ++p)
+                if (exigido.param_const[p] && !tem.param_const[p])
+                    throwError("O parâmetro '" + fn->parameters[p].name + "' de '" + classe + "." + nome +
+                               "' precisa ser const, como em '" + iface + "': quem chama pela "
+                               "interface pode passar um valor const.", fn->parameters[p].token);
             tabela.push_back(fn);
         }
         cls->itables.emplace_back(ii.decl, std::move(tabela));
@@ -806,6 +816,7 @@ void SemanticAnalyzer::registerClass(const ClassDecl& cls, bool simbolo) {
     if (cls.constructor) {
         for (const auto& param : cls.constructor->parameters) {
             info.ctor_param_types.push_back(typeOf(param.type.get()));
+            info.ctor_param_const.push_back(param.is_const);
         }
     }
 
@@ -821,6 +832,7 @@ void SemanticAnalyzer::registerClass(const ClassDecl& cls, bool simbolo) {
             mi.decl        = fn;
             for (const auto& p : fn->parameters) {
                 mi.param_types.push_back(typeOf(p.type.get()));
+                mi.param_const.push_back(p.is_const);
             }
             if (info.methods.count(fn->name))   // Revisão: antes o segundo sumia em silêncio
                 throwError("Método '" + fn->name + "' declarado mais de uma vez na classe '" +
@@ -1610,6 +1622,8 @@ void SemanticAnalyzer::analyzeYield(YieldStmt* stmt) {
         throwError("O yield precisa dar um '" + b.tipo->str() + "' (o tipo do valor antes do else), "
                    "mas dá '" + vt->str() + "'" + dicaCast(b.tipo, vt), stmt->token);
     coerceInPlace(stmt->value, b.tipo);
+    if (const Symbol* r = origemConst(stmt->value.get()))   // Q7: o valor do else vem de um const
+        if (!blocos_else.back().origem) blocos_else.back().origem = guardaOrigem(r);
 }
 
 void SemanticAnalyzer::analyzeBlock(BlockStmt* block) {
@@ -1821,6 +1835,8 @@ void SemanticAnalyzer::analyzeVarDecl(VarDeclStmt* stmt) {
                     stmt->token);
             }
             coerceInPlace(stmt->initializer, declared_type);
+            if (!stmt->is_const)   // Q7: const só vai para const
+                exigeAlteravel(stmt->initializer.get(), Destino::Variavel, stmt->name, stmt->token);
             sym.resolved_type = declared_type;
         }
     } else {
@@ -1882,15 +1898,49 @@ static std::string lvalueName(const Expr* e) {
     }
 }
 
+// Q7: o tipo tem objetos de classe dentro (só então a nota sobre eles ajuda)
+static bool temObjeto(TypeRef t, int prof = 0) {
+    if (!t || prof > 16) return false;
+    if (t->is(TK::Class) || t->is(TK::Interface)) return true;
+    if (t->is(TK::List) || t->is(TK::Optional)) return temObjeto(t->elem(), prof + 1);
+    if (t->is(TK::Dict)) return temObjeto(t->value(), prof + 1);
+    if (t->is(TK::Pair)) return temObjeto(t->first(), prof + 1) || temObjeto(t->second(), prof + 1);
+    return false;
+}
+
 static std::string constMutationMessage(const Symbol* root, const std::string& alvo) {
-    return "Constante '" + root->name + "' não pode ser modificada: '" + alvo +
-           "' altera o conteúdo de '" + root->name + "', que é const. Objetos de classe "
-           "dentro de um recipiente const continuam alteráveis; o recipiente, não.";
+    return "Constante '" + stripModulePrefixes(root->name) + "' não pode ser modificada: '" + alvo +
+           "' altera o conteúdo de '" + stripModulePrefixes(root->name) + "', que é const." +
+           (temObjeto(root->resolved_type) ? " Objetos de classe dentro de um recipiente const continuam "
+                                             "alteráveis; o recipiente, não." : "");
+}
+
+// Q7: `t` aparece dentro de `ret` (um elemento, um valor, um lado do par), sem ser o próprio
+// `ret`: Lists.repeat(l, 3) devolve uma lista que guarda l
+static bool componenteDe(TypeRef ret, TypeRef t, int prof = 0) {
+    if (!ret || !t || prof > 16) return false;
+    auto aqui = [&](TypeRef c) { return c == t || componenteDe(c, t, prof + 1); };
+    if (ret->is(TK::List) || ret->is(TK::Optional)) return aqui(ret->elem());
+    if (ret->is(TK::Dict)) return aqui(ret->key()) || aqui(ret->value());
+    if (ret->is(TK::Pair)) return aqui(ret->first()) || aqui(ret->second());
+    return false;
+}
+
+// Q7: o resultado `ret` de uma nativa pode compartilhar coleções do argumento `arg`? Quando
+// guarda o próprio argumento (Lists.repeat(l, 3)), um elemento dele (Lists.first de uma lista de
+// listas) ou os elementos dele (Lists.copy, d.values()); as chaves de um dict, não
+static bool compartilhaCom(TypeRef ret, TypeRef arg, bool elementos_de_arg, bool elementos_de_ret) {
+    while (ret && ret->is(TK::Optional)) ret = ret->elem();
+    if (componenteDe(ret, arg)) return true;
+    return elementos_de_arg && (elementos_de_ret || componenteDe(arg, ret));
 }
 
 // B5: variável const de onde vem o recipiente, ou nullptr. Para ao passar por
 // um objeto de classe (C3: objetos nunca são const, mesmo dentro de list const).
-const Symbol* SemanticAnalyzer::constRoot(const Expr* container) const {
+// Q7: também o valor que guarda parte de um const — o elemento que uma nativa devolve
+// (Lists.first de uma lista de listas), a alternativa de um else, e, com `conteudo`, a lista
+// nova que guarda um const ([a], new Turma(alunos: a)).
+const Symbol* SemanticAnalyzer::constRoot(const Expr* container, bool conteudo) const {
     if (container->resolved_type &&
         (container->resolved_type->is(TK::Class) || container->resolved_type->is(TK::Interface)))
         return nullptr;
@@ -1900,16 +1950,176 @@ const Symbol* SemanticAnalyzer::constRoot(const Expr* container) const {
             const auto& name = static_cast<const IdentifierExpr*>(container)->name;
             if (name == "self") return nullptr;
             const Symbol* sym = findSymbol(name);
+            if (sym && sym->const_de) return sym->const_de;
             return (sym && sym->is_const) ? sym : nullptr;
         }
         case NodeKind::MemberAccess:
-            return constRoot(static_cast<const MemberAccessExpr*>(container)->object.get());
+            return constRoot(static_cast<const MemberAccessExpr*>(container)->object.get(), true);
         case NodeKind::IndexAccess:
-            return constRoot(static_cast<const IndexAccessExpr*>(container)->object.get());
+            return constRoot(static_cast<const IndexAccessExpr*>(container)->object.get(), true);
         case NodeKind::Cast:   // conversão implícita: o recipiente é o mesmo
-            return constRoot(static_cast<const CastExpr*>(container)->operand.get());
+            return constRoot(static_cast<const CastExpr*>(container)->operand.get(), conteudo);
+        case NodeKind::Slice: {   // a fatia é uma lista nova, com os mesmos elementos
+            const auto* s = static_cast<const SliceExpr*>(container);
+            const TypeRef ot = s->object->resolved_type;
+            if (ot && ot->is(TK::List) && elementosCompartilhados(ot)) return constRoot(s->object.get(), true);
+            return nullptr;
+        }
+        case NodeKind::Else: {
+            const auto* e = static_cast<const ElseExpr*>(container);
+            if (const Symbol* r = constRoot(e->value.get(), conteudo)) return r;
+            if (e->alternative) return constRoot(e->alternative.get(), conteudo);
+            auto it = origem_else.find(container);
+            return it != origem_else.end() ? it->second : nullptr;
+        }
+        case NodeKind::Call: {   // nativa: o resultado guarda parte de um argumento const?
+            const auto* c = static_cast<const CallExpr*>(container);
+            if (!c->native) return nullptr;   // função do usuário: o return não devolve const
+            for (const auto& a : c->arguments) {
+                const Symbol* r = origemConst(a.get());
+                if (r && compartilhaCom(container->resolved_type, a->resolved_type,
+                                        elementosCompartilhados(a->resolved_type),
+                                        elementosCompartilhados(container->resolved_type)))
+                    return r;
+            }
+            return nullptr;
+        }
+        case NodeKind::MethodCall: {   // d.values() de um dict const de listas
+            const auto* mc = static_cast<const MethodCallExpr*>(container);
+            const TypeRef ot = mc->object->resolved_type;
+            if (!ot || !(ot->is(TK::List) || ot->is(TK::Dict))) return nullptr;   // método de classe
+            const Symbol* r = origemConst(mc->object.get());
+            if (r && compartilhaCom(container->resolved_type, ot, elementosCompartilhados(ot),
+                                    elementosCompartilhados(container->resolved_type)))
+                return r;
+            return nullptr;
+        }
+        case NodeKind::ListLiteral:
+            if (!conteudo) return nullptr;   // a lista nova em si pode mudar; o que ela guarda, não
+            for (const auto& el : static_cast<const ListLiteralExpr*>(container)->elements)
+                if (const Symbol* r = origemConst(el.get())) return r;
+            return nullptr;
+        case NodeKind::DictLiteral:
+            if (!conteudo) return nullptr;
+            for (const auto& [k, v] : static_cast<const DictLiteralExpr*>(container)->pairs) {
+                if (const Symbol* r = origemConst(k.get())) return r;
+                if (const Symbol* r = origemConst(v.get())) return r;
+            }
+            return nullptr;
+        case NodeKind::PairLiteral: {
+            const auto* p = static_cast<const PairLiteralExpr*>(container);
+            if (const Symbol* r = origemConst(p->first.get())) return r;
+            return origemConst(p->second.get());
+        }
+        case NodeKind::New: {   // struct: os campos são o que se passou
+            if (!conteudo || !container->resolved_type || !container->resolved_type->is(TK::Struct))
+                return nullptr;
+            for (const auto& a : static_cast<const NewExpr*>(container)->arguments)
+                if (const Symbol* r = origemConst(a.get())) return r;
+            return nullptr;
+        }
         default:
-            return nullptr;   // valor temporário (chamada, new, literal)
+            return nullptr;   // valor novo (chamada do usuário, operação, literal simples)
+    }
+}
+
+// Q7: o tipo guarda uma lista ou um dict (dentro de struct, pair e opcional também)
+bool SemanticAnalyzer::contemColecao(TypeRef t, int prof) const {
+    if (!t || prof > 16) return false;
+    if (t->is(TK::List) || t->is(TK::Dict)) return true;
+    if (t->is(TK::Optional)) return contemColecao(t->elem(), prof + 1);
+    if (t->is(TK::Pair)) return contemColecao(t->first(), prof + 1) || contemColecao(t->second(), prof + 1);
+    if (t->is(TK::Struct)) {
+        auto it = struct_table.find(t->name);
+        if (it == struct_table.end()) return false;
+        for (const auto& campo : it->second.fields)
+            if (contemColecao(campo.second, prof + 1)) return true;
+    }
+    return false;
+}
+
+// Q7: os elementos (ou os valores do dict) guardam coleção: uma cópia rasa os compartilha
+bool SemanticAnalyzer::elementosCompartilhados(TypeRef t) const {
+    if (!t) return false;
+    if (t->is(TK::List)) return contemColecao(t->elem());
+    if (t->is(TK::Dict)) return contemColecao(t->value());
+    if (t->is(TK::Optional)) return elementosCompartilhados(t->elem());
+    return contemColecao(t);
+}
+
+// Q7: o const de onde vem o valor de `e`, se o valor guarda lista ou dict (o que só copia
+// números, textos e structs de valores não compartilha nada)
+const Symbol* SemanticAnalyzer::origemConst(const Expr* e) const {
+    if (!e || !contemColecao(e->resolved_type)) return nullptr;
+    return constRoot(e, true);
+}
+
+const Symbol* SemanticAnalyzer::guardaOrigem(const Symbol* s) {
+    if (!s) return nullptr;
+    origens_guardadas.push_back(*s);
+    return &origens_guardadas.back();
+}
+
+// Q7: const só vai para const. `nome` é o destino (a variável, o alvo, a função, o método).
+void SemanticAnalyzer::exigeAlteravel(const Expr* e, Destino d, const std::string& nome, const Token& tok,
+                                      const std::string& extra) {
+    const Symbol* root = origemConst(e);
+    if (!root) return;
+    const std::string raiz = stripModulePrefixes(root->name);
+
+    // de onde vem: o próprio const, uma parte dele, ou um valor montado com ele
+    std::string fonte;
+    switch (e->node_kind) {
+        case NodeKind::Identifier: case NodeKind::MemberAccess: case NodeKind::IndexAccess:
+            fonte = stripModulePrefixes(lvalueName(e));
+            break;
+        case NodeKind::Cast:
+            if (const auto* c = static_cast<const CastExpr*>(e); c->operand->node_kind == NodeKind::Identifier ||
+                c->operand->node_kind == NodeKind::MemberAccess || c->operand->node_kind == NodeKind::IndexAccess)
+                fonte = stripModulePrefixes(lvalueName(c->operand.get()));
+            break;
+        default: break;
+    }
+    const std::string desc = fonte == raiz      ? "'" + raiz + "', que é const"
+                           : !fonte.empty()     ? "'" + fonte + "', que é parte de '" + raiz + "' (const)"
+                                                : "um valor que guarda parte de '" + raiz + "' (const)";
+
+    // o que seria compartilhado, e como copiar
+    TypeRef t = e->resolved_type;
+    while (t && t->is(TK::Optional)) t = t->elem();
+    const std::string oque = t && t->is(TK::List) ? "a mesma lista"
+                           : t && t->is(TK::Dict) ? "o mesmo dict"
+                                                  : "as mesmas listas e dicts de dentro";
+    const std::string& arg = fonte;
+    std::string copia;
+    if (t && (t->is(TK::List) || t->is(TK::Dict)) && !elementosCompartilhados(t))
+        copia = fonte.empty() ? std::string("passe o valor por ") + (t->is(TK::List) ? "Lists" : "Dicts") + ".copy"
+                              : std::string(t->is(TK::List) ? "Lists" : "Dicts") + ".copy(" + arg + ")";
+    else if (t && (t->is(TK::List) || t->is(TK::Dict)))
+        copia = "uma cópia de cada coleção de dentro (Lists.copy copia só a de fora)";
+    else
+        copia = "um valor novo, com cópias das listas e dicts de dentro";
+
+    switch (d) {
+        case Destino::Variavel:
+            throwError("'" + nome + "' não pode receber " + desc + ": as duas variáveis ficariam com " + oque +
+                       ", e uma alteração por '" + nome + "' mudaria '" + raiz + "'. Declare '" + nome +
+                       "' const, ou guarde uma cópia: " + copia, tok);
+        case Destino::Atribuicao:
+            throwError("'" + nome + "' não pode receber " + desc + ": os dois ficariam com " + oque +
+                       ", e uma alteração por '" + nome + "' mudaria '" + raiz + "'. Guarde uma cópia: " + copia,
+                       tok);
+        case Destino::Argumento:
+            throwError(extra + ": " + desc + ", e o parâmetro " + (nome.empty() ? "" : "'" + nome + "' ") +
+                       "não é: a função ficaria com " +
+                       oque + " e poderia alterar '" + raiz + "'. Declare o parâmetro const, ou passe uma "
+                       "cópia: " + copia, tok);
+        case Destino::Retorno:
+            throwError("'return' não pode devolver " + desc + ": quem chamou ficaria com " + oque +
+                       " e poderia alterar '" + raiz + "'. Devolva uma cópia: " + copia, tok);
+        case Destino::Guarda:
+            throwError("'" + nome + "' não pode guardar " + desc + ": quem lesse o elemento ficaria com " + oque +
+                       " e poderia alterar '" + raiz + "'. Guarde uma cópia: " + copia, tok);
     }
 }
 
@@ -2043,6 +2253,15 @@ void SemanticAnalyzer::analyzeAssign(AssignStmt* stmt) {
             stmt->token);
     }
     coerceInPlace(stmt->value, target_type);   // A2
+    // Q7: const só vai para const (o iterador que já é parte do mesmo const pode receber outra parte)
+    {
+        const Expr* t = stmt->target.get();
+        const Symbol* alvo = t->node_kind == NodeKind::Identifier
+                                 ? findSymbol(static_cast<const IdentifierExpr*>(t)->name) : nullptr;
+        if (!(alvo && alvo->const_de))
+            exigeAlteravel(stmt->value.get(), Destino::Atribuicao, stripModulePrefixes(lvalueName(t)),
+                           stmt->token);
+    }
 }
 
 // Expressão-statement:  chamada de função ou método usado como instrução.
@@ -2101,6 +2320,8 @@ void SemanticAnalyzer::declaraDaCondicao(const char* onde, Expr* cond, Type* tip
     sym.module        = current_module;
     sym.resolved_type = declarado;
     sym.res           = newLocal();
+    // Q7: o valor de dentro de um opcional const continua do const
+    if (contemColecao(declarado)) sym.const_de = guardaOrigem(constRoot(cond, true));
     slot              = sym.res.slot;
     resolvido         = declarado;
     symbol_table.declare(sym, tok);
@@ -2208,6 +2429,9 @@ void SemanticAnalyzer::analyzeFor(ForStmt* stmt) {
     iter_sym.column        = stmt->token.column;
     iter_sym.res           = newLocal();   // B2
     stmt->iter_slot        = iter_sym.res.slot;
+    // Q7: o elemento de uma coleção const é parte dela: o iterador não pode alterá-lo
+    if (contemColecao(declared_iter) && elementosCompartilhados(iter_type))
+        iter_sym.const_de = guardaOrigem(constRoot(stmt->iterable.get(), true));
 
     symbol_table.declare(iter_sym, stmt->token);
 
@@ -2259,6 +2483,7 @@ void SemanticAnalyzer::analyzeReturn(ReturnStmt* stmt) {
             dicaCast(current_function_return_type, ret_type), stmt->token);
     }
     coerceInPlace(stmt->value, current_function_return_type);
+    exigeAlteravel(stmt->value.get(), Destino::Retorno, "", stmt->token);   // Q7
 }
 
 // C4: try { } except (Tipo e) { } ... finally { }
@@ -2829,6 +3054,11 @@ TypeRef SemanticAnalyzer::analyzeIdentifier(IdentifierExpr* expr) {
                         throwError("Variável '" + expr->name + "' não declarada: '" + expr->name +
                                    "' é um valor do enum '" + curto + "'; escreva " + curto + "." +
                                    expr->name + " (o valor de um enum é sempre qualificado)", expr->token);
+        // Q7: o const global declarado mais abaixo (as funções o enxergam; outro const, não)
+        if (symbol_table.depth() == 1 && modules[current_module].globals.count(expr->name))
+            throwError("'" + expr->name + "' é declarado mais abaixo: um const global só usa os const "
+                       "declarados antes dele. Mova a declaração de '" + expr->name + "' para cima.",
+                       expr->token);
         throwError("Variável '" + expr->name + "' não declarada", expr->token);
     }
     expr->name = full;       // C5: global de módulo vira nome completo
@@ -2974,6 +3204,10 @@ TypeRef SemanticAnalyzer::analyzeCall(CallExpr* expr) {
                             dicaCast(mi.param_types[i], at), expr->token);
                     }
                     coerceInPlace(expr->arguments[i], mi.param_types[i]);
+                    if (i < mi.param_const.size() && !mi.param_const[i])   // Q7
+                        exigeAlteravel(expr->arguments[i].get(), Destino::Argumento,
+                                       mi.decl ? mi.decl->parameters[i].name : "", expr->token,
+                                       "Argumento " + std::to_string(i + 1) + " de '" + expr->function_name + "'");
                 }
                 expr->target          = mi.decl;
                 expr->implicit_method = true;
@@ -3081,6 +3315,10 @@ TypeRef SemanticAnalyzer::analyzeCall(CallExpr* expr) {
                 expr->token);
         }
         coerceInPlace(expr->arguments[i], sym->param_types[i]);
+        if (sym->fn_decl && i < sym->fn_decl->parameters.size() && !sym->fn_decl->parameters[i].is_const)
+            exigeAlteravel(expr->arguments[i].get(), Destino::Argumento, sym->fn_decl->parameters[i].name,
+                           expr->token, "Argumento " + std::to_string(i + 1) + " de '" +
+                           stripModulePrefixes(expr->function_name) + "'");   // Q7
     }
 
     return expr->resolved_type = sym->return_type;
@@ -3221,6 +3459,21 @@ TypeRef SemanticAnalyzer::analyzeNativeCall(CallExpr* expr, const NativeFn& fn) 
         }
     }
 
+    // Q7: nativa que altera uma coleção e guarda nela outro argumento: o argumento que vem de
+    // um const não pode entrar (Lists.insert(l, 0, a), com a const)
+    if (fn.mutates) {
+        TypeRef alterada = nullptr;
+        for (size_t i = 0; i < n && i < 32; ++i)
+            if (fn.mutates & (1u << i)) { alterada = expr->arguments[i]->resolved_type; break; }
+        for (size_t i = 0; i < n && i < 32; ++i) {
+            if (fn.mutates & (1u << i)) continue;
+            const Expr* a = expr->arguments[i].get();
+            const TypeRef at = a->resolved_type;
+            if (elementosCompartilhados(at) || (at != alterada && contemColecao(at)))
+                exigeAlteravel(a, Destino::Guarda, nome, expr->token);
+        }
+    }
+
     TypeRef ret = substitute(fn.ret, binds);
     if (!ret) throwError("Erro interno: retorno de '" + nome + "' ficou sem tipo", expr->token);
     // Q3: o dict devolvido precisa de uma chave válida (Dicts.invert de um dict<string, f64>)
@@ -3257,6 +3510,11 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
                            expr->method_name + "': esperado '" + mi.param_types[a]->str() +
                            "', mas recebeu '" + at->str() + "'" + dicaCast(mi.param_types[a], at), expr->token);
             coerceInPlace(expr->arguments[a], mi.param_types[a]);
+            if (a < mi.param_const.size() && !mi.param_const[a] && a < ii.decl->methods[static_cast<size_t>(i)].parameters.size())
+                exigeAlteravel(expr->arguments[a].get(), Destino::Argumento,
+                               ii.decl->methods[static_cast<size_t>(i)].parameters[a].name, expr->token,
+                               "Argumento " + std::to_string(a + 1) + " de '" + obj_type->str() + "." +
+                               expr->method_name + "'");   // Q7
         }
         expr->iface        = ii.decl;
         expr->iface_method = i;
@@ -3266,7 +3524,19 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
     // (.add, .remove). C3/B5: vale em qualquer profundidade (m[0].add(x) com m
     // const), e para ao passar por um objeto de classe.
     auto isConstObject = [&]() -> bool {
-        return constRoot(expr->object.get()) != nullptr;
+        const Symbol* root = constRoot(expr->object.get());
+        if (!root) return false;
+        // Q7: a lista é parte de um const (o iterador de um for, Lists.first(m)): diz qual
+        const std::string obj  = stripModulePrefixes(lvalueName(expr->object.get()));
+        const std::string raiz = stripModulePrefixes(root->name);
+        if (obj != raiz) {
+            const bool dict = obj_type->is(TK::Dict);
+            throwError("Não é possível chamar '." + expr->method_name + "()' em '" + obj + "': " +
+                       (dict ? "o dict" : "a lista") + " é parte de '" + raiz + "', que é const. " +
+                       (dict ? "Dicionários" : "Listas") + " const não podem ser modificad" + (dict ? "os" : "as") +
+                       ", nem o que está dentro " + (dict ? "deles." : "delas."), expr->token);
+        }
+        return true;
     };
 
     // ── list<T> built-ins ─────────────────────────────────────────────────
@@ -3301,6 +3571,8 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
                            "' incompatível com elemento '" + T->str() + "'" + dicaCast(T, elem_type),
                            expr->token);
             coerceInPlace(expr->arguments[0], T);
+            exigeAlteravel(expr->arguments[0].get(), Destino::Guarda, lvalueName(expr->object.get()) + ".add",
+                           expr->token);   // Q7
             return expr->resolved_type = types.voidType();
         }
         if (m == "remove") {
@@ -3355,6 +3627,8 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
                            "' incompatível com '" + expected_pair->str() + "'",
                            expr->token);
             coerceInPlace(expr->arguments[0], expected_pair);
+            exigeAlteravel(expr->arguments[0].get(), Destino::Guarda, lvalueName(expr->object.get()) + ".add",
+                           expr->token);   // Q7
             return expr->resolved_type = types.voidType();
         }
         if (m == "remove") {
@@ -3463,6 +3737,11 @@ TypeRef SemanticAnalyzer::analyzeMethodCall(MethodCallExpr* expr) {
                 dicaCast(mi.param_types[i], arg_type), expr->token);
         }
         coerceInPlace(expr->arguments[i], mi.param_types[i]);
+        if (i < mi.param_const.size() && !mi.param_const[i])   // Q7
+            exigeAlteravel(expr->arguments[i].get(), Destino::Argumento,
+                           mi.decl ? mi.decl->parameters[i].name : "", expr->token,
+                           "Argumento " + std::to_string(i + 1) + " de '" + obj_type->str() + "." +
+                           expr->method_name + "'");
     }
 
     return expr->resolved_type = mi.return_type;
@@ -3924,6 +4203,10 @@ TypeRef SemanticAnalyzer::analyzeNew(NewExpr* expr) {
                 expr->token);
         }
         coerceInPlace(expr->arguments[i], cls.ctor_param_types[i]);
+        if (i < cls.ctor_param_const.size() && !cls.ctor_param_const[i])   // Q7
+            exigeAlteravel(expr->arguments[i].get(), Destino::Argumento, "", expr->token,
+                           "Argumento " + std::to_string(i + 1) + " do construtor de '" +
+                           stripModulePrefixes(expr->class_name) + "'");
     }
 
     // o tipo da expressão NewExpr (instanciação) é a própria classe
@@ -4155,6 +4438,7 @@ TypeRef SemanticAnalyzer::analyzeElse(ElseExpr* expr, TypeRef expected) {
     if (expr->block) {   // valor else { ...; yield v; }: o bloco dá um T, ou sai
         blocos_else.push_back({inner});
         analyzeBlock(static_cast<BlockStmt*>(expr->block.get()));
+        if (blocos_else.back().origem) origem_else[expr] = blocos_else.back().origem;   // Q7
         blocos_else.pop_back();
         if (!alwaysLeaves(expr->block.get()))
             throwError("O bloco do 'else' precisa terminar em todos os caminhos: com yield valor (o "
@@ -4592,6 +4876,9 @@ TypeRef SemanticAnalyzer::analyzeGenericCall(CallExpr* expr, const Symbol& sym) 
                        expr->token);
         }
         coerceInPlace(expr->arguments[i], pt);
+        if (i < inst->fn->parameters.size() && !inst->fn->parameters[i].is_const)   // Q7
+            exigeAlteravel(expr->arguments[i].get(), Destino::Argumento, inst->fn->parameters[i].name,
+                           expr->token, "Argumento " + std::to_string(i + 1) + " de '" + copia + "'");
     }
     expr->target = inst->fn;
     return expr->resolved_type = inst->return_type;

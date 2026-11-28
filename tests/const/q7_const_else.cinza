@@ -1,0 +1,7 @@
+// Q7: a alternativa (ou o yield) de um else pode vir de um const.
+fn main() {
+  const list<i32> k = [1];
+  list<i32>? o = null;
+  list<i32> b = o else { yield k; };
+}
+// expect-error: 'b' não pode receber um valor que guarda parte de 'k' (const)

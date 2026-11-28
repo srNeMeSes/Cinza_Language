@@ -1,0 +1,7 @@
+// Q7: a atribuição a uma variável ou a um campo também não recebe a lista de um const.
+class C {
+  list<i32> l;
+  pub { fn poe(const list<i32> x) { l = x; } }
+}
+fn main() {}
+// expect-error: 'l' não pode receber 'x', que é const

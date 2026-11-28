@@ -1,0 +1,6 @@
+// Q7: let e val (JavaScript, Rust, Kotlin) apontam a declaração com tipo, var ou const.
+fn main() {
+  let x = 1;
+  val y = 2;
+}
+// expect-error: A Cinza não tem 'let'

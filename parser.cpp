@@ -239,7 +239,7 @@ TypePtr Parser::parseTypeInner() {
         error("'const' não pode ser usado dentro de parâmetros de tipo como "
               "list<const T>, dict<const K, V>. "
               "Use 'const list<T>' para declarar uma coleção imutável.", peek());
-        throw ParseError("'const' inválido em parâmetro de tipo", peek());
+        advance();   // Q7: segue com o tipo de dentro, sem um segundo erro em cascata
     }
     
     if (match(TokenType::TYPE_I32)) {
@@ -1178,6 +1178,34 @@ StmtPtr Parser::parseStatement() {
             while (!check(TokenType::SEMICOLON) && !check(TokenType::RBRACE) && !isAtEnd()) advance();
             match(TokenType::SEMICOLON);
             return std::make_unique<BlockStmt>(onde, std::vector<StmtPtr>{});
+        }
+
+        // Q7: final (Java, Dart) no lugar do const; let e val (JavaScript, Rust, Swift, Kotlin,
+        // Scala) no lugar de uma declaração com tipo
+        if (check(TokenType::IDENTIFIER) && current + 1 < tokens.size()) {
+            const Token onde = peek();
+            const Token& prox = tokens[current + 1];
+            const bool tipo_depois = prox.type == TokenType::TYPE_I32 || prox.type == TokenType::TYPE_I64 ||
+                                     prox.type == TokenType::TYPE_F32 || prox.type == TokenType::TYPE_F64 ||
+                                     prox.type == TokenType::TYPE_STRING || prox.type == TokenType::TYPE_BOOL ||
+                                     prox.type == TokenType::TYPE_VAR || prox.type == TokenType::TYPE_LIST ||
+                                     prox.type == TokenType::TYPE_DICT || prox.type == TokenType::TYPE_PAIR ||
+                                     prox.type == TokenType::IDENTIFIER;
+            std::string msg;
+            if (onde.lexeme == "final" && tipo_depois)
+                msg = "A Cinza escreve 'const', não 'final': const i32 x = 1;";
+            else if ((onde.lexeme == "let" || onde.lexeme == "val") && prox.type == TokenType::IDENTIFIER &&
+                     current + 2 < tokens.size() &&
+                     (tokens[current + 2].type == TokenType::OP_ASSIGN || tokens[current + 2].type == TokenType::COLON ||
+                      prox.lexeme == "mut"))
+                msg = "A Cinza não tem '" + onde.lexeme + "': declare com o tipo (i32 x = 1;), com var "
+                      "(var x = 1;), ou com const para um valor que não muda (const i32 x = 1;)";
+            if (!msg.empty()) {
+                error(msg, onde);
+                while (!check(TokenType::SEMICOLON) && !check(TokenType::RBRACE) && !isAtEnd()) advance();
+                match(TokenType::SEMICOLON);
+                return std::make_unique<BlockStmt>(onde, std::vector<StmtPtr>{});
+            }
         }
 
         // Declaração de variável de tipo customizado: NomeClasse variavel;

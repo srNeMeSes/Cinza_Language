@@ -1,0 +1,5 @@
+// Q7: o const global usado antes da declaração diz que ela está mais abaixo.
+const i64 B = A * 3;
+const i64 A = 2;
+fn main() {}
+// expect-error: 'A' é declarado mais abaixo

@@ -1,0 +1,6 @@
+// Q7: uma lista, um par ou um struct montado com um const fica com a lista dele.
+fn main() {
+  const list<i32> a = [1];
+  list<list<i32>> m = [a];
+}
+// expect-error: 'm' não pode receber um valor que guarda parte de 'a' (const)

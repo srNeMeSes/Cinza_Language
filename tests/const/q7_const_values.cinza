@@ -1,0 +1,9 @@
+// Q7: d.values() de um dict const de listas compartilha as listas; d.keys(), não.
+fn main() {
+  const dict<string, list<i32>> d = {{"a", [1]}};
+  list<string> k = d.keys();
+  k.add("b");
+  print(k);
+  list<list<i32>> v = d.values();
+}
+// expect-error: 'v' não pode receber um valor que guarda parte de 'd' (const)

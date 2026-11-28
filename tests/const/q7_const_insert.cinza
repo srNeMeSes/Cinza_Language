@@ -1,0 +1,8 @@
+// Q7: as nativas que guardam um argumento (Lists.insert) também não.
+import Lists;
+fn main() {
+  const list<i32> a = [1];
+  list<list<i32>> m;
+  Lists.insert(m, 0, a);
+}
+// expect-error: 'Lists.insert' não pode guardar 'a', que é const

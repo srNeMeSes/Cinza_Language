@@ -2651,7 +2651,11 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
   > 2026-11-25: a forma de `f32`/`f64` é a do `repr` do Python (spec 5.4; no Q1e); (3)
   > 2026-11-27: no construtor, `self.campo = valor;` atribui um campo obrigatório, como
   > `campo = valor;` — o jeito de escrever quando um parâmetro tem o nome do campo (spec 4.6;
-  > `tests/classes/q7_self_campo_obrigatorio`). As mensagens de erro melhoradas no caminho estão no
+  > `tests/classes/q7_self_campo_obrigatorio`); (4) 2026-11-27: **const só vai para const** — o
+  > valor de um const que guarda lista ou dict (ele, uma parte dele ou um valor montado com ele) só
+  > vai para variável ou parâmetro const; a versão alterável é a cópia explícita (`Lists.copy`,
+  > `Dicts.copy`); antes, `list<i32> b = a;` ou um parâmetro sem const alteravam o const pela outra
+  > referência, nos dois backends (spec 3.9; `tests/const/q7_*`). As mensagens de erro melhoradas no caminho estão no
   > andamento do `PLANO.md`, capítulo a capítulo.
 - [ ] Q8. Prévia pública (0.9). Divulgar como prévia: o que funciona e por que é interessante,
   que mudanças incompatíveis ainda podem acontecer, o que falta. Um canal de retorno (issues do

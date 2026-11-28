@@ -1,0 +1,7 @@
+// Q7: Lists.copy de uma lista de listas é rasa: as listas de dentro seguem do const.
+import Lists;
+fn main() {
+  const list<list<i32>> m = [[1], [2]];
+  list<list<i32>> c = Lists.copy(m);
+}
+// expect-error: Lists.copy copia só a de fora

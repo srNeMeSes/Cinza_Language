@@ -73,6 +73,10 @@ struct Symbol {
 
     // Apenas para Kind::FUNCTION do usuário: a declaração (alvo da chamada)
     const FunctionDecl*  fn_decl = nullptr;
+
+    // Q7: variável que recebeu parte de um const (o iterador de um for, a variável de um
+    // if/while com declaração): o conteúdo é do const de origem e não pode ser alterado
+    const Symbol*        const_de = nullptr;
 };
 
 // ============================================================================
@@ -129,6 +133,7 @@ struct MethodInfo { // informações de metodos de classes
     bool                 is_public   = false;
     int                  line        = 0;
     const FunctionDecl*  decl        = nullptr;   // alvo das chamadas
+    std::vector<bool>    param_const;             // Q7: parâmetro const (const só vai para const)
 };
 
 // C3: struct — campos na ordem da declaração (a ordem define o construtor)
@@ -144,6 +149,7 @@ struct ClassInfo {  // informações de classes
     std::map<std::string, FieldInfo>   fields;
     std::map<std::string, MethodInfo>  methods;
     std::vector<TypeRef>               ctor_param_types;  // vazio = sem construtor
+    std::vector<bool>                  ctor_param_const;  // Q7: parâmetro const do construtor
     int                                line = 0;
 };
 
@@ -320,7 +326,7 @@ private:
                            const Token& tok, std::uint32_t& slot, TypeRef& resolvido);
     // Q1b: os blocos de else em análise (o de dentro por último): o tipo do valor que o yield dá
     // e quantos try estão abertos dentro do bloco (yield não sai de um try)
-    struct BlocoElse { TypeRef tipo; int tries = 0; };
+    struct BlocoElse { TypeRef tipo; int tries = 0; const Symbol* origem = nullptr; };
     std::vector<BlocoElse> blocos_else;
     // Nome de tipo definido pelo usuário (class ou struct) existe?
     bool isKnownType(const std::string& name) const;
@@ -375,7 +381,23 @@ private:
     // Variável const de onde vem o recipiente `container`, ou nullptr. Sobe por
     // campos e índices até a variável de origem e para ao passar por um objeto
     // de classe: objetos nunca são const, mesmo dentro de recipiente const (C3).
-    const Symbol* constRoot(const Expr* container) const;
+    // Q7: `conteudo` = olha-se o que está dentro do valor (um campo, um elemento, ou o valor
+    // que vai para outro lugar): uma lista nova que guarda parte de um const também conta.
+    const Symbol* constRoot(const Expr* container, bool conteudo = false) const;
+
+    // ── Q7: const só vai para const ───────────────────────────────────────
+    // Um valor que guarda lista ou dict, vindo de um const, só pode ir para outro const:
+    // a cópia de uma variável, de um campo ou de um argumento compartilharia a coleção.
+    bool contemColecao(TypeRef t, int prof = 0) const;          // list/dict, em qualquer nível
+    bool elementosCompartilhados(TypeRef t) const;              // os elementos guardam coleção
+    const Symbol* origemConst(const Expr* e) const;             // o const de onde o valor vem
+    // Erro se `e` vem de um const e vai para um lugar alterável; `destino` diz qual
+    enum class Destino { Variavel, Atribuicao, Argumento, Retorno, Guarda };
+    void exigeAlteravel(const Expr* e, Destino d, const std::string& nome, const Token& tok,
+                        const std::string& extra = "");
+    std::deque<Symbol> origens_guardadas;                       // cópias estáveis dos const de origem
+    std::unordered_map<const Expr*, const Symbol*> origem_else; // o yield de um else que vem de const
+    const Symbol* guardaOrigem(const Symbol* s);
 
     // ── Fase 2.5: main e nível superior ───────────────────────────────────
     // Valida a assinatura de main (void; sem parâmetros ou só list<string>)

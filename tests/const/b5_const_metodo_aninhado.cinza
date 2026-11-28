@@ -3,4 +3,4 @@ fn main() {
   const list<list<i64>> m = [[1]];
   m[0].add(1);
 }
-// expect-error: em lista const
+// expect-error: a lista é parte de 'm', que é const

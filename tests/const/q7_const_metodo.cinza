@@ -1,0 +1,10 @@
+// Q7: método e construtor de classe com parâmetro alterável não recebem const.
+class Agenda {
+  list<string> itens;
+  pub { Agenda(list<string> i) { itens = i; } }
+}
+fn main() {
+  const list<string> a = ["x"];
+  Agenda g = new Agenda(a);
+}
+// expect-error: Argumento 1 do construtor de 'Agenda': 'a', que é const

@@ -1,0 +1,7 @@
+// Q7: o struct const com lista dentro não é copiado para uma variável alterável (a cópia é rasa).
+struct Turma { string nome; list<string> alunos; }
+fn main() {
+  const Turma t = new Turma(nome: "A");
+  Turma u = t;
+}
+// expect-error: 'u' não pode receber 't', que é const

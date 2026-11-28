@@ -1,0 +1,9 @@
+// Q7: para um parâmetro const, a lista const passa.
+fn tamanho(const list<i32> l) -> i32 { return l.size(); }
+fn f(const list<i32> l) -> i32 {
+  return tamanho(l);
+}
+fn main() {
+  print(f([1, 2]));
+}
+// expect: 2

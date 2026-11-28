@@ -1,0 +1,5 @@
+// Q7: final (Java, Dart) aponta o const.
+fn main() {
+  final i32 x = 1;
+}
+// expect-error: A Cinza escreve 'const', não 'final'

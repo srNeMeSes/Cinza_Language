@@ -1,0 +1,16 @@
+// Q7: numa lista const de objetos, o objeto sai livre (C3); a lista, não.
+class Conta {
+  i64 saldo = 0;
+  pub {
+    fn deposita(i64 v) { saldo += v; }
+    fn total() -> i64 { return saldo; }
+  }
+}
+fn main() {
+  const list<Conta> contas = [new Conta()];
+  Conta c = contas[0];
+  c.deposita(10);
+  print(contas[0].total());
+  list<Conta> outra = contas;
+}
+// expect-error: 'outra' não pode receber 'contas', que é const

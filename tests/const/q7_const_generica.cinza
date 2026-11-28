@@ -1,0 +1,7 @@
+// Q7: a função genérica com parâmetro alterável também não recebe const.
+fn primeiro[T](list<T> l) -> T { return l[0]; }
+fn main() {
+  const list<i32> a = [1];
+  print(primeiro(a));
+}
+// expect-error: Argumento 1 de 'primeiro[i32]'

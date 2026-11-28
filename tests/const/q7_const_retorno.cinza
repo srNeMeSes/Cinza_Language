@@ -1,0 +1,6 @@
+// Q7: return não devolve a lista de um const: quem chamou poderia alterá-la.
+fn f(const list<i32> l) -> list<i32> {
+  return l;
+}
+fn main() {}
+// expect-error: 'return' não pode devolver 'l', que é const

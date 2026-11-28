@@ -1,0 +1,7 @@
+// Q7: const dentro de parâmetro de tipo dá um erro só (antes, mais um: "Esperado nome da variável").
+fn main() {
+  list<const i32> l;
+  l.add(1);
+  i32 x = "a";
+}
+// expect-error: 'const' não pode ser usado dentro de parâmetros de tipo

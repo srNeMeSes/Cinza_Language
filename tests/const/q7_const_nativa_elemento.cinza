@@ -1,0 +1,7 @@
+// Q7: o elemento que uma nativa devolve (Lists.first) continua do const.
+import Lists;
+fn main() {
+  const list<list<i32>> m = [[1], [2]];
+  Lists.first(m).add(3);
+}
+// expect-error: a lista é parte de 'm', que é const

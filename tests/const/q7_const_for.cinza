@@ -1,0 +1,8 @@
+// Q7: o iterador sobre uma lista const de listas é parte dela: não altera.
+fn main() {
+  const list<list<i32>> m = [[1], [2]];
+  for (list<i32> linha in m) {
+    linha.add(0);
+  }
+}
+// expect-error: em 'linha': a lista é parte de 'm', que é const

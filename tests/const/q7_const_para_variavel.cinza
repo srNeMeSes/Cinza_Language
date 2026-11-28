@@ -1,0 +1,8 @@
+// Q7: const só vai para const — a lista de um const não vai para uma variável alterável.
+fn main() {
+  const list<i32> a = [1, 2];
+  list<i32> b = a;
+  b.add(3);
+}
+// expect-error: 'b' não pode receber 'a', que é const
+// expect-error: Lists.copy(a)
