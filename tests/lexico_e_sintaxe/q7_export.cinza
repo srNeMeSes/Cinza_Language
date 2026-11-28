@@ -1,0 +1,11 @@
+// Q7: export e public no nível de cima apontam o pub, e a declaração segue (um erro só).
+export fn dobro(i32 x) -> i32 {
+  return x * 2;
+}
+public const i32 N = 2;
+fn main() {
+  print(dobro(N));
+}
+// expect-error: A Cinza escreve 'pub', não 'export': pub fn ...
+// expect-error: A Cinza escreve 'pub', não 'public': pub const ...
+// expect-not: Esperado

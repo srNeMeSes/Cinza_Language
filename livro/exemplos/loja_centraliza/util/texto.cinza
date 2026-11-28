@@ -1,0 +1,17 @@
+// util/texto.cinza — ajudas para textos
+module util.texto;
+
+import Strings;
+
+pub fn alinha(string s, i32 largura) -> string {
+  return Strings.pad_right(s, largura);
+}
+
+pub fn centraliza(string s, i32 largura) -> string {
+  i32 sobra = largura - s.size();
+  if (sobra <= 0) {
+    return s;
+  }
+  i32 esquerda = sobra / 2;
+  return Strings.repeat(" ", esquerda) + s + Strings.repeat(" ", sobra - esquerda);
+}

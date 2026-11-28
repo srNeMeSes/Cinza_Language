@@ -1908,6 +1908,13 @@ StmtPtr Parser::parseClassDeclaration() {
                                   class_name + "()'", ctor_tok);
                             synchronize();
                         }
+                    } else if (check(TokenType::KW_PUB) && current + 1 < tokens.size() &&
+                               tokens[current + 1].type == TokenType::KW_FN) {
+                        // Q7: pub fn dentro do pub { }: o método já é público; segue sem cascata
+                        error("Dentro do bloco pub { }, os métodos já são públicos: escreva só 'fn " +
+                              (current + 2 < tokens.size() ? tokens[current + 2].lexeme : std::string("nome")) +
+                              "(...)'", peek());
+                        advance();
                     } else {
                         error("Esperado 'fn' ou construtor dentro do bloco pub");
                         synchronize();
@@ -2315,11 +2322,43 @@ Program Parser::parse() {
 
     // C5: imports vêm antes de tudo (o parser precisa dos apelidos)
     std::vector<ImportDecl> imports;
-    while (check(TokenType::KW_IMPORT)) {
+    while (check(TokenType::KW_IMPORT) || checkImportDeOutraLinguagem()) {
         try {
-            imports.push_back(parseImport());
+            if (!check(TokenType::KW_IMPORT)) {   // Q7: from x import y, using x, require x
+                const Token onde = peek();
+                // o caminho do módulo (até o import do from, ou o ';') e o último trecho dele, o apelido
+                std::string mod, ultimo;
+                for (size_t i = current + 1; i < tokens.size() && tokens[i].type != TokenType::KW_IMPORT &&
+                                             tokens[i].type != TokenType::SEMICOLON; ++i) {
+                    mod += tokens[i].lexeme;
+                    if (tokens[i].type == TokenType::IDENTIFIER) ultimo = tokens[i].lexeme;
+                }
+                importDeOutraForma("A Cinza escreve 'import " + mod + ";', e usa os nomes do módulo pelo apelido: " +
+                                   ultimo + ".Nome", onde);
+                continue;
+            }
+            ImportDecl d = parseImport();
+            if (!d.path.empty()) imports.push_back(std::move(d));
         } catch (const ParseError&) {
             synchronize();
+        }
+    }
+    // Q7: um import fora do lugar ainda dá o apelido às linhas de cima, que senão dariam erros em
+    // cascata antes do erro do import
+    {
+        int nivel = 0;
+        for (size_t i = current; i < tokens.size(); ++i) {
+            if (tokens[i].type == TokenType::LBRACE) ++nivel;
+            else if (tokens[i].type == TokenType::RBRACE) --nivel;
+            else if (nivel == 0 && tokens[i].type == TokenType::KW_IMPORT) {
+                std::string apelido;
+                size_t j = i + 1;
+                while (j < tokens.size() && tokens[j].type != TokenType::SEMICOLON) {
+                    if (tokens[j].type == TokenType::IDENTIFIER) apelido = tokens[j].lexeme;
+                    ++j;
+                }
+                if (!apelido.empty()) module_aliases.insert(apelido);
+            }
         }
     }
     
@@ -2327,7 +2366,9 @@ Program Parser::parse() {
         try {
             if (check(TokenType::KW_IMPORT)) {
                 error("'import' deve vir no início do arquivo, antes das declarações.", peek());
-                throw ParseError("import fora do início", peek());
+                while (!check(TokenType::SEMICOLON) && !isAtEnd()) advance();   // Q7: só o import
+                match(TokenType::SEMICOLON);
+                continue;
             }
             if (check(TokenType::KW_MODULE)) {   // Q1f
                 error("'module' vem antes de tudo no arquivo (antes dos imports), e só uma vez.", peek());
@@ -2336,7 +2377,18 @@ Program Parser::parse() {
 
             // C5: pub no nível superior exporta a declaração do módulo
             bool is_pub = false;
-            if (match(TokenType::KW_PUB)) {
+            // Q7: export (JavaScript, TypeScript), public (Java, C#): o pub da Cinza, e a declaração segue
+            if (check(TokenType::IDENTIFIER) && (peek().lexeme == "export" || peek().lexeme == "public") &&
+                current + 1 < tokens.size() &&
+                (tokens[current + 1].type == TokenType::KW_FN || tokens[current + 1].type == TokenType::KW_CLASS ||
+                 tokens[current + 1].type == TokenType::KW_STRUCT || tokens[current + 1].type == TokenType::KW_ENUM ||
+                 tokens[current + 1].type == TokenType::KW_INTERFACE || tokens[current + 1].type == TokenType::KW_ERROR ||
+                 tokens[current + 1].type == TokenType::KW_CONST)) {
+                error("A Cinza escreve 'pub', não '" + peek().lexeme + "': pub " + tokens[current + 1].lexeme + " ...",
+                      peek());
+                advance();
+                is_pub = true;
+            } else if (match(TokenType::KW_PUB)) {
                 is_pub = true;
                 if (!check(TokenType::KW_FN) && !check(TokenType::KW_CLASS) &&
                     !check(TokenType::KW_STRUCT) && !check(TokenType::KW_ERROR) &&
@@ -2386,25 +2438,95 @@ Program Parser::parse() {
     return program;
 }
 
+// Q7: from x import y (Python), using x (C#), require x (Ruby): no lugar do import
+bool Parser::checkImportDeOutraLinguagem() const {
+    if (!check(TokenType::IDENTIFIER) || current + 1 >= tokens.size() ||
+        tokens[current + 1].type != TokenType::IDENTIFIER)
+        return false;
+    const std::string& w = peek().lexeme;
+    if (w == "from") {
+        for (size_t i = current + 1; i < tokens.size() && tokens[i].type != TokenType::SEMICOLON; ++i)
+            if (tokens[i].type == TokenType::KW_IMPORT) return true;
+        return false;
+    }
+    if (w == "using" || w == "require") {
+        size_t i = current + 2;
+        while (i + 1 < tokens.size() && tokens[i].type == TokenType::DOT &&
+               tokens[i + 1].type == TokenType::IDENTIFIER)
+            i += 2;
+        return i < tokens.size() && tokens[i].type == TokenType::SEMICOLON;
+    }
+    return false;
+}
+
+void Parser::importDeOutraForma(const std::string& msg, const Token& onde) {
+    error(msg, onde);
+    // o apelido que o leitor quis: o último nome do caminho (antes do import, no from), ou o do as
+    std::string apelido, apelido_as;
+    bool depois_do_as = false, depois_do_import = false;
+    while (!check(TokenType::SEMICOLON) && !isAtEnd() && peek().line == onde.line) {
+        const Token& t = peek();
+        if (t.type == TokenType::KW_AS) {
+            depois_do_as = true;
+        } else if (t.type == TokenType::KW_IMPORT) {
+            depois_do_import = true;
+        } else if (t.type == TokenType::IDENTIFIER) {
+            if (depois_do_as) apelido_as = t.lexeme;
+            else if (!depois_do_import && t.lexeme != "cinza" && t.lexeme != onde.lexeme) apelido = t.lexeme;
+        } else if (t.type == TokenType::STRING_LITERAL) {   // "util/texto.cinza" → texto
+            std::string s;
+            for (char c : t.lexeme) if (c != '"') s += c;
+            if (auto b = s.find_last_of("/\\"); b != std::string::npos) s = s.substr(b + 1);
+            if (auto q = s.find('.'); q != std::string::npos) s = s.substr(0, q);
+            if (!s.empty()) apelido = s;
+        }
+        advance();
+    }
+    match(TokenType::SEMICOLON);
+    const std::string& a = apelido_as.empty() ? apelido : apelido_as;
+    if (!a.empty()) module_aliases.insert(a);
+}
+
 // C5: import a.b.c [as x];
 ImportDecl Parser::parseImport() {
     Token import_token = advance();   // consome 'import'
     ImportDecl decl;
     decl.token = import_token;
+    // Q7: import ./x, import ../x, import "x.cinza"
+    if (check(TokenType::DOT) || check(TokenType::OP_DIVIDE) || check(TokenType::STRING_LITERAL)) {
+        importDeOutraForma("O import parte da raiz do projeto, com '.' entre as pastas e sem a extensão: "
+                           "import util.texto; (não há import relativo, com ./ ou ../, nem o caminho entre aspas)",
+                           peek());
+        return decl;
+    }
     decl.path.push_back(consume(TokenType::IDENTIFIER,
                                 "Esperado o nome do módulo após 'import', ex.: import util.texto;").lexeme);
-    while (match(TokenType::DOT))
+    while (match(TokenType::DOT)) {
+        if (check(TokenType::OP_MULTIPLY)) {   // Q7: import x.* (Java, Python)
+            const Token onde = peek();
+            importDeOutraForma("Não há import de tudo ('*'): importe o módulo (import " + decl.path[0] +
+                               ";) e use os nomes pelo apelido (" + decl.path.back() + ".Nome)", onde);
+            module_aliases.insert(decl.path.back());
+            return decl;
+        }
         decl.path.push_back(consume(TokenType::IDENTIFIER,
                                     "Esperado nome após '.' no caminho do módulo").lexeme);
+    }
+    if (check(TokenType::OP_DIVIDE)) {   // Q7: import util/texto
+        importDeOutraForma("O caminho do import separa as pastas com '.', não com '/': import util.texto;", peek());
+        return decl;
+    }
     decl.alias = decl.path.back();
     if (match(TokenType::KW_AS))
         decl.alias = consume(TokenType::IDENTIFIER, "Esperado o apelido após 'as'").lexeme;
     consume(TokenType::SEMICOLON, "Esperado ';' após o import");
 
     if (module_aliases.count(decl.alias)) {
+        // Q7: sem a exceção, que fazia o synchronize pular o import seguinte (e os usos dele davam
+        // erros em cascata)
         error("Apelido de módulo '" + decl.alias + "' repetido: use 'as' para dar outro nome.",
               import_token);
-        throw ParseError("apelido repetido", import_token);
+        return decl;
     }
     module_aliases.insert(decl.alias);
     return decl;

@@ -1,0 +1,7 @@
+// Q7: import ./x e import ../x dizem que o import parte da raiz do projeto, num erro só.
+import ./modulos.cores;
+fn main() {
+  print(cores.favorita());
+}
+// expect-error: O import parte da raiz do projeto, com '.' entre as pastas e sem a extensão
+// expect-not: Esperado

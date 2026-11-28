@@ -330,6 +330,15 @@ private:
     std::vector<BlocoElse> blocos_else;
     // Nome de tipo definido pelo usuário (class ou struct) existe?
     bool isKnownType(const std::string& name) const;
+    // Q7: o tipo desconhecido que um módulo importado exporta: "; o módulo 't' tem um 'Tarefa':
+    // use t.Tarefa" (ou vazio)
+    std::string dicaApelido(const std::string& nome) const;
+    // Q7: depois do registro dos nomes do módulo, um nome de tipo desconhecido dentro de outro tipo
+    // (list<Nada>, Nada?) é erro; antes, pode ser uma classe declarada mais abaixo
+    bool registro_completo = false;
+    // Q7: os nomes dentro de um tipo de assinatura ou de campo (lido no registro, antes de todos os
+    // nomes existirem), conferidos na análise
+    void confereAninhados(const Type* t);
 
     // ── Análise de statements ─────────────────────────────────────────────
     void analyzeStmt       (Stmt* stmt);

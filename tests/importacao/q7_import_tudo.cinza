@@ -1,0 +1,7 @@
+// Q7: import x.* (Java, Python) diz que não há import de tudo.
+import modulos.cores.*;
+fn main() {
+  print(cores.favorita());
+}
+// expect-error: Não há import de tudo ('*')
+// expect-not: Esperado

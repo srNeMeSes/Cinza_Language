@@ -1,0 +1,6 @@
+// Q7: o último trecho do caminho, quando o import tem outro apelido, aponta o apelido.
+import modulos.cores as c;
+fn main() {
+  print(cores.favorita());
+}
+// expect-error: Variável 'cores' não declarada: o módulo 'modulos.cores' foi importado com o apelido 'c'; use c.nome

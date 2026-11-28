@@ -44,8 +44,14 @@ terminar, a caixa dele é marcada aqui. Quem retoma o trabalho lê este arquivo 
   completos (uma linha de comando, um `czm.mod`, um fragmento) vão em ` ```text ` ou
   ` ```console `.
 - **Exemplos com vários arquivos** (módulos, pacotes, arquivos lidos do disco): o projeto de
-  exemplo fica em `livro/exemplos/<projeto>/`, com o seu `czm.mod`; os `.cinza` dele com
-  expectativas são testes; o capítulo mostra os arquivos e a saída.
+  exemplo fica em `livro/exemplos/<projeto>/`, com o seu `czm.mod`. No capítulo, cada arquivo vem
+  num ` ```cinza caminho/no/projeto.cinza ` com `<!-- projeto: nome -->` antes: a suíte confere que o
+  bloco é igual ao arquivo do projeto (o livro mostra os arquivos de verdade) e, se houver saída ou
+  erro depois, roda o arquivo numa cópia do projeto. Uma variação de propósito (para mostrar um erro)
+  leva `<!-- variante -->`, e não é conferida contra o arquivo; com `<!-- roda: main.cinza -->`, o
+  bloco entra no lugar do arquivo e quem roda é outro (o módulo com erro, e a `main` que o importa).
+  Os exemplos de um arquivo só rodam numa pasta temporária, fora de qualquer projeto, como os do
+  leitor.
 - **Exercícios:** de 3 a 5 por capítulo, no fim, do mais simples ao mais aberto. As soluções em
   `livro/solucoes/NN-nome.md`, no mesmo formato dos capítulos, rodadas pela suíte.
 - **PDF** (pedido do autor em 2026-11-25): os `.md` são a fonte; ao fim, um `make livro` gera o
@@ -170,7 +176,7 @@ versão roda sozinha: o leitor pode pular para qualquer capítulo.
   `interface Comparavel[T]`; os tipos sempre escritos no uso; o corpo do método conferido só
   quando ele é usado; uma classe genérica que cumpre uma interface genérica. Programa: uma
   coleção genérica de tarefas. *Spec: 8.6, 8.7.*
-- [ ] **18. Módulos e projetos** — o projeto (`czm.mod`, `cinza init`); `module a.b;` no começo
+- [x] **18. Módulos e projetos** (2026-11-28) — o projeto (`czm.mod`, `cinza init`); `module a.b;` no começo
   de cada arquivo importado; `import` pela raiz do projeto, o apelido e o `as`; `pub`; o que um
   módulo enxerga; os módulos nativos; como organizar as pastas. Programa: o `tarefas` dividido em
   módulos. *Spec: 4.11.*
@@ -281,4 +287,5 @@ Commits por parte do livro, num ramo `q7-livro`; merge no `main` quando o autor 
 a seção 15.5 o mostra, e o valor que ninguém altera nasce no const. Mensagens, com testes: `final` aponta o `const`; `let` e `val` apontam a declaração com tipo, `var` ou `const`; `list<const i32>` dá um erro só; o const global usado antes da declaração diz que ela está mais abaixo; o `.add` numa parte de um const nomeia o const; a nota sobre objetos de classe só aparece quando há objetos no tipo. |
 | 2026-11-28 | O capítulo 16, com 23 exemplos e as soluções; o programa do capítulo conta, ordena e mostra frequências de palavras, números e enums com quatro genéricas (doze cópias). Mensagens, com testes (`tests/genericos/q7_*`): `fn maior<T>` aponta os colchetes (antes, "Esperado '('"); `maior<i32>(...)` aponta os colchetes, num erro só (antes, "Esperado ')'"); `[T: Comparable]` e `[T extends X]` dizem que não há restrições (antes, "Esperado ']'"); o conflito entre inteiro e ponto flutuante sugere o ponto flutuante (antes, `cast<i32>`, que perderia a parte decimal); a chave inválida no tipo de retorno aponta o tipo, também na cópia de uma genérica (antes, a coluna 1 do `fn`). |
 | 2026-11-28 | O capítulo 17, com 19 exemplos e as soluções; o `tarefas` na versão 9 (uma `Colecao[T]` com filtros `Filtro[T]`, que guarda as tarefas e as etiquetas; o `maior` que só é conferido onde é usado). Mensagens, com testes (`tests/genericos/q7_*`): `struct Caixa<T>`, `class Pilha<T>` e `interface I<T>` apontam os colchetes (antes, "Esperado '{'"); `new Caixa<i32>(...)` aponta os colchetes, num erro só (antes, "Esperado '('" e uma cascata); `Caixa<i32> c = ...` aponta os colchetes do tipo (antes, a mensagem da chamada genérica e uma cascata); a genérica que recebe uma interface genérica diz que a dedução não passa pela interface que a classe cumpre, e aponta os tipos explícitos (antes: esperado 'Transforma[A, B]', mas recebeu 'Tamanho'). |
+| 2026-11-28 | O capítulo 18, com 12 exemplos e as soluções, e os primeiros projetos de exemplo (`livro/exemplos/loja`, `tarefas` e os das soluções); o `tarefas` na versão 10, em módulos. A suíte passa a conferir cada arquivo mostrado contra o do projeto (`<!-- projeto -->`, `<!-- variante -->`, `<!-- roda -->`), e os exemplos de um arquivo só passam a rodar fora do projeto `tests/` (antes, viam o `czm.mod` e os pacotes dele). **Bug achado e corrigido**: um tipo que não existe dentro de outro tipo passava sem erro (`list<Nada> l;`, `dict<string, Nada>`, `Nada?`, num campo, num parâmetro ou num retorno); agora é "Tipo desconhecido", e o iterador do `for` também (antes, "incompatível com o elemento"). Mensagens, com testes: o tipo de um módulo sem o apelido diz o apelido (antes, "declarado 'Colecao[Tarefa]', mas atribuído 'Colecao[Tarefa]'"); o apelido errado aponta o certo; `import ./x`, `import "x.cinza"`, `import a/b`, `import x.*`, `from x import y`, `using x`, `#`, `export`/`public` e `pub fn` dentro do `pub { }` apontam a forma da Cinza, num erro só; o `import` fora do lugar e o apelido repetido não geram mais erros em cascata. |
 | 2026-11-25 | Revisão externa do plano: entram a regra editorial do porquê, objetivos e pré-requisitos por capítulo, o mapa do sistema de tipos (cap. 2), o caminho da compilação e o diagnóstico (cap. 24), C++ e C# no apêndice F. |

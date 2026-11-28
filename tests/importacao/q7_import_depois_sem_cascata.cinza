@@ -1,0 +1,8 @@
+// Q7: o import fora do lugar dá um erro só: o apelido dele vale nas linhas de cima.
+fn main() {
+  print(cores.favorita());
+}
+import modulos.cores;
+// expect-error: 'import' deve vir no início do arquivo
+// expect-not: Esperado
+// expect-not: não declarad

@@ -1,0 +1,14 @@
+// estatistica.cinza — contas sobre listas de números
+module estatistica;
+
+pub fn media(const list<f64> l) -> f64 {
+  return soma(l) / cast<f64>(l.size());
+}
+
+fn soma(const list<f64> l) -> f64 {
+  f64 s = 0.ff;
+  for (f64 x in l) {
+    s += x;
+  }
+  return s;
+}

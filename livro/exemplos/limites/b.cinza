@@ -1,0 +1,8 @@
+// b.cinza
+module b;
+
+import config;
+
+pub fn cabe(i32 n) -> bool {
+  return n <= config.LIMITE;
+}

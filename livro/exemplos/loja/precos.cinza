@@ -1,0 +1,19 @@
+// precos.cinza — as contas de preço da loja
+module precos;
+
+import Math;
+import util.texto;
+
+pub const f64 DESCONTO = 0.1ff;
+
+pub fn com_desconto(f64 preco) -> f64 {
+  return arredonda(preco * (1.ff - DESCONTO));
+}
+
+pub fn etiqueta(string nome, f64 preco) -> string {
+  return texto.alinha(nome, 8) + format("R$ {preco:.2f}");
+}
+
+fn arredonda(f64 x) -> f64 {
+  return Math.round_to(x, 2);
+}

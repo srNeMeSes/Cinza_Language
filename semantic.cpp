@@ -663,6 +663,26 @@ void SemanticAnalyzer::registerEnum(const EnumDecl& en) {
     symbol_table.declare(sym, en.token);
 }
 
+std::string SemanticAnalyzer::dicaApelido(const std::string& nome) const {
+    if (current_module < 0) return "";
+    const std::string curto = stripModulePrefixes(nome);
+    for (const auto& [apelido, idx] : modules[static_cast<size_t>(current_module)].imports)
+        if (modules[static_cast<size_t>(idx)].pub.count(curto))
+            return ": o módulo '" + apelido + "' tem um; os nomes de um módulo se usam pelo apelido: " + apelido +
+                   "." + curto;
+    return "";
+}
+
+void SemanticAnalyzer::confereAninhados(const Type* t) {
+    if (!t) return;
+    for (const auto& p : t->type_params) {
+        if (p->kind == Type::Kind::CUSTOM && p->type_params.empty() && !isKnownType(p->name) &&
+            p->name != "type")
+            throwError("Tipo desconhecido '" + stripModulePrefixes(p->name) + "'" + dicaApelido(p->name), p->token);
+        confereAninhados(p.get());
+    }
+}
+
 bool SemanticAnalyzer::isKnownType(const std::string& name) const {
     return class_table.count(name) || struct_table.count(name) || enum_table.count(name) ||
            interface_table.count(name) || structs_genericos.count(name) ||
@@ -953,8 +973,10 @@ void SemanticAnalyzer::analyze(std::vector<ModuleUnit>& units) {
         Program& program = *units[i].program;
 
         // Passo 1: registrar todos os nomes de topo antes de analisar corpos.
+        registro_completo = false;
         preRegisterDeclarations(program);
         checkStructCycles();   // C3
+        registro_completo = true;   // Q7
 
         // Passo 2: analisar cada statement na ordem. Q1e: os const globais vêm antes, na ordem
         // deles (spec 4.1): uma função, um método ou um campo enxerga um const declarado mais
@@ -1428,11 +1450,20 @@ const Symbol* SemanticAnalyzer::findSymbol(const std::string& name) const {
 }
 
 TypeRef SemanticAnalyzer::typeOf(Type* type) {
+    int nivel = 0;   // Q7: dentro de outro tipo (list<Nada>, Nada?), ninguém mais confere o nome
     std::function<void(Type*)> qualifica = [&](Type* t) {
         if (!t) return;
         if (t->kind == Type::Kind::CUSTOM && !t->qualified) {
             t->name      = qualifyName(t->name, t->token);
             t->qualified = true;
+            // Q7: os tipos entre colchetes de um genérico são conferidos aqui, no uso (com a dica do
+            // apelido), e não dentro da cópia
+            if (!t->type_params.empty() && (structs_genericos.count(t->name) ||
+                                            interfaces_genericas.count(t->name) || classes_genericas.count(t->name))) {
+                ++nivel;
+                for (auto& p : t->type_params) qualifica(p.get());
+                --nivel;
+            }
             // N5: Par[i32, string] vira o nome da cópia, um struct comum
             if (auto g = structs_genericos.find(t->name); g != structs_genericos.end()) {
                 t->name = usoStructGenerico(g->second, t->type_params, t->token)->name;
@@ -1460,8 +1491,13 @@ TypeRef SemanticAnalyzer::typeOf(Type* type) {
                 throwError("'" + n + "' não é um tipo genérico e não aceita tipos entre "
                            "colchetes", t->token);
             }
+            if (registro_completo && nivel > 0 && !isKnownType(t->name) && t->name != "type")
+                throwError("Tipo desconhecido '" + stripModulePrefixes(t->name) + "'" + dicaApelido(t->name),
+                           t->token);
         }
+        ++nivel;
         for (auto& p : t->type_params) qualifica(p.get());
+        --nivel;
     };
     qualifica(type);
     return TypeChecker::fromAst(type);
@@ -1786,7 +1822,8 @@ void SemanticAnalyzer::analyzeVarDecl(VarDeclStmt* stmt) {
             if (stmt->type->name == "type")   // Q1e
                 throwError("Não existe variável do tipo 'type': o valor de type(x) só serve para "
                            "comparar com um tipo (type(x) == i32)", stmt->token);
-            throwError("Tipo desconhecido '" + stmt->type->name + "'", stmt->token);
+            throwError("Tipo desconhecido '" + stripModulePrefixes(stmt->type->name) + "'" +
+                       dicaApelido(stmt->type->name), stmt->token);
         }
     }
 
@@ -2301,7 +2338,7 @@ void SemanticAnalyzer::declaraDaCondicao(const char* onde, Expr* cond, Type* tip
     TypeRef inner = ct->elem();
     TypeRef declarado = tipo->kind == Type::Kind::VAR ? inner : typeOf(tipo);
     if (tipo->kind == Type::Kind::CUSTOM && !isKnownType(tipo->name))
-        throwError("Tipo desconhecido '" + tipo->name + "'", tok);
+        throwError("Tipo desconhecido '" + stripModulePrefixes(tipo->name) + "'" + dicaApelido(tipo->name), tok);
     if (declarado->is(TK::Optional))
         throwError("'" + nome + "' recebe o valor já resolvido: declare '" + declarado->elem()->str() +
                    "', sem '?'", tok);
@@ -2404,6 +2441,12 @@ void SemanticAnalyzer::analyzeFor(ForStmt* stmt) {
             stmt->token);
     }
 
+    // Q7: o tipo do iterador que não existe (antes: "incompatível com o elemento")
+    if (stmt->type_iterator->kind == Type::Kind::CUSTOM && stmt->type_iterator->type_params.empty() &&
+        !isKnownType(qualifyName(stmt->type_iterator->name,
+                                                                                    stmt->token)))
+        throwError("Tipo desconhecido '" + stripModulePrefixes(stmt->type_iterator->name) + "'" +
+                   dicaApelido(stmt->type_iterator->name), stmt->token);
     TypeRef declared_iter = typeOf(stmt->type_iterator.get());
 
     // Se `var`, infere pelo tipo do elemento
@@ -2610,12 +2653,14 @@ void SemanticAnalyzer::analyzeFunctionDecl(FunctionDecl* stmt) {
 
     symbol_table.pushScope();
 
+    confereAninhados(stmt->return_type.get());   // Q7
     for (const auto& param : stmt->parameters) {
         if (param.type->kind == Type::Kind::CUSTOM &&
             !isKnownType(param.type->name)) {
-            throwError("Tipo desconhecido '" + param.type->name +
-                       "' no parâmetro '" + param.name + "'", param.token);
+            throwError("Tipo desconhecido '" + stripModulePrefixes(param.type->name) +
+                       "' no parâmetro '" + param.name + "'" + dicaApelido(param.type->name), param.token);
         }
+        confereAninhados(param.type.get());   // Q7
 
         checkNotAlias(param.name, param.token);   // C5
 
@@ -2666,9 +2711,10 @@ void SemanticAnalyzer::analyzeStructDecl(StructDecl* stmt) {
                 field.token);
         }
         if (field.type->kind == Type::Kind::CUSTOM && !isKnownType(field.type->name)) {
-            throwError("Tipo desconhecido '" + field.type->name + "' no campo '" +
-                       field.name + "'", field.token);
+            throwError("Tipo desconhecido '" + stripModulePrefixes(field.type->name) + "' no campo '" +
+                       field.name + "'" + dicaApelido(field.type->name), field.token);
         }
+        confereAninhados(field.type.get());   // Q7
 
         TypeRef ftype = typeOf(field.type.get());
         if (TypeRef bad = invalidDictKey(ftype))
@@ -2807,6 +2853,7 @@ void SemanticAnalyzer::declaraCamposNoEscopo(ClassDecl* stmt, bool analisa_valor
         fsym.name          = field.name;
         fsym.kind          = Symbol::Kind::VAR;
         fsym.resolved_type = typeOf(field.type.get());
+        confereAninhados(field.type.get());   // Q7
         fsym.line          = field.token.line;
         fsym.column        = field.token.column;
         fsym.res           = {Resolution::Kind::Field,
@@ -3055,6 +3102,16 @@ TypeRef SemanticAnalyzer::analyzeIdentifier(IdentifierExpr* expr) {
                         throwError("Variável '" + expr->name + "' não declarada: '" + expr->name +
                                    "' é um valor do enum '" + curto + "'; escreva " + curto + "." +
                                    expr->name + " (o valor de um enum é sempre qualificado)", expr->token);
+        // Q7: o último trecho do caminho de um import que ganhou outro apelido (import modelo.tarefa as t;
+        // e depois tarefa.nova(...))
+        if (current_module >= 0)
+            for (const auto& [apelido, idx] : modules[static_cast<size_t>(current_module)].imports) {
+                const std::string& pre = modules[static_cast<size_t>(idx)].prefix;
+                const auto p = pre.rfind('.');
+                if ((p == std::string::npos ? pre : pre.substr(p + 1)) == expr->name && apelido != expr->name)
+                    throwError("Variável '" + expr->name + "' não declarada: o módulo '" + pre + "' foi importado "
+                               "com o apelido '" + apelido + "'; use " + apelido + ".nome", expr->token);
+            }
         // Q7: o const global declarado mais abaixo (as funções o enxergam; outro const, não)
         if (symbol_table.depth() == 1 && modules[current_module].globals.count(expr->name))
             throwError("'" + expr->name + "' é declarado mais abaixo: um const global só usa os const "

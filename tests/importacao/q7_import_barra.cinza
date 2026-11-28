@@ -1,0 +1,7 @@
+// Q7: import a/b aponta o '.' entre as pastas.
+import modulos/cores;
+fn main() {
+  print(cores.favorita());
+}
+// expect-error: O caminho do import separa as pastas com '.', não com '/'
+// expect-not: Esperado

@@ -533,6 +533,9 @@ Token Lexer::nextToken() {
                                   "de potência (para potência, Math.pow)");
             if (c == '~')
                 return errorToken("Caractere inesperado: '~': a Cinza não tem operadores de bits");
+            if (c == '#')   // Q7: o comentário do Python e do shell; o #include do C
+                return errorToken("Caractere inesperado: '#': os comentários da Cinza são // e /* */, e um "
+                                  "arquivo usa outro com import (import util.texto;), sem #include");
             return errorToken(std::string("Caractere inesperado: '") + c + "'");
     }
 }

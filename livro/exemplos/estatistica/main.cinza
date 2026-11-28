@@ -1,0 +1,5 @@
+import estatistica;
+
+fn main() {
+  print(estatistica.media([7.ff, 8.5ff, 10.ff]));
+}

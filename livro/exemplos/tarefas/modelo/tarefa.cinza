@@ -1,0 +1,19 @@
+// modelo/tarefa.cinza — o que é uma tarefa
+module modelo.tarefa;
+
+pub enum Prioridade { Baixa, Media, Alta }
+
+pub struct Tarefa {
+  string titulo;
+  Prioridade prioridade = Prioridade.Media;
+  bool feita = false;
+}
+
+pub error TituloInvalido;
+
+pub fn nova(string titulo, Prioridade p) -> Tarefa {
+  if (titulo == "") {
+    throw TituloInvalido("o título não pode ser vazio");
+  }
+  return new Tarefa(titulo: titulo, prioridade: p);
+}

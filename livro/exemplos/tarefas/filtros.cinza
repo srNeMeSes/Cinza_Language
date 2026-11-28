@@ -1,0 +1,21 @@
+// filtros.cinza — os filtros de tarefas
+module filtros;
+
+import colecao;
+import modelo.tarefa;
+
+pub class Pendente : colecao.Filtro[tarefa.Tarefa] {
+  pub {
+    fn aceita(tarefa.Tarefa t) -> bool {
+      return not t.feita;
+    }
+  }
+}
+
+pub class Urgente : colecao.Filtro[tarefa.Tarefa] {
+  pub {
+    fn aceita(tarefa.Tarefa t) -> bool {
+      return t.prioridade == tarefa.Prioridade.Alta;
+    }
+  }
+}

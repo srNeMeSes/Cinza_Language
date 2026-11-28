@@ -1,0 +1,7 @@
+// Q7: from x import y (Python) aponta o import e o apelido.
+from modulos.cores import favorita;
+fn main() {
+  print(cores.favorita());
+}
+// expect-error: A Cinza escreve 'import modulos.cores;', e usa os nomes do módulo pelo apelido: cores.Nome
+// expect-not: Esperado

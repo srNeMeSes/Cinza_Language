@@ -1,0 +1,14 @@
+// a.cinza
+module a;
+
+import config;
+
+pub fn corta(list<i32> l) -> list<i32> {
+  list<i32> r;
+  for (i32 x in l) {
+    if (r.size() < config.LIMITE) {
+      r.add(x);
+    }
+  }
+  return r;
+}

@@ -1,0 +1,6 @@
+// Q7: um tipo que não existe dentro de outro tipo é erro (antes, list<Nada> passava sem erro).
+fn main() {
+  list<Nada> l;
+  print(l);
+}
+// expect-error: 3:8: SemanticError: Tipo desconhecido 'Nada'

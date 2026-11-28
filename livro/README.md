@@ -35,7 +35,7 @@ livro ensina, a spec define.
 15. [`const` e imutabilidade](15-const.md)
 16. [Genéricos: funções](16-genericos-funcoes.md)
 17. [Genéricos: structs, classes e interfaces](17-genericos-tipos.md)
-18. Módulos e projetos
+18. [Módulos e projetos](18-modulos.md)
 19. Pacotes
 
 **Parte IV — A biblioteca na prática**

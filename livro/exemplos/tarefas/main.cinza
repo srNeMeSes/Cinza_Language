@@ -1,0 +1,19 @@
+// main.cinza — tarefas, versão 10: o programa dividido em módulos
+import colecao;
+import filtros;
+import modelo.tarefa as t;
+
+fn main() {
+  colecao.Colecao[t.Tarefa] tarefas = new colecao.Colecao[t.Tarefa]();
+  tarefas.poe(t.nova("comprar pão", t.Prioridade.Alta));
+  tarefas.poe(t.nova("estudar a Cinza", t.Prioridade.Media));
+  try {
+    tarefas.poe(t.nova("", t.Prioridade.Baixa));
+  } except (t.TituloInvalido e) {
+    print("recusada:", e.message);
+  }
+  for (t.Tarefa x in tarefas.filtra(new filtros.Urgente())) {
+    print("urgente:", x.titulo);
+  }
+  print(tarefas.filtra(new filtros.Pendente()).size(), "de", tarefas.tamanho(), "pendentes");
+}

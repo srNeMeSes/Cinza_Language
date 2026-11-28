@@ -1,0 +1,9 @@
+// Q7: a conferência dos tipos aninhados não recusa uma classe declarada mais abaixo.
+fn f(list<Depois> l) -> i32 {
+  return l.size();
+}
+class Depois {}
+fn main() {
+  print(f([new Depois()]));
+}
+// expect: 1

@@ -1,0 +1,8 @@
+// util/texto.cinza — ajudas para textos
+module util.texto;
+
+import Strings;
+
+pub fn alinha(string s, i32 largura) -> string {
+  return Strings.pad_right(s, largura);
+}

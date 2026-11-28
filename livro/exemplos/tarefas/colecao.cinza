@@ -1,0 +1,30 @@
+// colecao.cinza — uma coleção de qualquer coisa, com filtros
+module colecao;
+
+pub interface Filtro[T] {
+  fn aceita(T x) -> bool;
+}
+
+pub class Colecao[T] {
+  list<T> itens;
+
+  pub {
+    fn poe(T x) {
+      itens.add(x);
+    }
+
+    fn filtra(Filtro[T] f) -> list<T> {
+      list<T> r;
+      for (T x in itens) {
+        if (f.aceita(x)) {
+          r.add(x);
+        }
+      }
+      return r;
+    }
+
+    fn tamanho() -> i32 {
+      return itens.size();
+    }
+  }
+}

@@ -1,0 +1,4 @@
+// Q7: '#' (comentário do Python e do shell, #include do C) aponta // e o import.
+# um comentário
+fn main() {}
+// expect-error: Caractere inesperado: '#': os comentários da Cinza são // e /* */

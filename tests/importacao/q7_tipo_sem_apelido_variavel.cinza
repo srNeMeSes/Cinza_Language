@@ -1,0 +1,6 @@
+// Q7: o tipo de um módulo sem o apelido, numa variável, diz o apelido.
+import modulos.cores;
+fn main() {
+  Cor c = cores.favorita();
+}
+// expect-error: Tipo desconhecido 'Cor': o módulo 'cores' tem um

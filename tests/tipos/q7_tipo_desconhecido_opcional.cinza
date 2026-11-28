@@ -1,0 +1,5 @@
+// Q7: Nada? e o iterador do for de um tipo que não existe.
+fn main() {
+  for (Nada x in [1]) {}
+}
+// expect-error: Tipo desconhecido 'Nada'

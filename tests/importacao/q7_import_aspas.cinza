@@ -1,0 +1,7 @@
+// Q7: o caminho entre aspas (JavaScript, C) aponta o import pela raiz; o apelido continua valendo.
+import "modulos/cores.cinza";
+fn main() {
+  print(cores.favorita());
+}
+// expect-error: nem o caminho entre aspas
+// expect-not: Esperado

@@ -1,0 +1,4 @@
+// config.cinza — o que a e b dividem
+module config;
+
+pub const i32 LIMITE = 3;

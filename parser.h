@@ -147,6 +147,11 @@ private:
                                           const std::string& corpo);
     // Q7: o texto dos tokens de "<...>" (a '<' já consumida), até o '>' correspondente, consumido
     std::string textoEntreAngulos();
+    // Q7: um import escrito como em outra linguagem (./x, "x.cinza", a/b, x.*, from x import y,
+    // using x): relata o erro, registra o apelido que o leitor quis (para as linhas seguintes não
+    // darem erros em cascata) e pula até o ';'
+    void importDeOutraForma(const std::string& msg, const Token& onde);
+    bool checkImportDeOutraLinguagem() const;
     bool    checkGenericCall() const;                   // '[' cujo ']' é seguido de '('
     ExprPtr parseGenericCall(const Token& name_token);  // f[tipos](args), com '[' atual
     void    recusaParametrosTipo(const std::string& oque);   // class Pilha[T]: erro e pula

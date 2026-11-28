@@ -1,0 +1,7 @@
+// Q7: using x (C#) aponta o import.
+using modulos.cores;
+fn main() {
+  print(cores.favorita());
+}
+// expect-error: A Cinza escreve 'import modulos.cores;'
+// expect-not: Esperado

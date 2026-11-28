@@ -1,0 +1,8 @@
+import precos;
+import util.texto;
+
+fn main() {
+  print(precos.etiqueta("café", precos.com_desconto(7.5ff)));
+  print(precos.etiqueta("pão", 12.ff));
+  print(texto.alinha("total", 8) + "|", precos.DESCONTO);
+}

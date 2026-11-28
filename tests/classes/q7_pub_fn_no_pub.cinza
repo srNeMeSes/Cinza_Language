@@ -1,0 +1,10 @@
+// Q7: pub fn dentro do bloco pub diz que os métodos já são públicos, sem cascata.
+class C {
+  pub {
+    pub fn f() {}
+    fn g() {}
+  }
+}
+fn main() {}
+// expect-error: Dentro do bloco pub { }, os métodos já são públicos: escreva só 'fn f(...)'
+// expect-not: Esperado

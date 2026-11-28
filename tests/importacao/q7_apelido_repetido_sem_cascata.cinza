@@ -1,0 +1,10 @@
+// Q7: o apelido repetido não faz pular o import seguinte (antes, os usos dele davam erros em cascata).
+import modulos.geom;
+import modulos.lib.geom;
+import modulos.cores as c;
+fn main() {
+  print(c.favorita());
+}
+// expect-error: Apelido de módulo 'geom' repetido
+// expect-not: Esperado
+// expect-not: não declarad

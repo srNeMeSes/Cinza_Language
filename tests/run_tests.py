@@ -61,7 +61,9 @@ DIR_TESTES = RAIZ / "tests"
 DIR_SPEC = RAIZ / "spec"
 DIR_LIVRO = RAIZ / "livro"   # Q7
 DIR_EXEMPLOS = DIR_TESTES / "spec_exemplos"   # gerado a cada execução (fora do git)
-DIR_EXEMPLOS_LIVRO = DIR_EXEMPLOS / "livro"   # Q7: uma pasta por exemplo (gerado)
+# Q7: uma pasta por exemplo (gerado), fora do repositório: o tests/ é um projeto (tem czm.mod), e o
+# exemplo de um arquivo só roda como o do leitor, fora de qualquer projeto
+DIR_EXEMPLOS_LIVRO = Path(tempfile.gettempdir()) / "cinza_livro_exemplos"
 RE_BLOCO = re.compile(r"^```cinza[ \t]*\r?\n(.*?)^```", re.M | re.S)
 RE_PENDENTES = re.compile(r"<!--\s*exemplos-pendentes:\s*(.*?)\s*-->")
 # Folgado para o build com sanitizers (-O0 + ASan é dezenas de vezes mais lento:
@@ -184,7 +186,8 @@ def rodar(binario, caminho):
 
     # Q7: um exemplo do livro roda de dentro da pasta dele, com o nome puro (ola.cinza:2:23: ...)
     if DIR_EXEMPLOS_LIVRO in caminho.parents:
-        pasta_teste, arquivo = caminho.parent, caminho.name
+        partes = caminho.relative_to(DIR_EXEMPLOS_LIVRO).parts   # Q7: modelo/teste.cinza num projeto
+        pasta_teste, arquivo = DIR_EXEMPLOS_LIVRO / partes[0], "/".join(partes[1:])
     else:
         pasta_teste, arquivo = RAIZ, str(caminho.relative_to(RAIZ))
     comando = [str(binario), arquivo] + ler_argumentos(caminho)
@@ -294,7 +297,11 @@ def exemplos_da_spec(filtro):
 
 
 RE_CERCA = re.compile(r"^```([^\n`]*)\r?\n(.*?)^```[ \t]*$", re.M | re.S)
-RE_DIRETIVA_HTML = re.compile(r"<!--[ \t]*(args|stdin|env|exit|nao):[ \t]?([^\n]*?)[ \t]*-->\s*$")
+RE_DIRETIVA_HTML = re.compile(r"<!--[ \t]*(args|stdin|env|exit|nao|projeto|variante|roda)(?::[ \t]?([^\n]*?))?[ \t]*-->\s*$")
+# Q7: os projetos de vários arquivos do livro (livro/exemplos/<projeto>/): cada bloco com
+# <!-- projeto: nome --> é conferido contra o arquivo do projeto (o livro mostra o arquivo de verdade),
+# a não ser que seja uma <!-- variante --> de propósito
+CONFERENCIAS_LIVRO = []
 DIRETIVAS_LIVRO = {"args": "args", "stdin": "stdin", "env": "env", "exit": "expect-exit",
                    "nao": "expect-not"}
 
@@ -319,8 +326,24 @@ def exemplos_do_livro(filtro):
             # as diretivas: os comentários HTML logo antes do código
             diretivas, antes = [], texto[:ini]
             while (m := RE_DIRETIVA_HTML.search(antes)) and not antes[m.end():].strip():
-                diretivas.insert(0, (m.group(1), m.group(2)))
+                diretivas.insert(0, (m.group(1), m.group(2) or ""))
                 antes = antes[:m.start()]
+            projeto = next((v for d, v in diretivas if d == "projeto"), None)
+            variante = any(d == "variante" for d, _ in diretivas)
+            roda = next((v for d, v in diretivas if d == "roda"), None)   # outro arquivo do projeto
+            diretivas = [(d, v) for d, v in diretivas if d not in ("projeto", "variante", "roda")]
+            linha = texto.count("\n", 0, ini) + 1
+            if projeto and not variante and (not filtro or filtro in f"livro/{relativo}:{linha}"):
+                real = DIR_LIVRO / "exemplos" / projeto / nome_arquivo
+                if not real.is_file():
+                    CONFERENCIAS_LIVRO.append((f"livro/{relativo}:{linha} (o arquivo)", False,
+                                               f"livro/exemplos/{projeto}/{nome_arquivo} não existe"))
+                elif real.read_text(encoding="utf-8").replace("\r\n", "\n").rstrip("\n") != corpo.rstrip("\n"):
+                    CONFERENCIAS_LIVRO.append((f"livro/{relativo}:{linha} (o arquivo)", False,
+                                               f"o bloco difere de livro/exemplos/{projeto}/{nome_arquivo} "
+                                               "(ou marque-o <!-- variante -->)"))
+                else:
+                    CONFERENCIAS_LIVRO.append((f"livro/{relativo}:{linha} (o arquivo)", True, ""))
             # os blocos de saída e de erro logo depois (um ```console no meio, com o comando que o
             # leitor digita, é só ilustrativo)
             saida, erros, ultimo = [], [], fim
@@ -334,7 +357,6 @@ def exemplos_do_livro(filtro):
                 ultimo = fim2
             if not saida and not erros and not any(d == "exit" for d, _ in diretivas):
                 continue   # só ilustrativo
-            linha = texto.count("\n", 0, ini) + 1
             nome = f"livro/{relativo}:{linha}"
             if filtro and filtro not in nome:
                 continue
@@ -343,8 +365,16 @@ def exemplos_do_livro(filtro):
             linhas += [f"// expect: {l}".rstrip() if l else "// expect:" for l in saida]
             linhas += [f"// expect-error: {l}" for l in erros if l.strip()]
             pasta = DIR_EXEMPLOS_LIVRO / f"{relativo[:-3].replace('/', '-')}_{linha}"
-            pasta.mkdir(parents=True)
+            if projeto:   # Q7: roda numa cópia do projeto, com o arquivo do bloco no lugar
+                shutil.copytree(DIR_LIVRO / "exemplos" / projeto, pasta)
+            else:
+                pasta.mkdir(parents=True)
             caminho = pasta / nome_arquivo
+            caminho.parent.mkdir(parents=True, exist_ok=True)
+            if projeto and roda:   # o bloco é um módulo; as expectativas vão no arquivo que roda
+                caminho.write_text(corpo, encoding="utf-8")
+                caminho = pasta / roda
+                linhas[0] = caminho.read_text(encoding="utf-8").rstrip("\n")
             caminho.write_text("\n".join(linhas) + "\n", encoding="utf-8")
             exemplos.append((nome, caminho))
     return exemplos
@@ -932,7 +962,7 @@ def main():
     falhas = 0
     extras = 0            # os testes do formatador (não são programas a rodar)
     nao_suportados = {}   # motivo → quantos (modo --cinzac)
-    extras_lista = []
+    extras_lista = list(CONFERENCIAS_LIVRO)   # Q7: os arquivos dos projetos do livro
     if not CINZAC and "formatador" in (filtro or "formatador"):
         extras_lista += testes_do_formatador(binario, [c for _, c in testes])
     if not CINZAC and "lsp" in (filtro or "lsp"):

@@ -1,0 +1,6 @@
+// Q7: o tipo desconhecido dentro de um parâmetro, de um retorno ou de um campo.
+struct P {
+  dict<string, Nada> d;
+}
+fn main() {}
+// expect-error: 3:16: SemanticError: Tipo desconhecido 'Nada'
