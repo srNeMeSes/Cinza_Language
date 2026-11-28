@@ -1,0 +1,6 @@
+// Q7: struct Caixa<T> e class Pilha<T> (Java, C#, Rust) apontam os colchetes, sem erros em cascata.
+struct Caixa<T> {
+  T valor;
+}
+fn main() {}
+// expect-error: Os parâmetros de tipo vão entre colchetes, não entre '<' e '>': struct Caixa[T] { ... }

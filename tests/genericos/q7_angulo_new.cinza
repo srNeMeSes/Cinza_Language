@@ -1,0 +1,8 @@
+// Q7: new Caixa<i32>(...) aponta os colchetes, num erro só.
+struct Caixa[T] {
+  T valor;
+}
+fn main() {
+  Caixa[i32] c = new Caixa<i32>(valor: 1);
+}
+// expect-error: Os tipos de um struct ou de uma classe genérica vão entre colchetes: new Caixa[i32](...)

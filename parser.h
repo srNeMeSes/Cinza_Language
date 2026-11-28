@@ -141,6 +141,12 @@ private:
     //   fn f[T, U](...)  — parâmetros de tipo (só nomes); struct Par[A, B] { ... }
     //   f[i32, string](...) — chamada com tipos explícitos (só tipos); Par[i32, string]
     std::vector<Token> parseTypeParams(bool em_struct = false);   // consome "[T, U]"
+    // Q7: struct Caixa<T>, class Pilha<T> (Java, C#, Rust): relata o erro e consome "<...>";
+    // devolve os nomes, para a declaração seguir sem erros em cascata
+    std::vector<Token> anguloNaDeclaracao(const std::string& palavra, const std::string& nome,
+                                          const std::string& corpo);
+    // Q7: o texto dos tokens de "<...>" (a '<' já consumida), até o '>' correspondente, consumido
+    std::string textoEntreAngulos();
     bool    checkGenericCall() const;                   // '[' cujo ']' é seguido de '('
     ExprPtr parseGenericCall(const Token& name_token);  // f[tipos](args), com '[' atual
     void    recusaParametrosTipo(const std::string& oque);   // class Pilha[T]: erro e pula

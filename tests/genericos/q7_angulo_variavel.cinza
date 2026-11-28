@@ -1,0 +1,8 @@
+// Q7: Caixa<i32> c = ... aponta os colchetes do tipo (antes, a mensagem da chamada genérica e uma cascata).
+struct Caixa[T] {
+  T valor;
+}
+fn main() {
+  Caixa<i32> c = new Caixa<i32>(valor: 1);
+}
+// expect-error: 6:8: SyntaxError: Os tipos de um struct ou de uma classe genérica vão entre colchetes: Caixa[i32]

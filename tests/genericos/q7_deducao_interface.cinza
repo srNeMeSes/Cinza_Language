@@ -1,0 +1,27 @@
+// Q7: a dedução não passa pela interface que a classe cumpre; a mensagem diz isso e aponta os tipos explícitos
+// (antes: esperado 'Transforma[A, B]', mas recebeu 'Tamanho', embora Tamanho a cumpra).
+interface Transforma[A, B] {
+  fn aplica(A x) -> B;
+}
+
+class Tamanho : Transforma[string, i32] {
+  pub {
+    fn aplica(string s) -> i32 {
+      return s.size();
+    }
+  }
+}
+
+fn mapeia[A, B](const list<A> l, Transforma[A, B] t) -> list<B> {
+  list<B> r;
+  for (A x in l) {
+    r.add(t.aplica(x));
+  }
+  return r;
+}
+
+fn main() {
+  print(mapeia[string, i32](["ana", "beatriz"], new Tamanho()));
+  print(mapeia(["ana", "beatriz"], new Tamanho()));
+}
+// expect-error: 'Tamanho' cumpre 'Transforma[string, i32]', mas os tipos de 'mapeia' não são deduzidos pela interface

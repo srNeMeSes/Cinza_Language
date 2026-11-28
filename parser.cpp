@@ -678,13 +678,18 @@ ExprPtr Parser::parsePrimaryExpr() {
         // Q7: f<i32>(...) (Rust, Java, C#, C++): um tipo embutido logo depois de '<' nunca é uma
         // comparação válida
         if (check(TokenType::OP_LESS) && current + 1 < tokens.size() && ehTipoEmbutido(tokens[current + 1].type)) {
-            error("Os tipos de uma chamada genérica vão entre colchetes: " + name_token.lexeme + "[" +
-                  tokens[current + 1].lexeme + "](...)", peek());
-            advance();   // '<': lê os tipos e segue com a chamada, sem erro em cascata
-            do { parseType(); } while (match(TokenType::COMMA));
-            match(TokenType::OP_GREATER);
-            if (check(TokenType::LPAREN)) return parseCallExpr();
-            throw ParseError("chamada genérica com < >", peek());
+            const Token onde = advance();   // '<': lê os tipos e segue, sem erro em cascata
+            const std::string texto = textoEntreAngulos();
+            if (check(TokenType::LPAREN)) {
+                error("Os tipos de uma chamada genérica vão entre colchetes: " + name_token.lexeme + "[" + texto +
+                      "](...)", onde);
+                return parseCallExpr();
+            }
+            // Caixa<i32> c = ...: a declaração de uma variável de um struct ou classe genérica
+            error("Os tipos de um struct ou de uma classe genérica vão entre colchetes: " + name_token.lexeme +
+                  "[" + texto + "]", onde);
+            while (!check(TokenType::SEMICOLON) && !check(TokenType::RBRACE) && !isAtEnd()) advance();
+            return std::make_unique<IdentifierExpr>(name_token, name_token.lexeme);
         }
         
         return std::make_unique<IdentifierExpr>(name_token, name_token.lexeme);
@@ -831,6 +836,33 @@ ExprPtr Parser::parseGenericCall(const Token& name_token) {
     return call;
 }
 
+// Q7: o texto entre '<' e '>' (a '<' já consumida), como o leitor o escreveria: "string, i32"
+std::string Parser::textoEntreAngulos() {
+    std::string texto;
+    int nivel = 1;
+    while (!isAtEnd() && !check(TokenType::LPAREN) && !check(TokenType::LBRACE) &&
+           !check(TokenType::SEMICOLON)) {
+        if (check(TokenType::OP_LESS)) ++nivel;
+        if (check(TokenType::OP_GREATER) && --nivel == 0) { advance(); break; }
+        texto += peek().lexeme == "," ? std::string(", ") : peek().lexeme;
+        advance();
+    }
+    return texto;
+}
+
+std::vector<Token> Parser::anguloNaDeclaracao(const std::string& palavra, const std::string& nome,
+                                              const std::string& corpo) {
+    const Token onde = advance();   // '<'
+    std::vector<Token> nomes;
+    for (size_t i = current; i < tokens.size() && tokens[i].type != TokenType::OP_GREATER &&
+                             tokens[i].type != TokenType::LBRACE && tokens[i].type != TokenType::LPAREN; ++i)
+        if (tokens[i].type == TokenType::IDENTIFIER) nomes.push_back(tokens[i]);
+    const std::string texto = textoEntreAngulos();
+    error("Os parâmetros de tipo vão entre colchetes, não entre '<' e '>': " + palavra + " " + nome + "[" +
+          (texto.empty() ? std::string("T") : texto) + "] " + corpo, onde);
+    return nomes;
+}
+
 // N1: fn f[T, U] — só nomes, pelo menos um
 std::vector<Token> Parser::parseTypeParams(bool em_struct) {
     advance();   // '['
@@ -896,6 +928,13 @@ ExprPtr Parser::parseNewExpr() {
         }
         do { type_args.push_back(parseType()); } while (match(TokenType::COMMA));
         consume(TokenType::RBRACKET, "Esperado ']' após os tipos de '" + class_name + "'");
+    } else if (check(TokenType::OP_LESS)) {   // Q7: new Caixa<i32>(...) (Java, C#, C++)
+        const Token onde = advance();
+        const std::string texto = textoEntreAngulos();
+        error("Os tipos de um struct ou de uma classe genérica vão entre colchetes: new " + class_name + "[" +
+              (texto.empty() ? std::string("T") : texto) + "](...)" +
+              (texto.empty() ? std::string(" (sem o '<>' do Java: os tipos são sempre escritos)") : std::string()),
+              onde);
     }
 
     consume(TokenType::LPAREN, "Esperado '(' após nome da classe em 'new'");
@@ -1771,6 +1810,7 @@ StmtPtr Parser::parseClassDeclaration() {
     std::string class_name = name_token.lexeme;
     std::vector<Token> type_params;   // Q1a: class Pilha[T]
     if (check(TokenType::LBRACKET)) type_params = parseTypeParams(true);
+    else if (check(TokenType::OP_LESS)) type_params = anguloNaDeclaracao("class", class_name, "{ ... }");
 
     // class X : Forma, Desenhavel — interfaces cumpridas
     std::vector<std::string> interfaces;
@@ -2041,6 +2081,7 @@ StmtPtr Parser::parseInterfaceDeclaration() {
                                 "Esperado o nome da interface, ex.: interface Forma { ... }");
     std::vector<Token> type_params;   // Q1a: interface Comparavel[T]
     if (check(TokenType::LBRACKET)) type_params = parseTypeParams(true);
+    else if (check(TokenType::OP_LESS)) type_params = anguloNaDeclaracao("interface", name_token.lexeme, "{ ... }");
     consume(TokenType::LBRACE, "Esperado '{' após o nome da interface");
     DepthGuard guard{brace_depth};
     std::vector<InterfaceDecl::Method> metodos;
@@ -2200,6 +2241,7 @@ StmtPtr Parser::parseStructDeclaration() {
                                "Esperado nome do struct após 'struct'");
     std::vector<Token> type_params;   // N5: struct Par[A, B]
     if (check(TokenType::LBRACKET)) type_params = parseTypeParams(true);
+    else if (check(TokenType::OP_LESS)) type_params = anguloNaDeclaracao("struct", name_token.lexeme, "{ ... }");
 
     if (check(TokenType::COLON)) {   // Q7: struct Q : Forma
         error("Um struct não cumpre interfaces: ele só tem campos, e uma interface exige métodos. Use uma "

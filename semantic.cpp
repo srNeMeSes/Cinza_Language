@@ -4856,6 +4856,20 @@ TypeRef SemanticAnalyzer::analyzeGenericCall(CallExpr* expr, const Symbol& sym) 
             // T aparece num parâmetro, mas o argumento não tem a forma dele (list<T> com i32)
             for (size_t i = 0; i < expr->arguments.size(); ++i) {
                 const Type* p = g.parameters[i].type.get();
+                // Q7: a classe cumpre uma cópia da interface genérica do parâmetro, mas a dedução não
+                // passa pela interface (seção 8.3): o caminho são os tipos explícitos
+                if (analisados[i] && menciona(p, T) && analisados[i]->is(TK::Class) && !p->type_params.empty()) {
+                    auto ci = class_table.find(analisados[i]->name);
+                    const std::string base = stripModulePrefixes(p->name) + "[";
+                    if (ci != class_table.end())
+                        for (const std::string& iface : ci->second.interfaces)
+                            if (stripModulePrefixes(iface).rfind(base, 0) == 0)
+                                throwError("Argumento " + std::to_string(i + 1) + " de '" + nome + "': '" +
+                                           analisados[i]->str() + "' cumpre '" + stripModulePrefixes(iface) +
+                                           "', mas os tipos de '" + nome + "' não são deduzidos pela interface "
+                                           "que uma classe cumpre: informe-os na chamada, " + nome + "[...](...)",
+                                           expr->token);
+                }
                 if (analisados[i] && menciona(p, T))
                     throwError("Argumento " + std::to_string(i + 1) + " de '" + nome +
                                "': esperado '" + p->toString() + "', mas recebeu '" +

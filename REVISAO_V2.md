@@ -2659,7 +2659,11 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
   > leitura**, não imutável — por ele nada muda, mas outro nome alterável da mesma lista ainda a muda;
   > o valor que ninguém altera nasce no const (literal ou cópia). A outra opção, a cópia profunda
   > escondida na declaração const, foi recusada. Melhoria possível, para depois: o retorno
-  > `-> const T`, para devolver um parâmetro const sem copiar. As mensagens de erro melhoradas no caminho estão no
+  > `-> const T`, para devolver um parâmetro const sem copiar. Outra melhoria possível (2026-11-28,
+  > capítulo 17; seria uma regra nova da linguagem): deduzir os tipos de uma genérica pela
+  > interface genérica que a classe do argumento cumpre — hoje `mapeia(nomes, new Tamanho())`, com
+  > `fn mapeia[A, B](const list<A> l, Transforma[A, B] t)` e `Tamanho : Transforma[string, i32]`,
+  > pede os tipos explícitos, `mapeia[string, i32](...)` (spec 8.3; a mensagem já aponta isso). As mensagens de erro melhoradas no caminho estão no
   > andamento do `PLANO.md`, capítulo a capítulo.
 - [ ] Q8. Prévia pública (0.9). Divulgar como prévia: o que funciona e por que é interessante,
   que mudanças incompatíveis ainda podem acontecer, o que falta. Um canal de retorno (issues do
