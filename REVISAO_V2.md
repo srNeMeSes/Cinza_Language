@@ -2655,7 +2655,11 @@ linguagem muda. Os pontos **[decidir]** são do autor e vêm antes do código.
   > valor de um const que guarda lista ou dict (ele, uma parte dele ou um valor montado com ele) só
   > vai para variável ou parâmetro const; a versão alterável é a cópia explícita (`Lists.copy`,
   > `Dicts.copy`); antes, `list<i32> b = a;` ou um parâmetro sem const alteravam o const pela outra
-  > referência, nos dois backends (spec 3.9; `tests/const/q7_*`). As mensagens de erro melhoradas no caminho estão no
+  > referência, nos dois backends (spec 3.9; `tests/const/q7_*`); 2026-11-28: o `const` é **somente
+  > leitura**, não imutável — por ele nada muda, mas outro nome alterável da mesma lista ainda a muda;
+  > o valor que ninguém altera nasce no const (literal ou cópia). A outra opção, a cópia profunda
+  > escondida na declaração const, foi recusada. Melhoria possível, para depois: o retorno
+  > `-> const T`, para devolver um parâmetro const sem copiar. As mensagens de erro melhoradas no caminho estão no
   > andamento do `PLANO.md`, capítulo a capítulo.
 - [ ] Q8. Prévia pública (0.9). Divulgar como prévia: o que funciona e por que é interessante,
   que mudanças incompatíveis ainda podem acontecer, o que falta. Um canal de retorno (issues do

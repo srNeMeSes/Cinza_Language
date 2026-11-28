@@ -1,0 +1,17 @@
+// Q7: o const é somente leitura, não imutável: outro nome alterável da mesma lista ainda a muda;
+// a cópia guardada no const, não.
+import Lists;
+fn f(const list<i32> a, list<i32> b) {
+  b.add(9);
+  print(a);
+}
+fn main() {
+  list<i32> a = [1, 2];
+  const list<i32> b = a;
+  const list<i32> c = Lists.copy(a);
+  a.add(3);
+  print(b, c);
+  f(a, a);
+}
+// expect: [1, 2, 3] [1, 2]
+// expect: [1, 2, 3, 9]

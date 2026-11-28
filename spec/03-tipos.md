@@ -278,8 +278,9 @@ fn main() {
 
 `const` declara que uma variável, parâmetro ou `const` global não pode ser reatribuído.
 
-- O `const` fecha o **recipiente inteiro**: um `struct`, `list`, `dict` ou `pair` const não pode
-  ser alterado em nenhuma profundidade (campos, `add`, `remove`, atribuição por índice).
+- O `const` fecha o **recipiente inteiro**: por um `struct`, `list`, `dict` ou `pair` const, nada
+  pode ser alterado, em nenhuma profundidade (campos, `add`, `remove`, atribuição por índice). É
+  uma garantia de somente leitura (ver adiante).
 - O `const` **para no objeto de classe**: num `const list<Pessoa>`, a lista não muda, mas os
   objetos dentro dela continuam alteráveis pelos seus métodos.
 - `const` diretamente num tipo de classe ou interface (`const Pessoa p`, inclusive em
@@ -311,6 +312,26 @@ O que vem de um const continua do const: o iterador de um `for` sobre uma lista 
 variável de um `if`/`while` com declaração sobre um opcional const, o elemento que uma nativa
 devolve (`Lists.first(m)`), a alternativa de um `else`. Um parâmetro const numa interface precisa
 ser const também no método da classe que a cumpre.
+
+**Somente leitura, não imutável.** O `const` garante o que o nome const — e o que sai dele — pode
+fazer, não o que os outros nomes fazem: se uma variável alterável e uma const veem a mesma lista, a
+alterável ainda a muda, e a const vê a mudança. Da alterável para a const, o valor vai livre (é o
+caso de todo argumento comum passado a um parâmetro const). Um valor que ninguém altera nasce no
+const: um literal, ou uma cópia guardada nele. Números e textos const são sempre imutáveis, porque
+são copiados.
+
+```cinza
+import Lists;
+
+fn main() {
+  list<i32> a = [1, 2];
+  const list<i32> b = a;
+  const list<i32> c = Lists.copy(a);
+  a.add(3);
+  print(b, c);
+}
+// expect: [1, 2, 3] [1, 2]
+```
 
 ```cinza
 fn altera(list<i32> l) {

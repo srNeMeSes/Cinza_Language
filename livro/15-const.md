@@ -6,16 +6,20 @@
 - prever o que o `const` fecha (o recipiente inteiro, em qualquer profundidade) e onde ele para (no
   objeto de classe);
 - passar um valor `const` adiante sem abrir uma brecha nele: const só vai para const;
+- distinguir somente leitura de imutável: o que o `const` garante, e o que só a cópia garante;
 - escrever constantes globais, calculadas na compilação.
 
 **Pré-requisitos.** Os capítulos 7 a 9 (listas, dicionários, structs) e 12 (classes).
 
 ---
 
-`const` antes do tipo diz que um valor **não muda**. Numa variável de número ou de texto, isso quer
-dizer só que ela não pode ser reatribuída. Numa coleção ou num struct, quer dizer mais: nada dentro
-dele muda — nem um elemento, nem um campo, nem a lista dentro do campo. E o compilador garante que
-essa promessa não se quebra por outro caminho: um valor const só vai para outro lugar const.
+`const` antes do tipo diz que **por este nome o valor não muda**. Num número ou num texto, que são
+copiados, isso é o mesmo que o valor nunca mudar. Numa coleção ou num struct com coleções, que são
+compartilhados, o `const` é uma garantia de **somente leitura**: por esta variável — e por tudo o
+que sai dela — nada dentro do valor muda, nem um elemento, nem um campo, nem a lista dentro do
+campo. O compilador garante que a leitura não vira escrita por outro caminho: um valor const só vai
+para outro lugar const. O que o `const` não garante é que nenhum outro nome altere a mesma lista; a
+seção 15.5 mostra a diferença, e o que fazer quando ela importa.
 
 ## 15.1 A constante local
 
@@ -129,8 +133,8 @@ matriz.cinza:3:7: SemanticError: Constante 'm' não pode ser modificada: 'm[...]
 ```
 
 > **Por quê?** Um `const` que fechasse só o primeiro nível seria uma meia promessa: a lista não
-> ganharia elementos, mas os elementos mudariam. Quem lê `const` na declaração quer saber que o
-> valor que está vendo agora é o valor que vai ver depois — inteiro.
+> ganharia elementos, mas os elementos mudariam. Quem recebe um valor const quer saber que, por ele,
+> nada muda — o valor inteiro, não só a casca.
 
 ## 15.3 Parâmetros `const`
 
@@ -308,13 +312,87 @@ declaração sobre um opcional const, o elemento que `Lists.first` devolve, a al
 `else`. E um valor montado com um const — `[a]`, `{"x", a}`, `new Turma("A", a)` — guarda a lista
 dele, então também só vai para um const.
 
-> **Por quê?** Em muitas linguagens, a constante protege só o nome: em JavaScript, `const l = [1]`
-> impede `l = outra`, mas `l.push(2)` funciona; o `final` de Java é igual. Em C++, `const` protege
-> o conteúdo, mas um `const_cast` desfaz a promessa. A Cinza quis o `const` que se pode ler como um
-> fato: o que é const não muda, por nenhum caminho. O preço é escrever a cópia quando você quer
-> mesmo uma versão alterável — e a cópia, escrita, fica visível no código.
+> **Por quê?** Em JavaScript, `const l = [1]` protege só o nome: impede `l = outra`, mas
+> `l.push(2)` funciona; o `final` de Java é igual. O `const` da Cinza protege o conteúdo, como o
+> `const&` do C++ — sem o `const_cast`, que no C++ desfaz a promessa. Sem a regra desta seção, o
+> `const` de um parâmetro seria só um aviso: bastaria repassar a lista para uma função sem `const`.
+> O preço é escrever a cópia quando você quer uma versão alterável — e a cópia, escrita, fica
+> visível no código.
 
-## 15.5 O `const` para no objeto
+## 15.5 Somente leitura não é imutável
+
+O `const` diz o que **este nome** pode fazer com o valor — não o que os outros nomes podem. Quando
+uma variável comum e uma const veem a mesma lista, a comum continua podendo alterá-la, e a const vê
+a mudança:
+
+```cinza
+fn main() {
+  list<i32> a = [1, 2];
+  const list<i32> b = a;
+  a.add(3);
+  print(b);
+}
+```
+
+```saida
+[1, 2, 3]
+```
+
+A regra da seção 15.4 vai num sentido só: de um const não sai um acesso de escrita. Do alterável
+para o const, pode — é o que acontece em toda chamada de uma função com parâmetro const: `soma`
+recebe a lista comum da `main` (seção 15.3), e a `main` a altera antes e depois. O `const` de um
+parâmetro é a garantia de que **a função** não altera a lista, não a de que ela não muda enquanto a
+função roda: se a mesma lista chega também por um parâmetro alterável, a mudança por ele aparece
+no const.
+
+```cinza
+fn f(const list<i32> a, list<i32> b) {
+  print(a);
+  b.add(9);
+  print(a);
+}
+
+fn main() {
+  list<i32> l = [1];
+  f(l, l);
+}
+```
+
+```saida
+[1]
+[1, 9]
+```
+
+Para um valor que **ninguém** altera, a lista precisa nascer no const — um literal, ou uma cópia
+guardada nele. Então não há outro nome por onde alterá-la:
+
+```cinza
+import Lists;
+
+fn main() {
+  list<i32> a = [1, 2];
+  const list<i32> b = Lists.copy(a);
+  a.add(3);
+  print(a, b);
+}
+```
+
+```saida
+[1, 2, 3] [1, 2]
+```
+
+As constantes globais já são assim: números, textos, enums e opcionais deles, calculados na
+compilação (seção 15.7). E um número ou um texto const é sempre imutável, porque é copiado — não há
+outro nome que veja o mesmo valor.
+
+> **Por quê?** Garantir que **ninguém** altera uma lista exigiria saber, em cada ponto do programa,
+> quantos nomes a veem e quais deles podem escrever. É o que o verificador de empréstimos do Rust
+> faz, com regras que todo programa precisa satisfazer — duas referências alteráveis à mesma coisa,
+> por exemplo, nunca. A Cinza fica com a garantia que se confere olhando só a função: o que ela
+> recebe como const, ela não altera, nem as funções que ela chama. Para o valor que ninguém altera,
+> a ferramenta é a cópia — explícita, e visível no código.
+
+## 15.6 O `const` para no objeto
 
 Um objeto de classe nunca é const:
 
@@ -366,7 +444,7 @@ fn main() {
 `contas.add(...)` seria erro: a lista não muda. Mas o objeto sai livre da lista (`Conta c =
 contas[0]`), porque objetos já são compartilhados por natureza (seção 12.8) e nunca são const.
 
-## 15.6 As constantes globais
+## 15.7 As constantes globais
 
 No nível de cima do arquivo só há constantes (capítulo 1), e o valor delas é **calculado na
 compilação**. O inicializador pode ter literais, operadores, outras constantes já declaradas, as
@@ -468,7 +546,7 @@ const i64 A = 21;
 > conhecido —, não roda código antes da `main` e não falha no meio da execução. E, sem globais
 > mutáveis, o estado de um programa Cinza está todo nas variáveis das funções e nos argumentos.
 
-## 15.7 Os nomes de outras linguagens
+## 15.8 Os nomes de outras linguagens
 
 | Em outras linguagens | Na Cinza |
 |----------------------|----------|
@@ -477,7 +555,8 @@ const i64 A = 21;
 | `let mut x` (Rust) | a variável comum: alterável é o padrão |
 | `const l = [1]` em JavaScript (`l.push` vale) | `const list<i32> l = [1];` (nada muda) |
 | `const std::vector<int>& v` (C++) | `const list<i32> v` no parâmetro |
-| `readonly` (C#), `Object.freeze` (JavaScript) | `const`, em qualquer profundidade |
+| `readonly` (C#), `ReadonlyArray` (TypeScript) | `const`: somente leitura, em qualquer profundidade |
+| `Object.freeze` (JavaScript), um valor imutável | uma lista criada no const, ou a cópia guardada nele |
 | `static final` / `#define` / `constexpr` | `const` global, calculado na compilação |
 
 O compilador reconhece o `final` e o `let`:
@@ -641,6 +720,8 @@ Repare em:
 - **Const só vai para const**: um valor de um const que guarda lista ou dicionário só vai para uma
   variável ou um parâmetro const. A versão alterável é a cópia explícita (`Lists.copy`,
   `Dicts.copy`), que é rasa. Números, textos e structs só de valores copiam livres.
+- O `const` é **somente leitura**, não imutável: outro nome alterável da mesma lista ainda a muda.
+  Para um valor que ninguém altera, crie a lista no const, ou guarde nele uma cópia.
 - O `const` para no objeto de classe: `const Conta c` é erro, e os objetos de uma lista const
   continuam alteráveis.
 - As constantes globais são calculadas na compilação, só com literais, operadores, constantes já
@@ -670,7 +751,7 @@ Repare em:
 
 4. Dada `const list<list<i32>> M = ...` (numa `main`), monte uma cópia em que trocar `copia[0][0]`
    não muda `M`, e imprima as duas.
-5. Sem rodar, diga quais destas linhas compilam, numa `main` com a classe `Conta` da seção 15.5:
+5. Sem rodar, diga quais destas linhas compilam, numa `main` com a classe `Conta` da seção 15.6:
    `const list<Conta> l = [new Conta()];`, `l[0].deposita(1);`, `l.add(new Conta());`,
    `Conta c = l[0];`, `list<Conta> outra = l;`.
 
@@ -678,6 +759,7 @@ As soluções estão em [`solucoes/15-const.md`](solucoes/15-const.md).
 
 ## Na spec
 
-- `const`, o recipiente, o objeto e "const só vai para const": [3.9](../spec/03-tipos.md)
+- `const`, o recipiente, o objeto, "const só vai para const" e somente leitura:
+  [3.9](../spec/03-tipos.md)
 - As constantes globais: [4.3](../spec/04-declaracoes.md)
 - O compartilhamento e a cópia: [5.1](../spec/05-execucao.md)

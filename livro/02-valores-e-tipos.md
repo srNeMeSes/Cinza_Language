@@ -475,8 +475,8 @@ passam a ver o mesmo valor (detalhes no capítulo 5):
 - **`null` só existe no opcional `T?`**, e o compilador exige que a ausência seja resolvida antes
   de usar o valor (capítulo 11). Um `string`, um objeto, uma lista nunca são `null`.
 - **Coleções são invariantes**: `list<i32>` não é `list<i64>` (capítulo 7).
-- **`const` fecha um valor** contra mudanças, em qualquer profundidade, e para no objeto de classe
-  (capítulo 15).
+- **`const` é somente leitura**: pelo nome const nada muda, em qualquer profundidade, e ele para no
+  objeto de classe (capítulo 15).
 - **Genéricos** são conferidos em cada uso, com os tipos concretos (capítulos 16 e 17).
 
 **O que é conferido antes de rodar** — os tipos de cada expressão, as conversões, o `null`, os
